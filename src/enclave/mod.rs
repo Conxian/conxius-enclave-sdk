@@ -1,6 +1,6 @@
 pub mod android_strongbox;
 
-use crate::{ConclaveResult, ConclaveError};
+use crate::ConclaveResult;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
