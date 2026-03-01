@@ -10,6 +10,7 @@ bdk = "0.30.2"
 bitcoin = "0.32.8"
 getrandom = { version = "0.2", features = ["js"] }
 hmac = "0.12.1"
+jni = "0.22.1"
 js-sys = "0.3.91"
 k256 = "0.13.4"
 pbkdf2 = "0.12.2"

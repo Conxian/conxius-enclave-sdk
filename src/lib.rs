@@ -5,6 +5,10 @@ pub mod protocol;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm_bindings;
 
+// Re-export JNI bindings if the target is Android
+#[cfg(target_os = "android")]
+pub mod android;
+
 /// The core Conclave SDK result type
 pub type ConclaveResult<T> = Result<T, ConclaveError>;
 
