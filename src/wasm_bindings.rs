@@ -1,6 +1,7 @@
 use wasm_bindgen::prelude::*;
 use crate::enclave::{SignRequest, HeadlessEnclave};
 use crate::enclave::android_strongbox::CoreEnclaveManager;
+use crate::protocol::affiliate::AffiliateManager;
 
 #[wasm_bindgen]
 pub struct ConclaveWasmClient {
@@ -40,6 +41,17 @@ impl ConclaveWasmClient {
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         serde_wasm_bindgen::to_value(&response)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Securely generates an affiliate referral proof
+    #[wasm_bindgen]
+    pub fn generate_referral_proof(&self, partner_id: &str, user_id: &str) -> Result<JsValue, JsValue> {
+        let affiliate_mgr = AffiliateManager::new(&self.manager);
+        let proof = affiliate_mgr.generate_referral_proof(partner_id, user_id)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        serde_wasm_bindgen::to_value(&proof)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 }

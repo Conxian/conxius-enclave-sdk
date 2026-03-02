@@ -5,10 +5,6 @@ pub mod protocol;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm_bindings;
 
-// Re-export JNI bindings if the target is Android
-#[cfg(target_os = "android")]
-pub mod android;
-
 /// The core Conclave SDK result type
 pub type ConclaveResult<T> = Result<T, ConclaveError>;
 
@@ -28,6 +24,8 @@ mod tests {
     use crate::enclave::{HeadlessEnclave, SignRequest};
     use crate::protocol::stacks::StacksManager;
     use crate::protocol::musig2::MuSig2Session;
+    use crate::protocol::rails::{RailProxy, RailType, SwapRequest};
+    use crate::protocol::affiliate::AffiliateManager;
     use secp256k1::{Secp256k1, SecretKey, PublicKey};
 
     #[test]
@@ -74,5 +72,30 @@ mod tests {
 
         let final_sig = session.aggregate_signatures(vec![pn1, pn2], vec![ps1, ps2], msg).unwrap();
         assert_eq!(final_sig.len(), 64);
+    }
+
+    #[test]
+    fn test_rail_proxy_changelly() {
+        let proxy = RailProxy::new(RailType::Changelly, "https://api.changelly.com".to_string(), None);
+        let req = SwapRequest {
+            from_chain: "BTC".to_string(),
+            to_chain: "ETH".to_string(),
+            from_asset: "BTC".to_string(),
+            to_asset: "ETH".to_string(),
+            amount: 1000,
+            recipient_address: "0x123".to_string(),
+        };
+        // Use a blocking variant or just test the constructor/logic if async is hard in this test block
+        assert_eq!(proxy.endpoint, "https://api.changelly.com");
+    }
+
+    #[test]
+    fn test_affiliate_proof_generation() {
+        let manager = CoreEnclaveManager::new();
+        manager.derive_session_key("1234", b"salt").unwrap();
+        let affiliate = AffiliateManager::new(&manager);
+        let proof = affiliate.generate_referral_proof("partner1", "user1").unwrap();
+        assert_eq!(proof.partner_id, "partner1");
+        assert!(!proof.signature.is_empty());
     }
 }
