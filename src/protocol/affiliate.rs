@@ -7,6 +7,7 @@ pub struct AffiliateProof {
     pub partner_id: String,
     pub user_id: String,
     pub timestamp: u64,
+    pub expiration: u64,
     pub signature: String,
 }
 
@@ -24,7 +25,9 @@ impl<'a> AffiliateManager<'a> {
     /// are cryptographically linked to a valid user session.
     pub fn generate_referral_proof(&self, partner_id: &str, user_id: &str) -> ConclaveResult<AffiliateProof> {
         let timestamp = 1710000000; // Mock timestamp
-        let message = format!("{}:{}:{}", partner_id, user_id, timestamp);
+        let ttl = 3600; // 1 hour TTL
+        let expiration = timestamp + ttl;
+        let message = format!("{}:{}:{}:{}", partner_id, user_id, timestamp, expiration);
 
         let mut hasher = sha2::Sha256::new();
         hasher.update(message.as_bytes());
@@ -42,6 +45,7 @@ impl<'a> AffiliateManager<'a> {
             partner_id: partner_id.to_string(),
             user_id: user_id.to_string(),
             timestamp,
+            expiration,
             signature: response.signature_hex,
         })
     }

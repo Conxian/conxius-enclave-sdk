@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+zeroize = { version = "1.8.1", features = ["derive", "zeroize_derive"] }
+async-trait = "0.1.80"
 aes = "0.8.4"
 aes-gcm = "0.10.3"
 bdk = "0.30.2"

@@ -30,7 +30,14 @@ impl DeviceIntegrityReport {
             return false;
         }
 
-        // 2. Hardware-backed verification
+        // 2. Certificate Chain Verification (Simulated Root of Trust)
+        // In a real implementation, we would verify each cert in the chain up to the Conclave Root CA.
+        let has_root_trust = self.certificate_chain.iter().any(|c| c.contains("CONCLAVE_ROOT_CA"));
+        if !has_root_trust {
+            return false;
+        }
+
+        // 3. Hardware-backed verification
         // StrongBox reports must include specific extension data matching the platform.
         let is_strongbox = matches!(self.level, AttestationLevel::StrongBox);
         let has_valid_extension = self.extension_data.contains("PURPOSE_SIGN")

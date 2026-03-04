@@ -5,6 +5,7 @@ use k256::schnorr::signature::Signer;
 use secp256k1::{Secp256k1, Message, SecretKey, ecdsa::RecoverableSignature, ecdsa::RecoveryId};
 use rand::Rng;
 use hmac::{Hmac, Mac};
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::{ConclaveResult, ConclaveError, enclave::{HeadlessEnclave, SignRequest, SignResponse}};
 use crate::enclave::attestation::{DeviceIntegrityReport, AttestationLevel};
@@ -12,7 +13,7 @@ use crate::enclave::attestation::{DeviceIntegrityReport, AttestationLevel};
 type HmacSha512 = Hmac<Sha512>;
 
 pub struct CoreEnclaveManager {
-    session_key: Mutex<Option<[u8; 64]>>,
+    session_key: Mutex<Option<Zeroizing<[u8; 64]>>>,
 }
 
 impl CoreEnclaveManager {
@@ -23,11 +24,15 @@ impl CoreEnclaveManager {
     }
 
     pub fn derive_session_key(&self, pin: &str, salt: &[u8]) -> ConclaveResult<()> {
+        if pin.len() < 4 {
+            return Err(ConclaveError::CryptoError("PIN too short".to_string()));
+        }
+
         let mut key = [0u8; 64];
-        pbkdf2_hmac::<Sha512>(pin.as_bytes(), salt, 100_000, &mut key);
+        pbkdf2_hmac::<Sha512>(pin.as_bytes(), salt, 600_000, &mut key);
         
         let mut session = self.session_key.lock().map_err(|_| ConclaveError::EnclaveFailure("Mutex poison".to_string()))?;
-        *session = Some(key);
+        *session = Some(Zeroizing::new(key));
         
         Ok(())
     }
@@ -37,18 +42,21 @@ impl CoreEnclaveManager {
         session.is_some()
     }
 
-    fn derive_child_key(&self, derivation_path: &str) -> ConclaveResult<[u8; 32]> {
+    fn derive_child_key(&self, derivation_path: &str) -> ConclaveResult<Zeroizing<[u8; 32]>> {
         let session_lock = self.session_key.lock().map_err(|_| ConclaveError::EnclaveFailure("Mutex poison".to_string()))?;
-        let session_key = session_lock.ok_or(ConclaveError::EnclaveFailure("Enclave not unlocked".to_string()))?;
+        let session_key = session_lock.as_ref().ok_or(ConclaveError::EnclaveFailure("Enclave not unlocked".to_string()))?;
 
-        let mut mac = HmacSha512::new_from_slice(&session_key)
+        // Access the inner array of Zeroizing
+        let session_key_bytes: &[u8] = &**session_key;
+
+        let mut mac = HmacSha512::new_from_slice(session_key_bytes)
             .map_err(|_| ConclaveError::CryptoError("KDF initialization failure".to_string()))?;
         mac.update(derivation_path.as_bytes());
         let result = mac.finalize();
 
         let mut key = [0u8; 32];
         key.copy_from_slice(&result.into_bytes()[..32]);
-        Ok(key)
+        Ok(Zeroizing::new(key))
     }
 
     fn generate_attestation(&self, challenge: &[u8]) -> DeviceIntegrityReport {
@@ -123,16 +131,25 @@ impl HeadlessEnclave for CoreEnclaveManager {
     fn generate_key(&self, _key_id: &str) -> ConclaveResult<String> {
         let mut seed = [0u8; 32];
         rand::rng().fill_bytes(&mut seed);
-        Ok(hex::encode(seed))
+        let key_hex = hex::encode(seed);
+        seed.zeroize();
+        Ok(key_hex)
     }
 
     fn sign(&self, request: SignRequest) -> ConclaveResult<SignResponse> {
-        let derived_priv_key = self.derive_child_key(&request.derivation_path)?;
-
-        if request.derivation_path.contains("86'") || request.derivation_path.contains("schnorr") {
-            self.sign_schnorr(&derived_priv_key, &request.message_hash)
-        } else {
-            self.sign_ecdsa(&derived_priv_key, &request.message_hash)
+        if request.message_hash.len() != 32 {
+            return Err(ConclaveError::InvalidPayload);
         }
+
+        let mut derived_priv_key = self.derive_child_key(&request.derivation_path)?;
+
+        let response = if request.derivation_path.contains("86'") || request.derivation_path.contains("schnorr") {
+            self.sign_schnorr(&*derived_priv_key, &request.message_hash)
+        } else {
+            self.sign_ecdsa(&*derived_priv_key, &request.message_hash)
+        };
+
+        derived_priv_key.zeroize();
+        response
     }
 }

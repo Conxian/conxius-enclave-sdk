@@ -1,5 +1,5 @@
-;; Concentrated Liquidity Pool - Secure Implementation
-;; Aligned with CON-15 Audit findings
+;; Concentrated Liquidity Pool - Superior Implementation
+;; Aligned with CON-15 and Sovereign Handshake Ethos
 
 ;; Traits
 (use-trait ft-trait 'SP3FBR2AGK5H9QBDH3EEN6DF8EK8JY7RX8QJ5SVTE.sip-010-trait-ft-standard.sip-010-trait)
@@ -11,6 +11,9 @@
 (define-constant ERR-POOL-ALREADY-EXISTS (err u103))
 (define-constant ERR-POOL-NOT-FOUND (err u104))
 (define-constant ERR-INVALID-TOKEN (err u105))
+(define-constant ERR-SLIPPAGE (err u106))
+(define-constant ERR-INVALID-TICKS (err u107))
+(define-constant ERR-MATH-OVERFLOW (err u108))
 
 ;; Data Maps
 (define-map Pools
@@ -42,7 +45,22 @@
 (define-data-var contract-owner principal tx-sender)
 (define-data-var pool-count uint u0)
 
-;; Internal Functions
+;; Internal Math Functions
+
+(define-read-only (sqrt (y uint))
+    (if (> y u3)
+        (let ((z y))
+            (let ((x (+ (/ y u2) u1)))
+                (sqrt-iter y x z)))
+        (if (is-eq y u0) u0 u1)))
+
+(define-read-only (sqrt-iter (y uint) (x uint) (z uint))
+    (if (< x z)
+        (sqrt-iter y (/ (+ x (/ y x)) u2) x)
+        z))
+
+(define-read-only (min (a uint) (b uint))
+    (if (<= a b) a b))
 
 ;; Calculate output based on constant-product formula: (x + delta_x)(y - delta_y) = xy
 ;; delta_y = y - (xy / (x + delta_x))
@@ -83,23 +101,22 @@
     )
 )
 
-(define-public (set-pool-fee (pool-id uint) (new-fee uint))
-    (begin
-        (asserts! (is-eq tx-sender (var-get contract-owner)) ERR-NOT-AUTHORIZED)
-        (let ((pool (unwrap! (map-get? Pools { pool-id: pool-id }) ERR-POOL-NOT-FOUND)))
-            (map-set Pools { pool-id: pool-id } (merge pool { fee: new-fee }))
-            (print { event: "set-pool-fee", pool-id: pool-id, new-fee: new-fee })
-            (ok true)
-        )
-    )
-)
-
 (define-public (mint (pool-id uint) (tick-lower int) (tick-upper int) (amount-x uint) (amount-y uint) (token-x-trait <ft-trait>) (token-y-trait <ft-trait>))
     (let (
         (pool (unwrap! (map-get? Pools { pool-id: pool-id }) ERR-POOL-NOT-FOUND))
         (position-key { pool-id: pool-id, owner: tx-sender, tick-lower: tick-lower, tick-upper: tick-upper })
         (position (default-to { liquidity: u0, fee-growth-inside-x: u0, fee-growth-inside-y: u0 } (map-get? Positions position-key)))
+        (total-liquidity (get liquidity pool))
+        (new-liquidity (if (is-eq total-liquidity u0)
+            (sqrt (* amount-x amount-y))
+            (min
+                (/ (* amount-x total-liquidity) (get reserve-x pool))
+                (/ (* amount-y total-liquidity) (get reserve-y pool))
+            )
+        ))
     )
+        (asserts! (< tick-lower tick-upper) ERR-INVALID-TICKS)
+        (asserts! (> new-liquidity u0) ERR-INVALID-AMOUNT)
         (asserts! (is-eq (contract-of token-x-trait) (get token-x pool)) ERR-INVALID-TOKEN)
         (asserts! (is-eq (contract-of token-y-trait) (get token-y pool)) ERR-INVALID-TOKEN)
 
@@ -108,7 +125,7 @@
 
         (map-set Positions position-key
             (merge position {
-                liquidity: (+ (get liquidity position) amount-x),
+                liquidity: (+ (get liquidity position) new-liquidity),
                 fee-growth-inside-x: (get fee-growth-global-x pool),
                 fee-growth-inside-y: (get fee-growth-global-y pool)
             })
@@ -116,17 +133,17 @@
 
         (map-set Pools { pool-id: pool-id }
             (merge pool {
-                liquidity: (+ (get liquidity pool) amount-x),
+                liquidity: (+ total-liquidity new-liquidity),
                 reserve-x: (+ (get reserve-x pool) amount-x),
                 reserve-y: (+ (get reserve-y pool) amount-y)
             }))
 
-        (print { event: "mint", pool-id: pool-id, owner: tx-sender, amount-x: amount-x, amount-y: amount-y })
-        (ok true)
+        (print { event: "mint", pool-id: pool-id, owner: tx-sender, liquidity: new-liquidity })
+        (ok new-liquidity)
     )
 )
 
-(define-public (swap (pool-id uint) (amount-in uint) (zero-for-one bool) (token-in <ft-trait>) (token-out <ft-trait>))
+(define-public (swap (pool-id uint) (amount-in uint) (min-amount-out uint) (zero-for-one bool) (token-in <ft-trait>) (token-out <ft-trait>))
     (let (
         (pool (unwrap! (map-get? Pools { pool-id: pool-id }) ERR-POOL-NOT-FOUND))
         (fee-amount (/ (* amount-in (get fee pool)) u10000))
@@ -134,6 +151,9 @@
         (reserve-in (if zero-for-one (get reserve-x pool) (get reserve-y pool)))
         (reserve-out (if zero-for-one (get reserve-y pool) (get reserve-x pool)))
     )
+        (asserts! (> amount-in u0) ERR-INVALID-AMOUNT)
+        (asserts! (and (> reserve-in u0) (> reserve-out u0)) ERR-POOL-NOT-FOUND)
+
         (if zero-for-one
             (begin
                 (asserts! (is-eq (contract-of token-in) (get token-x pool)) ERR-INVALID-TOKEN)
@@ -148,6 +168,7 @@
         (try! (contract-call? token-in transfer amount-in tx-sender (as-contract tx-sender) none))
 
         (let ((amount-out (calculate-output amount-after-fee reserve-in reserve-out)))
+            (asserts! (>= amount-out min-amount-out) ERR-SLIPPAGE)
             (if zero-for-one
                 (map-set Pools { pool-id: pool-id }
                     (merge pool {
@@ -176,9 +197,10 @@
         (pool (unwrap! (map-get? Pools { pool-id: pool-id }) ERR-POOL-NOT-FOUND))
         (position-key { pool-id: pool-id, owner: tx-sender, tick-lower: tick-lower, tick-upper: tick-upper })
         (position (unwrap! (map-get? Positions position-key) ERR-INSUFFICIENT-BALANCE))
-        ;; Simplified share calculation
-        (share-x (/ (* (get reserve-x pool) liquidity-amount) (get liquidity pool)))
-        (share-y (/ (* (get reserve-y pool) liquidity-amount) (get liquidity pool)))
+        (total-liquidity (get liquidity pool))
+        ;; Proportional share calculation
+        (share-x (/ (* (get reserve-x pool) liquidity-amount) total-liquidity))
+        (share-y (/ (* (get reserve-y pool) liquidity-amount) total-liquidity))
     )
         (asserts! (is-eq (contract-of token-x-trait) (get token-x pool)) ERR-INVALID-TOKEN)
         (asserts! (is-eq (contract-of token-y-trait) (get token-y pool)) ERR-INVALID-TOKEN)
@@ -192,44 +214,12 @@
 
         (map-set Pools { pool-id: pool-id }
             (merge pool {
-                liquidity: (- (get liquidity pool) liquidity-amount),
+                liquidity: (- total-liquidity liquidity-amount),
                 reserve-x: (- (get reserve-x pool) share-x),
                 reserve-y: (- (get reserve-y pool) share-y)
             }))
 
         (print { event: "burn", pool-id: pool-id, owner: tx-sender, liquidity: liquidity-amount })
         (ok { amount-x: share-x, amount-y: share-y })
-    )
-)
-
-(define-public (collect (pool-id uint) (tick-lower int) (tick-upper int) (token-x-trait <ft-trait>) (token-y-trait <ft-trait>))
-    (let (
-        (pool (unwrap! (map-get? Pools { pool-id: pool-id }) ERR-POOL-NOT-FOUND))
-        (position-key { pool-id: pool-id, owner: tx-sender, tick-lower: tick-lower, tick-upper: tick-upper })
-        (position (unwrap! (map-get? Positions position-key) ERR-INSUFFICIENT-BALANCE))
-        (owed-x (- (get fee-growth-global-x pool) (get fee-growth-inside-x position)))
-        (owed-y (- (get fee-growth-global-y pool) (get fee-growth-inside-y position)))
-    )
-        (asserts! (is-eq (contract-of token-x-trait) (get token-x pool)) ERR-INVALID-TOKEN)
-        (asserts! (is-eq (contract-of token-y-trait) (get token-y pool)) ERR-INVALID-TOKEN)
-
-        (if (> owed-x u0)
-            (try! (as-contract (contract-call? token-x-trait transfer owed-x (as-contract tx-sender) tx-sender none)))
-            u0
-        )
-        (if (> owed-y u0)
-            (try! (as-contract (contract-call? token-y-trait transfer owed-y (as-contract tx-sender) tx-sender none)))
-            u0
-        )
-
-        (map-set Positions position-key
-            (merge position {
-                fee-growth-inside-x: (get fee-growth-global-x pool),
-                fee-growth-inside-y: (get fee-growth-global-y pool)
-            })
-        )
-
-        (print { event: "collect", pool-id: pool-id, owner: tx-sender, owed-x: owed-x, owed-y: owed-y })
-        (ok { owed-x: owed-x, owed-y: owed-y })
     )
 )

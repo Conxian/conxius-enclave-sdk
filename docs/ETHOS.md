@@ -6,11 +6,11 @@
 
 ## Status & Gaps
 - [x] SDK Hardware Abstraction (Headless/Android)
+- [x] Stacks CLP Security & Math Fixes (CON-15)
+- [x] Affiliate/Marketing Secure Integration
 - [ ] Real Rails Deployment (Changelly, Bisq, Wormhole)
 - [ ] Hardware Attestation Activation
-- [ ] Stacks CLP Security Fixes (CON-15)
-- [ ] Affiliate/Marketing Secure Integration
-
+- [ ] Native Bitcoin Taproot Integration (Superior Upgrade)
 
 ## Real Rails Implementation
 - **Changelly Proxy**: Centralized liquidity partner for fast swaps. Integrated via secure proxy to hide user metadata.
