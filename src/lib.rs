@@ -1,11 +1,9 @@
 pub mod enclave;
 pub mod protocol;
 
-// Re-export core WebAssembly bindings if the target is WASM
 #[cfg(target_arch = "wasm32")]
 pub mod wasm_bindings;
 
-/// The core Conclave SDK result type
 pub type ConclaveResult<T> = Result<T, ConclaveError>;
 
 #[derive(Debug, thiserror::Error)]
@@ -27,6 +25,36 @@ mod tests {
     use crate::protocol::rails::{RailProxy, RailType, SwapRequest};
     use crate::protocol::affiliate::AffiliateManager;
     use secp256k1::{Secp256k1, SecretKey, PublicKey};
+
+    #[tokio::test]
+    async fn test_sovereign_rail_swap() {
+        let manager = CoreEnclaveManager::new();
+        manager.derive_session_key("1234", b"salt").unwrap();
+
+        let proxy = RailProxy::new(RailType::Changelly, "https://api.changelly.com".to_string(), None);
+        let req = SwapRequest {
+            from_chain: "BTC".to_string(),
+            to_chain: "ETH".to_string(),
+            from_asset: "BTC".to_string(),
+            to_asset: "ETH".to_string(),
+            amount: 1000,
+            recipient_address: "0x123".to_string(),
+        };
+
+        // 1. Prepare intent
+        let intent = proxy.prepare_swap(req);
+
+        // 2. Sign in enclave
+        let sig_resp = manager.sign(SignRequest {
+            message_hash: intent.signable_hash.clone(),
+            derivation_path: "m/44'/0'/0'/0/0".to_string(),
+            key_id: "test".to_string(),
+        }).unwrap();
+
+        // 3. Broadcast
+        let response = proxy.broadcast_swap(intent, sig_resp.signature_hex).await.unwrap();
+        assert!(response.transaction_id.starts_with("CHG-PX-"));
+    }
 
     #[test]
     fn test_enclave_signing() {
@@ -72,21 +100,6 @@ mod tests {
 
         let final_sig = session.aggregate_signatures(vec![pn1, pn2], vec![ps1, ps2], msg).unwrap();
         assert_eq!(final_sig.len(), 64);
-    }
-
-    #[test]
-    fn test_rail_proxy_changelly() {
-        let proxy = RailProxy::new(RailType::Changelly, "https://api.changelly.com".to_string(), None);
-        let req = SwapRequest {
-            from_chain: "BTC".to_string(),
-            to_chain: "ETH".to_string(),
-            from_asset: "BTC".to_string(),
-            to_asset: "ETH".to_string(),
-            amount: 1000,
-            recipient_address: "0x123".to_string(),
-        };
-        // Use a blocking variant or just test the constructor/logic if async is hard in this test block
-        assert_eq!(proxy.endpoint, "https://api.changelly.com");
     }
 
     #[test]
