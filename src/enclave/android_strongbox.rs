@@ -23,8 +23,13 @@ impl CoreEnclaveManager {
     }
 
     pub fn derive_session_key(&self, pin: &str, salt: &[u8]) -> ConclaveResult<()> {
+        if pin.len() < 4 {
+            return Err(ConclaveError::CryptoError("PIN too short".to_string()));
+        }
+
         let mut key = [0u8; 64];
-        pbkdf2_hmac::<Sha512>(pin.as_bytes(), salt, 100_000, &mut key);
+        // Increased iterations for better security
+        pbkdf2_hmac::<Sha512>(pin.as_bytes(), salt, 600_000, &mut key);
         
         let mut session = self.session_key.lock().map_err(|_| ConclaveError::EnclaveFailure("Mutex poison".to_string()))?;
         *session = Some(key);
@@ -41,6 +46,7 @@ impl CoreEnclaveManager {
         let session_lock = self.session_key.lock().map_err(|_| ConclaveError::EnclaveFailure("Mutex poison".to_string()))?;
         let session_key = session_lock.ok_or(ConclaveError::EnclaveFailure("Enclave not unlocked".to_string()))?;
 
+        // BIP32-like child key derivation using HMAC-SHA512
         let mut mac = HmacSha512::new_from_slice(&session_key)
             .map_err(|_| ConclaveError::CryptoError("KDF initialization failure".to_string()))?;
         mac.update(derivation_path.as_bytes());
@@ -127,6 +133,10 @@ impl HeadlessEnclave for CoreEnclaveManager {
     }
 
     fn sign(&self, request: SignRequest) -> ConclaveResult<SignResponse> {
+        if request.message_hash.len() != 32 {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
         let derived_priv_key = self.derive_child_key(&request.derivation_path)?;
 
         if request.derivation_path.contains("86'") || request.derivation_path.contains("schnorr") {

@@ -46,16 +46,23 @@ impl RailProxy {
 
     /// PHASE 1: Prepare the swap intent.
     /// Returns a signable payload that represents the user's sovereign intent.
-    pub fn prepare_swap(&self, request: SwapRequest) -> SwapIntent {
+    pub fn prepare_swap(&self, request: SwapRequest) -> Result<SwapIntent, String> {
+        if request.amount == 0 {
+            return Err("Amount must be greater than zero".to_string());
+        }
+        if request.recipient_address.is_empty() {
+            return Err("Recipient address is required".to_string());
+        }
+
         let mut hasher = Sha256::new();
         hasher.update(format!("{:?}:{:?}:{}", self.rail_type, request, self.endpoint).as_bytes());
         let signable_hash = hasher.finalize().to_vec();
 
-        SwapIntent {
+        Ok(SwapIntent {
             request,
             signable_hash,
             rail_type: self.rail_type.clone(),
-        }
+        })
     }
 
     /// PHASE 2: Broadcast the swap with the signature.

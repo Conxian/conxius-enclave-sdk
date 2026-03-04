@@ -1,4 +1,4 @@
-use crate::{ConclaveResult, enclave::{SignRequest, HeadlessEnclave}};
+use crate::{ConclaveResult, ConclaveError, enclave::{SignRequest, HeadlessEnclave}};
 use sha2::{Sha256, Digest};
 
 /// Stacks-specific transaction and message handling.
@@ -13,6 +13,10 @@ impl<'a> StacksManager<'a> {
 
     /// Formats and signs a Stacks message (SIP-018)
     pub fn sign_message(&self, message: &str, key_id: &str) -> ConclaveResult<String> {
+        if message.is_empty() {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
         let prefix = "\x17Stacks Signed Message:\n";
         let mut hasher = Sha256::new();
         hasher.update(prefix.as_bytes());
@@ -32,6 +36,10 @@ impl<'a> StacksManager<'a> {
 
     /// Signs a Stacks transaction payload (placeholder for complex SIP-005 logic)
     pub fn sign_transaction_payload(&self, payload: &[u8], key_id: &str) -> ConclaveResult<String> {
+        if payload.is_empty() {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
         // Stacks transactions are double-sha256 hashed usually for the signing part
         let mut hasher = Sha256::new();
         hasher.update(payload);

@@ -20,6 +20,7 @@ pub enum ConclaveError {
 mod tests {
     use crate::enclave::android_strongbox::CoreEnclaveManager;
     use crate::enclave::{HeadlessEnclave, SignRequest};
+    use crate::enclave::attestation::DeviceIntegrityReport;
     use crate::protocol::stacks::StacksManager;
     use crate::protocol::musig2::MuSig2Session;
     use crate::protocol::rails::{RailProxy, RailType, SwapRequest};
@@ -42,7 +43,7 @@ mod tests {
         };
 
         // 1. Prepare intent
-        let intent = proxy.prepare_swap(req);
+        let intent = proxy.prepare_swap(req).unwrap();
 
         // 2. Sign in enclave
         let sig_resp = manager.sign(SignRequest {
@@ -57,12 +58,13 @@ mod tests {
     }
 
     #[test]
-    fn test_enclave_signing() {
+    fn test_enclave_signing_and_attestation() {
         let manager = CoreEnclaveManager::new();
         manager.derive_session_key("1234", b"salt").unwrap();
 
+        let message_hash = vec![0u8; 32];
         let request = SignRequest {
-            message_hash: vec![0u8; 32],
+            message_hash: message_hash.clone(),
             derivation_path: "m/44'/0'/0'/0/0".to_string(),
             key_id: "test".to_string(),
         };
@@ -70,6 +72,10 @@ mod tests {
         let response = manager.sign(request).unwrap();
         assert!(!response.signature_hex.is_empty());
         assert!(!response.public_key_hex.is_empty());
+
+        let attestation_json = response.device_attestation.unwrap();
+        let attestation: DeviceIntegrityReport = serde_json::from_str(&attestation_json).unwrap();
+        assert!(attestation.verify(&message_hash));
     }
 
     #[test]
@@ -109,6 +115,23 @@ mod tests {
         let affiliate = AffiliateManager::new(&manager);
         let proof = affiliate.generate_referral_proof("partner1", "user1").unwrap();
         assert_eq!(proof.partner_id, "partner1");
+        assert!(proof.expiration > proof.timestamp);
         assert!(!proof.signature.is_empty());
+    }
+
+    #[test]
+    fn test_invalid_enclave_ops() {
+        let manager = CoreEnclaveManager::new();
+        // Too short PIN
+        assert!(manager.derive_session_key("123", b"salt").is_err());
+
+        manager.derive_session_key("1234", b"salt").unwrap();
+        // Invalid message hash size
+        let request = SignRequest {
+            message_hash: vec![0u8; 31],
+            derivation_path: "m/44'/0'/0'/0/0".to_string(),
+            key_id: "test".to_string(),
+        };
+        assert!(manager.sign(request).is_err());
     }
 }

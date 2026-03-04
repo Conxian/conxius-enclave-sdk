@@ -11,6 +11,8 @@
 (define-constant ERR-POOL-ALREADY-EXISTS (err u103))
 (define-constant ERR-POOL-NOT-FOUND (err u104))
 (define-constant ERR-INVALID-TOKEN (err u105))
+(define-constant ERR-SLIPPAGE (err u106))
+(define-constant ERR-INVALID-TICKS (err u107))
 
 ;; Data Maps
 (define-map Pools
@@ -100,11 +102,19 @@
         (position-key { pool-id: pool-id, owner: tx-sender, tick-lower: tick-lower, tick-upper: tick-upper })
         (position (default-to { liquidity: u0, fee-growth-inside-x: u0, fee-growth-inside-y: u0 } (map-get? Positions position-key)))
     )
+        (asserts! (< tick-lower tick-upper) ERR-INVALID-TICKS)
+        (asserts! (or (> amount-x u0) (> amount-y u0)) ERR-INVALID-AMOUNT)
         (asserts! (is-eq (contract-of token-x-trait) (get token-x pool)) ERR-INVALID-TOKEN)
         (asserts! (is-eq (contract-of token-y-trait) (get token-y pool)) ERR-INVALID-TOKEN)
 
-        (try! (contract-call? token-x-trait transfer amount-x tx-sender (as-contract tx-sender) none))
-        (try! (contract-call? token-y-trait transfer amount-y tx-sender (as-contract tx-sender) none))
+        (if (> amount-x u0)
+            (try! (contract-call? token-x-trait transfer amount-x tx-sender (as-contract tx-sender) none))
+            u0
+        )
+        (if (> amount-y u0)
+            (try! (contract-call? token-y-trait transfer amount-y tx-sender (as-contract tx-sender) none))
+            u0
+        )
 
         (map-set Positions position-key
             (merge position {
@@ -126,7 +136,7 @@
     )
 )
 
-(define-public (swap (pool-id uint) (amount-in uint) (zero-for-one bool) (token-in <ft-trait>) (token-out <ft-trait>))
+(define-public (swap (pool-id uint) (amount-in uint) (min-amount-out uint) (zero-for-one bool) (token-in <ft-trait>) (token-out <ft-trait>))
     (let (
         (pool (unwrap! (map-get? Pools { pool-id: pool-id }) ERR-POOL-NOT-FOUND))
         (fee-amount (/ (* amount-in (get fee pool)) u10000))
@@ -134,6 +144,7 @@
         (reserve-in (if zero-for-one (get reserve-x pool) (get reserve-y pool)))
         (reserve-out (if zero-for-one (get reserve-y pool) (get reserve-x pool)))
     )
+        (asserts! (> amount-in u0) ERR-INVALID-AMOUNT)
         (if zero-for-one
             (begin
                 (asserts! (is-eq (contract-of token-in) (get token-x pool)) ERR-INVALID-TOKEN)
@@ -148,6 +159,7 @@
         (try! (contract-call? token-in transfer amount-in tx-sender (as-contract tx-sender) none))
 
         (let ((amount-out (calculate-output amount-after-fee reserve-in reserve-out)))
+            (asserts! (>= amount-out min-amount-out) ERR-SLIPPAGE)
             (if zero-for-one
                 (map-set Pools { pool-id: pool-id }
                     (merge pool {
@@ -180,6 +192,7 @@
         (share-x (/ (* (get reserve-x pool) liquidity-amount) (get liquidity pool)))
         (share-y (/ (* (get reserve-y pool) liquidity-amount) (get liquidity pool)))
     )
+        (asserts! (< tick-lower tick-upper) ERR-INVALID-TICKS)
         (asserts! (is-eq (contract-of token-x-trait) (get token-x pool)) ERR-INVALID-TOKEN)
         (asserts! (is-eq (contract-of token-y-trait) (get token-y pool)) ERR-INVALID-TOKEN)
         (asserts! (>= (get liquidity position) liquidity-amount) ERR-INSUFFICIENT-BALANCE)
