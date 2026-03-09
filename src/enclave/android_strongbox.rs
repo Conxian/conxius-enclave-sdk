@@ -7,7 +7,7 @@ use rand::Rng;
 use hmac::{Hmac, Mac};
 use zeroize::{Zeroize, Zeroizing};
 
-use crate::{ConclaveResult, ConclaveError, enclave::{HeadlessEnclave, SignRequest, SignResponse}};
+use crate::{ConclaveResult, ConclaveError, enclave::{SignRequest, SignResponse}};
 use crate::enclave::attestation::{DeviceIntegrityReport, AttestationLevel};
 
 type HmacSha512 = Hmac<Sha512>;
@@ -134,7 +134,7 @@ impl CoreEnclaveManager {
     }
 }
 
-impl HeadlessEnclave for CoreEnclaveManager {
+impl crate::enclave::EnclaveManager for CoreEnclaveManager {
     fn initialize(&self) -> ConclaveResult<()> {
         Ok(())
     }

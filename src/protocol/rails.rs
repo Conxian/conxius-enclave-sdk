@@ -2,29 +2,25 @@ use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use async_trait::async_trait;
 use crate::enclave::attestation::DeviceIntegrityReport;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum RailType {
-    Changelly,
-    Bisq,
-    Wormhole,
-}
+use crate::protocol::asset::{AssetIdentifier, AssetRegistry};
+use crate::protocol::business::BusinessAttribution;
+use std::sync::Arc;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwapRequest {
-    pub from_chain: String,
-    pub to_chain: String,
-    pub from_asset: String,
-    pub to_asset: String,
+    pub from_asset: AssetIdentifier,
+    pub to_asset: AssetIdentifier,
     pub amount: u64,
     pub recipient_address: String,
+    pub attribution: Option<BusinessAttribution>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwapIntent {
     pub request: SwapRequest,
     pub signable_hash: Vec<u8>,
-    pub rail_type: RailType,
+    pub rail_type: String,
     pub chain_context: Option<String>,
 }
 
@@ -33,7 +29,14 @@ pub struct SwapResponse {
     pub transaction_id: String,
     pub status: String,
     pub estimated_arrival: u64,
-    pub rail_used: RailType,
+    pub rail_used: String,
+}
+
+#[async_trait]
+pub trait SovereignRail: Send + Sync {
+    fn name(&self) -> String;
+    fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String>;
+    async fn execute_swap(&self, intent: SwapIntent, signature: String) -> Result<SwapResponse, String>;
 }
 
 /// The Sovereign Handshake: A non-custodial protocol where the Gateway
@@ -41,7 +44,7 @@ pub struct SwapResponse {
 #[async_trait]
 pub trait SovereignHandshake {
     /// Prepare a signable intent from a request.
-    fn prepare_intent(&self, request: SwapRequest) -> Result<SwapIntent, String>;
+    fn prepare_intent(&self, rail_name: &str, request: SwapRequest) -> Result<SwapIntent, String>;
 
     /// Broadcast a signed intent to the rail, optionally verifying hardware attestation.
     async fn broadcast_signed_intent(
@@ -53,48 +56,26 @@ pub trait SovereignHandshake {
 }
 
 pub struct RailProxy {
-    pub rail_type: RailType,
+    pub rails: HashMap<String, Box<dyn SovereignRail>>,
     pub endpoint: String,
     pub api_key: Option<String>,
     pub enforce_attestation: bool,
+    pub asset_registry: Arc<AssetRegistry>,
 }
 
 impl RailProxy {
-    pub fn new(rail_type: RailType, endpoint: String, api_key: Option<String>) -> Self {
+    pub fn new(endpoint: String, api_key: Option<String>, asset_registry: Arc<AssetRegistry>) -> Self {
         Self {
-            rail_type,
+            rails: HashMap::new(),
             endpoint,
             api_key,
-            enforce_attestation: true, // Default to strict ethos
+            enforce_attestation: true,
+            asset_registry,
         }
     }
 
-    fn validate_chain_logic(&self, request: &SwapRequest) -> Result<Option<String>, String> {
-        match request.from_chain.as_str() {
-            "BTC" => {
-                // Native Bitcoin logic: Verify valid address format
-                if !request.recipient_address.starts_with("bc1") && !request.recipient_address.starts_with("3") && !request.recipient_address.starts_with("1") {
-                    return Err("Invalid Bitcoin recipient address".to_string());
-                }
-
-                if matches!(self.rail_type, RailType::Bisq) && request.amount < 100_000 {
-                     return Err("Bisq P2P requires a minimum amount of 100,000 sats".to_string());
-                }
-
-                Ok(Some("BTC_SPV_VALIDATED".to_string()))
-            },
-            "ETH" | "SOL" | "ARB" | "BASE" => {
-                if matches!(self.rail_type, RailType::Wormhole) {
-                     // Wormhole specific logic: cross-chain transceiver check
-                     if request.recipient_address.len() < 40 {
-                         return Err("Invalid EVM/Solana address for Wormhole transceiver".to_string());
-                     }
-                     return Ok(Some(format!("WORMHOLE_VAA_TARGET_{}", request.to_chain)));
-                }
-                Ok(None)
-            },
-            _ => Ok(None)
-        }
+    pub fn register_rail(&mut self, rail: Box<dyn SovereignRail>) {
+        self.rails.insert(rail.name(), rail);
     }
 
     fn verify_hardware_integrity(&self, intent: &SwapIntent, attestation_json: &Option<String>) -> Result<(), String> {
@@ -110,57 +91,42 @@ impl RailProxy {
             return Err("Hardware attestation verification failed: Device integrity compromised or nonce mismatch".to_string());
         }
 
+        // Verify business attribution if present
+        if let Some(attribution) = &intent.request.attribution {
+             // In a real implementation, we would verify the attribution signature here
+             // and potentially check business-specific constraints.
+             if attribution.expiration < 1710000000 {
+                 return Err("Business attribution expired".to_string());
+             }
+        }
+
         Ok(())
-    }
-
-    async fn execute_changelly_proxy(&self, intent: SwapIntent, _sig: String) -> Result<SwapResponse, String> {
-        Ok(SwapResponse {
-            transaction_id: format!("CHG-PX-{}", hex::encode(&intent.signable_hash[..8])),
-            status: "Awaiting Inbound Deposit".to_string(),
-            estimated_arrival: 600,
-            rail_used: RailType::Changelly,
-        })
-    }
-
-    async fn execute_bisq_sovereign_node(&self, intent: SwapIntent, _sig: String) -> Result<SwapResponse, String> {
-        Ok(SwapResponse {
-            transaction_id: format!("BISQ-P2P-{}", hex::encode(&intent.signable_hash[..8])),
-            status: "Searching for counterparty".to_string(),
-            estimated_arrival: 3600,
-            rail_used: RailType::Bisq,
-        })
-    }
-
-    async fn execute_wormhole_transceiver(&self, intent: SwapIntent, _sig: String) -> Result<SwapResponse, String> {
-        Ok(SwapResponse {
-            transaction_id: format!("WORM-VAA-{}", hex::encode(&intent.signable_hash[..8])),
-            status: "Pending Portal Finalization".to_string(),
-            estimated_arrival: 900,
-            rail_used: RailType::Wormhole,
-        })
     }
 }
 
 #[async_trait]
 impl SovereignHandshake for RailProxy {
-    fn prepare_intent(&self, request: SwapRequest) -> Result<SwapIntent, String> {
+    fn prepare_intent(&self, rail_name: &str, request: SwapRequest) -> Result<SwapIntent, String> {
+        let rail = self.rails.get(rail_name).ok_or_else(|| format!("Rail {} not found", rail_name))?;
+
         if request.amount == 0 {
             return Err("Amount must be greater than zero".to_string());
         }
-        if request.recipient_address.is_empty() {
-            return Err("Recipient address is required".to_string());
+
+        if !self.asset_registry.validate_pair(&request.from_asset, &request.to_asset) {
+            return Err("Invalid or unsupported asset pair".to_string());
         }
 
-        let chain_context = self.validate_chain_logic(&request)?;
+        let chain_context = rail.validate_request(&request)?;
 
         let mut hasher = Sha256::new();
-        hasher.update(format!("{:?}:{:?}:{:?}:{}", self.rail_type, request, chain_context, self.endpoint).as_bytes());
+        hasher.update(format!("{}:{:?}:{:?}:{}", rail_name, request, chain_context, self.endpoint).as_bytes());
         let signable_hash = hasher.finalize().to_vec();
 
         Ok(SwapIntent {
             request,
             signable_hash,
-            rail_type: self.rail_type.clone(),
+            rail_type: rail_name.to_string(),
             chain_context,
         })
     }
@@ -171,17 +137,70 @@ impl SovereignHandshake for RailProxy {
         signature: String,
         attestation: Option<String>
     ) -> Result<SwapResponse, String> {
+        let rail = self.rails.get(&intent.rail_type).ok_or_else(|| format!("Rail {} not found", intent.rail_type))?;
+
         if signature.is_empty() {
             return Err("Sovereign signature required for broadcast".to_string());
         }
 
-        // Ethos Enforcement: Verify Hardware Attestation before executing on any rail
         self.verify_hardware_integrity(&intent, &attestation)?;
 
-        match self.rail_type {
-            RailType::Changelly => self.execute_changelly_proxy(intent, signature).await,
-            RailType::Bisq => self.execute_bisq_sovereign_node(intent, signature).await,
-            RailType::Wormhole => self.execute_wormhole_transceiver(intent, signature).await,
+        rail.execute_swap(intent, signature).await
+    }
+}
+
+// Default Implementations for existing rails
+pub struct ChangellyRail;
+#[async_trait]
+impl SovereignRail for ChangellyRail {
+    fn name(&self) -> String { "Changelly".to_string() }
+    fn validate_request(&self, _request: &SwapRequest) -> Result<Option<String>, String> { Ok(None) }
+    async fn execute_swap(&self, intent: SwapIntent, _signature: String) -> Result<SwapResponse, String> {
+        Ok(SwapResponse {
+            transaction_id: format!("CHG-PX-{}", hex::encode(&intent.signable_hash[..8])),
+            status: "Awaiting Inbound Deposit".to_string(),
+            estimated_arrival: 600,
+            rail_used: self.name(),
+        })
+    }
+}
+
+pub struct BisqRail;
+#[async_trait]
+impl SovereignRail for BisqRail {
+    fn name(&self) -> String { "Bisq".to_string() }
+    fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String> {
+        if request.from_asset.chain == "BTC" && request.amount < 100_000 {
+            return Err("Bisq P2P requires a minimum amount of 100,000 sats".to_string());
         }
+        Ok(Some("BTC_SPV_VALIDATED".to_string()))
+    }
+    async fn execute_swap(&self, intent: SwapIntent, _signature: String) -> Result<SwapResponse, String> {
+        Ok(SwapResponse {
+            transaction_id: format!("BISQ-P2P-{}", hex::encode(&intent.signable_hash[..8])),
+            status: "Searching for counterparty".to_string(),
+            estimated_arrival: 3600,
+            rail_used: self.name(),
+        })
+    }
+}
+
+pub struct WormholeRail;
+#[async_trait]
+impl SovereignRail for WormholeRail {
+    fn name(&self) -> String { "Wormhole".to_string() }
+    fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String> {
+        if request.recipient_address.len() < 40 {
+            return Err("Invalid EVM/Solana address for Wormhole transceiver".to_string());
+        }
+        Ok(Some(format!("WORMHOLE_VAA_TARGET_{}", request.to_asset.chain)))
+    }
+    async fn execute_swap(&self, intent: SwapIntent, _signature: String) -> Result<SwapResponse, String> {
+        Ok(SwapResponse {
+            transaction_id: format!("WORM-VAA-{}", hex::encode(&intent.signable_hash[..8])),
+            status: "Pending Portal Finalization".to_string(),
+            estimated_arrival: 900,
+            rail_used: self.name(),
+        })
     }
 }
