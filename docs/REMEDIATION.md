@@ -3,32 +3,32 @@
 Based on the OpenSpec review of the current codebase against the newly established `sdk-core-architecture` proposal, the following gaps and remediation steps have been identified.
 
 ## 1. Business Management
-- **Current State**: `AffiliateManager` uses simple strings and a basic signing mechanism.
-- **Gap**: Missing lifecycle management, permissioning, and enclave-backed business identities.
+- **Current State**: `BusinessManager` handles partner onboarding, permissioning, and cryptographic attribution.
+- **Gap**: None. Successfully refactored from `AffiliateManager`.
 - **Remediation**:
-    - [ ] Rename `AffiliateManager` to `BusinessManager`.
-    - [ ] Implement `BusinessRegistry` to track partner public keys.
-    - [ ] Update `AffiliateProof` to `BusinessAttribution` with enhanced metadata.
+    - [x] Rename `AffiliateManager` to `BusinessManager`.
+    - [x] Implement `BusinessRegistry` to track partner public keys.
+    - [x] Update `AffiliateProof` to `BusinessAttribution` with enhanced metadata.
 
 ## 2. Asset Registry
-- **Current State**: Assets are represented as raw strings (`"BTC"`, `"ETH"`) in `SwapRequest`.
-- **Gap**: No validation of decimals, chain IDs, or asset status. High risk of cross-chain address collisions.
+- **Current State**: Structured `AssetRegistry` handles cross-chain assets with decimal precision and validation.
+- **Gap**: None.
 - **Remediation**:
-    - [ ] Create `Asset` struct and `AssetRegistry` singleton/provider.
-    - [ ] Refactor `SwapRequest` to use `AssetIdentifier` instead of `String`.
-    - [ ] Add `validate_asset_pair` to `RailProxy`.
+    - [x] Create `Asset` struct and `AssetRegistry` singleton/provider.
+    - [x] Refactor `SwapRequest` to use `AssetIdentifier` instead of `String`.
+    - [x] Add `validate_asset_pair` to `RailProxy`.
 
 ## 3. Modular Architecture
-- **Current State**: `CoreEnclaveManager` is hardcoded. `RailProxy` has an enum-based dispatch for rails.
-- **Gap**: Adding a new hardware enclave or a new bridge requires core SDK modifications.
+- **Current State**: Modular `EnclaveManager` and `SovereignRail` traits implemented. `RailProxy` uses a registry pattern.
+- **Gap**: None.
 - **Remediation**:
-    - [ ] Formalize `EnclaveManager` trait.
-    - [ ] Extract `Changelly`, `Bisq`, and `Wormhole` into separate modules implementing a `SovereignRail` trait.
-    - [ ] Use a registry pattern in `RailProxy` to allow dynamic rail registration.
+    - [x] Formalize `EnclaveManager` trait.
+    - [x] Extract `Changelly`, `Bisq`, and `Wormhole` into separate modules implementing a `SovereignRail` trait.
+    - [x] Use a registry pattern in `RailProxy` to allow dynamic rail registration.
 
 ## 4. Sovereign Handshake
-- **Current State**: Basic prepare/sign/broadcast flow exists.
-- **Gap**: Lacks explicit verification of business and asset context within the enclave signing boundary.
+- **Current State**: Handshake updated to include structured asset and business metadata verification.
+- **Gap**: None.
 - **Remediation**:
-    - [ ] Update `SwapIntent` to include structured asset and business metadata.
-    - [ ] Enhance `verify_hardware_integrity` to check business-specific constraints.
+    - [x] Update `SwapIntent` to include structured asset and business metadata.
+    - [x] Enhance `verify_hardware_integrity` to check business-specific constraints.

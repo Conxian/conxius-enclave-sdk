@@ -19,11 +19,8 @@ pub struct SignResponse {
     pub device_attestation: Option<String>,
 }
 
-/// Headless Cryptographic State Machine trait.
-/// 
-/// This must be implemented by the platform-specific hardware layer
-/// (e.g., Android StrongBox or Apple Secure Enclave).
-pub trait HeadlessEnclave {
+/// EnclaveManager trait for hardware-backed security modules.
+pub trait EnclaveManager: Send + Sync {
     /// Initialize the enclave, ensuring the hardware backend is available.
     fn initialize(&self) -> ConclaveResult<()>;
     
@@ -36,3 +33,6 @@ pub trait HeadlessEnclave {
     /// Sign a raw payload using the hardware-backed key.
     fn sign(&self, request: SignRequest) -> ConclaveResult<SignResponse>;
 }
+
+/// Alias for backward compatibility during transition
+pub use EnclaveManager as HeadlessEnclave;
