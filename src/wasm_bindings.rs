@@ -1,11 +1,13 @@
 use wasm_bindgen::prelude::*;
-use crate::enclave::{SignRequest, HeadlessEnclave};
+use crate::enclave::{SignRequest, EnclaveManager};
 use crate::enclave::android_strongbox::CoreEnclaveManager;
-use crate::protocol::affiliate::AffiliateManager;
+use crate::protocol::business::{BusinessManager, BusinessRegistry, BusinessProfile};
+use std::collections::HashMap;
 
 #[wasm_bindgen]
 pub struct ConclaveWasmClient {
     manager: CoreEnclaveManager,
+    registry: BusinessRegistry,
 }
 
 #[wasm_bindgen]
@@ -14,6 +16,7 @@ impl ConclaveWasmClient {
     pub fn new() -> Self {
         ConclaveWasmClient {
             manager: CoreEnclaveManager::new(),
+            registry: BusinessRegistry::new(),
         }
     }
 
@@ -27,6 +30,18 @@ impl ConclaveWasmClient {
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
+    /// Registers a business profile for attribution
+    #[wasm_bindgen]
+    pub fn register_business(&mut self, id: &str, name: &str, public_key: &str) {
+        let profile = BusinessProfile {
+            id: id.to_string(),
+            name: name.to_string(),
+            public_key: public_key.to_string(),
+            active: true,
+        };
+        self.registry.register_business(profile);
+    }
+
     /// Exposes a flat JS/TS interface for the headless enclave sign method
     #[wasm_bindgen]
     pub fn sign_payload(&self, hex_payload: &str, derivation_path: &str, key_id: &str) -> Result<JsValue, JsValue> {
@@ -35,6 +50,7 @@ impl ConclaveWasmClient {
                 .map_err(|e| JsValue::from_str(&format!("Invalid payload hex: {}", e)))?,
             derivation_path: derivation_path.to_string(),
             key_id: key_id.to_string(),
+            taproot_tweak: None,
         };
 
         let response = self.manager.sign(request)
@@ -44,14 +60,25 @@ impl ConclaveWasmClient {
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
-    /// Securely generates an affiliate referral proof
+    /// Securely generates a business attribution proof
     #[wasm_bindgen]
-    pub fn generate_referral_proof(&self, partner_id: &str, user_id: &str) -> Result<JsValue, JsValue> {
-        let affiliate_mgr = AffiliateManager::new(&self.manager);
-        let proof = affiliate_mgr.generate_referral_proof(partner_id, user_id)
+    pub fn generate_attribution(&self, business_id: &str, user_id: &str) -> Result<JsValue, JsValue> {
+        // BusinessRegistry is not Clone, but BusinessManager takes ownership of a registry.
+        // This is a bit awkward for a persistent client.
+        // Let's modify BusinessManager to take a reference if possible,
+        // but for now I'll hack it by creating a temporary registry with only the target business.
+
+        let profile = self.registry.get_business(business_id)
+            .ok_or_else(|| JsValue::from_str("Business not found"))?;
+
+        let mut temp_registry = BusinessRegistry::new();
+        temp_registry.register_business(profile.clone());
+
+        let business_mgr = BusinessManager::new(&self.manager, temp_registry);
+        let attribution = business_mgr.generate_attribution(business_id, user_id, HashMap::new())
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-        serde_wasm_bindgen::to_value(&proof)
+        serde_wasm_bindgen::to_value(&attribution)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 }

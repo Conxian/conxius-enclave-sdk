@@ -23,6 +23,7 @@ pub struct BusinessProfile {
     pub active: bool,
 }
 
+#[derive(Clone)]
 pub struct BusinessRegistry {
     businesses: HashMap<String, BusinessProfile>,
 }

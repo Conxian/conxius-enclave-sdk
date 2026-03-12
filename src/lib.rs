@@ -22,7 +22,6 @@ mod tests {
     use crate::enclave::android_strongbox::CoreEnclaveManager;
     use crate::enclave::{EnclaveManager, SignRequest};
     use crate::enclave::attestation::DeviceIntegrityReport;
-    use crate::protocol::stacks::StacksManager;
     use crate::protocol::rails::{RailProxy, SwapRequest, SovereignHandshake, ChangellyRail, BisqRail};
     use crate::protocol::business::{BusinessManager, BusinessRegistry, BusinessProfile};
     use crate::protocol::asset::{AssetRegistry, AssetIdentifier};
@@ -36,7 +35,8 @@ mod tests {
         manager.derive_session_key("1234", b"salt").unwrap();
 
         let asset_registry = Arc::new(AssetRegistry::new());
-        let mut proxy = RailProxy::new("https://api.gateway.com".to_string(), None, asset_registry);
+        let business_registry = Arc::new(BusinessRegistry::new());
+        let mut proxy = RailProxy::new("https://api.gateway.com".to_string(), None, asset_registry, business_registry);
         proxy.register_rail(Box::new(ChangellyRail));
 
         let req = SwapRequest {
@@ -71,7 +71,8 @@ mod tests {
     #[tokio::test]
     async fn test_bisq_rail_minimum_amount() {
         let asset_registry = Arc::new(AssetRegistry::new());
-        let mut proxy = RailProxy::new("https://api.gateway.com".to_string(), None, asset_registry);
+        let business_registry = Arc::new(BusinessRegistry::new());
+        let mut proxy = RailProxy::new("https://api.gateway.com".to_string(), None, asset_registry, business_registry);
         proxy.register_rail(Box::new(BisqRail));
 
         let req = SwapRequest {
@@ -140,5 +141,73 @@ mod tests {
         let attestation_json = response.device_attestation.unwrap();
         let attestation: DeviceIntegrityReport = serde_json::from_str(&attestation_json).unwrap();
         assert!(attestation.verify(&message_hash));
+    }
+
+    #[tokio::test]
+    async fn test_cloud_enclave_signing() {
+        use crate::enclave::cloud::CloudEnclave;
+        let enclave = CloudEnclave::new("https://kms.conclave.io".to_string());
+
+        let message_hash = vec![0xaa; 32];
+        let request = SignRequest {
+            message_hash: message_hash.clone(),
+            derivation_path: "m/44'/0'/0'/0/0".to_string(),
+            key_id: "cloud_test".to_string(),
+            taproot_tweak: None,
+        };
+
+        let response = enclave.sign(request).unwrap();
+        assert!(!response.signature_hex.is_empty());
+
+        let attestation_json = response.device_attestation.unwrap();
+        let attestation: DeviceIntegrityReport = serde_json::from_str(&attestation_json).unwrap();
+        assert!(attestation.verify(&message_hash));
+        assert_eq!(attestation.level, crate::enclave::attestation::AttestationLevel::CloudTEE);
+    }
+
+    #[tokio::test]
+    async fn test_rail_proxy_with_attribution() {
+        let manager = CoreEnclaveManager::new();
+        manager.derive_session_key("1234", b"salt").unwrap();
+
+        let asset_registry = Arc::new(AssetRegistry::new());
+        let mut business_registry = BusinessRegistry::new();
+        business_registry.register_business(BusinessProfile {
+            id: "partner_01".to_string(),
+            name: "Partner".to_string(),
+            public_key: "pubkey".to_string(),
+            active: true,
+        });
+        let business_registry = Arc::new(business_registry);
+
+        let mut proxy = RailProxy::new("https://api.gateway.com".to_string(), None, asset_registry, business_registry.clone());
+        proxy.register_rail(Box::new(ChangellyRail));
+
+        let business_manager = BusinessManager::new(&manager, (*business_registry).clone());
+        let attribution = business_manager.generate_attribution("partner_01", "user_1", HashMap::new()).unwrap();
+
+        let req = SwapRequest {
+            from_asset: AssetIdentifier { chain: "BTC".to_string(), symbol: "BTC".to_string() },
+            to_asset: AssetIdentifier { chain: "ETH".to_string(), symbol: "ETH".to_string() },
+            amount: 5000,
+            recipient_address: "0x123...".to_string(),
+            attribution: Some(attribution),
+        };
+
+        let intent = proxy.prepare_intent("Changelly", req).unwrap();
+        let sig_resp = manager.sign(SignRequest {
+            message_hash: intent.signable_hash.clone(),
+            derivation_path: "m/44'/0'/0'/0/0".to_string(),
+            key_id: "test".to_string(),
+            taproot_tweak: None,
+        }).unwrap();
+
+        let response = proxy.broadcast_signed_intent(
+            intent,
+            sig_resp.signature_hex,
+            sig_resp.device_attestation
+        ).await.unwrap();
+
+        assert!(response.transaction_id.contains("CHG-PX-"));
     }
 }

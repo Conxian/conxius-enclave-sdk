@@ -1,5 +1,6 @@
 pub mod android_strongbox;
 pub mod attestation;
+pub mod cloud;
 
 use crate::ConclaveResult;
 use serde::{Deserialize, Serialize};

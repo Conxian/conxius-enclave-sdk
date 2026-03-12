@@ -3,7 +3,7 @@ use sha2::{Sha256, Digest};
 use async_trait::async_trait;
 use crate::enclave::attestation::DeviceIntegrityReport;
 use crate::protocol::asset::{AssetIdentifier, AssetRegistry};
-use crate::protocol::business::BusinessAttribution;
+use crate::protocol::business::{BusinessAttribution, BusinessRegistry};
 use std::sync::Arc;
 use std::collections::HashMap;
 
@@ -61,16 +61,23 @@ pub struct RailProxy {
     pub api_key: Option<String>,
     pub enforce_attestation: bool,
     pub asset_registry: Arc<AssetRegistry>,
+    pub business_registry: Arc<BusinessRegistry>,
 }
 
 impl RailProxy {
-    pub fn new(endpoint: String, api_key: Option<String>, asset_registry: Arc<AssetRegistry>) -> Self {
+    pub fn new(
+        endpoint: String,
+        api_key: Option<String>,
+        asset_registry: Arc<AssetRegistry>,
+        business_registry: Arc<BusinessRegistry>
+    ) -> Self {
         Self {
             rails: HashMap::new(),
             endpoint,
             api_key,
             enforce_attestation: true,
             asset_registry,
+            business_registry,
         }
     }
 
@@ -93,10 +100,21 @@ impl RailProxy {
 
         // Verify business attribution if present
         if let Some(attribution) = &intent.request.attribution {
-             // In a real implementation, we would verify the attribution signature here
-             // and potentially check business-specific constraints.
+             let profile = self.business_registry.get_business(&attribution.business_id)
+                 .ok_or_else(|| format!("Unknown business partner: {}", attribution.business_id))?;
+
+             if !profile.active {
+                 return Err(format!("Business partner {} is currently inactive", attribution.business_id));
+             }
+
              if attribution.expiration < 1710000000 {
                  return Err("Business attribution expired".to_string());
+             }
+
+             // In a real implementation, we would also verify the cryptographic signature
+             // of the attribution using the profile's public key.
+             if attribution.signature.is_empty() {
+                 return Err("Cryptographic business attribution signature missing".to_string());
              }
         }
 
@@ -200,6 +218,27 @@ impl SovereignRail for WormholeRail {
             transaction_id: format!("WORM-VAA-{}", hex::encode(&intent.signable_hash[..8])),
             status: "Pending Portal Finalization".to_string(),
             estimated_arrival: 900,
+            rail_used: self.name(),
+        })
+    }
+}
+
+/// A custom rail extension example for partner-specific liquidity.
+pub struct CustomRail;
+#[async_trait]
+impl SovereignRail for CustomRail {
+    fn name(&self) -> String { "CustomPartner".to_string() }
+    fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String> {
+        if request.from_asset.chain != "BTC" {
+             return Err("CustomPartner only accepts BTC as inbound".to_string());
+        }
+        Ok(Some("PARTNER_CUSTOM_v1".to_string()))
+    }
+    async fn execute_swap(&self, intent: SwapIntent, _signature: String) -> Result<SwapResponse, String> {
+        Ok(SwapResponse {
+            transaction_id: format!("PARTNER-{}", hex::encode(&intent.signable_hash[..8])),
+            status: "Partner processing".to_string(),
+            estimated_arrival: 1200,
             rail_used: self.name(),
         })
     }
