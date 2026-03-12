@@ -1,5 +1,6 @@
 pub mod android_strongbox;
 pub mod attestation;
+pub mod cloud;
 
 use crate::ConclaveResult;
 use serde::{Deserialize, Serialize};
@@ -33,6 +34,3 @@ pub trait EnclaveManager: Send + Sync {
     /// Sign a raw payload using the hardware-backed key.
     fn sign(&self, request: SignRequest) -> ConclaveResult<SignResponse>;
 }
-
-/// Alias for backward compatibility during transition
-pub use EnclaveManager as HeadlessEnclave;

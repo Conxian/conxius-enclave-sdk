@@ -1,4 +1,4 @@
-use crate::{ConclaveResult, ConclaveError, enclave::{SignRequest, HeadlessEnclave}};
+use crate::{ConclaveResult, ConclaveError, enclave::{SignRequest, EnclaveManager}};
 use sha2::{Sha256, Digest};
 
 #[derive(Debug, Clone)]
@@ -9,11 +9,11 @@ pub struct StacksTransactionIntent {
 
 /// Stacks-specific transaction and message handling.
 pub struct StacksManager<'a> {
-    enclave: &'a dyn HeadlessEnclave,
+    enclave: &'a dyn EnclaveManager,
 }
 
 impl<'a> StacksManager<'a> {
-    pub fn new(enclave: &'a dyn HeadlessEnclave) -> Self {
+    pub fn new(enclave: &'a dyn EnclaveManager) -> Self {
         Self { enclave }
     }
 

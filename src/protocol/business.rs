@@ -23,6 +23,7 @@ pub struct BusinessProfile {
     pub active: bool,
 }
 
+#[derive(Clone)]
 pub struct BusinessRegistry {
     businesses: HashMap<String, BusinessProfile>,
 }
@@ -55,6 +56,18 @@ pub struct BusinessManager<'a> {
 impl<'a> BusinessManager<'a> {
     pub fn new(enclave: &'a dyn EnclaveManager, registry: BusinessRegistry) -> Self {
         Self { enclave, registry }
+    }
+
+    /// Generates a new hardware-backed business identity.
+    pub fn generate_business_identity(&self, business_id: &str, name: &str) -> ConclaveResult<BusinessProfile> {
+        let public_key = self.enclave.get_public_key(&format!("m/44'/5757'/0'/0/business/{}", business_id))?;
+
+        Ok(BusinessProfile {
+            id: business_id.to_string(),
+            name: name.to_string(),
+            public_key,
+            active: true,
+        })
     }
 
     /// Generates a signed proof of attribution for a business partner.

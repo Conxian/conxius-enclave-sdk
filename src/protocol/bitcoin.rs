@@ -1,4 +1,4 @@
-use crate::{ConclaveResult, ConclaveError, enclave::{SignRequest, HeadlessEnclave}};
+use crate::{ConclaveResult, ConclaveError, enclave::{SignRequest, EnclaveManager}};
 use bitcoin::hashes::{Hash, sha256t, HashEngine};
 use bitcoin::taproot::TapLeafHash;
 use bitcoin::XOnlyPublicKey;
@@ -6,11 +6,11 @@ use bitcoin::XOnlyPublicKey;
 /// Native Bitcoin Taproot (BIP341) Manager.
 /// Superior implementation handling Tweak logic natively within the Conclave ethos.
 pub struct TaprootManager<'a> {
-    enclave: &'a dyn HeadlessEnclave,
+    enclave: &'a dyn EnclaveManager,
 }
 
 impl<'a> TaprootManager<'a> {
-    pub fn new(enclave: &'a dyn HeadlessEnclave) -> Self {
+    pub fn new(enclave: &'a dyn EnclaveManager) -> Self {
         Self { enclave }
     }
 

@@ -16,6 +16,7 @@ pub struct Asset {
     pub active: bool,
 }
 
+#[derive(Clone)]
 pub struct AssetRegistry {
     assets: HashMap<AssetIdentifier, Asset>,
 }
@@ -30,23 +31,37 @@ impl AssetRegistry {
     }
 
     fn initialize_defaults(&mut self) {
-        let btc = Asset {
+        self.register_asset(Asset {
             identifier: AssetIdentifier { chain: "BTC".to_string(), symbol: "BTC".to_string() },
             name: "Bitcoin".to_string(),
             decimals: 8,
             contract_address: None,
             active: true,
-        };
-        self.register_asset(btc);
+        });
 
-        let eth = Asset {
+        self.register_asset(Asset {
             identifier: AssetIdentifier { chain: "ETH".to_string(), symbol: "ETH".to_string() },
             name: "Ethereum".to_string(),
             decimals: 18,
             contract_address: None,
             active: true,
-        };
-        self.register_asset(eth);
+        });
+
+        self.register_asset(Asset {
+            identifier: AssetIdentifier { chain: "STACKS".to_string(), symbol: "STX".to_string() },
+            name: "Stacks".to_string(),
+            decimals: 6,
+            contract_address: None,
+            active: true,
+        });
+
+        self.register_asset(Asset {
+            identifier: AssetIdentifier { chain: "ETH".to_string(), symbol: "USDT".to_string() },
+            name: "Tether USD".to_string(),
+            decimals: 6,
+            contract_address: Some("0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string()),
+            active: true,
+        });
     }
 
     pub fn register_asset(&mut self, asset: Asset) {

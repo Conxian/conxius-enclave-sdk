@@ -1,12 +1,14 @@
 # lib-conclave-sdk
 
-The core Rust SDK for Conclave, providing cross-platform hardware enclave abstractions for Android StrongBox, Apple Secure Enclave, and Headless (WASM) environments.
+The core Rust SDK for Conclave, providing cross-platform hardware enclave abstractions for Android StrongBox, Apple Secure Enclave, and Cloud TEE environments.
 
 ## Features
 
 - **Hardware-Backed Security**: Interfaces with secure hardware (StrongBox/TEE) for key generation and signing.
-- **Hardware Attestation**: Cryptographic proof of device integrity (StrongBox/TEE) mandatory for high-value rail operations.
+- **Hardware Attestation**: Cryptographic proof of device integrity (StrongBox/TEE/CloudTEE) mandatory for high-value rail operations.
 - **Sovereign Handshake**: Non-custodial signing protocol ensuring "Zero Secret Egress" for all cross-chain swaps.
+- **Business Management**: Lifecycle and cryptographic identity for partners and affiliates with secure attribution.
+- **Asset Registry**: Structured registry and validation for cross-chain assets (BTC, ETH, STX, USDT, etc.).
 - **Multi-Chain Support**: Native support for ECDSA (EVM, Bitcoin, Stacks) and Schnorr (Taproot, RGB, BitVM).
 - **Superior Taproot Support**: Native BIP341 tweak calculation and signing within the secure enclave.
 - **MuSig2 Orchestration**: Simplified API for M-of-N multi-signature protocols.
@@ -17,8 +19,8 @@ The core Rust SDK for Conclave, providing cross-platform hardware enclave abstra
 
 The SDK is organized into three main layers:
 
-1.  **Enclave Layer** (`src/enclave`): Abstracted hardware interfaces. The `CoreEnclaveManager` provides a deterministic headless implementation for WASM with PBKDF2 session key derivation and secure zeroization.
-2.  **Protocol Layer** (`src/protocol`): Multi-chain and multi-sig logic (MuSig2, Stacks, Bitcoin Taproot, Sovereign Rails, Secure Affiliate Attribution).
+1.  **Enclave Layer** (`src/enclave`): Abstracted hardware interfaces (`EnclaveManager`). Includes `CoreEnclaveManager` (Headless/Android) and `CloudEnclave`.
+2.  **Protocol Layer** (`src/protocol`): Multi-chain and multi-sig logic, Business Management, Asset Registry, and Sovereign Rails.
 3.  **Binding Layer** (`src/wasm_bindings.rs`): Clean JavaScript/TypeScript interfaces for high-level integration.
 
 ## Usage (WASM)
@@ -29,10 +31,17 @@ import { ConclaveWasmClient } from 'lib-conclave-sdk';
 const client = new ConclaveWasmClient();
 client.set_session_key("my_pin", "salt_hex_value");
 
-const signature = client.sign_payload(
-    "message_hash_hex",
-    "m/44'/5757'/0'/0/0",
-    "key_id"
+// Register a partner
+client.register_business("partner_01", "Partner Name", "0x...");
+
+// Execute a swap with full Sovereign Handshake
+const response = await client.execute_swap(
+    "Changelly",
+    "BTC", "BTC",
+    "ETH", "ETH",
+    100000,
+    "0xRecipient...",
+    "partner_01"
 );
 ```
 

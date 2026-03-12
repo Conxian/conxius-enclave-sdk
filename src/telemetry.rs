@@ -1,7 +1,6 @@
 use reqwest::Client;
 use serde::Serialize;
 use tokio;
-use crate::{ConclaveResult, ConclaveError};
 
 #[derive(Serialize)]
 struct TelemetryPayload {

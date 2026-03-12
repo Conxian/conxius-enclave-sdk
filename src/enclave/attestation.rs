@@ -6,6 +6,7 @@ pub enum AttestationLevel {
     Software,
     TEE,
     StrongBox,
+    CloudTEE,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,18 +33,18 @@ impl DeviceIntegrityReport {
 
         // 2. Certificate Chain Verification (Simulated Root of Trust)
         // In a real implementation, we would verify each cert in the chain up to the Conclave Root CA.
-        let has_root_trust = self.certificate_chain.iter().any(|c| c.contains("CONCLAVE_ROOT_CA"));
+        let has_root_trust = self.certificate_chain.iter().any(|c| c.contains("CONCLAVE_ROOT_CA") || c.contains("CONCLAVE_CLOUD_ROOT_CA"));
         if !has_root_trust {
             return false;
         }
 
         // 3. Hardware-backed verification
         // StrongBox reports must include specific extension data matching the platform.
-        let is_strongbox = matches!(self.level, AttestationLevel::StrongBox);
+        let is_hardened = matches!(self.level, AttestationLevel::StrongBox | AttestationLevel::CloudTEE | AttestationLevel::TEE);
         let has_valid_extension = self.extension_data.contains("PURPOSE_SIGN")
                                 && self.extension_data.contains("ALGORITHM_EC");
 
-        is_strongbox && has_valid_extension
+        is_hardened && has_valid_extension
     }
 
     /// Generates a hardware-bound fingerprint for this device.
