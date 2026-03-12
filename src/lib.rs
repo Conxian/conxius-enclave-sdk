@@ -24,7 +24,7 @@ mod tests {
     use crate::enclave::attestation::DeviceIntegrityReport;
     use crate::protocol::rails::{RailProxy, SwapRequest, SovereignHandshake, ChangellyRail, BisqRail};
     use crate::protocol::business::{BusinessManager, BusinessRegistry, BusinessProfile};
-    use crate::protocol::asset::{AssetRegistry, AssetIdentifier};
+    use crate::protocol::asset::{AssetRegistry, Asset, AssetIdentifier};
     use crate::protocol::bitcoin::TaprootManager;
     use std::sync::Arc;
     use std::collections::HashMap;
@@ -209,5 +209,56 @@ mod tests {
         ).await.unwrap();
 
         assert!(response.transaction_id.contains("CHG-PX-"));
+    }
+
+    #[tokio::test]
+    async fn test_dynamic_asset_registration() {
+        let asset_registry = Arc::new(AssetRegistry::new());
+        let business_registry = Arc::new(BusinessRegistry::new());
+        let mut proxy = RailProxy::new("https://api.gateway.com".to_string(), None, asset_registry.clone(), business_registry);
+
+        // Register a new rail that supports the new asset
+        proxy.register_rail(Box::new(ChangellyRail));
+
+        let new_asset = Asset {
+            identifier: AssetIdentifier { chain: "SOL".to_string(), symbol: "SOL".to_string() },
+            name: "Solana".to_string(),
+            decimals: 9,
+            contract_address: None,
+            active: true,
+        };
+
+        // Initially SOL should fail
+        let req = SwapRequest {
+            from_asset: AssetIdentifier { chain: "BTC".to_string(), symbol: "BTC".to_string() },
+            to_asset: AssetIdentifier { chain: "SOL".to_string(), symbol: "SOL".to_string() },
+            amount: 1000,
+            recipient_address: "sol_address".to_string(),
+            attribution: None,
+        };
+        assert!(proxy.prepare_intent("Changelly", req.clone()).is_err());
+
+        // Register asset
+        let mut registry = (*asset_registry).clone();
+        registry.register_asset(new_asset);
+        let asset_registry = Arc::new(registry);
+
+        let mut proxy = RailProxy::new("https://api.gateway.com".to_string(), None, asset_registry, Arc::new(BusinessRegistry::new()));
+        proxy.register_rail(Box::new(ChangellyRail));
+
+        // Now SOL should pass
+        assert!(proxy.prepare_intent("Changelly", req).is_ok());
+    }
+
+    #[test]
+    fn test_business_identity_generation() {
+        let manager = CoreEnclaveManager::new();
+        manager.derive_session_key("1234", b"salt").unwrap();
+        let business_mgr = BusinessManager::new(&manager, BusinessRegistry::new());
+
+        let profile = business_mgr.generate_business_identity("new_partner", "New Partner Name").unwrap();
+        assert_eq!(profile.id, "new_partner");
+        assert_eq!(profile.name, "New Partner Name");
+        assert!(!profile.public_key.is_empty());
     }
 }

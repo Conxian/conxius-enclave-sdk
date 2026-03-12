@@ -58,6 +58,18 @@ impl<'a> BusinessManager<'a> {
         Self { enclave, registry }
     }
 
+    /// Generates a new hardware-backed business identity.
+    pub fn generate_business_identity(&self, business_id: &str, name: &str) -> ConclaveResult<BusinessProfile> {
+        let public_key = self.enclave.get_public_key(&format!("m/44'/5757'/0'/0/business/{}", business_id))?;
+
+        Ok(BusinessProfile {
+            id: business_id.to_string(),
+            name: name.to_string(),
+            public_key,
+            active: true,
+        })
+    }
+
     /// Generates a signed proof of attribution for a business partner.
     /// This ensures that referrals are cryptographically linked to a valid business identity.
     pub fn generate_attribution(&self, business_id: &str, user_id: &str, metadata: HashMap<String, String>) -> ConclaveResult<BusinessAttribution> {
