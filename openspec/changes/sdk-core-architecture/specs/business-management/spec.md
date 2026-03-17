@@ -13,3 +13,10 @@ The system SHALL support signing attribution proofs for transactions that includ
 #### Scenario: User clicks an affiliate link
 - **WHEN** the user initiates a swap with a business ID
 - **THEN** the SDK generates a signed proof linking the user session to that business
+
+### Requirement: Attribution Verification
+The system SHALL verify the cryptographic signature of attribution proofs against the partner's registered public key before executing high-value operations.
+
+#### Scenario: Verify attribution during swap
+- **WHEN** a swap intent is broadcasted with business attribution
+- **THEN** the RailProxy verifies the attribution signature and expiration before proceeding
