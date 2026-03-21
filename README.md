@@ -19,9 +19,9 @@ The core Rust SDK for Conclave, providing cross-platform hardware enclave abstra
 
 The SDK is organized into three main layers:
 
-1.  **Enclave Layer** (`src/enclave`): Abstracted hardware interfaces (`EnclaveManager`). Includes `CoreEnclaveManager` (Headless/Android) and `CloudEnclave`.
-2.  **Protocol Layer** (`src/protocol`): Multi-chain and multi-sig logic, Business Management, Asset Registry, and Sovereign Rails.
-3.  **Binding Layer** (`src/wasm_bindings.rs`): Clean JavaScript/TypeScript interfaces for high-level integration.
+1. **Enclave Layer** (`src/enclave`): Abstracted hardware interfaces (`EnclaveManager`). Includes `CoreEnclaveManager` (Headless/Android) and `CloudEnclave`.
+2. **Protocol Layer** (`src/protocol`): Multi-chain and multi-sig logic, Business Management, Asset Registry, and Sovereign Rails.
+3. **Binding Layer** (`src/wasm_bindings.rs`): Clean JavaScript/TypeScript interfaces for high-level integration.
 
 ## Usage (WASM)
 
@@ -55,4 +55,5 @@ cargo test
 ```
 
 ## Audit & Verification
+
 The SDK has undergone a full architectural audit and enhancement cycle. All core protocol features, including cryptographic attribution and hardware attestation, have been verified with automated unit tests.
