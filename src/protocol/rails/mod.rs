@@ -2,6 +2,7 @@ pub mod changelly;
 pub mod bisq;
 pub mod wormhole;
 pub mod boltz;
+pub mod ntt;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
@@ -16,6 +17,7 @@ pub use self::changelly::ChangellyRail;
 pub use self::bisq::BisqRail;
 pub use self::wormhole::WormholeRail;
 pub use self::boltz::BoltzRail;
+pub use self::ntt::NTTRail;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwapRequest {
@@ -81,8 +83,17 @@ impl RailProxy {
         asset_registry: Arc<AssetRegistry>,
         business_registry: Arc<BusinessRegistry>
     ) -> Self {
+        let mut rails: HashMap<String, Box<dyn SovereignRail>> = HashMap::new();
+
+        // Register core rails by default
+        rails.insert("Changelly".to_string(), Box::new(ChangellyRail));
+        rails.insert("Bisq".to_string(), Box::new(BisqRail));
+        rails.insert("Wormhole".to_string(), Box::new(WormholeRail));
+        rails.insert("Boltz".to_string(), Box::new(BoltzRail));
+        rails.insert("NTT".to_string(), Box::new(NTTRail));
+
         Self {
-            rails: HashMap::new(),
+            rails,
             endpoint,
             api_key,
             enforce_attestation: true,

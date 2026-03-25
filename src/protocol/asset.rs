@@ -64,6 +64,62 @@ impl AssetRegistry {
         });
 
         self.register_asset(Asset {
+            identifier: AssetIdentifier { chain: "ETH".to_string(), symbol: "USDC".to_string() },
+            name: "USD Coin".to_string(),
+            decimals: 6,
+            contract_address: Some("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".to_string()),
+            active: true,
+        });
+
+        self.register_asset(Asset {
+            identifier: AssetIdentifier { chain: "ARBITRUM".to_string(), symbol: "ETH".to_string() },
+            name: "Arbitrum ETH".to_string(),
+            decimals: 18,
+            contract_address: None,
+            active: true,
+        });
+
+        self.register_asset(Asset {
+            identifier: AssetIdentifier { chain: "ARBITRUM".to_string(), symbol: "USDC".to_string() },
+            name: "Arbitrum USDC".to_string(),
+            decimals: 6,
+            contract_address: Some("0xaf88d065e77c8cC2239327C5EDb3A432268e5831".to_string()),
+            active: true,
+        });
+
+        self.register_asset(Asset {
+            identifier: AssetIdentifier { chain: "BASE".to_string(), symbol: "ETH".to_string() },
+            name: "Base ETH".to_string(),
+            decimals: 18,
+            contract_address: None,
+            active: true,
+        });
+
+        self.register_asset(Asset {
+            identifier: AssetIdentifier { chain: "BASE".to_string(), symbol: "USDC".to_string() },
+            name: "Base USDC".to_string(),
+            decimals: 6,
+            contract_address: Some("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913".to_string()),
+            active: true,
+        });
+
+        self.register_asset(Asset {
+            identifier: AssetIdentifier { chain: "SOLANA".to_string(), symbol: "SOL".to_string() },
+            name: "Solana".to_string(),
+            decimals: 9,
+            contract_address: None,
+            active: true,
+        });
+
+        self.register_asset(Asset {
+            identifier: AssetIdentifier { chain: "SOLANA".to_string(), symbol: "USDC".to_string() },
+            name: "Solana USDC".to_string(),
+            decimals: 6,
+            contract_address: Some("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string()),
+            active: true,
+        });
+
+        self.register_asset(Asset {
             identifier: AssetIdentifier { chain: "LIQUID".to_string(), symbol: "LBTC".to_string() },
             name: "Liquid Bitcoin".to_string(),
             decimals: 8,
