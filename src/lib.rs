@@ -26,6 +26,8 @@ mod tests {
     use crate::protocol::business::{BusinessManager, BusinessRegistry, BusinessProfile};
     use crate::protocol::asset::{AssetRegistry, Asset, AssetIdentifier};
     use crate::protocol::bitcoin::TaprootManager;
+    use crate::protocol::fiat::{FiatRouterService, FiatOnRampRequest};
+    use crate::protocol::a2p::{A2pRouterService, OtpRequest};
     use std::sync::Arc;
     use std::collections::HashMap;
 
@@ -66,6 +68,57 @@ mod tests {
         ).await.unwrap();
 
         assert!(response.transaction_id.starts_with("CHG-PX-"));
+    }
+
+    #[tokio::test]
+    async fn test_fiat_onramp_session_flow() {
+        let manager = CoreEnclaveManager::new();
+        manager.derive_session_key("1234", b"salt").unwrap();
+        let fiat_service = FiatRouterService::new("https://api.conxian.io".to_string());
+
+        let req = FiatOnRampRequest {
+            fiat_currency: "USD".to_string(),
+            crypto_asset: AssetIdentifier { chain: "BTC".to_string(), symbol: "BTC".to_string() },
+            amount: 100.0,
+            wallet_address: "bc1q...".to_string(),
+            provider: "Ramp".to_string(),
+            attribution: None,
+        };
+
+        let intent = fiat_service.prepare_session(req);
+        let sig_resp = manager.sign(SignRequest {
+            message_hash: intent.signable_hash.clone(),
+            derivation_path: "m/44'/0'/0'/0/0".to_string(),
+            key_id: "fiat_test".to_string(),
+            taproot_tweak: None,
+        }).unwrap();
+
+        let response = fiat_service.create_session(intent, sig_resp.signature_hex).await.unwrap();
+        assert_eq!(response.provider, "Ramp");
+        assert!(!response.session_id.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_a2p_otp_session_flow() {
+        let manager = CoreEnclaveManager::new();
+        manager.derive_session_key("1234", b"salt").unwrap();
+        let a2p_service = A2pRouterService::new("https://api.conxian.io".to_string());
+
+        let req = OtpRequest {
+            phone_number: "+1234567890".to_string(),
+            channel: "SMS".to_string(),
+            attribution: None,
+        };
+
+        let intent = a2p_service.prepare_otp(req);
+        let sig_resp = manager.sign(SignRequest {
+            message_hash: intent.signable_hash.clone(),
+            derivation_path: "m/44'/0'/0'/0/0".to_string(),
+            key_id: "a2p_test".to_string(),
+            taproot_tweak: None,
+        }).unwrap();
+
+        assert!(!sig_resp.signature_hex.is_empty());
     }
 
     #[tokio::test]
