@@ -22,7 +22,7 @@ mod tests {
     use crate::enclave::android_strongbox::CoreEnclaveManager;
     use crate::enclave::{EnclaveManager, SignRequest};
     use crate::enclave::attestation::DeviceIntegrityReport;
-    use crate::protocol::rails::{RailProxy, SwapRequest, SovereignHandshake, ChangellyRail, BisqRail};
+    use crate::protocol::rails::{RailProxy, SwapRequest, SovereignHandshake, ChangellyRail, BisqRail, BoltzRail};
     use crate::protocol::business::{BusinessManager, BusinessRegistry, BusinessProfile};
     use crate::protocol::asset::{AssetRegistry, Asset, AssetIdentifier};
     use crate::protocol::bitcoin::TaprootManager;
@@ -66,6 +66,36 @@ mod tests {
         ).await.unwrap();
 
         assert!(response.transaction_id.starts_with("CHG-PX-"));
+    }
+
+    #[tokio::test]
+    async fn test_boltz_rail_fast_swap() {
+        let manager = CoreEnclaveManager::new();
+        manager.derive_session_key("1234", b"salt").unwrap();
+
+        let asset_registry = Arc::new(AssetRegistry::new());
+        let business_registry = Arc::new(BusinessRegistry::new());
+        let mut proxy = RailProxy::new("https://api.gateway.com".to_string(), None, asset_registry, business_registry);
+        proxy.register_rail(Box::new(BoltzRail));
+
+        let req = SwapRequest {
+            from_asset: AssetIdentifier { chain: "BTC".to_string(), symbol: "BTC".to_string() },
+            to_asset: AssetIdentifier { chain: "LIGHTNING".to_string(), symbol: "BTC".to_string() },
+            amount: 60_000,
+            recipient_address: "lnbc1...".to_string(),
+            attribution: None,
+        };
+
+        let intent = proxy.prepare_intent("Boltz", req).unwrap();
+        assert_eq!(intent.chain_context.as_ref().unwrap(), "BOLTZ_SUBMARINE_SWAP_v1");
+
+        let response = proxy.broadcast_signed_intent(
+            intent,
+            "mock_sig".to_string(),
+            None
+        ).await;
+
+        assert!(response.is_err());
     }
 
     #[tokio::test]

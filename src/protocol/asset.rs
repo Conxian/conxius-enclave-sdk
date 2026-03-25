@@ -62,6 +62,22 @@ impl AssetRegistry {
             contract_address: Some("0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string()),
             active: true,
         });
+
+        self.register_asset(Asset {
+            identifier: AssetIdentifier { chain: "LIQUID".to_string(), symbol: "LBTC".to_string() },
+            name: "Liquid Bitcoin".to_string(),
+            decimals: 8,
+            contract_address: None,
+            active: true,
+        });
+
+        self.register_asset(Asset {
+            identifier: AssetIdentifier { chain: "LIGHTNING".to_string(), symbol: "BTC".to_string() },
+            name: "Lightning Bitcoin".to_string(),
+            decimals: 8,
+            contract_address: None,
+            active: true,
+        });
     }
 
     pub fn register_asset(&mut self, asset: Asset) {

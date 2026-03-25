@@ -1,6 +1,7 @@
 pub mod changelly;
 pub mod bisq;
 pub mod wormhole;
+pub mod boltz;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
@@ -14,6 +15,7 @@ use std::collections::HashMap;
 pub use self::changelly::ChangellyRail;
 pub use self::bisq::BisqRail;
 pub use self::wormhole::WormholeRail;
+pub use self::boltz::BoltzRail;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwapRequest {
