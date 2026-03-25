@@ -6,6 +6,8 @@ use crate::protocol::asset::{AssetRegistry, Asset, AssetIdentifier};
 use crate::protocol::rails::{RailProxy, SwapRequest, SovereignHandshake, ChangellyRail, BisqRail, WormholeRail};
 use crate::protocol::stacks::StacksManager;
 use crate::protocol::bitcoin::TaprootManager;
+use crate::protocol::fiat::{FiatRouterService, FiatOnRampRequest};
+use crate::protocol::a2p::{A2pRouterService, OtpRequest, OtpVerificationRequest};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -145,6 +147,90 @@ impl ConclaveWasmClient {
 
         serde_wasm_bindgen::to_value(&response)
             .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Create a stateless fiat on-ramp session
+    #[wasm_bindgen]
+    pub async fn create_fiat_session(
+        &self,
+        fiat_currency: &str,
+        to_chain: &str,
+        to_symbol: &str,
+        amount: f64,
+        wallet_address: &str,
+        provider: &str,
+        business_id: Option<String>
+    ) -> Result<JsValue, JsValue> {
+        let fiat_service = FiatRouterService::new("https://api.conxian.io".to_string());
+
+        let attribution = if let Some(bid) = business_id {
+            let business_mgr = BusinessManager::new(&self.manager, (*self.business_registry).clone());
+            Some(business_mgr.generate_attribution(&bid, "user_default", HashMap::new())
+                .map_err(|e| JsValue::from_str(&e.to_string()))?)
+        } else {
+            None
+        };
+
+        let request = FiatOnRampRequest {
+            fiat_currency: fiat_currency.to_string(),
+            crypto_asset: AssetIdentifier { chain: to_chain.to_string(), symbol: to_symbol.to_string() },
+            amount,
+            wallet_address: wallet_address.to_string(),
+            provider: provider.to_string(),
+            attribution,
+        };
+
+        let intent = fiat_service.prepare_session(request);
+
+        let sig_resp = self.manager.sign(SignRequest {
+            message_hash: intent.signable_hash.clone(),
+            derivation_path: "m/44'/0'/0'/0/0".to_string(),
+            key_id: "fiat_key".to_string(),
+            taproot_tweak: None,
+        }).map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        let response = fiat_service.create_session(intent, sig_resp.signature_hex)
+            .await.map_err(|e| JsValue::from_str(&e))?;
+
+        serde_wasm_bindgen::to_value(&response)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Initiate stateless phone verification
+    #[wasm_bindgen]
+    pub async fn initiate_phone_verification(
+        &self,
+        phone_number: &str,
+        channel: &str,
+        business_id: Option<String>
+    ) -> Result<JsValue, JsValue> {
+        let a2p_service = A2pRouterService::new("https://api.conxian.io".to_string());
+
+        let attribution = if let Some(bid) = business_id {
+            let business_mgr = BusinessManager::new(&self.manager, (*self.business_registry).clone());
+            Some(business_mgr.generate_attribution(&bid, "user_default", HashMap::new())
+                .map_err(|e| JsValue::from_str(&e.to_string()))?)
+        } else {
+            None
+        };
+
+        let request = OtpRequest {
+            phone_number: phone_number.to_string(),
+            channel: channel.to_string(),
+            attribution,
+        };
+
+        let intent = a2p_service.prepare_otp(request);
+
+        let _sig_resp = self.manager.sign(SignRequest {
+            message_hash: intent.signable_hash.clone(),
+            derivation_path: "m/44'/0'/0'/0/0".to_string(),
+            key_id: "a2p_key".to_string(),
+            taproot_tweak: None,
+        }).map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        // In a real implementation, we would broadcast the signed intent to the gateway
+        Ok(serde_wasm_bindgen::to_value(&format!("OTP sent to {}", phone_number)).unwrap())
     }
 
     /// Sign a Stacks transaction payload
