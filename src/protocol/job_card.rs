@@ -49,6 +49,9 @@ impl Iso20022Wrapper {
     pub fn wrap_pacs008(card: &ConxianJobCard) -> ConclaveResult<String> {
         card.validate()?;
 
+        let town = card.work_intent.town_name.as_deref().unwrap_or("Unknown");
+        let country = card.work_intent.country_code.as_deref().unwrap_or("ZZ");
+
         // For pacs.008.001.08 XML generation
         // This is a simplified representation for the bounty requirement
         let xml = format!(
@@ -85,8 +88,8 @@ impl Iso20022Wrapper {
             card.work_intent.receiver_address,
             card.work_intent.amount_sbtc,
             card.work_intent.sender_address,
-            card.work_intent.town_name.as_ref().unwrap(),
-            card.work_intent.country_code.as_ref().unwrap(),
+            town,
+            country,
             card.work_intent.receiver_address
         );
 

@@ -5,6 +5,7 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 ## 1. Business Management
 - **Status**: COMPLETED.
 - **Implementation**: `BusinessManager` handles identity generation (`generate_business_identity`) and cryptographic attribution (`generate_attribution`). `BusinessRegistry` tracks partner profiles.
+- **Verification**: Cryptographic signature verification is now enforced in `RailProxy` using `secp256k1`.
 
 ## 2. Asset Registry
 - **Status**: COMPLETED.
@@ -15,9 +16,14 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 - **Implementation**:
     - `EnclaveManager` trait formalizes hardware abstraction.
     - `CloudEnclave` implemented for cloud-hosted security.
-    - `SovereignRail` implementations (Changelly, Bisq, Wormhole) modularized into `src/protocol/rails/`.
+    - `SovereignRail` implementations (Changelly, Bisq, Wormhole, Boltz, NTT) modularized into `src/protocol/rails/`.
     - `RailProxy` updated to consume `AssetRegistry` and `BusinessRegistry`.
 
 ## 4. Sovereign Handshake
 - **Status**: COMPLETED.
 - **Implementation**: Handshake enforces hardware attestation and business attribution verification in `RailProxy`. Wasm bindings provide `execute_swap` as a high-level orchestration helper.
+
+## 5. Mainnet Readiness (CON-145)
+- **Governance**: `LICENSE`, `SECURITY.md`, and `CONTRIBUTING.md` added.
+- **Robustness**: Eliminated unsafe panics in `job_card.rs`.
+- **Security**: Telemetry and attestation verified across core rails.

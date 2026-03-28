@@ -1,6 +1,6 @@
 use crate::{ConclaveResult, ConclaveError, enclave::{EnclaveManager, SignRequest, SignResponse}};
 use crate::enclave::attestation::{DeviceIntegrityReport, AttestationLevel};
-use secp256k1::{Secp256k1, Message, SecretKey};
+use secp256k1::{Secp256k1, Message, SecretKey, PublicKey};
 use rand::Rng;
 
 /// A mock CloudEnclave implementation for testing and cloud-based non-custodial signing.
@@ -12,6 +12,11 @@ pub struct CloudEnclave {
 impl CloudEnclave {
     pub fn new(kms_endpoint: String) -> Self {
         Self { kms_endpoint }
+    }
+
+    fn get_mock_secret_key(&self) -> SecretKey {
+        // Fixed dummy key for deterministic mock testing
+        SecretKey::from_byte_array([0xcd; 32]).unwrap()
     }
 
     fn generate_mock_attestation(&self, challenge: &[u8]) -> DeviceIntegrityReport {
@@ -43,8 +48,10 @@ impl EnclaveManager for CloudEnclave {
     }
 
     fn get_public_key(&self, _derivation_path: &str) -> ConclaveResult<String> {
-        // Mock public key
-        Ok("0250863ad64a87ad9a007159741e26b1f02337efa5f1d44d79e4c0303a74624a3f".to_string())
+        let secp = Secp256k1::new();
+        let secret_key = self.get_mock_secret_key();
+        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+        Ok(hex::encode(public_key.serialize()))
     }
 
     fn sign(&self, request: SignRequest) -> ConclaveResult<SignResponse> {
@@ -52,13 +59,13 @@ impl EnclaveManager for CloudEnclave {
             return Err(ConclaveError::InvalidPayload);
         }
 
-        // Mock signing using a fixed dummy key for the cloud mock
         let secp = Secp256k1::new();
-        let secret_key = SecretKey::from_byte_array([0xcd; 32]).unwrap();
-        let message = Message::from_digest(request.message_hash.clone().try_into().unwrap());
+        let secret_key = self.get_mock_secret_key();
+        let message_bytes: [u8; 32] = request.message_hash.clone().try_into().unwrap();
+        let message = Message::from_digest(message_bytes);
 
         let sig = secp.sign_ecdsa(message, &secret_key);
-        let public_key = secret_key.public_key(&secp);
+        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
         let attestation = self.generate_mock_attestation(&request.message_hash);
 

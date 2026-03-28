@@ -132,11 +132,9 @@ impl RailProxy {
                  return Err("Business attribution expired".to_string());
              }
 
-             // In a real implementation, we would also verify the cryptographic signature
-             // of the attribution using the profile's public key.
-             if attribution.signature.is_empty() {
-                 return Err("Cryptographic business attribution signature missing".to_string());
-             }
+             // Cryptographic verification of attribution signature
+             attribution.verify(&profile.public_key)
+                 .map_err(|e| format!("Business attribution verification failed: {}", e))?;
         }
 
         Ok(())
