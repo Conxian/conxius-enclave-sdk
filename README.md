@@ -56,7 +56,7 @@ const response = await client.execute_swap(
 
 ## Development
 
-Requires Rust 1.81+ (Edition 2024).
+Requires Rust 1.85+ (Edition 2024).
 
 ```bash
 # Build core Rust SDK
@@ -69,9 +69,9 @@ cargo test
 wasm-pack build
 ```
 
-## Audit & Verification
+## Verification
 
-The SDK has undergone a full architectural audit and enhancement cycle. All core protocol features, including cryptographic attribution and hardware attestation, have been verified with automated unit tests.
+Core components are covered by automated unit tests. Run `cargo test` to execute the test suite locally.
 
 ## License
 
