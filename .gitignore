@@ -1,7 +1,6 @@
 # Rust
-/target
-target/
-Cargo.lock
+/target/
+/Cargo.lock
 
 # WASM / Node
 node_modules/
