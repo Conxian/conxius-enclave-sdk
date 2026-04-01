@@ -1,23 +1,23 @@
-pub mod changelly;
 pub mod bisq;
-pub mod wormhole;
 pub mod boltz;
+pub mod changelly;
 pub mod ntt;
+pub mod wormhole;
 
-use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
-use async_trait::async_trait;
 use crate::enclave::attestation::DeviceIntegrityReport;
 use crate::protocol::asset::{AssetIdentifier, AssetRegistry};
 use crate::protocol::business::{BusinessAttribution, BusinessRegistry};
-use std::sync::Arc;
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::sync::Arc;
 
-pub use self::changelly::ChangellyRail;
 pub use self::bisq::BisqRail;
-pub use self::wormhole::WormholeRail;
 pub use self::boltz::BoltzRail;
+pub use self::changelly::ChangellyRail;
 pub use self::ntt::NTTRail;
+pub use self::wormhole::WormholeRail;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwapRequest {
@@ -48,7 +48,11 @@ pub struct SwapResponse {
 pub trait SovereignRail: Send + Sync {
     fn name(&self) -> String;
     fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String>;
-    async fn execute_swap(&self, intent: SwapIntent, signature: String) -> Result<SwapResponse, String>;
+    async fn execute_swap(
+        &self,
+        intent: SwapIntent,
+        signature: String,
+    ) -> Result<SwapResponse, String>;
 }
 
 /// The Sovereign Handshake: A non-custodial protocol where the Gateway
@@ -63,7 +67,7 @@ pub trait SovereignHandshake {
         &self,
         intent: SwapIntent,
         signature: String,
-        attestation: Option<String>
+        attestation: Option<String>,
     ) -> Result<SwapResponse, String>;
 }
 
@@ -81,7 +85,7 @@ impl RailProxy {
         endpoint: String,
         api_key: Option<String>,
         asset_registry: Arc<AssetRegistry>,
-        business_registry: Arc<BusinessRegistry>
+        business_registry: Arc<BusinessRegistry>,
     ) -> Self {
         let mut rails: HashMap<String, Box<dyn SovereignRail>> = HashMap::new();
 
@@ -106,14 +110,20 @@ impl RailProxy {
         self.rails.insert(rail.name(), rail);
     }
 
-    fn verify_hardware_integrity(&self, intent: &SwapIntent, attestation_json: &Option<String>) -> Result<(), String> {
+    fn verify_hardware_integrity(
+        &self,
+        intent: &SwapIntent,
+        attestation_json: &Option<String>,
+    ) -> Result<(), String> {
         if !self.enforce_attestation {
             return Ok(());
         }
 
-        let json = attestation_json.as_ref().ok_or("Hardware attestation report missing for high-value rail operation")?;
-        let report: DeviceIntegrityReport = serde_json::from_str(json)
-            .map_err(|e| format!("Invalid attestation format: {}", e))?;
+        let json = attestation_json
+            .as_ref()
+            .ok_or("Hardware attestation report missing for high-value rail operation")?;
+        let report: DeviceIntegrityReport =
+            serde_json::from_str(json).map_err(|e| format!("Invalid attestation format: {}", e))?;
 
         if !report.verify(&intent.signable_hash) {
             return Err("Hardware attestation verification failed: Device integrity compromised or nonce mismatch".to_string());
@@ -121,20 +131,26 @@ impl RailProxy {
 
         // Verify business attribution if present
         if let Some(attribution) = &intent.request.attribution {
-             let profile = self.business_registry.get_business(&attribution.business_id)
-                 .ok_or_else(|| format!("Unknown business partner: {}", attribution.business_id))?;
+            let profile = self
+                .business_registry
+                .get_business(&attribution.business_id)
+                .ok_or_else(|| format!("Unknown business partner: {}", attribution.business_id))?;
 
-             if !profile.active {
-                 return Err(format!("Business partner {} is currently inactive", attribution.business_id));
-             }
+            if !profile.active {
+                return Err(format!(
+                    "Business partner {} is currently inactive",
+                    attribution.business_id
+                ));
+            }
 
-             if attribution.expiration < 1710000000 {
-                 return Err("Business attribution expired".to_string());
-             }
+            if attribution.expiration < 1710000000 {
+                return Err("Business attribution expired".to_string());
+            }
 
-             // Cryptographic verification of attribution signature
-             attribution.verify(&profile.public_key)
-                 .map_err(|e| format!("Business attribution verification failed: {}", e))?;
+            // Cryptographic verification of attribution signature
+            attribution
+                .verify(&profile.public_key)
+                .map_err(|e| format!("Business attribution verification failed: {}", e))?;
         }
 
         Ok(())
@@ -144,20 +160,32 @@ impl RailProxy {
 #[async_trait]
 impl SovereignHandshake for RailProxy {
     fn prepare_intent(&self, rail_name: &str, request: SwapRequest) -> Result<SwapIntent, String> {
-        let rail = self.rails.get(rail_name).ok_or_else(|| format!("Rail {} not found", rail_name))?;
+        let rail = self
+            .rails
+            .get(rail_name)
+            .ok_or_else(|| format!("Rail {} not found", rail_name))?;
 
         if request.amount == 0 {
             return Err("Amount must be greater than zero".to_string());
         }
 
-        if !self.asset_registry.validate_pair(&request.from_asset, &request.to_asset) {
+        if !self
+            .asset_registry
+            .validate_pair(&request.from_asset, &request.to_asset)
+        {
             return Err("Invalid or unsupported asset pair".to_string());
         }
 
         let chain_context = rail.validate_request(&request)?;
 
         let mut hasher = Sha256::new();
-        hasher.update(format!("{}:{:?}:{:?}:{}", rail_name, request, chain_context, self.endpoint).as_bytes());
+        hasher.update(
+            format!(
+                "{}:{:?}:{:?}:{}",
+                rail_name, request, chain_context, self.endpoint
+            )
+            .as_bytes(),
+        );
         let signable_hash = hasher.finalize().to_vec();
 
         Ok(SwapIntent {
@@ -172,9 +200,12 @@ impl SovereignHandshake for RailProxy {
         &self,
         intent: SwapIntent,
         signature: String,
-        attestation: Option<String>
+        attestation: Option<String>,
     ) -> Result<SwapResponse, String> {
-        let rail = self.rails.get(&intent.rail_type).ok_or_else(|| format!("Rail {} not found", intent.rail_type))?;
+        let rail = self
+            .rails
+            .get(&intent.rail_type)
+            .ok_or_else(|| format!("Rail {} not found", intent.rail_type))?;
 
         if signature.is_empty() {
             return Err("Sovereign signature required for broadcast".to_string());
@@ -190,14 +221,20 @@ impl SovereignHandshake for RailProxy {
 pub struct CustomRail;
 #[async_trait]
 impl SovereignRail for CustomRail {
-    fn name(&self) -> String { "CustomPartner".to_string() }
+    fn name(&self) -> String {
+        "CustomPartner".to_string()
+    }
     fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String> {
         if request.from_asset.chain != "BTC" {
-             return Err("CustomPartner only accepts BTC as inbound".to_string());
+            return Err("CustomPartner only accepts BTC as inbound".to_string());
         }
         Ok(Some("PARTNER_CUSTOM_v1".to_string()))
     }
-    async fn execute_swap(&self, intent: SwapIntent, _signature: String) -> Result<SwapResponse, String> {
+    async fn execute_swap(
+        &self,
+        intent: SwapIntent,
+        _signature: String,
+    ) -> Result<SwapResponse, String> {
         Ok(SwapResponse {
             transaction_id: format!("PARTNER-{}", hex::encode(&intent.signable_hash[..8])),
             status: "Partner processing".to_string(),

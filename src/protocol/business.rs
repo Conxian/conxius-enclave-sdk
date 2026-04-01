@@ -1,9 +1,12 @@
+use crate::{
+    ConclaveError, ConclaveResult,
+    enclave::{EnclaveManager, SignRequest},
+};
+use rand::Rng;
+use secp256k1::{Message, PublicKey, Secp256k1, ecdsa::Signature};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
-use crate::{ConclaveResult, ConclaveError, enclave::{SignRequest, EnclaveManager}};
-use rand::Rng;
 use std::collections::HashMap;
-use secp256k1::{Secp256k1, Message, ecdsa::Signature, PublicKey};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BusinessAttribution {
@@ -22,9 +25,9 @@ impl BusinessAttribution {
         let mut hasher = sha2::Sha256::new();
         hasher.update(self.business_id.as_bytes());
         hasher.update(self.user_id.as_bytes());
-        hasher.update(&self.timestamp.to_be_bytes());
-        hasher.update(&self.expiration.to_be_bytes());
-        hasher.update(&self.nonce);
+        hasher.update(self.timestamp.to_be_bytes());
+        hasher.update(self.expiration.to_be_bytes());
+        hasher.update(self.nonce);
 
         // Include metadata in hash for integrity
         let mut sorted_metadata: Vec<_> = self.metadata.iter().collect();
@@ -42,7 +45,9 @@ impl BusinessAttribution {
         let secp = Secp256k1::new();
         let hash = self.get_hash();
 
-        let message_bytes: [u8; 32] = hash.try_into().map_err(|_| ConclaveError::CryptoError("Invalid hash length".to_string()))?;
+        let message_bytes: [u8; 32] = hash
+            .try_into()
+            .map_err(|_| ConclaveError::CryptoError("Invalid hash length".to_string()))?;
         let message = Message::from_digest(message_bytes);
 
         let public_key_bytes = hex::decode(public_key_hex)
@@ -61,7 +66,9 @@ impl BusinessAttribution {
         if secp.verify_ecdsa(message, &signature, &public_key).is_ok() {
             Ok(())
         } else {
-            Err(ConclaveError::CryptoError("Business attribution signature verification failed".to_string()))
+            Err(ConclaveError::CryptoError(
+                "Business attribution signature verification failed".to_string(),
+            ))
         }
     }
 }
@@ -77,6 +84,12 @@ pub struct BusinessProfile {
 #[derive(Clone)]
 pub struct BusinessRegistry {
     businesses: HashMap<String, BusinessProfile>,
+}
+
+impl Default for BusinessRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BusinessRegistry {
@@ -110,8 +123,14 @@ impl<'a> BusinessManager<'a> {
     }
 
     /// Generates a new hardware-backed business identity.
-    pub fn generate_business_identity(&self, business_id: &str, name: &str) -> ConclaveResult<BusinessProfile> {
-        let public_key = self.enclave.get_public_key(&format!("m/44'/5757'/0'/0/business/{}", business_id))?;
+    pub fn generate_business_identity(
+        &self,
+        business_id: &str,
+        name: &str,
+    ) -> ConclaveResult<BusinessProfile> {
+        let public_key = self
+            .enclave
+            .get_public_key(&format!("m/44'/5757'/0'/0/business/{}", business_id))?;
 
         Ok(BusinessProfile {
             id: business_id.to_string(),
@@ -123,7 +142,12 @@ impl<'a> BusinessManager<'a> {
 
     /// Generates a signed proof of attribution for a business partner.
     /// This ensures that referrals are cryptographically linked to a valid business identity.
-    pub fn generate_attribution(&self, business_id: &str, user_id: &str, metadata: HashMap<String, String>) -> ConclaveResult<BusinessAttribution> {
+    pub fn generate_attribution(
+        &self,
+        business_id: &str,
+        user_id: &str,
+        metadata: HashMap<String, String>,
+    ) -> ConclaveResult<BusinessAttribution> {
         if !self.registry.is_active(business_id) {
             return Err(ConclaveError::InvalidPayload);
         }
@@ -168,11 +192,15 @@ mod tests {
 
     #[test]
     fn test_attribution_verification() {
-        let enclave = CloudEnclave { kms_endpoint: "test".to_string() };
+        let enclave = CloudEnclave {
+            kms_endpoint: "test".to_string(),
+        };
         let mut registry = BusinessRegistry::new();
 
         // Get the mock public key from the cloud enclave
-        let public_key = enclave.get_public_key("m/44'/5757'/0'/0/business/partner_01").unwrap();
+        let public_key = enclave
+            .get_public_key("m/44'/5757'/0'/0/business/partner_01")
+            .unwrap();
 
         // Register a business
         let profile = BusinessProfile {
@@ -184,7 +212,9 @@ mod tests {
         registry.register_business(profile.clone());
 
         let mgr = BusinessManager::new(&enclave, registry);
-        let attribution = mgr.generate_attribution("partner_01", "user_123", HashMap::new()).unwrap();
+        let attribution = mgr
+            .generate_attribution("partner_01", "user_123", HashMap::new())
+            .unwrap();
 
         // Verify the signature using the profile's public key
         let res = attribution.verify(&profile.public_key);

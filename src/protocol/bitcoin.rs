@@ -1,7 +1,10 @@
-use crate::{ConclaveResult, ConclaveError, enclave::{SignRequest, EnclaveManager}};
-use bitcoin::hashes::{Hash, sha256t, HashEngine};
-use bitcoin::taproot::TapLeafHash;
+use crate::{
+    ConclaveError, ConclaveResult,
+    enclave::{EnclaveManager, SignRequest},
+};
 use bitcoin::XOnlyPublicKey;
+use bitcoin::hashes::{Hash, HashEngine, sha256t};
+use bitcoin::taproot::TapLeafHash;
 
 /// Native Bitcoin Taproot (BIP341) Manager.
 /// Superior implementation handling Tweak logic natively within the Conclave ethos.
@@ -25,7 +28,9 @@ impl<'a> TaprootManager<'a> {
         merkle_root: Option<[u8; 32]>,
     ) -> ConclaveResult<String> {
         if !derivation_path.contains("86'") {
-            return Err(ConclaveError::CryptoError("Taproot requires m/86' derivation path".to_string()));
+            return Err(ConclaveError::CryptoError(
+                "Taproot requires m/86' derivation path".to_string(),
+            ));
         }
 
         let tweak = self.calculate_taproot_tweak(derivation_path, merkle_root)?;
@@ -48,7 +53,8 @@ impl<'a> TaprootManager<'a> {
         merkle_root: Option<[u8; 32]>,
     ) -> ConclaveResult<Vec<u8>> {
         let pubkey_hex = self.enclave.get_public_key(derivation_path)?;
-        let internal_pubkey_bytes = hex::decode(pubkey_hex).map_err(|_| ConclaveError::InvalidPayload)?;
+        let internal_pubkey_bytes =
+            hex::decode(pubkey_hex).map_err(|_| ConclaveError::InvalidPayload)?;
 
         let internal_pubkey = XOnlyPublicKey::from_slice(&internal_pubkey_bytes[..32])
             .map_err(|e| ConclaveError::CryptoError(format!("Invalid internal pubkey: {}", e)))?;

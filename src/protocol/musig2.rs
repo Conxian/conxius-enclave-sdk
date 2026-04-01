@@ -1,7 +1,10 @@
-use musig2::{KeyAggContext, SecNonce, PubNonce, PartialSignature, aggregate_partial_signatures, AggNonce, CompactSignature};
-use secp256k1::{PublicKey, SecretKey};
+use crate::{ConclaveError, ConclaveResult};
+use musig2::{
+    AggNonce, CompactSignature, KeyAggContext, PartialSignature, PubNonce, SecNonce,
+    aggregate_partial_signatures,
+};
 use rand::Rng;
-use crate::{ConclaveResult, ConclaveError};
+use secp256k1::{PublicKey, SecretKey};
 
 /// Wrapper for MuSig2 multi-signature orchestration.
 pub struct MuSig2Session {
@@ -38,11 +41,12 @@ impl MuSig2Session {
 
         musig2::sign_partial::<PartialSignature>(
             &self.key_agg_ctx,
-            secret_key.clone(),
+            *secret_key,
             sec_nonce,
             &aggr_nonce,
             message,
-        ).map_err(|e| ConclaveError::CryptoError(format!("MuSig2 signing failed: {:?}", e)))
+        )
+        .map_err(|e| ConclaveError::CryptoError(format!("MuSig2 signing failed: {:?}", e)))
     }
 
     pub fn aggregate_signatures(
@@ -53,12 +57,11 @@ impl MuSig2Session {
     ) -> ConclaveResult<Vec<u8>> {
         let aggr_nonce = AggNonce::sum(&pub_nonces);
 
-        let final_sig: CompactSignature = aggregate_partial_signatures(
-            &self.key_agg_ctx,
-            &aggr_nonce,
-            partial_sigs,
-            message,
-        ).map_err(|e| ConclaveError::CryptoError(format!("MuSig2 aggregation failed: {:?}", e)))?;
+        let final_sig: CompactSignature =
+            aggregate_partial_signatures(&self.key_agg_ctx, &aggr_nonce, partial_sigs, message)
+                .map_err(|e| {
+                    ConclaveError::CryptoError(format!("MuSig2 aggregation failed: {:?}", e))
+                })?;
 
         Ok(final_sig.serialize().to_vec())
     }

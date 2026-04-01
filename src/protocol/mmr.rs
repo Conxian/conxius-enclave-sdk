@@ -1,6 +1,6 @@
-use crate::state::MerkleMountainRange;
 use crate::ConclaveResult;
-use serde::{Serialize, Deserialize};
+use crate::state::MerkleMountainRange;
+use serde::{Deserialize, Serialize};
 
 /// Service for handling Merkle Mountain Range (MMR) operations.
 pub struct MmrService {
@@ -24,8 +24,9 @@ impl MmrService {
         let mut mmr = MerkleMountainRange::new();
         mmr.append(data);
 
-        let proof = mmr.generate_proof(pos)
-            .map_err(|e| crate::ConclaveError::CryptoError(e))?;
+        let proof = mmr
+            .generate_proof(pos)
+            .map_err(crate::ConclaveError::CryptoError)?;
 
         Ok(MmrProofResponse {
             position: proof.pos,
@@ -39,12 +40,12 @@ impl MmrService {
         let url = format!("{}/v1/mmr-proof/{}", self.base_url, node_id);
         let client = reqwest::Client::new();
 
-        let response = client.get(&url)
-            .send()
-            .await
-            .map_err(|e| crate::ConclaveError::EnclaveFailure(format!("API Request failed: {}", e)))?;
+        let response = client.get(&url).send().await.map_err(|e| {
+            crate::ConclaveError::EnclaveFailure(format!("API Request failed: {}", e))
+        })?;
 
-        let proof = response.json::<MmrProofResponse>()
+        let proof = response
+            .json::<MmrProofResponse>()
             .await
             .map_err(|e| crate::ConclaveError::CryptoError(format!("Invalid response: {}", e)))?;
 

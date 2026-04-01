@@ -41,11 +41,11 @@ impl TelemetryClient {
                 Ok(res) => {
                     if !res.status().is_success() {
                         // In production, we'd log this locally or queue for retry
-                        // We intentionally ignore errors here to prevent SDK crashing 
+                        // We intentionally ignore errors here to prevent SDK crashing
                         // from backend downtime (preserving user sovereignty).
                         let _ = res.text().await;
                     }
-                },
+                }
                 Err(_) => {
                     // Network failure, ignore to maintain 300ms SLA
                 }

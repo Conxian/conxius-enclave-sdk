@@ -1,5 +1,8 @@
-use crate::{ConclaveResult, ConclaveError, enclave::{SignRequest, EnclaveManager}};
-use sha2::{Sha256, Digest};
+use crate::{
+    ConclaveError, ConclaveResult,
+    enclave::{EnclaveManager, SignRequest},
+};
+use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone)]
 pub struct StacksTransactionIntent {
@@ -39,7 +42,11 @@ impl<'a> StacksManager<'a> {
     }
 
     /// PHASE 2: Sign the prepared intent.
-    pub fn sign_prepared_transaction(&self, intent: StacksTransactionIntent, key_id: &str) -> ConclaveResult<String> {
+    pub fn sign_prepared_transaction(
+        &self,
+        intent: StacksTransactionIntent,
+        key_id: &str,
+    ) -> ConclaveResult<String> {
         let request = SignRequest {
             message_hash: intent.message_hash,
             derivation_path: "m/44'/5757'/0'/0/0".to_string(),

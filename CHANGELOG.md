@@ -8,13 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial implementation of the core Conclave SDK.
-- Support for Android StrongBox and Cloud TEE hardware enclaves.
-- Sovereign Handshake protocol for non-custodial signing.
-- Business Management and Asset Registry systems.
-- Stacks (STX) message and transaction signing support.
-- Bitcoin Taproot (BIP341) native support.
-- MuSig2 signature aggregation orchestration.
-- WebAssembly (WASM) bindings for browser integration.
-- Telemetry integration for signature tracking.
-- Modular Rail system (Changelly, Bisq, Wormhole, Boltz, NTT).
+- GitHub Actions CI workflow for Rust tests, linting, and WASM builds.
+- CI status badges to README.
+- `Default` implementations for core registries and managers to improve idiomatic Rust usage.
+- `cdylib` crate-type to `Cargo.toml` for WASM compatibility.
+
+### Changed
+- Improved idiomatic Rust and fixed 14 Clippy warnings across the codebase.
+- Updated documentation to reflect the current verified toolchain (Rust 1.94+).
+- Clarified repository categorization as a "Security Infrastructure SDK".
+
+### Removed
+- Removed `Cargo.lock` from Git tracking as per repository standards.

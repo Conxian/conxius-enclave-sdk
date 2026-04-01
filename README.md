@@ -2,13 +2,14 @@
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
+[![CI Status](https://github.com/conxian-labs/lib-conclave-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/conxian-labs/lib-conclave-sdk/actions/workflows/ci.yml)
 
 The core Rust SDK for Conclave, providing cross-platform hardware enclave abstractions for Android StrongBox, Apple Secure Enclave, and Cloud TEE environments.
 
 ## Repository Status
 
 - **Status**: Beta / Active Development
-- **Category**: SDK / Security Infrastructure
+- **Category**: Security Infrastructure SDK
 - **Support**: Managed by Conxian-Labs (Urgent issues via Linear/Security)
 
 ## Features
@@ -56,7 +57,7 @@ const response = await client.execute_swap(
 
 ## Development
 
-Requires Rust 1.85+ (Edition 2024).
+Requires Rust 1.94+ (Edition 2024).
 
 ```bash
 # Build core Rust SDK

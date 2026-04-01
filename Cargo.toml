@@ -34,3 +34,6 @@ web-sys = "0.3.91"
 
 [dev-dependencies]
 tokio = { version = "1.49.0", features = ["full"] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]

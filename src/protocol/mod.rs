@@ -1,10 +1,10 @@
-pub mod musig2;
-pub mod stacks;
-pub mod rails;
-pub mod business;
+pub mod a2p;
 pub mod asset;
 pub mod bitcoin;
+pub mod business;
 pub mod fiat;
-pub mod a2p;
-pub mod mmr;
 pub mod job_card;
+pub mod mmr;
+pub mod musig2;
+pub mod rails;
+pub mod stacks;
