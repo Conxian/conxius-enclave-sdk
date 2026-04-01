@@ -2,6 +2,25 @@
 
 The core Rust SDK for Conclave, providing cross-platform hardware enclave abstractions for Android StrongBox, Apple Secure Enclave, and Cloud TEE environments.
 
+## Purpose
+
+Provide a cross-platform enclave abstraction and signing toolkit for sovereignty-critical flows (key custody, attestation, and cross-chain signing).
+
+## Status
+
+Active development. APIs are expected to evolve as additional enclave backends and protocol integrations are added.
+
+## Audience
+
+- Wallet and mobile engineers integrating hardware-backed key custody.
+- Security and cryptography engineers reviewing attestation and signing flows.
+- Platform integrators building enclave-backed identity and authorization.
+
+## Relationship to the Conxian stack
+
+- A core security primitive typically consumed by Conxius Wallet and any sovereign signing workflows.
+- Complements Conxian Gateway by providing hardware-attested signatures and client-side trust guarantees.
+
 ## Features
 
 - **Hardware-Backed Security**: Interfaces with secure hardware (StrongBox/TEE) for key generation and signing.
