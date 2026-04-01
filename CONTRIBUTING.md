@@ -41,4 +41,4 @@ We use a community-driven bounty model for many features and bug fixes.
 - **No Panics**: Avoid `unwrap()`, `expect()`, or `panic!()` in non-test code. Return a `ConclaveError` instead.
 - **Constant Time**: Use the `subtle` crate for sensitive comparisons.
 - **Zeroization**: Ensure sensitive material is zeroized after use using the `zeroize` crate.
-- **Async Traits**: Use `#[async_trait]` for protocol interfaces to maintain cross-platform compatibility.
+- **Async Traits**: If you need async methods in trait interfaces on stable Rust, use `#[async_trait]`; otherwise prefer plain traits to avoid unnecessary overhead.
