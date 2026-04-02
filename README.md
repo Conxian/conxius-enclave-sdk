@@ -4,11 +4,11 @@ The core Rust SDK for Conclave, providing cross-platform hardware enclave abstra
 
 ## Purpose
 
-Provide a cross-platform hardware-enclave abstraction (Android StrongBox, Apple Secure Enclave, and cloud TEEs) plus utilities for key custody, attestation, and signing.
+Provide a cross-platform hardware-enclave abstraction (Android StrongBox, Apple Secure Enclave, and Cloud TEE) plus utilities for key custody, attestation, and signing.
 
 ## Status
 
-Active development (`0.x`). During `0.x`, the public API is not yet stable and breaking changes may land in any release. After `1.0.0`, we'll follow SemVer and avoid breaking changes outside major versions.
+Active development (`0.x`). During `0.x`, the public API is not yet stable and breaking changes may land in any release. After `1.0.0`, we'll follow [Semantic Versioning](https://semver.org) (no breaking changes in minor/patch releases).
 
 ## Audience
 
@@ -18,13 +18,13 @@ Active development (`0.x`). During `0.x`, the public API is not yet stable and b
 
 ## Relationship to the Conxian stack
 
-- A core security primitive typically consumed by [Conxius Wallet](https://github.com/Conxian/conxius-wallet) and any sovereign signing workflows.
-- Complements [Conxian Gateway](https://github.com/Conxian/conxian-gateway) by providing hardware-attested signatures and client-side trust guarantees.
+- A core security primitive consumed by [Conxius Wallet](https://github.com/Conxian/conxius-wallet) (via the Rust crate and/or WASM bindings) for hardware-backed key custody and signing.
+- Complements [Conxian Gateway](https://github.com/Conxian/conxian-gateway) by providing hardware-attested signatures and client-side trust guarantees for protocol flows.
 
 ## Features
 
 - **Hardware-Backed Security**: Interfaces with secure hardware (StrongBox/TEE) for key generation and signing.
-- **Hardware Attestation**: Cryptographic proof of device integrity (StrongBox/TEE/CloudTEE) mandatory for high-value rail operations.
+- **Hardware Attestation**: Cryptographic proof of device integrity (StrongBox/TEE/Cloud TEE) mandatory for high-value rail operations.
 - **Sovereign Handshake**: Non-custodial signing protocol ensuring "Zero Secret Egress" for all cross-chain swaps.
 - **Business Management**: Lifecycle and cryptographic identity for partners and affiliates with secure attribution.
 - **Asset Registry**: Structured registry and validation for cross-chain assets (BTC, ETH, STX, USDT, etc.).
