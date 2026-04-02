@@ -26,7 +26,7 @@ We strictly follow [Semantic Versioning (SemVer)](https://semver.org/).
    cargo test
    # Check dependencies for known vulnerabilities (one-time install: `cargo install cargo-audit --locked`)
    cargo audit
-   # Verify WASM build compatibility
+   # Verify WASM build compatibility (produces ./pkg/)
    wasm-pack build --release --target bundler
    ```
 4. **Create Git Tag**: Create a signed git tag for the release.
@@ -43,11 +43,11 @@ We strictly follow [Semantic Versioning (SemVer)](https://semver.org/).
    # Inspect what will be published from ./pkg/ (generated in step 3)
    (cd pkg && npm pack --dry-run)
    # Publish from the crate root
-   wasm-pack publish --target bundler --access public
+   wasm-pack publish --target bundler
    ```
 
 ## Mainnet Readiness & Security
 
 - **Audit Requirements**: Versions >= 1.0.0 require a formal, independent security audit of the `Sovereign Handshake` and `EnclaveManager` implementations.
-- **Dependency Hygiene**: Ensure the dependency vulnerability check from step 3 (`cargo audit`) runs and passes before every release (prefer CI as the release gate; local runs are a preflight). If advisories are found, fix them or document an explicit exception via a committed `audit.toml` policy (if an exception is required).
+- **Dependency Hygiene**: Ensure the dependency vulnerability check from step 3 (`cargo audit`) runs and passes before every release (prefer CI as the release gate; local runs are a preflight). If advisories are found, fix them before releasing or document an explicit exception via a committed `audit.toml` policy.
 - **Credential Safety**: Ensure no development secrets or artifacts are included in the published package.
