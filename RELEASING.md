@@ -24,7 +24,7 @@ We strictly follow [Semantic Versioning (SemVer)](https://semver.org/).
    cargo clippy -- -D warnings
    # Run the full test suite
    cargo test
-   # Check dependencies for known vulnerabilities (one-time install: `cargo install cargo-audit --locked`)
+   # Check dependencies for known vulnerabilities (first-time install: `cargo install cargo-audit --locked`)
    cargo audit
    # Verify WASM build compatibility (produces ./pkg/)
    wasm-pack build --release --target bundler
