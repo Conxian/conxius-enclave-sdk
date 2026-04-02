@@ -28,7 +28,7 @@ We strictly follow [Semantic Versioning 2.0.0](https://semver.org/).
 
 - **Major (`X.Y.Z` → `(X+1).0.0`)**: Breaking changes to the core API (e.g., `EnclaveManager` trait modifications).
 - **Minor (`X.Y.Z` → `X.(Y+1).0`)**: Backward-compatible new features or significant additions (e.g., new Sovereign Rails).
-- **Patch (`X.Y.Z` → `X.Y.(Z+1)`)**: Backward-compatible bug fixes, performance improvements, and documentation updates.
+- **Patch (`X.Y.Z` → `X.Y.(Z+1)`)**: Backward-compatible bug fixes, performance improvements, documentation updates, and technical debt (e.g., hygiene updates).
 
 **Note on 0.x.y versions**: During the Beta phase (`0.x.y`), this is an intentional exception to the usual backward-compatible minor rule: breaking changes may occur in minor releases (e.g., `0.2.3` → `0.3.0`), while patch releases remain backward-compatible (e.g., `0.2.3` → `0.2.4`).
 
