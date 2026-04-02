@@ -13,7 +13,11 @@ Provide cross-platform hardware enclave abstractions and utilities for key custo
 ## Status
 
 - **Status**: Beta / Active Development (`0.x`)
-- **Compatibility**: During `0.x`, the public API is not stable and breaking changes may land in any release. After `1.0.0`, we'll follow [Semantic Versioning](https://semver.org) (no breaking changes in minor/patch releases).
+- **0.x policy**: Breaking changes may land in any release.
+- **1.0+ policy**: We follow [Semantic Versioning](https://semver.org). Breaking changes only land in major releases.
+
+## Repository
+
 - **Category**: Security Infrastructure SDK
 - **Support**: Managed by Conxian-Labs (Urgent issues via Linear/Security)
 
