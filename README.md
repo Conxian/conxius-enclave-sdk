@@ -4,7 +4,7 @@ The core Rust SDK for Conclave, providing cross-platform hardware enclave abstra
 
 ## Purpose
 
-Provide a cross-platform hardware-enclave abstraction (Android StrongBox, Apple Secure Enclave, and Cloud TEE) plus utilities for key custody, attestation, and signing.
+Provide cross-platform hardware enclave abstractions and utilities for key custody, attestation, and signing across Android StrongBox, Apple Secure Enclave, and Cloud TEE environments.
 
 ## Status
 
