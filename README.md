@@ -8,7 +8,7 @@ Provide a cross-platform hardware-enclave abstraction (Android StrongBox, Apple 
 
 ## Status
 
-Active development (`0.x`). We aim to follow SemVer, but until `1.0.0` breaking API changes may land in minor releases.
+Active development (`0.x`). During `0.x`, the public API is not yet stable and breaking changes may land in any release. After `1.0.0`, we'll follow SemVer and avoid breaking changes outside major versions.
 
 ## Audience
 
