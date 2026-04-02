@@ -34,7 +34,7 @@ We strictly follow [Semantic Versioning 2.0.0](https://semver.org/).
 
 ### Compatibility Communication
 - **Changelogs**: Every release must include an update to [CHANGELOG.md](CHANGELOG.md) following the [Keep a Changelog](https://keepachangelog.com/) format.
-- **Breaking Changes**: For versions >= 1.0.0, breaking changes will be announced at least one minor version in advance via deprecation warnings in the codebase and release notes.
+- **Breaking Changes**: For versions >= 1.0.0, breaking changes MUST be introduced only in major releases; APIs SHOULD be deprecated in a minor release (with warnings and release notes) and removed no earlier than the next major release.
 
 ## 4. Integration Surface
 

@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Normalized SDK naming and discovery across documentation and external issue tracking.
-- Updated `RELEASING.md` with a detailed release flow and security audit requirements.
+- Updated `RELEASING.md` with detailed release flow and security audit requirements.
 - Improved idiomatic Rust and fixed 14 Clippy warnings across the codebase.
 - Updated documentation to reflect the current verified toolchain (Rust 1.94+).
 - Clarified repository categorization as a "Security Infrastructure SDK".
