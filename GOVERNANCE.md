@@ -30,7 +30,7 @@ We strictly follow [Semantic Versioning 2.0.0](https://semver.org/).
 - **Minor (`X.Y.Z` → `X.(Y+1).0`)**: New features or significant additions (e.g., new Sovereign Rails).
 - **Patch (`X.Y.Z` → `X.Y.(Z+1)`)**: Bug fixes, performance improvements, and documentation updates.
 
-**Note on 0.x.y versions**: During the Beta phase (`0.y.z`), breaking changes may occur in minor (`0.y.0`) releases.
+**Note on 0.y.z versions**: During the Beta phase (`0.y.z`), breaking changes may occur in minor (`0.y.0`) releases.
 
 ### Compatibility Communication
 - **Changelogs**: Every release must include an update to [CHANGELOG.md](CHANGELOG.md) following the [Keep a Changelog](https://keepachangelog.com/) format.

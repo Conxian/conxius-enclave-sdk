@@ -10,7 +10,7 @@ We strictly follow [Semantic Versioning (SemVer)](https://semver.org/).
 - **Minor (`X.Y.Z` → `X.(Y+1).0`)**: Additive features in a backward-compatible manner (e.g., new `Rail` implementation).
 - **Patch (`X.Y.Z` → `X.Y.(Z+1)`)**: Backward-compatible bug fixes, performance improvements, and technical debt (e.g., hygiene updates).
 
-**Note on 0.x.y versions**: During the Beta phase (`0.y.z`), breaking changes may occur in minor releases (`0.y.0`).
+**Note on 0.y.z versions**: During the Beta phase (`0.y.z`), breaking changes may occur in minor releases (`0.y.0`).
 
 ## Release Flow
 
@@ -24,7 +24,6 @@ We strictly follow [Semantic Versioning (SemVer)](https://semver.org/).
    cargo clippy -- -D warnings
    # Run the full test suite
    cargo test
-   # Check dependencies for known vulnerabilities (requires `cargo install cargo-audit`)
    # Check dependencies for known vulnerabilities (requires `cargo install cargo-audit`)
    cargo audit
    # Verify WASM build compatibility
