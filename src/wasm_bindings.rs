@@ -1,17 +1,17 @@
-use wasm_bindgen::prelude::*;
 use crate::enclave::{CoreEnclaveManager, SignRequest};
-use crate::protocol::musig2::MuSig2Orchestrator;
-use crate::protocol::stacks::StacksManager;
-use crate::protocol::rails::{RailProxy, SwapRequest, ChangellyRail, BisqRail, WormholeRail};
-use crate::protocol::asset::{AssetRegistry, Asset, AssetIdentifier};
-use crate::protocol::business::{BusinessRegistry, BusinessProfile, BusinessManager};
-use crate::protocol::bitcoin::TaprootManager;
-use crate::protocol::fiat::{FiatRouterService, FiatOnRampRequest};
 use crate::protocol::a2p::{A2pRouterService, OtpRequest};
-use crate::protocol::mmr::MerkleMountainRange;
+use crate::protocol::asset::{Asset, AssetIdentifier, AssetRegistry};
+use crate::protocol::bitcoin::TaprootManager;
+use crate::protocol::business::{BusinessManager, BusinessProfile, BusinessRegistry};
+use crate::protocol::fiat::{FiatOnRampRequest, FiatRouterService};
 use crate::protocol::job_card::{ConxianJobCard, Iso20022Wrapper};
-use std::sync::Arc;
+use crate::protocol::mmr::MerkleMountainRange;
+use crate::protocol::musig2::MuSig2Orchestrator;
+use crate::protocol::rails::{BisqRail, ChangellyRail, RailProxy, SwapRequest, WormholeRail};
+use crate::protocol::stacks::StacksManager;
 use std::collections::HashMap;
+use std::sync::Arc;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 pub struct ConclaveWasmClient {
@@ -35,7 +35,8 @@ impl ConclaveWasmClient {
     #[wasm_bindgen]
     pub fn set_session_key(&mut self, pin: &str, salt_hex: &str) -> Result<(), JsValue> {
         let salt = hex::decode(salt_hex).map_err(|e| JsValue::from_str(&e.to_string()))?;
-        self.manager.initialize_session(pin, &salt)
+        self.manager
+            .initialize_session(pin, &salt)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -55,9 +56,19 @@ impl ConclaveWasmClient {
 
     /// Registers a custom asset in the registry
     #[wasm_bindgen]
-    pub fn register_asset(&mut self, chain: &str, symbol: &str, name: &str, decimals: u8, contract_address: Option<String>) {
+    pub fn register_asset(
+        &mut self,
+        chain: &str,
+        symbol: &str,
+        name: &str,
+        decimals: u8,
+        contract_address: Option<String>,
+    ) {
         let asset = Asset {
-            identifier: AssetIdentifier { chain: chain.to_string(), symbol: symbol.to_string() },
+            identifier: AssetIdentifier {
+                chain: chain.to_string(),
+                symbol: symbol.to_string(),
+            },
             name: name.to_string(),
             decimals,
             contract_address,
@@ -70,24 +81,32 @@ impl ConclaveWasmClient {
 
     /// Generates a new hardware-backed business identity
     #[wasm_bindgen]
-    pub fn generate_business_identity(&self, business_id: &str, name: &str) -> Result<JsValue, JsValue> {
+    pub fn generate_business_identity(
+        &self,
+        business_id: &str,
+        name: &str,
+    ) -> Result<JsValue, JsValue> {
         let business_mgr = BusinessManager::new(&self.manager, (*self.business_registry).clone());
-        let profile = business_mgr.generate_business_identity(business_id, name)
+        let profile = business_mgr
+            .generate_business_identity(business_id, name)
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-        serde_wasm_bindgen::to_value(&profile)
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+        serde_wasm_bindgen::to_value(&profile).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     /// Securely generates a business attribution proof
     #[wasm_bindgen]
-    pub fn generate_attribution(&self, business_id: &str, user_id: &str) -> Result<JsValue, JsValue> {
+    pub fn generate_attribution(
+        &self,
+        business_id: &str,
+        user_id: &str,
+    ) -> Result<JsValue, JsValue> {
         let business_mgr = BusinessManager::new(&self.manager, (*self.business_registry).clone());
-        let attribution = business_mgr.generate_attribution(business_id, user_id, HashMap::new())
+        let attribution = business_mgr
+            .generate_attribution(business_id, user_id, HashMap::new())
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-        serde_wasm_bindgen::to_value(&attribution)
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+        serde_wasm_bindgen::to_value(&attribution).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     /// High-level helper to execute a sovereign swap
@@ -101,52 +120,64 @@ impl ConclaveWasmClient {
         to_symbol: &str,
         amount: u64,
         recipient: &str,
-        business_id: Option<String>
+        business_id: Option<String>,
     ) -> Result<JsValue, JsValue> {
         let mut proxy = RailProxy::new(
             "https://api.conxian.io".to_string(),
             None,
             self.asset_registry.clone(),
-            self.business_registry.clone()
+            self.business_registry.clone(),
         );
         proxy.register_rail(Box::new(ChangellyRail));
         proxy.register_rail(Box::new(BisqRail));
         proxy.register_rail(Box::new(WormholeRail));
 
         let attribution = if let Some(bid) = business_id {
-            let business_mgr = BusinessManager::new(&self.manager, (*self.business_registry).clone());
-            Some(business_mgr.generate_attribution(&bid, "user_default", HashMap::new())
-                .map_err(|e| JsValue::from_str(&e.to_string()))?)
+            let business_mgr =
+                BusinessManager::new(&self.manager, (*self.business_registry).clone());
+            Some(
+                business_mgr
+                    .generate_attribution(&bid, "user_default", HashMap::new())
+                    .map_err(|e| JsValue::from_str(&e.to_string()))?,
+            )
         } else {
             None
         };
 
         let request = SwapRequest {
-            from_asset: AssetIdentifier { chain: from_chain.to_string(), symbol: from_symbol.to_string() },
-            to_asset: AssetIdentifier { chain: to_chain.to_string(), symbol: to_symbol.to_string() },
+            from_asset: AssetIdentifier {
+                chain: from_chain.to_string(),
+                symbol: from_symbol.to_string(),
+            },
+            to_asset: AssetIdentifier {
+                chain: to_chain.to_string(),
+                symbol: to_symbol.to_string(),
+            },
             amount,
             recipient_address: recipient.to_string(),
             attribution,
         };
 
-        let intent = proxy.prepare_intent(rail_name, request)
+        let intent = proxy
+            .prepare_intent(rail_name, request)
             .map_err(|e| JsValue::from_str(&e))?;
 
-        let sig_resp = self.manager.sign(SignRequest {
-            message_hash: intent.signable_hash.clone(),
-            derivation_path: "m/44'/0'/0'/0/0".to_string(),
-            key_id: "swap_key".to_string(),
-            taproot_tweak: None,
-        }).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let sig_resp = self
+            .manager
+            .sign(SignRequest {
+                message_hash: intent.signable_hash.clone(),
+                derivation_path: "m/44'/0'/0'/0/0".to_string(),
+                key_id: "swap_key".to_string(),
+                taproot_tweak: None,
+            })
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-        let response = proxy.broadcast_signed_intent(
-            intent,
-            sig_resp.signature_hex,
-            sig_resp.device_attestation
-        ).await.map_err(|e| JsValue::from_str(&e))?;
+        let response = proxy
+            .broadcast_signed_intent(intent, sig_resp.signature_hex, sig_resp.device_attestation)
+            .await
+            .map_err(|e| JsValue::from_str(&e))?;
 
-        serde_wasm_bindgen::to_value(&response)
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+        serde_wasm_bindgen::to_value(&response).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     /// Create a stateless fiat on-ramp session
@@ -159,21 +190,28 @@ impl ConclaveWasmClient {
         amount: f64,
         wallet_address: &str,
         provider: &str,
-        business_id: Option<String>
+        business_id: Option<String>,
     ) -> Result<JsValue, JsValue> {
         let fiat_service = FiatRouterService::new("https://api.conxian.io".to_string());
 
         let attribution = if let Some(bid) = business_id {
-            let business_mgr = BusinessManager::new(&self.manager, (*self.business_registry).clone());
-            Some(business_mgr.generate_attribution(&bid, "user_default", HashMap::new())
-                .map_err(|e| JsValue::from_str(&e.to_string()))?)
+            let business_mgr =
+                BusinessManager::new(&self.manager, (*self.business_registry).clone());
+            Some(
+                business_mgr
+                    .generate_attribution(&bid, "user_default", HashMap::new())
+                    .map_err(|e| JsValue::from_str(&e.to_string()))?,
+            )
         } else {
             None
         };
 
         let request = FiatOnRampRequest {
             fiat_currency: fiat_currency.to_string(),
-            crypto_asset: AssetIdentifier { chain: to_chain.to_string(), symbol: to_symbol.to_string() },
+            crypto_asset: AssetIdentifier {
+                chain: to_chain.to_string(),
+                symbol: to_symbol.to_string(),
+            },
             amount,
             wallet_address: wallet_address.to_string(),
             provider: provider.to_string(),
@@ -182,18 +220,22 @@ impl ConclaveWasmClient {
 
         let intent = fiat_service.prepare_session(request);
 
-        let sig_resp = self.manager.sign(SignRequest {
-            message_hash: intent.signable_hash.clone(),
-            derivation_path: "m/44'/0'/0'/0/0".to_string(),
-            key_id: "fiat_key".to_string(),
-            taproot_tweak: None,
-        }).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let sig_resp = self
+            .manager
+            .sign(SignRequest {
+                message_hash: intent.signable_hash.clone(),
+                derivation_path: "m/44'/0'/0'/0/0".to_string(),
+                key_id: "fiat_key".to_string(),
+                taproot_tweak: None,
+            })
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-        let response = fiat_service.create_session(intent, sig_resp.signature_hex)
-            .await.map_err(|e| JsValue::from_str(&e))?;
+        let response = fiat_service
+            .create_session(intent, sig_resp.signature_hex)
+            .await
+            .map_err(|e| JsValue::from_str(&e))?;
 
-        serde_wasm_bindgen::to_value(&response)
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+        serde_wasm_bindgen::to_value(&response).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     /// Initiate stateless phone verification
@@ -202,14 +244,18 @@ impl ConclaveWasmClient {
         &self,
         phone_number: &str,
         channel: &str,
-        business_id: Option<String>
+        business_id: Option<String>,
     ) -> Result<JsValue, JsValue> {
         let a2p_service = A2pRouterService::new("https://api.conxian.io".to_string());
 
         let attribution = if let Some(bid) = business_id {
-            let business_mgr = BusinessManager::new(&self.manager, (*self.business_registry).clone());
-            Some(business_mgr.generate_attribution(&bid, "user_default", HashMap::new())
-                .map_err(|e| JsValue::from_str(&e.to_string()))?)
+            let business_mgr =
+                BusinessManager::new(&self.manager, (*self.business_registry).clone());
+            Some(
+                business_mgr
+                    .generate_attribution(&bid, "user_default", HashMap::new())
+                    .map_err(|e| JsValue::from_str(&e.to_string()))?,
+            )
         } else {
             None
         };
@@ -222,12 +268,15 @@ impl ConclaveWasmClient {
 
         let intent = a2p_service.prepare_otp(request);
 
-        let _sig_resp = self.manager.sign(SignRequest {
-            message_hash: intent.signable_hash.clone(),
-            derivation_path: "m/44'/0'/0'/0/0".to_string(),
-            key_id: "a2p_key".to_string(),
-            taproot_tweak: None,
-        }).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let _sig_resp = self
+            .manager
+            .sign(SignRequest {
+                message_hash: intent.signable_hash.clone(),
+                derivation_path: "m/44'/0'/0'/0/0".to_string(),
+                key_id: "a2p_key".to_string(),
+                taproot_tweak: None,
+            })
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         // In a real implementation, we would broadcast the signed intent to the gateway
         Ok(serde_wasm_bindgen::to_value(&format!("OTP sent to {}", phone_number)).unwrap())
@@ -240,10 +289,12 @@ impl ConclaveWasmClient {
             .map_err(|e| JsValue::from_str(&format!("Invalid payload hex: {}", e)))?;
 
         let stacks_mgr = StacksManager::new(&self.manager);
-        let intent = stacks_mgr.prepare_transaction(&payload)
+        let intent = stacks_mgr
+            .prepare_transaction(&payload)
             .map_err(|e| JsValue::from_str(&e))?;
 
-        let signature = stacks_mgr.sign_prepared_transaction(intent, "stacks_key")
+        let signature = stacks_mgr
+            .sign_prepared_transaction(intent, "stacks_key")
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         Ok(signature)
@@ -251,7 +302,11 @@ impl ConclaveWasmClient {
 
     /// Sign a Bitcoin Taproot (BIP341) sighash
     #[wasm_bindgen]
-    pub fn sign_bitcoin_taproot(&self, sighash_hex: &str, merkle_root_hex: Option<String>) -> Result<String, JsValue> {
+    pub fn sign_bitcoin_taproot(
+        &self,
+        sighash_hex: &str,
+        merkle_root_hex: Option<String>,
+    ) -> Result<String, JsValue> {
         let mut sighash = [0u8; 32];
         let decoded_sighash = hex::decode(sighash_hex)
             .map_err(|e| JsValue::from_str(&format!("Invalid sighash hex: {}", e)))?;
@@ -268,12 +323,9 @@ impl ConclaveWasmClient {
         };
 
         let btc_mgr = TaprootManager::new(&self.manager);
-        let signature = btc_mgr.sign_taproot_v1(
-            sighash,
-            "m/86'/0'/0'/0/0",
-            "btc_key",
-            merkle_root
-        ).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let signature = btc_mgr
+            .sign_taproot_v1(sighash, "m/86'/0'/0'/0/0", "btc_key", merkle_root)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         Ok(signature)
     }
@@ -289,23 +341,35 @@ impl ConclaveWasmClient {
         // For CON-59, we demonstrate the cryptographic logic.
         mmr.append(&data);
 
-        let proof = mmr.generate_proof(pos)
-            .map_err(|e| JsValue::from_str(&e))?;
+        let proof = mmr.generate_proof(pos).map_err(|e| JsValue::from_str(&e))?;
 
-        serde_wasm_bindgen::to_value(&proof)
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+        serde_wasm_bindgen::to_value(&proof).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     /// Generates an ISO 20022 pacs.008 XML for a Job Card
     #[wasm_bindgen]
-    pub fn generate_iso20022_pacs008(&self, sender: &str, receiver: &str, amount: f64, town: Option<String>, country: Option<String>) -> Result<String, JsValue> {
+    pub fn generate_iso20022_pacs008(
+        &self,
+        sender: &str,
+        receiver: &str,
+        amount: f64,
+        town: Option<String>,
+        country: Option<String>,
+    ) -> Result<String, JsValue> {
         let card = ConxianJobCard::new(sender, receiver, amount, town, country);
         Iso20022Wrapper::wrap_pacs008(&card).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     /// Generates a JSON-LD machine-readable definition for a Job Card
     #[wasm_bindgen]
-    pub fn generate_cjcs_json_ld(&self, sender: &str, receiver: &str, amount: f64, town: Option<String>, country: Option<String>) -> Result<String, JsValue> {
+    pub fn generate_cjcs_json_ld(
+        &self,
+        sender: &str,
+        receiver: &str,
+        amount: f64,
+        town: Option<String>,
+        country: Option<String>,
+    ) -> Result<String, JsValue> {
         let card = ConxianJobCard::new(sender, receiver, amount, town, country);
         Iso20022Wrapper::wrap_json_ld(&card).map_err(|e| JsValue::from_str(&e.to_string()))
     }

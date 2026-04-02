@@ -1,5 +1,14 @@
-/target
-target/
+# Rust
+/target/
+/Cargo.lock
+
+# WASM / Node
+node_modules/
+pkg/
+wasm-pack.log
+.wasm-pack-lock
+
+# Tooling & Agents
 .claude/
 .cursor/
 .github/skills/
@@ -20,3 +29,18 @@ target/
 .roocode/
 .trae/
 .windsurf/
+.cline/
+.continue/
+.roo/
+.amazonq/
+.clinerules/
+.kilocode/
+
+# Secrets & Config
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db

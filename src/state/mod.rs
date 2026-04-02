@@ -1,5 +1,5 @@
-use sha2::{Sha256, Digest};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 /// A node in the Merkle Mountain Range (MMR).
 /// This represents the 'mmr_nodes' schema for institutional state attestation.
@@ -24,12 +24,18 @@ pub struct MerkleMountainRange {
     pub nodes: Vec<MmrNode>,
 }
 
+impl Default for MerkleMountainRange {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MerkleMountainRange {
     pub fn new() -> Self {
         Self { nodes: Vec::new() }
     }
 
-    /// Calculate height of a node at position `pos` (1-based).
+    /// Calculate height of a node at position \`pos\` (1-based).
     pub fn get_height(pos: u64) -> u32 {
         let mut p = pos;
         while p > 0 {
@@ -72,15 +78,13 @@ impl MerkleMountainRange {
 
         // Merge peaks logic
         let p = pos;
-        while p > 0 {
+        if p > 0 {
             let h = Self::get_height(p);
             let next_pos = p + 1;
             let next_h = Self::get_height(next_pos);
 
             if h == next_h {
-                break;
-            } else {
-                break;
+                // Logic for merging peaks would go here in a full implementation
             }
         }
         pos
@@ -103,10 +107,7 @@ impl MerkleMountainRange {
         Ok(MmrInclusionProof {
             pos,
             leaf_hash: hex::encode(node.hash),
-            proof_path: vec![
-                hex::encode([0x0c; 32]),
-                hex::encode([0x0d; 32]),
-            ],
+            proof_path: vec![hex::encode([0x0c; 32]), hex::encode([0x0d; 32])],
             mmr_root: self.get_root(),
         })
     }

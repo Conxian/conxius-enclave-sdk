@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
 use crate::protocol::business::BusinessAttribution;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OtpRequest {

@@ -1,19 +1,28 @@
-use std::sync::Mutex;
-use pbkdf2::pbkdf2_hmac;
-use sha2::Sha512;
-use k256::schnorr::signature::Signer;
-use secp256k1::{Secp256k1, Message, SecretKey, ecdsa::RecoverableSignature, ecdsa::RecoveryId};
-use rand::Rng;
 use hmac::{Hmac, Mac};
+use k256::schnorr::signature::Signer;
+use pbkdf2::pbkdf2_hmac;
+use rand::Rng;
+use secp256k1::{Message, Secp256k1, SecretKey, ecdsa::RecoverableSignature, ecdsa::RecoveryId};
+use sha2::Sha512;
+use std::sync::Mutex;
 use zeroize::{Zeroize, Zeroizing};
 
-use crate::{ConclaveResult, ConclaveError, enclave::{SignRequest, SignResponse}};
-use crate::enclave::attestation::{DeviceIntegrityReport, AttestationLevel};
+use crate::enclave::attestation::{AttestationLevel, DeviceIntegrityReport};
+use crate::{
+    ConclaveError, ConclaveResult,
+    enclave::{SignRequest, SignResponse},
+};
 
 type HmacSha512 = Hmac<Sha512>;
 
 pub struct CoreEnclaveManager {
     session_key: Mutex<Option<Zeroizing<[u8; 64]>>>,
+}
+
+impl Default for CoreEnclaveManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CoreEnclaveManager {
@@ -30,10 +39,13 @@ impl CoreEnclaveManager {
 
         let mut key = [0u8; 64];
         pbkdf2_hmac::<Sha512>(pin.as_bytes(), salt, 600_000, &mut key);
-        
-        let mut session = self.session_key.lock().map_err(|_| ConclaveError::EnclaveFailure("Mutex poison".to_string()))?;
+
+        let mut session = self
+            .session_key
+            .lock()
+            .map_err(|_| ConclaveError::EnclaveFailure("Mutex poison".to_string()))?;
         *session = Some(Zeroizing::new(key));
-        
+
         Ok(())
     }
 
@@ -43,8 +55,13 @@ impl CoreEnclaveManager {
     }
 
     fn derive_child_key(&self, derivation_path: &str) -> ConclaveResult<Zeroizing<[u8; 32]>> {
-        let session_lock = self.session_key.lock().map_err(|_| ConclaveError::EnclaveFailure("Mutex poison".to_string()))?;
-        let session_key = session_lock.as_ref().ok_or(ConclaveError::EnclaveFailure("Enclave not unlocked".to_string()))?;
+        let session_lock = self
+            .session_key
+            .lock()
+            .map_err(|_| ConclaveError::EnclaveFailure("Mutex poison".to_string()))?;
+        let session_key = session_lock.as_ref().ok_or(ConclaveError::EnclaveFailure(
+            "Enclave not unlocked".to_string(),
+        ))?;
 
         // Access the inner array of Zeroizing
         let session_key_bytes: &[u8] = &**session_key;
@@ -73,16 +90,28 @@ impl CoreEnclaveManager {
         }
     }
 
-    fn sign_ecdsa(&self, priv_key_bytes: &[u8], message_hash: &[u8]) -> ConclaveResult<SignResponse> {
+    fn sign_ecdsa(
+        &self,
+        priv_key_bytes: &[u8],
+        message_hash: &[u8],
+    ) -> ConclaveResult<SignResponse> {
         let secp = Secp256k1::new();
-        let secret_key = SecretKey::from_byte_array(priv_key_bytes.try_into().map_err(|_| ConclaveError::CryptoError("Key mismatch".to_string()))?)
-            .map_err(|e| ConclaveError::CryptoError(format!("SEC1 Error: {}", e)))?;
-            
-        let message = Message::from_digest(message_hash.try_into().map_err(|_| ConclaveError::InvalidPayload)?);
+        let secret_key = SecretKey::from_byte_array(
+            priv_key_bytes
+                .try_into()
+                .map_err(|_| ConclaveError::CryptoError("Key mismatch".to_string()))?,
+        )
+        .map_err(|e| ConclaveError::CryptoError(format!("SEC1 Error: {}", e)))?;
+
+        let message = Message::from_digest(
+            message_hash
+                .try_into()
+                .map_err(|_| ConclaveError::InvalidPayload)?,
+        );
 
         let sig: RecoverableSignature = secp.sign_ecdsa_recoverable(message, &secret_key);
         let (rec_id, sig_bytes) = sig.serialize_compact();
-        
+
         let mut final_sig = sig_bytes.to_vec();
         let rec_byte = if rec_id == RecoveryId::from_u8_masked(0) {
             0u8
@@ -99,7 +128,7 @@ impl CoreEnclaveManager {
 
         let public_key = secret_key.public_key(&secp);
         let attestation = self.generate_attestation(message_hash);
-        
+
         Ok(SignResponse {
             signature_hex: hex::encode(final_sig),
             public_key_hex: hex::encode(public_key.serialize()),
@@ -107,25 +136,40 @@ impl CoreEnclaveManager {
         })
     }
 
-    fn sign_schnorr(&self, priv_key_bytes: &[u8], message_hash: &[u8], tweak: Option<&[u8]>) -> ConclaveResult<SignResponse> {
-        let mut secret_key = SecretKey::from_byte_array(priv_key_bytes.try_into().map_err(|_| ConclaveError::CryptoError("Key mismatch".to_string()))?)
-            .map_err(|e| ConclaveError::CryptoError(format!("SEC1 Error: {}", e)))?;
+    fn sign_schnorr(
+        &self,
+        priv_key_bytes: &[u8],
+        message_hash: &[u8],
+        tweak: Option<&[u8]>,
+    ) -> ConclaveResult<SignResponse> {
+        let mut secret_key = SecretKey::from_byte_array(
+            priv_key_bytes
+                .try_into()
+                .map_err(|_| ConclaveError::CryptoError("Key mismatch".to_string()))?,
+        )
+        .map_err(|e| ConclaveError::CryptoError(format!("SEC1 Error: {}", e)))?;
 
         // Apply Taproot Tweak if provided (BIP341)
         if let Some(tweak_bytes) = tweak {
-             let scalar = secp256k1::Scalar::from_be_bytes(tweak_bytes.try_into().map_err(|_| ConclaveError::CryptoError("Invalid tweak length".to_string()))?)
-                .map_err(|e| ConclaveError::CryptoError(format!("Invalid tweak scalar: {}", e)))?;
-             secret_key = secret_key.add_tweak(&scalar)
+            let scalar = secp256k1::Scalar::from_be_bytes(
+                tweak_bytes
+                    .try_into()
+                    .map_err(|_| ConclaveError::CryptoError("Invalid tweak length".to_string()))?,
+            )
+            .map_err(|e| ConclaveError::CryptoError(format!("Invalid tweak scalar: {}", e)))?;
+            secret_key = secret_key
+                .add_tweak(&scalar)
                 .map_err(|e| ConclaveError::CryptoError(format!("Tweak addition failed: {}", e)))?;
         }
 
-        let signing_key = k256::schnorr::SigningKey::from_bytes(secret_key.secret_bytes().as_slice().into())
-            .map_err(|e| ConclaveError::CryptoError(format!("Schnorr Error: {}", e)))?;
-            
+        let signing_key =
+            k256::schnorr::SigningKey::from_bytes(secret_key.secret_bytes().as_slice())
+                .map_err(|e| ConclaveError::CryptoError(format!("Schnorr Error: {}", e)))?;
+
         let signature: k256::schnorr::Signature = signing_key.sign(message_hash);
         let verify_key = signing_key.verifying_key();
         let attestation = self.generate_attestation(message_hash);
-        
+
         Ok(SignResponse {
             signature_hex: hex::encode(signature.to_bytes()),
             public_key_hex: hex::encode(verify_key.to_bytes()),
@@ -150,15 +194,21 @@ impl crate::enclave::EnclaveManager for CoreEnclaveManager {
     fn get_public_key(&self, derivation_path: &str) -> ConclaveResult<String> {
         let derived_priv_key = self.derive_child_key(derivation_path)?;
         let secp = Secp256k1::new();
-        let secret_key = SecretKey::from_byte_array(derived_priv_key.as_slice().try_into().map_err(|_| ConclaveError::CryptoError("Key mismatch".to_string()))?)
-            .map_err(|e| ConclaveError::CryptoError(format!("SEC1 Error: {}", e)))?;
+        let secret_key = SecretKey::from_byte_array(
+            derived_priv_key
+                .as_slice()
+                .try_into()
+                .map_err(|_| ConclaveError::CryptoError("Key mismatch".to_string()))?,
+        )
+        .map_err(|e| ConclaveError::CryptoError(format!("SEC1 Error: {}", e)))?;
 
         if derivation_path.contains("86'") || derivation_path.contains("schnorr") {
-             let signing_key = k256::schnorr::SigningKey::from_bytes(secret_key.secret_bytes().as_slice().into())
-                .map_err(|e| ConclaveError::CryptoError(format!("Schnorr Error: {}", e)))?;
-             Ok(hex::encode(signing_key.verifying_key().to_bytes()))
+            let signing_key =
+                k256::schnorr::SigningKey::from_bytes(secret_key.secret_bytes().as_slice())
+                    .map_err(|e| ConclaveError::CryptoError(format!("Schnorr Error: {}", e)))?;
+            Ok(hex::encode(signing_key.verifying_key().to_bytes()))
         } else {
-             Ok(hex::encode(secret_key.public_key(&secp).serialize()))
+            Ok(hex::encode(secret_key.public_key(&secp).serialize()))
         }
     }
 
@@ -169,8 +219,14 @@ impl crate::enclave::EnclaveManager for CoreEnclaveManager {
 
         let mut derived_priv_key = self.derive_child_key(&request.derivation_path)?;
 
-        let response = if request.derivation_path.contains("86'") || request.derivation_path.contains("schnorr") {
-            self.sign_schnorr(&*derived_priv_key, &request.message_hash, request.taproot_tweak.as_deref())
+        let response = if request.derivation_path.contains("86'")
+            || request.derivation_path.contains("schnorr")
+        {
+            self.sign_schnorr(
+                &*derived_priv_key,
+                &request.message_hash,
+                request.taproot_tweak.as_deref(),
+            )
         } else {
             self.sign_ecdsa(&*derived_priv_key, &request.message_hash)
         };

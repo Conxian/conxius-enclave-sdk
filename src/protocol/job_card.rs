@@ -1,5 +1,5 @@
+use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
-use crate::{ConclaveResult, ConclaveError};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkIntent {
@@ -21,7 +21,13 @@ pub struct ConxianJobCard {
 }
 
 impl ConxianJobCard {
-    pub fn new(sender: &str, receiver: &str, amount: f64, town: Option<String>, country: Option<String>) -> Self {
+    pub fn new(
+        sender: &str,
+        receiver: &str,
+        amount: f64,
+        town: Option<String>,
+        country: Option<String>,
+    ) -> Self {
         Self {
             context: "https://conxian.com/contexts/job-card/v2.0".to_string(),
             r#type: "ConxianJobCard".to_string(),
@@ -37,7 +43,9 @@ impl ConxianJobCard {
 
     pub fn validate(&self) -> ConclaveResult<()> {
         if self.work_intent.town_name.is_none() || self.work_intent.country_code.is_none() {
-            return Err(ConclaveError::IsoError("ISO-404: Missing mandatory fields (town_name or country_code)".to_string()));
+            return Err(ConclaveError::IsoError(
+                "ISO-404: Missing mandatory fields (town_name or country_code)".to_string(),
+            ));
         }
         Ok(())
     }
@@ -109,7 +117,13 @@ mod tests {
 
     #[test]
     fn test_job_card_validation() {
-        let mut card = ConxianJobCard::new("ST1...", "ST2...", 0.05, Some("Johannesburg".to_string()), Some("ZA".to_string()));
+        let mut card = ConxianJobCard::new(
+            "ST1...",
+            "ST2...",
+            0.05,
+            Some("Johannesburg".to_string()),
+            Some("ZA".to_string()),
+        );
         assert!(card.validate().is_ok());
 
         card.work_intent.town_name = None;
@@ -123,7 +137,13 @@ mod tests {
 
     #[test]
     fn test_pacs008_generation() {
-        let card = ConxianJobCard::new("ST1...", "ST2...", 0.05, Some("Johannesburg".to_string()), Some("ZA".to_string()));
+        let card = ConxianJobCard::new(
+            "ST1...",
+            "ST2...",
+            0.05,
+            Some("Johannesburg".to_string()),
+            Some("ZA".to_string()),
+        );
         let xml = Iso20022Wrapper::wrap_pacs008(&card).unwrap();
         assert!(xml.contains("pacs.008.001.08"));
         assert!(xml.contains("sBTC"));
@@ -132,7 +152,13 @@ mod tests {
 
     #[test]
     fn test_benchmark_pacs008_latency() {
-        let card = ConxianJobCard::new("ST1...", "ST2...", 0.05, Some("Johannesburg".to_string()), Some("ZA".to_string()));
+        let card = ConxianJobCard::new(
+            "ST1...",
+            "ST2...",
+            0.05,
+            Some("Johannesburg".to_string()),
+            Some("ZA".to_string()),
+        );
         let iters = 10000;
         let start = Instant::now();
 
@@ -142,6 +168,9 @@ mod tests {
 
         let duration = start.elapsed();
         println!("Processed {} transactions in {:?}", iters, duration);
-        assert!(duration.as_millis() < 50, "Benchmark failed: Latency > 50ms for 10k txs");
+        assert!(
+            duration.as_millis() < 50,
+            "Benchmark failed: Latency > 50ms for 10k txs"
+        );
     }
 }

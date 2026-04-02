@@ -1,7 +1,10 @@
-use crate::{ConclaveResult, ConclaveError, enclave::{EnclaveManager, SignRequest, SignResponse}};
-use crate::enclave::attestation::{DeviceIntegrityReport, AttestationLevel};
-use secp256k1::{Secp256k1, Message, SecretKey, PublicKey};
+use crate::enclave::attestation::{AttestationLevel, DeviceIntegrityReport};
+use crate::{
+    ConclaveError, ConclaveResult,
+    enclave::{EnclaveManager, SignRequest, SignResponse},
+};
 use rand::Rng;
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 
 /// A mock CloudEnclave implementation for testing and cloud-based non-custodial signing.
 /// In a real implementation, this would communicate with a secure KMS or HSM over TLS.
@@ -29,7 +32,8 @@ impl CloudEnclave {
                 format!("CLOUD_KMS_INSTANCE_{}", self.kms_endpoint),
             ],
             timestamp: 1710000000,
-            extension_data: "PURPOSE_SIGN|ALGORITHM_EC|PLATFORM_CLOUD|TEE_TYPE_AZURE_SNP".to_string(),
+            extension_data: "PURPOSE_SIGN|ALGORITHM_EC|PLATFORM_CLOUD|TEE_TYPE_AZURE_SNP"
+                .to_string(),
         }
     }
 }

@@ -1,5 +1,9 @@
 # lib-conclave-sdk
 
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
+[![CI Status](https://github.com/conxian-labs/lib-conclave-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/conxian-labs/lib-conclave-sdk/actions/workflows/ci.yml)
+
 The core Rust SDK for Conclave, providing cross-platform hardware enclave abstractions for Android StrongBox, Apple Secure Enclave, and Cloud TEE environments.
 
 ## Purpose
@@ -8,7 +12,10 @@ Provide cross-platform hardware enclave abstractions and utilities for key custo
 
 ## Status
 
-Active development (`0.x`). During `0.x`, the public API is not yet stable and breaking changes may land in any release. After `1.0.0`, we'll follow [Semantic Versioning](https://semver.org) (no breaking changes in minor/patch releases).
+- **Status**: Beta / Active Development (`0.x`)
+- **Compatibility**: During `0.x`, the public API is not stable and breaking changes may land in any release. After `1.0.0`, we'll follow [Semantic Versioning](https://semver.org) (no breaking changes in minor/patch releases).
+- **Category**: Security Infrastructure SDK
+- **Support**: Managed by Conxian-Labs (Urgent issues via Linear/Security)
 
 ## Audience
 
@@ -66,13 +73,25 @@ const response = await client.execute_swap(
 
 ## Development
 
-Requires Rust 1.81+ (Edition 2024).
+Requires Rust 1.94+ (Edition 2024).
 
 ```bash
+# Build core Rust SDK
 cargo build
+
+# Run unit tests
 cargo test
+
+# Build WASM bindings (requires wasm-pack)
+wasm-pack build
 ```
 
-## Audit & Verification
+## Verification
 
-The SDK has undergone a full architectural audit and enhancement cycle. All core protocol features, including cryptographic attribution and hardware attestation, have been verified with automated unit tests.
+Core components are covered by automated unit tests. Run `cargo test` to execute the test suite locally.
+
+This repository does not currently link to an independent security audit report.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
