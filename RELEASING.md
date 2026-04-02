@@ -24,7 +24,7 @@ We strictly follow [Semantic Versioning (SemVer)](https://semver.org/).
    cargo clippy -- -D warnings
    # Run the full test suite
    cargo test
-   # Check dependencies for known vulnerabilities (requires `cargo install cargo-audit`)
+   # Check dependencies for known vulnerabilities (one-time install: `cargo install cargo-audit --locked`)
    cargo audit
    # Verify WASM build compatibility
    wasm-pack build
@@ -42,5 +42,5 @@ We strictly follow [Semantic Versioning (SemVer)](https://semver.org/).
 ## Mainnet Readiness & Security
 
 - **Audit Requirements**: Versions >= 1.0.0 require a formal, independent security audit of the `Sovereign Handshake` and `EnclaveManager` implementations.
-- **Dependency Hygiene**: Ensure the dependency vulnerability check from step 3 (e.g., `cargo audit`) runs and passes (locally or in CI) before every release.
+- **Dependency Hygiene**: Ensure the dependency vulnerability check from step 3 (`cargo audit`) runs and passes before every release (prefer CI as the release gate; local runs are a preflight). If advisories are found, fix them or document an explicit exception via a committed `audit.toml` policy.
 - **Credential Safety**: Ensure no development secrets or artifacts are included in the published package.
