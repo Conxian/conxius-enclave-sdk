@@ -29,7 +29,7 @@ We strictly follow [Semantic Versioning (SemVer)](https://semver.org/).
    # Verify WASM build compatibility (produces ./pkg/)
    wasm-pack build --release --target bundler
    ```
-4. **Create Release Commit**: Commit the release version and changelog updates.
+4. **Commit Release Changes**: Commit the release changes so tags and published artifacts point to a committed state.
    ```bash
    git add CHANGELOG.md Cargo.toml  # plus any other release-related files
    git commit -m "Release vX.Y.Z"
@@ -37,13 +37,17 @@ We strictly follow [Semantic Versioning (SemVer)](https://semver.org/).
 5. **Create Git Tag**: Create a signed git tag for the release.
    ```bash
    git tag -s vX.Y.Z -m "Release vX.Y.Z"
-   git push origin master --follow-tags
    ```
-6. **Publish to crates.io**:
+6. **Push Release Commit & Tag**:
+   ```bash
+   git push origin master
+   git push origin vX.Y.Z
+   ```
+7. **Publish to crates.io**:
    ```bash
    cargo publish
    ```
-7. **Publish WASM Package (if applicable)**: Publish the generated WASM npm package from `pkg/` after inspecting what will be shipped.
+8. **Publish WASM Package (if applicable)**: Publish the generated WASM npm package from `pkg/` after inspecting what will be shipped.
    ```bash
    cd pkg
    TARBALL="$(npm pack)"
