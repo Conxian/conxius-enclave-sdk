@@ -7,7 +7,7 @@ This document outlines the process for releasing new versions of the Conclave SD
 We strictly follow [Semantic Versioning (SemVer)](https://semver.org/).
 
 - **Major (`X.Y.Z` → `(X+1).0.0`)**: Incompatible API changes (e.g., refactoring `EnclaveManager` trait).
-- **Minor (`X.Y.Z` → `X.(Y+1).0`)**: Additive features (e.g., new `Rail` implementation).
+- **Minor (`X.Y.Z` → `X.(Y+1).0`)**: Backward-compatible additive features (e.g., new `Rail` implementation).
 - **Patch (`X.Y.Z` → `X.Y.(Z+1)`)**: Backward-compatible bug fixes, performance improvements, and technical debt (e.g., hygiene updates).
 
 **Note on 0.x.y versions**: During the Beta phase (`0.x.y`), breaking changes may occur in minor releases (e.g., `0.2.3` → `0.3.0`), while patch releases remain backward-compatible (e.g., `0.2.3` → `0.2.4`).
