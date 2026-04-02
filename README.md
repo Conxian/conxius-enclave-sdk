@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
-[![CI Status](https://github.com/conxian-labs/lib-conclave-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/conxian-labs/lib-conclave-sdk/actions/workflows/ci.yml)
+[![CI Status](https://github.com/Conxian/lib-conclave-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/Conxian/lib-conclave-sdk/actions/workflows/ci.yml)
 
 The core Rust SDK for Conclave, providing cross-platform hardware enclave abstractions for Android StrongBox, Apple Secure Enclave, and Cloud TEE environments.
 
@@ -29,7 +29,7 @@ Provide cross-platform hardware enclave abstractions and utilities for key custo
 
 ## Relationship to the Conxian stack
 
-- A core security primitive consumed by [Conxius Wallet](https://github.com/Conxian/conxius-wallet) (via the Rust crate and/or WASM bindings) for hardware-backed key custody and signing.
+- A core security primitive consumed by [Conxius Wallet](https://github.com/Conxian/conxius-wallet) (via the Rust crate and/or WebAssembly (WASM) bindings) for hardware-backed key custody and signing.
 - Complements [Conxian Gateway](https://github.com/Conxian/conxian-gateway) by providing hardware-attested signatures and client-side trust guarantees for protocol flows.
 
 ## Features
