@@ -38,7 +38,13 @@ We strictly follow [Semantic Versioning (SemVer)](https://semver.org/).
    ```bash
    cargo publish
    ```
-6. **Publish WASM Package (if applicable)**: Publish the WASM npm package using the repo's chosen approach (e.g., `wasm-pack publish` or a reviewed wrapper package). Avoid publishing the generated `pkg/` directory without review.
+6. **Publish WASM Package (if applicable)**: Publish the WASM npm package via `wasm-pack` and inspect the package contents before publishing.
+   ```bash
+   # Inspect what will be published from ./pkg/ (generated in step 3)
+   (cd pkg && npm pack --dry-run)
+   # Publish from the crate root
+   wasm-pack publish --target bundler --access public
+   ```
 
 ## Mainnet Readiness & Security
 
