@@ -31,7 +31,7 @@ We strictly follow [Semantic Versioning (SemVer)](https://semver.org/).
    ```
 4. **Create Release Commit**: Commit the release version and changelog updates.
    ```bash
-   git add CHANGELOG.md Cargo.toml
+   git add CHANGELOG.md Cargo.toml  # plus any other release-related files
    git commit -m "Release vX.Y.Z"
    ```
 5. **Create Git Tag**: Create a signed git tag for the release.
