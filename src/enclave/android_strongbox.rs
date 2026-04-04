@@ -2,7 +2,9 @@ use hmac::{Hmac, Mac};
 use k256::schnorr::signature::Signer;
 use pbkdf2::pbkdf2_hmac;
 use rand::Rng;
-use secp256k1::{Message, Secp256k1, SecretKey, ecdsa::RecoverableSignature, ecdsa::RecoveryId};
+use secp256k1::{
+    Message, PublicKey, Secp256k1, SecretKey, ecdsa::RecoverableSignature, ecdsa::RecoveryId,
+};
 use sha2::Sha512;
 use std::sync::Mutex;
 use zeroize::{Zeroize, Zeroizing};
@@ -184,11 +186,19 @@ impl crate::enclave::EnclaveManager for CoreEnclaveManager {
     }
 
     fn generate_key(&self, _key_id: &str) -> ConclaveResult<String> {
+        // Fix: Zero Secret Egress violation. Raw seeds must not leave the enclave.
+        // In a production StrongBox implementation, this would persist the key in
+        // hardware and return a handle/alias. For this mock, we return the public key.
         let mut seed = [0u8; 32];
         rand::rng().fill_bytes(&mut seed);
-        let key_hex = hex::encode(seed);
+
+        let secp = Secp256k1::new();
+        let secret_key = SecretKey::from_byte_array(seed)
+            .map_err(|e| ConclaveError::CryptoError(format!("Key generation failed: {}", e)))?;
+        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+
         seed.zeroize();
-        Ok(key_hex)
+        Ok(hex::encode(public_key.serialize()))
     }
 
     fn get_public_key(&self, derivation_path: &str) -> ConclaveResult<String> {
