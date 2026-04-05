@@ -27,3 +27,8 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 - **Governance**: `LICENSE`, `SECURITY.md`, and `CONTRIBUTING.md` added.
 - **Robustness**: Eliminated unsafe panics in `job_card.rs`.
 - **Security**: Telemetry and attestation verified across core rails.
+
+## 6. Zero Secret Egress (Remediation)
+- **Status**: COMPLETED.
+- **Implementation**: Fixed a critical security vulnerability in `src/enclave/android_strongbox.rs` where `generate_key` was returning raw secret seeds. The implementation now derives the public key, zeroizes the seed, and returns only the public hex.
+- **Verification**: Verified with `cargo test`.
