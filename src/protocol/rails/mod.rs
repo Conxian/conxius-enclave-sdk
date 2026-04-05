@@ -12,6 +12,14 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn unix_time_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 pub use self::bisq::BisqRail;
 pub use self::boltz::BoltzRail;
@@ -143,7 +151,7 @@ impl RailProxy {
                 ));
             }
 
-            if attribution.expiration < 1710000000 {
+            if attribution.expiration < unix_time_secs() {
                 return Err("Business attribution expired".to_string());
             }
 

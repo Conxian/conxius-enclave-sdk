@@ -7,6 +7,14 @@ use secp256k1::{Message, PublicKey, Secp256k1, ecdsa::Signature};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn unix_time_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BusinessAttribution {
@@ -152,7 +160,7 @@ impl<'a> BusinessManager<'a> {
             return Err(ConclaveError::InvalidPayload);
         }
 
-        let timestamp: u64 = 1710000000; // Mock timestamp
+        let timestamp = unix_time_secs();
         let ttl: u64 = 3600; // 1 hour TTL
         let expiration: u64 = timestamp + ttl;
 

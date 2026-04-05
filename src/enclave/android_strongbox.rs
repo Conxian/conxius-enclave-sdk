@@ -7,6 +7,7 @@ use secp256k1::{
 };
 use sha2::Sha512;
 use std::sync::Mutex;
+use std::time::{SystemTime, UNIX_EPOCH};
 use zeroize::{Zeroize, Zeroizing};
 
 use crate::enclave::attestation::{AttestationLevel, DeviceIntegrityReport};
@@ -16,6 +17,13 @@ use crate::{
 };
 
 type HmacSha512 = Hmac<Sha512>;
+
+fn unix_time_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 pub struct CoreEnclaveManager {
     session_key: Mutex<Option<Zeroizing<[u8; 64]>>>,
@@ -87,7 +95,7 @@ impl CoreEnclaveManager {
                 "CONCLAVE_ROOT_CA_01".to_string(),
                 "CONCLAVE_HARDWARE_BACKED_DEVICE_0x1".to_string(),
             ],
-            timestamp: 1710000000,
+            timestamp: unix_time_secs(),
             extension_data: "PURPOSE_SIGN|ALGORITHM_EC|OS_VERSION_14".to_string(),
         }
     }

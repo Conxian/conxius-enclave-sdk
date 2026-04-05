@@ -3,6 +3,10 @@ name = "lib-conclave-sdk"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+mock-cloud-enclave = []
+
 [dependencies]
 zeroize = { version = "1.8.1", features = ["derive", "zeroize_derive"] }
 async-trait = "0.1.80"

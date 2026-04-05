@@ -5,6 +5,14 @@ use crate::{
 };
 use rand::Rng;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn unix_time_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 /// A mock CloudEnclave implementation for testing and cloud-based non-custodial signing.
 /// In a real implementation, this would communicate with a secure KMS or HSM over TLS.
@@ -31,7 +39,7 @@ impl CloudEnclave {
                 "CONCLAVE_CLOUD_ROOT_CA".to_string(),
                 format!("CLOUD_KMS_INSTANCE_{}", self.kms_endpoint),
             ],
-            timestamp: 1710000000,
+            timestamp: unix_time_secs(),
             extension_data: "PURPOSE_SIGN|ALGORITHM_EC|PLATFORM_CLOUD|TEE_TYPE_AZURE_SNP"
                 .to_string(),
         }
