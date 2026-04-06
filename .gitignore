@@ -44,3 +44,20 @@ wasm-pack.log
 # OS
 .DS_Store
 Thumbs.db
+
+# Sensitive artifacts
+*.env
+*.key
+*.pem
+*.p12
+*.jks
+secret/
+private/
+
+# Build and IDE residue
+target/
+pkg/
+.idea/
+.vscode/
+*.swp
+*.swo

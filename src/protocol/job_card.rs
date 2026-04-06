@@ -118,8 +118,8 @@ mod tests {
     #[test]
     fn test_job_card_validation() {
         let mut card = ConxianJobCard::new(
-            "ST1...",
-            "ST2...",
+            "SP1...",
+            "SP2...",
             0.05,
             Some("Johannesburg".to_string()),
             Some("ZA".to_string()),
@@ -138,8 +138,8 @@ mod tests {
     #[test]
     fn test_pacs008_generation() {
         let card = ConxianJobCard::new(
-            "ST1...",
-            "ST2...",
+            "SP1...",
+            "SP2...",
             0.05,
             Some("Johannesburg".to_string()),
             Some("ZA".to_string()),
@@ -153,8 +153,8 @@ mod tests {
     #[test]
     fn test_benchmark_pacs008_latency() {
         let card = ConxianJobCard::new(
-            "ST1...",
-            "ST2...",
+            "SP1...",
+            "SP2...",
             0.05,
             Some("Johannesburg".to_string()),
             Some("ZA".to_string()),
