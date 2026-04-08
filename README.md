@@ -16,6 +16,10 @@ Provide cross-platform hardware enclave abstractions and utilities for key custo
 - **0.x policy**: Breaking changes may land in any release.
 - **1.0+ policy**: After `1.0.0`, we follow [Semantic Versioning](https://semver.org). Breaking changes only land in major releases.
 
+## Ownership
+
+Ownership and review requirements are defined in [`CODEOWNERS`](./CODEOWNERS).
+
 ## Repository
 
 - **Category**: Security Infrastructure SDK
