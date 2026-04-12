@@ -1,29 +1,56 @@
-use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
 
-pub struct BisqRail;
+pub struct BisqRail {
+    pub gateway_url: String,
+    pub http_client: reqwest::Client,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct BroadcastSwapRequest {
+    pub intent: SwapIntent,
+    pub signature: String,
+}
 
 #[async_trait]
 impl SovereignRail for BisqRail {
-    fn name(&self) -> String {
-        "Bisq".to_string()
+    fn name(&self) -> &'static str {
+        "bisq"
     }
+
     fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String> {
-        if request.from_asset.chain == "BTC" && request.amount < 100_000 {
-            return Err("Bisq P2P requires a minimum amount of 100,000 sats".to_string());
+        // Bisq P2P node constraints
+        if request.recipient_address.is_empty() {
+            return Err("Recipient address required for Bisq P2P swap".to_string());
         }
-        Ok(Some("BTC_SPV_VALIDATED".to_string()))
+        Ok(Some("BISQ_P2P_V2".to_string()))
     }
+
     async fn execute_swap(
         &self,
         intent: SwapIntent,
-        _signature: String,
+        signature: String,
     ) -> Result<SwapResponse, String> {
-        Ok(SwapResponse {
-            transaction_id: format!("BISQ-P2P-{}", hex::encode(&intent.signable_hash[..8])),
-            status: "Searching for counterparty".to_string(),
-            estimated_arrival: 3600,
-            rail_used: self.name(),
-        })
+        let url = format!("{}/v1/swap/execute", self.gateway_url);
+        let payload = BroadcastSwapRequest { intent, signature };
+
+        let response = self.http_client
+            .post(&url)
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|e| format!("Gateway request failed: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("Gateway returned error: {}", response.status()));
+        }
+
+        let swap_resp = response
+            .json::<SwapResponse>()
+            .await
+            .map_err(|e| format!("Invalid gateway response: {}", e))?;
+
+        Ok(swap_resp)
     }
 }

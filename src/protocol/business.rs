@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::RwLock;
 
 fn unix_time_secs() -> u64 {
     SystemTime::now()
@@ -89,9 +90,8 @@ pub struct BusinessProfile {
     pub active: bool,
 }
 
-#[derive(Clone)]
 pub struct BusinessRegistry {
-    businesses: HashMap<String, BusinessProfile>,
+    businesses: RwLock<HashMap<String, BusinessProfile>>,
 }
 
 impl Default for BusinessRegistry {
@@ -103,30 +103,36 @@ impl Default for BusinessRegistry {
 impl BusinessRegistry {
     pub fn new() -> Self {
         Self {
-            businesses: HashMap::new(),
+            businesses: RwLock::new(HashMap::new()),
         }
     }
 
-    pub fn register_business(&mut self, profile: BusinessProfile) {
-        self.businesses.insert(profile.id.clone(), profile);
+    pub fn register_business(&self, profile: BusinessProfile) {
+        if let Ok(mut lock) = self.businesses.write() {
+            lock.insert(profile.id.clone(), profile);
+        }
     }
 
-    pub fn get_business(&self, id: &str) -> Option<&BusinessProfile> {
-        self.businesses.get(id)
+    pub fn get_business(&self, id: &str) -> Option<BusinessProfile> {
+        self.businesses.read().ok()?.get(id).cloned()
     }
 
     pub fn is_active(&self, id: &str) -> bool {
-        self.businesses.get(id).map(|b| b.active).unwrap_or(false)
+        self.businesses
+            .read()
+            .ok()
+            .and_then(|lock| lock.get(id).map(|b| b.active))
+            .unwrap_or(false)
     }
 }
 
 pub struct BusinessManager<'a> {
     enclave: &'a dyn EnclaveManager,
-    registry: BusinessRegistry,
+    registry: &'a BusinessRegistry,
 }
 
 impl<'a> BusinessManager<'a> {
-    pub fn new(enclave: &'a dyn EnclaveManager, registry: BusinessRegistry) -> Self {
+    pub fn new(enclave: &'a dyn EnclaveManager, registry: &'a BusinessRegistry) -> Self {
         Self { enclave, registry }
     }
 
@@ -203,7 +209,7 @@ mod tests {
         let enclave = CloudEnclave {
             kms_endpoint: "test".to_string(),
         };
-        let mut registry = BusinessRegistry::new();
+        let registry = BusinessRegistry::new();
 
         // Get the mock public key from the cloud enclave
         let public_key = enclave
@@ -219,7 +225,7 @@ mod tests {
         };
         registry.register_business(profile.clone());
 
-        let mgr = BusinessManager::new(&enclave, registry);
+        let mgr = BusinessManager::new(&enclave, &registry);
         let attribution = mgr
             .generate_attribution("partner_01", "user_123", HashMap::new())
             .unwrap();

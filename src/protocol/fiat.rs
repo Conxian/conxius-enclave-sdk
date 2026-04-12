@@ -1,5 +1,6 @@
 use crate::protocol::asset::AssetIdentifier;
 use crate::protocol::business::BusinessAttribution;
+use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -27,6 +28,12 @@ pub struct FiatSessionResponse {
     pub provider: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct BroadcastFiatRequest {
+    pub intent: FiatSessionIntent,
+    pub signature: String,
+}
+
 pub struct FiatRouterService {
     pub gateway_endpoint: String,
 }
@@ -49,18 +56,33 @@ impl FiatRouterService {
         }
     }
 
-    /// In a real implementation, this would call the Gateway API.
-    /// For the SDK, we provide the structure to handle the response.
+    /// Broadcasts the signed fiat session intent to the Conxian Gateway.
     pub async fn create_session(
         &self,
-        _intent: FiatSessionIntent,
-        _signature: String,
-    ) -> Result<FiatSessionResponse, String> {
-        // Mock response for the SDK
-        Ok(FiatSessionResponse {
-            session_id: "sess_12345".to_string(),
-            redirect_url: "https://ramp.network/buy?address=...".to_string(),
-            provider: "Ramp".to_string(),
-        })
+        intent: FiatSessionIntent,
+        signature: String,
+    ) -> ConclaveResult<FiatSessionResponse> {
+        let url = format!("{}/v1/fiat/session", self.gateway_endpoint);
+        let client = reqwest::Client::new();
+
+        let payload = BroadcastFiatRequest { intent, signature };
+
+        let response =
+            client.post(&url).json(&payload).send().await.map_err(|e| {
+                ConclaveError::EnclaveFailure(format!("Gateway request failed: {}", e))
+            })?;
+
+        if !response.status().is_success() {
+            return Err(ConclaveError::EnclaveFailure(format!(
+                "Gateway returned error: {}",
+                response.status()
+            )));
+        }
+
+        let session_resp = response.json::<FiatSessionResponse>().await.map_err(|e| {
+            ConclaveError::CryptoError(format!("Invalid gateway response: {}", e))
+        })?;
+
+        Ok(session_resp)
     }
 }

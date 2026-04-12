@@ -5,7 +5,7 @@ pub mod ntt;
 pub mod wormhole;
 
 use crate::enclave::attestation::DeviceIntegrityReport;
-use crate::protocol::asset::{AssetIdentifier, AssetRegistry};
+use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 use crate::protocol::business::{BusinessAttribution, BusinessRegistry};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -54,7 +54,7 @@ pub struct SwapResponse {
 
 #[async_trait]
 pub trait SovereignRail: Send + Sync {
-    fn name(&self) -> String;
+    fn name(&self) -> &'static str;
     fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String>;
     async fn execute_swap(
         &self,
@@ -82,6 +82,7 @@ pub trait SovereignHandshake {
 pub struct RailProxy {
     pub rails: HashMap<String, Box<dyn SovereignRail>>,
     pub endpoint: String,
+    pub http_client: reqwest::Client,
     pub api_key: Option<String>,
     pub enforce_attestation: bool,
     pub asset_registry: Arc<AssetRegistry>,
@@ -91,23 +92,54 @@ pub struct RailProxy {
 impl RailProxy {
     pub fn new(
         endpoint: String,
-        api_key: Option<String>,
+        http_client: reqwest::Client,
         asset_registry: Arc<AssetRegistry>,
         business_registry: Arc<BusinessRegistry>,
     ) -> Self {
         let mut rails: HashMap<String, Box<dyn SovereignRail>> = HashMap::new();
 
-        // Register core rails by default
-        rails.insert("Changelly".to_string(), Box::new(ChangellyRail));
-        rails.insert("Bisq".to_string(), Box::new(BisqRail));
-        rails.insert("Wormhole".to_string(), Box::new(WormholeRail));
-        rails.insert("Boltz".to_string(), Box::new(BoltzRail));
-        rails.insert("NTT".to_string(), Box::new(NTTRail));
+        // Register core rails with gateway endpoint and shared client
+        rails.insert(
+            "changelly".to_string(),
+            Box::new(ChangellyRail {
+                gateway_url: endpoint.clone(),
+                http_client: http_client.clone(),
+            }),
+        );
+        rails.insert(
+            "bisq".to_string(),
+            Box::new(BisqRail {
+                gateway_url: endpoint.clone(),
+                http_client: http_client.clone(),
+            }),
+        );
+        rails.insert(
+            "wormhole".to_string(),
+            Box::new(WormholeRail {
+                gateway_url: endpoint.clone(),
+                http_client: http_client.clone(),
+            }),
+        );
+        rails.insert(
+            "boltz".to_string(),
+            Box::new(BoltzRail {
+                gateway_url: endpoint.clone(),
+                http_client: http_client.clone(),
+            }),
+        );
+        rails.insert(
+            "ntt".to_string(),
+            Box::new(NTTRail {
+                gateway_url: endpoint.clone(),
+                http_client: http_client.clone(),
+            }),
+        );
 
         Self {
             rails,
             endpoint,
-            api_key,
+            http_client,
+            api_key: None,
             enforce_attestation: true,
             asset_registry,
             business_registry,
@@ -115,7 +147,7 @@ impl RailProxy {
     }
 
     pub fn register_rail(&mut self, rail: Box<dyn SovereignRail>) {
-        self.rails.insert(rail.name(), rail);
+        self.rails.insert(rail.name().to_string(), rail);
     }
 
     fn verify_hardware_integrity(
@@ -229,11 +261,11 @@ impl SovereignHandshake for RailProxy {
 pub struct CustomRail;
 #[async_trait]
 impl SovereignRail for CustomRail {
-    fn name(&self) -> String {
-        "CustomPartner".to_string()
+    fn name(&self) -> &'static str {
+        "custom_partner"
     }
     fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String> {
-        if request.from_asset.chain != "BTC" {
+        if request.from_asset.chain != Chain::BITCOIN {
             return Err("CustomPartner only accepts BTC as inbound".to_string());
         }
         Ok(Some("PARTNER_CUSTOM_v1".to_string()))
@@ -247,7 +279,7 @@ impl SovereignRail for CustomRail {
             transaction_id: format!("PARTNER-{}", hex::encode(&intent.signable_hash[..8])),
             status: "Partner processing".to_string(),
             estimated_arrival: 1200,
-            rail_used: self.name(),
+            rail_used: self.name().to_string(),
         })
     }
 }

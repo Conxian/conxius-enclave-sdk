@@ -1,4 +1,5 @@
 use crate::protocol::business::BusinessAttribution;
+use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -28,6 +29,12 @@ pub struct A2pResponse {
     pub status: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct BroadcastOtpRequest {
+    pub intent: A2pSessionIntent,
+    pub signature: String,
+}
+
 pub struct A2pRouterService {
     pub gateway_endpoint: String,
 }
@@ -49,13 +56,69 @@ impl A2pRouterService {
         }
     }
 
+    /// Initiates phone verification by broadcasting the signed intent to the gateway.
+    pub async fn initiate_verification(
+        &self,
+        intent: A2pSessionIntent,
+        signature: String,
+    ) -> ConclaveResult<A2pResponse> {
+        let url = format!("{}/v1/a2p/otp/initiate", self.gateway_endpoint);
+        let client = reqwest::Client::new();
+
+        let payload = BroadcastOtpRequest { intent, signature };
+
+        let response =
+            client.post(&url).json(&payload).send().await.map_err(|e| {
+                ConclaveError::EnclaveFailure(format!("Gateway request failed: {}", e))
+            })?;
+
+        if !response.status().is_success() {
+            return Err(ConclaveError::EnclaveFailure(format!(
+                "Gateway returned error: {}",
+                response.status()
+            )));
+        }
+
+        let a2p_resp = response.json::<A2pResponse>().await.map_err(|e| {
+            ConclaveError::CryptoError(format!("Invalid gateway response: {}", e))
+        })?;
+
+        Ok(a2p_resp)
+    }
+
     /// Verifies the OTP code against the gateway.
     pub async fn verify_otp(
         &self,
-        _verification: OtpVerificationRequest,
-        _signature: String,
-    ) -> Result<bool, String> {
-        // Mock verification for the SDK
-        Ok(true)
+        verification: OtpVerificationRequest,
+        signature: String,
+    ) -> ConclaveResult<bool> {
+        let url = format!("{}/v1/a2p/otp/verify", self.gateway_endpoint);
+        let client = reqwest::Client::new();
+
+        #[derive(Debug, Serialize, Deserialize)]
+        struct VerifyPayload {
+            pub verification: OtpVerificationRequest,
+            pub signature: String,
+        }
+
+        let payload = VerifyPayload {
+            verification,
+            signature,
+        };
+
+        let response =
+            client.post(&url).json(&payload).send().await.map_err(|e| {
+                ConclaveError::EnclaveFailure(format!("Gateway request failed: {}", e))
+            })?;
+
+        if !response.status().is_success() {
+            return Ok(false);
+        }
+
+        let result: bool = response.json().await.map_err(|e| {
+            ConclaveError::CryptoError(format!("Invalid gateway response: {}", e))
+        })?;
+
+        Ok(result)
     }
 }

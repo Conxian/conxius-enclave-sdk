@@ -18,4 +18,6 @@ pub enum ConclaveError {
     InvalidPayload,
     #[error("ISO 20022 Error: {0}")]
     IsoError(String),
+    #[error("Network error: {0}")]
+    NetworkError(String),
 }

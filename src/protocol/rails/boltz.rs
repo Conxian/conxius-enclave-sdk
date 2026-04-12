@@ -1,50 +1,62 @@
-use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
+use crate::protocol::asset::Chain;
 
-/// Boltz Rail: Trustless, non-custodial atomic swaps for Liquid and Lightning.
-/// Provides the 'Fast Path' for daily use without sacrificing sovereignty.
-pub struct BoltzRail;
+pub struct BoltzRail {
+    pub gateway_url: String,
+    pub http_client: reqwest::Client,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct BroadcastSwapRequest {
+    pub intent: SwapIntent,
+    pub signature: String,
+}
 
 #[async_trait]
 impl SovereignRail for BoltzRail {
-    fn name(&self) -> String {
-        "Boltz".to_string()
+    fn name(&self) -> &'static str {
+        "boltz"
     }
 
     fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String> {
-        // Validation for Boltz specific requirements
-        if request.amount < 50_000 {
-            return Err(
-                "Boltz requires a minimum amount of 50,000 sats for atomic swaps".to_string(),
-            );
+        // Boltz atomic swap validation
+        if request.from_asset.chain != Chain::LIGHTNING && request.to_asset.chain != Chain::LIGHTNING {
+            return Err("Boltz rail requires Lightning as one of the swap legs".to_string());
         }
 
-        match (
-            request.from_asset.chain.as_str(),
-            request.to_asset.chain.as_str(),
-        ) {
-            ("BTC", "LIGHTNING") => Ok(Some("BOLTZ_SUBMARINE_SWAP_v1".to_string())),
-            ("LIGHTNING", "BTC") => Ok(Some("BOLTZ_REVERSE_SWAP_v1".to_string())),
-            ("LIQUID", "BTC") | ("BTC", "LIQUID") => Ok(Some("BOLTZ_LIQUID_SWAP_v1".to_string())),
-            ("LIQUID", "LIGHTNING") | ("LIGHTNING", "LIQUID") => {
-                Ok(Some("BOLTZ_L2_SWAP_v1".to_string()))
-            }
-            _ => Err("Boltz only supports BTC, Liquid, and Lightning swaps".to_string()),
-        }
+        Ok(Some(format!(
+            "BOLTZ_{}_TO_{}",
+            request.from_asset.chain,
+            request.to_asset.chain
+        )))
     }
 
     async fn execute_swap(
         &self,
         intent: SwapIntent,
-        _signature: String,
+        signature: String,
     ) -> Result<SwapResponse, String> {
-        // In a real implementation, this would interact with the Boltz API/SDK.
-        // For the Conclave SDK, we return the prepared response.
-        Ok(SwapResponse {
-            transaction_id: format!("BOLTZ-{}", hex::encode(&intent.signable_hash[..8])),
-            status: "Awaiting HODL Invoice / Lockup".to_string(),
-            estimated_arrival: 300, // Boltz is fast
-            rail_used: self.name(),
-        })
+        let url = format!("{}/v1/swap/execute", self.gateway_url);
+        let payload = BroadcastSwapRequest { intent, signature };
+
+        let response = self.http_client
+            .post(&url)
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|e| format!("Gateway request failed: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("Gateway returned error: {}", response.status()));
+        }
+
+        let swap_resp = response
+            .json::<SwapResponse>()
+            .await
+            .map_err(|e| format!("Invalid gateway response: {}", e))?;
+
+        Ok(swap_resp)
     }
 }

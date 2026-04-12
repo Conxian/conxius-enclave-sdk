@@ -64,7 +64,7 @@ impl SettlementService for ConclaveSettlementService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::asset::AssetRegistry;
+    use crate::protocol::asset::{AssetRegistry, Chain};
     use crate::protocol::settlement::TriggerSource;
 
     #[tokio::test]
@@ -87,7 +87,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(proposal.asset.chain, "STACKS");
+        assert_eq!(proposal.asset.chain, Chain::STACKS);
         assert_eq!(proposal.timelock_height, 120000 + 144);
         assert_eq!(proposal.amount, 500000000);
     }

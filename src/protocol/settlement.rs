@@ -1,4 +1,4 @@
-use crate::protocol::asset::AssetIdentifier;
+use crate::protocol::asset::{AssetIdentifier, Chain};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -151,9 +151,22 @@ impl SettlementManager {
         recipient: String,
         current_height: u64,
     ) -> ConclaveResult<SettlementProposal> {
+        let chain_enum = match asset_chain.to_uppercase().as_str() {
+            "BITCOIN" => Chain::BITCOIN,
+            "ETHEREUM" => Chain::ETHEREUM,
+            "STACKS" => Chain::STACKS,
+            "LIQUID" => Chain::LIQUID,
+            "SOLANA" => Chain::SOLANA,
+            "ARBITRUM" => Chain::ARBITRUM,
+            "BASE" => Chain::BASE,
+            "LIGHTNING" => Chain::LIGHTNING,
+            _ => Chain::BITCOIN, // Default
+        };
+
+        let id = AssetIdentifier { chain: chain_enum, symbol: asset_symbol.to_string() };
         let asset = self
             .asset_registry
-            .get_asset(asset_chain, asset_symbol)
+            .get_asset(&id)
             .ok_or(crate::ConclaveError::InvalidPayload)?;
 
         if !asset.active {
@@ -162,7 +175,7 @@ impl SettlementManager {
 
         Ok(SettlementProposal::new(
             trigger.trigger_id.clone(),
-            asset.identifier.clone(),
+            id,
             amount,
             recipient,
             current_height,
@@ -189,7 +202,7 @@ mod tests {
         let proposal = manager
             .create_proposal(
                 &trigger,
-                "BTC",
+                "BITCOIN",
                 "BTC",
                 1000000,
                 "bc1q...".to_string(),

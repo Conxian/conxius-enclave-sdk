@@ -1,422 +1,173 @@
-use crate::enclave::{CoreEnclaveManager, SignRequest};
-use crate::protocol::a2p::{A2pRouterService, OtpRequest};
-use crate::protocol::asset::{Asset, AssetIdentifier, AssetRegistry};
-use crate::protocol::bitcoin::TaprootManager;
-use crate::protocol::business::{BusinessManager, BusinessProfile, BusinessRegistry};
-use crate::protocol::fiat::{FiatOnRampRequest, FiatRouterService};
-use crate::protocol::job_card::{ConxianJobCard, Iso20022Wrapper};
-use crate::protocol::mmr::MerkleMountainRange;
-use crate::protocol::musig2::MuSig2Orchestrator;
-use crate::protocol::rails::{BisqRail, ChangellyRail, RailProxy, SwapRequest, WormholeRail};
-use crate::protocol::settlement::{SettlementTrigger, TriggerSource};
-use crate::protocol::settlement_service::{ConclaveSettlementService, SettlementService};
-use crate::protocol::stacks::StacksManager;
-use std::collections::HashMap;
-use std::sync::Arc;
 use wasm_bindgen::prelude::*;
+use crate::enclave::EnclaveManager;
+#[cfg(target_arch = "wasm32")]
+use crate::enclave::android_strongbox::AndroidStrongBox;
+use crate::enclave::cloud::CloudEnclave;
+use crate::protocol::asset::{AssetRegistry, AssetIdentifier, AssetMetadata, Chain};
+use crate::protocol::business::{BusinessRegistry, BusinessProfile, BusinessManager, BusinessAttribution};
+use crate::protocol::rails::RailProxy;
+use crate::protocol::fiat::FiatRouterService;
+use crate::protocol::a2p::A2pRouterService;
+use crate::protocol::mmr::MmrService;
+use crate::protocol::job_card::CJCSManager;
+use crate::protocol::bitcoin::TaprootManager;
+use std::sync::Arc;
+use std::collections::HashMap;
 
 #[wasm_bindgen]
 pub struct ConclaveWasmClient {
-    manager: CoreEnclaveManager,
-    asset_registry: Arc<AssetRegistry>,
-    business_registry: Arc<BusinessRegistry>,
+    enclave: Arc<dyn EnclaveManager>,
+    assets: Arc<AssetRegistry>,
+    businesses: Arc<BusinessRegistry>,
+    rails: Arc<RailProxy>,
+    fiat: Arc<FiatRouterService>,
+    a2p: Arc<A2pRouterService>,
+    mmr: Arc<MmrService>,
+    http_client: reqwest::Client,
 }
 
 #[wasm_bindgen]
 impl ConclaveWasmClient {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Self {
+    pub fn new(gateway_url: &str, kms_endpoint: Option<String>) -> Self {
+        let http_client = reqwest::Client::new();
+
+        #[cfg(target_arch = "wasm32")]
+        let enclave: Arc<dyn EnclaveManager> = if let Some(kms) = kms_endpoint {
+            Arc::new(CloudEnclave { kms_endpoint: kms })
+        } else {
+            Arc::new(AndroidStrongBox::new())
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let enclave: Arc<dyn EnclaveManager> = Arc::new(CloudEnclave {
+            kms_endpoint: kms_endpoint.unwrap_or_else(|| "https://vault.conxian.io".to_string())
+        });
+
+        let assets = Arc::new(AssetRegistry::new());
+        let businesses = Arc::new(BusinessRegistry::new());
+        let rails = Arc::new(RailProxy::new(gateway_url.to_string(), http_client.clone()));
+
+        let fiat = Arc::new(FiatRouterService::new(gateway_url.to_string(), http_client.clone()));
+        let a2p = Arc::new(A2pRouterService::new(gateway_url.to_string(), http_client.clone()));
+        let mmr = Arc::new(MmrService::new(gateway_url.to_string(), http_client.clone()));
+
         Self {
-            manager: CoreEnclaveManager::new(),
-            asset_registry: Arc::new(AssetRegistry::new()),
-            business_registry: Arc::new(BusinessRegistry::new()),
+            enclave,
+            assets,
+            businesses,
+            rails,
+            fiat,
+            a2p,
+            mmr,
+            http_client,
         }
     }
 
-    /// Sets the session key for the enclave using PBKDF2-HMAC-SHA512.
-    #[wasm_bindgen]
-    pub fn set_session_key(&mut self, pin: &str, salt_hex: &str) -> Result<(), JsValue> {
-        let salt = hex::decode(salt_hex).map_err(|e| JsValue::from_str(&e.to_string()))?;
-        self.manager
-            .initialize_session(pin, &salt)
-            .map_err(|e| JsValue::from_str(&e.to_string()))
-    }
-
-    /// Registers a business partner in the registry
-    #[wasm_bindgen]
-    pub fn register_business(&mut self, id: &str, name: &str, public_key: &str) {
+    /// Registers a business partner in the local registry.
+    pub fn register_business(&self, id: &str, name: &str, public_key: &str) {
         let profile = BusinessProfile {
             id: id.to_string(),
             name: name.to_string(),
             public_key: public_key.to_string(),
             active: true,
         };
-        let mut registry = (*self.business_registry).clone();
-        registry.register_business(profile);
-        self.business_registry = Arc::new(registry);
+        self.businesses.register_business(profile);
     }
 
-    /// Registers a custom asset in the registry
-    #[wasm_bindgen]
-    pub fn register_asset(
-        &mut self,
-        chain: &str,
-        symbol: &str,
-        name: &str,
-        decimals: u8,
-        contract_address: Option<String>,
-    ) {
-        let asset = Asset {
-            identifier: AssetIdentifier {
-                chain: chain.to_string(),
-                symbol: symbol.to_string(),
-            },
-            name: name.to_string(),
-            decimals,
-            contract_address,
-            active: true,
+    /// Registers a new asset in the local registry.
+    pub fn register_asset(&self, chain: &str, symbol: &str, name: &str, decimals: u8, contract: Option<String>) {
+        let chain_enum = match chain.to_uppercase().as_str() {
+            "BITCOIN" => Chain::BITCOIN,
+            "ETHEREUM" => Chain::ETHEREUM,
+            "STACKS" => Chain::STACKS,
+            "LIQUID" => Chain::LIQUID,
+            "SOLANA" => Chain::SOLANA,
+            "ARBITRUM" => Chain::ARBITRUM,
+            "BASE" => Chain::BASE,
+            "LIGHTNING" => Chain::LIGHTNING,
+            _ => Chain::BITCOIN, // Default
         };
-        let mut registry = (*self.asset_registry).clone();
-        registry.register_asset(asset);
-        self.asset_registry = Arc::new(registry);
+
+        let id = AssetIdentifier { chain: chain_enum, symbol: symbol.to_string() };
+        let metadata = AssetMetadata { name: name.to_string(), decimals, contract_address: contract };
+        self.assets.register_asset(id, metadata);
     }
 
-    /// Generates a new hardware-backed business identity
-    #[wasm_bindgen]
-    pub fn generate_business_identity(
-        &self,
-        business_id: &str,
-        name: &str,
-    ) -> Result<JsValue, JsValue> {
-        let business_mgr = BusinessManager::new(&self.manager, (*self.business_registry).clone());
-        let profile = business_mgr
-            .generate_business_identity(business_id, name)
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    /// Generates a hardware-backed business identity.
+    pub async fn generate_business_identity(&self, business_id: &str, name: &str) -> Result<JsValue, JsValue> {
+        let mgr = BusinessManager::new(self.enclave.as_ref(), self.businesses.as_ref());
+        let profile = mgr.generate_business_identity(business_id, name)
+            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
-        serde_wasm_bindgen::to_value(&profile).map_err(|e| JsValue::from_str(&e.to_string()))
+        serde_wasm_bindgen::to_value(&profile).map_err(|e| JsValue::from_str(&format!("{:?}", e)))
     }
 
-    /// Securely generates a business attribution proof
-    #[wasm_bindgen]
-    pub fn generate_attribution(
-        &self,
-        business_id: &str,
-        user_id: &str,
-    ) -> Result<JsValue, JsValue> {
-        let business_mgr = BusinessManager::new(&self.manager, (*self.business_registry).clone());
-        let attribution = business_mgr
-            .generate_attribution(business_id, user_id, HashMap::new())
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    /// Generates a signed proof of attribution for a business partner.
+    pub async fn generate_attribution(&self, business_id: &str, user_id: &str, metadata: JsValue) -> Result<JsValue, JsValue> {
+        let metadata_map: HashMap<String, String> = serde_wasm_bindgen::from_value(metadata)
+            .map_err(|_| JsValue::from_str("Invalid metadata format"))?;
 
-        serde_wasm_bindgen::to_value(&attribution).map_err(|e| JsValue::from_str(&e.to_string()))
+        let mgr = BusinessManager::new(self.enclave.as_ref(), self.businesses.as_ref());
+        let attribution = mgr.generate_attribution(business_id, user_id, metadata_map)
+            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+
+        serde_wasm_bindgen::to_value(&attribution).map_err(|e| JsValue::from_str(&format!("{:?}", e)))
     }
 
-    /// High-level helper to execute a sovereign swap
-    #[wasm_bindgen]
     pub async fn execute_swap(
         &self,
-        rail_name: &str,
-        from_chain: &str,
-        from_symbol: &str,
-        to_chain: &str,
-        to_symbol: &str,
-        amount: u64,
-        recipient: &str,
-        business_id: Option<String>,
-    ) -> Result<JsValue, JsValue> {
-        let mut proxy = RailProxy::new(
-            "https://api.conxian.io".to_string(),
-            None,
-            self.asset_registry.clone(),
-            self.business_registry.clone(),
-        );
-        proxy.register_rail(Box::new(ChangellyRail));
-        proxy.register_rail(Box::new(BisqRail));
-        proxy.register_rail(Box::new(WormholeRail));
-
-        let attribution = if let Some(bid) = business_id {
-            let business_mgr =
-                BusinessManager::new(&self.manager, (*self.business_registry).clone());
-            Some(
-                business_mgr
-                    .generate_attribution(&bid, "user_default", HashMap::new())
-                    .map_err(|e| JsValue::from_str(&e.to_string()))?,
-            )
-        } else {
-            None
-        };
-
-        let request = SwapRequest {
-            from_asset: AssetIdentifier {
-                chain: from_chain.to_string(),
-                symbol: from_symbol.to_string(),
-            },
-            to_asset: AssetIdentifier {
-                chain: to_chain.to_string(),
-                symbol: to_symbol.to_string(),
-            },
-            amount,
-            recipient_address: recipient.to_string(),
-            attribution,
-        };
-
-        let intent = proxy
-            .prepare_intent(rail_name, request)
-            .map_err(|e| JsValue::from_str(&e))?;
-
-        let sig_resp = self
-            .manager
-            .sign(SignRequest {
-                message_hash: intent.signable_hash.clone(),
-                derivation_path: "m/44'/0'/0'/0/0".to_string(),
-                key_id: "swap_key".to_string(),
-                taproot_tweak: None,
-            })
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
-
-        let response = proxy
-            .broadcast_signed_intent(intent, sig_resp.signature_hex, sig_resp.device_attestation)
-            .await
-            .map_err(|e| JsValue::from_str(&e))?;
-
-        serde_wasm_bindgen::to_value(&response).map_err(|e| JsValue::from_str(&e.to_string()))
-    }
-
-    /// Create a stateless fiat on-ramp session
-    #[wasm_bindgen]
-    pub async fn create_fiat_session(
-        &self,
-        fiat_currency: &str,
-        to_chain: &str,
-        to_symbol: &str,
-        amount: f64,
-        wallet_address: &str,
         provider: &str,
-        business_id: Option<String>,
+        intent: JsValue,
+        attribution: Option<JsValue>,
     ) -> Result<JsValue, JsValue> {
-        let fiat_service = FiatRouterService::new("https://api.conxian.io".to_string());
+        let intent_json: serde_json::Value = serde_wasm_bindgen::from_value(intent)
+            .map_err(|_| JsValue::from_str("Invalid intent JSON"))?;
 
-        let attribution = if let Some(bid) = business_id {
-            let business_mgr =
-                BusinessManager::new(&self.manager, (*self.business_registry).clone());
-            Some(
-                business_mgr
-                    .generate_attribution(&bid, "user_default", HashMap::new())
-                    .map_err(|e| JsValue::from_str(&e.to_string()))?,
-            )
+        let attr: Option<BusinessAttribution> = if let Some(a) = attribution {
+            Some(serde_wasm_bindgen::from_value(a).map_err(|_| JsValue::from_str("Invalid attribution format"))?)
         } else {
             None
         };
 
-        let request = FiatOnRampRequest {
-            fiat_currency: fiat_currency.to_string(),
-            crypto_asset: AssetIdentifier {
-                chain: to_chain.to_string(),
-                symbol: to_symbol.to_string(),
-            },
-            amount,
-            wallet_address: wallet_address.to_string(),
-            provider: provider.to_string(),
-            attribution,
-        };
+        let result = self.rails.execute_swap(provider, intent_json, attr).await
+            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
-        let intent = fiat_service.prepare_session(request);
-
-        let sig_resp = self
-            .manager
-            .sign(SignRequest {
-                message_hash: intent.signable_hash.clone(),
-                derivation_path: "m/44'/0'/0'/0/0".to_string(),
-                key_id: "fiat_key".to_string(),
-                taproot_tweak: None,
-            })
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
-
-        let response = fiat_service
-            .create_session(intent, sig_resp.signature_hex)
-            .await
-            .map_err(|e| JsValue::from_str(&e))?;
-
-        serde_wasm_bindgen::to_value(&response).map_err(|e| JsValue::from_str(&e.to_string()))
+        serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&format!("{:?}", e)))
     }
 
-    /// Initiate stateless phone verification
-    #[wasm_bindgen]
-    pub async fn initiate_phone_verification(
-        &self,
-        phone_number: &str,
-        channel: &str,
-        business_id: Option<String>,
-    ) -> Result<JsValue, JsValue> {
-        let a2p_service = A2pRouterService::new("https://api.conxian.io".to_string());
+    pub async fn create_fiat_session(&self, intent_json: &str) -> Result<String, JsValue> {
+        let intent = serde_json::from_str(intent_json)
+            .map_err(|_| JsValue::from_str("Invalid fiat intent"))?;
 
-        let attribution = if let Some(bid) = business_id {
-            let business_mgr =
-                BusinessManager::new(&self.manager, (*self.business_registry).clone());
-            Some(
-                business_mgr
-                    .generate_attribution(&bid, "user_default", HashMap::new())
-                    .map_err(|e| JsValue::from_str(&e.to_string()))?,
-            )
-        } else {
-            None
-        };
-
-        let request = OtpRequest {
-            phone_number: phone_number.to_string(),
-            channel: channel.to_string(),
-            attribution,
-        };
-
-        let intent = a2p_service.prepare_otp(request);
-
-        let _sig_resp = self
-            .manager
-            .sign(SignRequest {
-                message_hash: intent.signable_hash.clone(),
-                derivation_path: "m/44'/0'/0'/0/0".to_string(),
-                key_id: "a2p_key".to_string(),
-                taproot_tweak: None,
-            })
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
-
-        // In a real implementation, we would broadcast the signed intent to the gateway
-        Ok(serde_wasm_bindgen::to_value(&format!("OTP sent to {}", phone_number)).unwrap())
+        self.fiat.create_session(self.enclave.as_ref(), intent).await
+            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
     }
 
-    /// Sign a Stacks transaction payload
-    #[wasm_bindgen]
-    pub fn sign_stacks_transaction(&self, payload_hex: &str) -> Result<String, JsValue> {
-        let payload = hex::decode(payload_hex)
-            .map_err(|e| JsValue::from_str(&format!("Invalid payload hex: {}", e)))?;
+    pub async fn verify_phone(&self, intent_json: &str) -> Result<String, JsValue> {
+        let intent = serde_json::from_str(intent_json)
+            .map_err(|_| JsValue::from_str("Invalid a2p intent"))?;
 
-        let stacks_mgr = StacksManager::new(&self.manager);
-        let intent = stacks_mgr
-            .prepare_transaction(&payload)
-            .map_err(|e| JsValue::from_str(&e))?;
-
-        let signature = stacks_mgr
-            .sign_prepared_transaction(intent, "stacks_key")
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
-
-        Ok(signature)
+        self.a2p.verify_phone(self.enclave.as_ref(), intent).await
+            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
     }
 
-    /// Sign a Bitcoin Taproot (BIP341) sighash
-    #[wasm_bindgen]
-    pub fn sign_bitcoin_taproot(
-        &self,
-        sighash_hex: &str,
-        merkle_root_hex: Option<String>,
-    ) -> Result<String, JsValue> {
-        let mut sighash = [0u8; 32];
-        let decoded_sighash = hex::decode(sighash_hex)
-            .map_err(|e| JsValue::from_str(&format!("Invalid sighash hex: {}", e)))?;
-        sighash.copy_from_slice(&decoded_sighash);
+    pub async fn get_mmr_proof(&self, position: u64) -> Result<JsValue, JsValue> {
+        let proof = self.mmr.get_proof(position).await
+            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
-        let merkle_root = if let Some(mr_hex) = merkle_root_hex {
-            let mut mr = [0u8; 32];
-            let decoded_mr = hex::decode(mr_hex)
-                .map_err(|e| JsValue::from_str(&format!("Invalid merkle root hex: {}", e)))?;
-            mr.copy_from_slice(&decoded_mr);
-            Some(mr)
-        } else {
-            None
-        };
-
-        let btc_mgr = TaprootManager::new(&self.manager);
-        let signature = btc_mgr
-            .sign_taproot_v1(sighash, "m/86'/0'/0'/0/0", "btc_key", merkle_root)
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
-
-        Ok(signature)
+        serde_wasm_bindgen::to_value(&proof).map_err(|e| JsValue::from_str(&format!("{:?}", e)))
     }
 
-    /// Generates a Merkle Mountain Range (MMR) inclusion proof for institutional state attestation
-    #[wasm_bindgen]
-    pub fn get_mmr_proof(&self, data_hex: &str, pos: u64) -> Result<JsValue, JsValue> {
-        let data = hex::decode(data_hex)
-            .map_err(|e| JsValue::from_str(&format!("Invalid data hex: {}", e)))?;
-
-        let mut mmr = MerkleMountainRange::new();
-        // In a real scenario, this would be backed by a database.
-        // For CON-59, we demonstrate the cryptographic logic.
-        mmr.append(&data);
-
-        let proof = mmr.generate_proof(pos).map_err(|e| JsValue::from_str(&e))?;
-
-        serde_wasm_bindgen::to_value(&proof).map_err(|e| JsValue::from_str(&e.to_string()))
+    pub fn generate_job_card(&self, invoice: &str) -> Result<String, JsValue> {
+        let mgr = CJCSManager::new();
+        mgr.generate_card(invoice)
+            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
     }
 
-    /// Generates an ISO 20022 pacs.008 XML for a Job Card
-    #[wasm_bindgen]
-    pub fn generate_iso20022_pacs008(
-        &self,
-        sender: &str,
-        receiver: &str,
-        amount: f64,
-        town: Option<String>,
-        country: Option<String>,
-    ) -> Result<String, JsValue> {
-        let card = ConxianJobCard::new(sender, receiver, amount, town, country);
-        Iso20022Wrapper::wrap_pacs008(&card).map_err(|e| JsValue::from_str(&e.to_string()))
-    }
-
-    /// Generates a JSON-LD machine-readable definition for a Job Card
-    #[wasm_bindgen]
-    pub fn generate_cjcs_json_ld(
-        &self,
-        sender: &str,
-        receiver: &str,
-        amount: f64,
-        town: Option<String>,
-        country: Option<String>,
-    ) -> Result<String, JsValue> {
-        let card = ConxianJobCard::new(sender, receiver, amount, town, country);
-        Iso20022Wrapper::wrap_json_ld(&card).map_err(|e| JsValue::from_str(&e.to_string()))
-    }
-}
-
-#[wasm_bindgen]
-impl ConclaveWasmClient {
-    /// Creates a settlement proposal from an external trigger (ISO 20022, PAPSS, or BRICS)
-    /// This enforces the 144-block timelock and TEE-verified trigger flow.
-    #[wasm_bindgen]
-    pub async fn create_settlement_proposal(
-        &self,
-        source: &str,
-        payload_hex: &str,
-        asset_chain: &str,
-        asset_symbol: &str,
-        amount: u64,
-        recipient: &str,
-        current_height: u64,
-    ) -> Result<JsValue, JsValue> {
-        let payload = hex::decode(payload_hex)
-            .map_err(|e| JsValue::from_str(&format!("Invalid payload hex: {}", e)))?;
-
-        let trigger_source = match source.to_lowercase().as_str() {
-            "iso20022" => TriggerSource::Iso20022,
-            "papss" => TriggerSource::Papss,
-            "brics" => TriggerSource::Brics,
-            _ => return Err(JsValue::from_str("Unsupported settlement trigger source")),
-        };
-
-        let trigger = SettlementTrigger::new(trigger_source, payload);
-        let settlement_svc = ConclaveSettlementService::new(self.asset_registry.clone());
-
-        let proposal = settlement_svc
-            .process_external_trigger(
-                trigger,
-                asset_chain,
-                asset_symbol,
-                amount,
-                recipient.to_string(),
-                current_height,
-            )
-            .await
-            .map_err(|e| JsValue::from_str(&e.to_string()))?;
-
-        serde_wasm_bindgen::to_value(&proposal).map_err(|e| JsValue::from_str(&e.to_string()))
+    pub fn derive_taproot_address(&self, path: &str) -> Result<String, JsValue> {
+        let mgr = TaprootManager::new(self.enclave.as_ref());
+        mgr.derive_address(path)
+            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
     }
 }
