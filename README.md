@@ -23,7 +23,7 @@ Ownership and review requirements are defined in [`CODEOWNERS`](./CODEOWNERS).
 ## Repository
 
 - **Category**: Security Infrastructure SDK
-- **Support**: Managed by Conxian-Labs (Urgent issues via Linear/Security)
+- **Support**: Managed by Conxian-Labs (See [SUPPORT.md](SUPPORT.md) for details)
 
 ## Audience
 

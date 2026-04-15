@@ -31,10 +31,10 @@ wasm-pack build
 
 We use a community-driven bounty model for many features and bug fixes.
 
-1. Find an issue in Linear labeled as a "Bounty".
-2. Claim the issue by commenting `/claim` on the corresponding GitHub issue (if automation is enabled) or by requesting assignment in Linear.
+1. Find an issue in Linear or GitHub labeled as a "Bounty".
+2. Claim the issue by using the [Bounty Claim template](.github/ISSUE_TEMPLATE/bounty_claim.md) or requesting assignment.
 3. Follow the "Zero Secret Egress" and "Hardware Attestation" principles in your implementation.
-4. Submit a Pull Request with a clear description and unit tests.
+4. Submit a Pull Request using the [PR Template](.github/PULL_REQUEST_TEMPLATE.md), ensuring all security checklists are completed.
 
 ## Coding Standards
 
