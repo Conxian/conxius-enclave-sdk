@@ -222,12 +222,12 @@ impl ConclaveWasmClient {
         &self,
         sender: &str,
         receiver: &str,
-        amount: f64,
+        amount_sbtc: String,
         town: Option<String>,
         country: Option<String>,
     ) -> Result<String, JsValue> {
         use crate::protocol::job_card::ConxianJobCard;
-        let card = ConxianJobCard::new(sender, receiver, amount, town, country);
+        let card = ConxianJobCard::new(sender, receiver, amount_sbtc, town, country);
         Iso20022Wrapper::wrap_pacs008(&card).map_err(|e| JsValue::from_str(&format!("{:?}", e)))
     }
 
