@@ -135,8 +135,42 @@ impl SettlementManager {
             }
         }
 
+        fn is_iso_message_id(value: &str) -> bool {
+            let mut parts = value.split('.');
+
+            let Some(business_area) = parts.next() else {
+                return false;
+            };
+            let Some(message_type) = parts.next() else {
+                return false;
+            };
+            let Some(variant) = parts.next() else {
+                return false;
+            };
+            let Some(version) = parts.next() else {
+                return false;
+            };
+
+            if parts.next().is_some() {
+                return false;
+            }
+
+            business_area.len() == 4
+                && business_area.bytes().all(|b| b.is_ascii_alphabetic())
+                && message_type.len() == 3
+                && message_type.bytes().all(|b| b.is_ascii_digit())
+                && variant.len() == 3
+                && variant.bytes().all(|b| b.is_ascii_digit())
+                && version.len() == 2
+                && version.bytes().all(|b| b.is_ascii_digit())
+        }
+
         fn is_iso_urn(value: &str) -> bool {
-            value.starts_with(ISO_MESSAGE_URN_PREFIX)
+            let Some(message_id) = value.strip_prefix(ISO_MESSAGE_URN_PREFIX) else {
+                return false;
+            };
+
+            is_iso_message_id(message_id)
         }
 
         #[derive(Clone)]
@@ -517,6 +551,17 @@ mod tests {
         let manager = SettlementManager::new(registry);
 
         let payload = b"<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022evil:tech:xsd:pacs.008.001.08\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
+        let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
+
+        assert!(!manager.verify_trigger(&trigger).unwrap());
+    }
+
+    #[test]
+    fn test_rejects_iso20022_namespace_with_invalid_message_id() {
+        let registry = Arc::new(AssetRegistry::new());
+        let manager = SettlementManager::new(registry);
+
+        let payload = b"<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08evil\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
         let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
 
         assert!(!manager.verify_trigger(&trigger).unwrap());
