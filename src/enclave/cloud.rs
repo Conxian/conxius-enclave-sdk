@@ -21,47 +21,52 @@ fn unix_time_secs() -> u64 {
 /// using hardware-backed keys and Cloud TEE (e.g., Azure SNP) for attestation.
 pub struct CloudEnclave {
     pub kms_endpoint: String,
-    /// Optional local secret key for development and testing.
-    /// If None, the enclave simulates remote KMS operations.
-    local_dev_key: Option<Zeroizing<[u8; 32]>>,
-    ephemeral_key: Zeroizing<[u8; 32]>,
+    /// Optional local secret key bytes for deterministic development/testing.
+    local_dev_key_bytes: Option<Zeroizing<[u8; 32]>>,
+    /// Per-instance simulated key used when no local dev key is configured.
+    simulated_kms_key_bytes: Zeroizing<[u8; 32]>,
 }
 
 impl CloudEnclave {
     pub fn new(kms_endpoint: String) -> Self {
-        let ephemeral_key = loop {
-            let mut key = Zeroizing::new([0u8; 32]);
-            rand::rng().fill_bytes(&mut *key);
-            if SecretKey::from_byte_array(*key).is_ok() {
-                break key;
-            }
-        };
-
+        let simulated_kms_key_bytes = Self::generate_simulated_kms_key_bytes();
         Self {
             kms_endpoint,
-            local_dev_key: None,
-            ephemeral_key,
+            local_dev_key_bytes: None,
+            simulated_kms_key_bytes,
         }
     }
 
     /// Sets a local development key for deterministic testing.
     /// WARNING: For development use only.
     pub fn with_dev_key(mut self, key_bytes: [u8; 32]) -> ConclaveResult<Self> {
-        SecretKey::from_byte_array(key_bytes)
-            .map_err(|e| ConclaveError::CryptoError(format!("Invalid development key: {}", e)))?;
+        SecretKey::from_slice(&key_bytes)
+            .map_err(|e| ConclaveError::CryptoError(format!("Invalid dev key: {e}")))?;
 
-        self.local_dev_key = Some(Zeroizing::new(key_bytes));
+        self.local_dev_key_bytes = Some(Zeroizing::new(key_bytes));
         Ok(self)
     }
 
+    fn generate_simulated_kms_key_bytes() -> Zeroizing<[u8; 32]> {
+        let mut rng = rand::rng();
+        let mut key_bytes = Zeroizing::new([0u8; 32]);
+
+        loop {
+            rng.fill_bytes(&mut *key_bytes);
+            if SecretKey::from_slice(&*key_bytes).is_ok() {
+                return key_bytes;
+            }
+        }
+    }
+
     fn get_active_key(&self) -> ConclaveResult<SecretKey> {
-        let key_bytes: [u8; 32] = match &self.local_dev_key {
-            Some(k) => **k,
-            None => *self.ephemeral_key,
+        let key_bytes: &[u8; 32] = match self.local_dev_key_bytes.as_ref() {
+            Some(key_bytes) => &**key_bytes,
+            None => &*self.simulated_kms_key_bytes,
         };
 
-        SecretKey::from_byte_array(key_bytes)
-            .map_err(|e| ConclaveError::CryptoError(format!("Invalid signing key: {}", e)))
+        SecretKey::from_slice(key_bytes)
+            .map_err(|e| ConclaveError::CryptoError(format!("SEC1 Error: {e}")))
     }
 
     fn generate_attestation_report(&self, challenge: &[u8]) -> DeviceIntegrityReport {
