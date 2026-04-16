@@ -160,8 +160,7 @@ impl ConclaveWasmClient {
             .generate_attribution(business_id, user_id, metadata_map)
             .map_err(to_js_error)?;
 
-        serde_wasm_bindgen::to_value(&attribution)
-            .map_err(to_js_error)
+        serde_wasm_bindgen::to_value(&attribution).map_err(to_js_error)
     }
 
     pub async fn execute_swap(

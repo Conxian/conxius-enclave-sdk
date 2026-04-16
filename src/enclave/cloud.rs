@@ -60,12 +60,10 @@ impl CloudEnclave {
             }
         }
 
-        Err(ConclaveError::CryptoError(
-            format!(
-                "Failed to generate simulated KMS secret key after {} attempts",
-                SIMULATED_KMS_KEYGEN_MAX_ATTEMPTS
-            ),
-        ))
+        Err(ConclaveError::CryptoError(format!(
+            "Failed to generate simulated KMS secret key after {} attempts",
+            SIMULATED_KMS_KEYGEN_MAX_ATTEMPTS
+        )))
     }
 
     fn is_valid_secret_key_bytes(key_bytes: &[u8; 32]) -> bool {
