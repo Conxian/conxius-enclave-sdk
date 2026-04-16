@@ -373,31 +373,26 @@ impl SettlementManager {
 
                     depth = end_depth;
                 }
-                Ok(event) => {
-                    if document_closed {
-                        return false;
-                    }
-
-                    if !saw_document_root {
-                        match event {
-                            Event::Decl(_) => {}
-                            Event::Text(t) => {
-                                let bytes = t.as_ref();
-                                if !bytes.is_empty()
-                                    && !bytes.iter().all(|b| b.is_ascii_whitespace())
-                                {
-                                    return false;
-                                }
-                            }
-                            _ => return false,
-                        }
-                    } else if let Event::Text(t) = event {
+                Ok(event) => match event {
+                    Event::Text(t) => {
                         let bytes = t.as_ref();
                         if !bytes.is_empty() && !bytes.iter().all(|b| b.is_ascii_whitespace()) {
+                            if !saw_document_root || document_closed {
+                                return false;
+                            }
+                        }
+                    }
+                    Event::Decl(_) => {
+                        if saw_document_root {
                             return false;
                         }
                     }
-                }
+                    _ => {
+                        if !saw_document_root || document_closed {
+                            return false;
+                        }
+                    }
+                },
                 Err(_) => return false,
             }
 
@@ -541,5 +536,16 @@ mod tests {
         let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
 
         assert!(!manager.verify_trigger(&trigger).unwrap());
+    }
+
+    #[test]
+    fn test_allows_text_inside_document() {
+        let registry = Arc::new(AssetRegistry::new());
+        let manager = SettlementManager::new(registry);
+
+        let payload = b"<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"><FIToFICstmrCdtTrf><CdtTrfTxInf>1</CdtTrfTxInf></FIToFICstmrCdtTrf></Document>".to_vec();
+        let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
+
+        assert!(manager.verify_trigger(&trigger).unwrap());
     }
 }
