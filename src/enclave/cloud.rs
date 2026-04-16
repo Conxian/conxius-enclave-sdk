@@ -53,10 +53,23 @@ impl CloudEnclave {
 
         loop {
             rng.fill_bytes(&mut *key_bytes);
-            if SecretKey::from_byte_array(*key_bytes).is_ok() {
+            if Self::is_valid_secret_key_bytes(&key_bytes) {
                 return key_bytes;
             }
         }
+    }
+
+    fn is_valid_secret_key_bytes(key_bytes: &[u8; 32]) -> bool {
+        // SAFETY: `secp256k1_ec_seckey_verify` is the libsecp256k1-provided validity check for
+        // 32-byte secret key material. We pass a pointer to exactly 32 bytes.
+        let ok = unsafe {
+            secp256k1::ffi::secp256k1_ec_seckey_verify(
+                secp256k1::ffi::secp256k1_context_no_precomp,
+                key_bytes.as_ptr(),
+            )
+        };
+
+        ok == 1
     }
 
     fn get_active_key(&self) -> ConclaveResult<SecretKey> {
