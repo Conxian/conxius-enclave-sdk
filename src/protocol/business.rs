@@ -206,7 +206,7 @@ mod tests {
 
     #[test]
     fn test_attribution_verification() {
-        let enclave = CloudEnclave::new("test".to_string());
+        let enclave = CloudEnclave::new("test".to_string()).unwrap();
         let registry = BusinessRegistry::new();
 
         let public_key = enclave

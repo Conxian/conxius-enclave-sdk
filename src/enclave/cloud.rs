@@ -28,13 +28,13 @@ pub struct CloudEnclave {
 }
 
 impl CloudEnclave {
-    pub fn new(kms_endpoint: String) -> Self {
-        let simulated_kms_key_bytes = Self::generate_simulated_kms_key_bytes();
-        Self {
+    pub fn new(kms_endpoint: String) -> ConclaveResult<Self> {
+        let simulated_kms_key_bytes = Self::generate_simulated_kms_key_bytes()?;
+        Ok(Self {
             kms_endpoint,
             local_dev_key_bytes: None,
             simulated_kms_key_bytes,
-        }
+        })
     }
 
     /// Sets a local development key for deterministic testing.
@@ -47,16 +47,20 @@ impl CloudEnclave {
         Ok(self)
     }
 
-    fn generate_simulated_kms_key_bytes() -> Zeroizing<[u8; 32]> {
+    fn generate_simulated_kms_key_bytes() -> ConclaveResult<Zeroizing<[u8; 32]>> {
         let mut rng = rand::rng();
         let mut key_bytes = Zeroizing::new([0u8; 32]);
 
-        loop {
+        for _ in 0..1024 {
             rng.fill_bytes(&mut *key_bytes);
             if Self::is_valid_secret_key_bytes(&key_bytes) {
-                return key_bytes;
+                return Ok(key_bytes);
             }
         }
+
+        Err(ConclaveError::CryptoError(
+            "Failed to generate simulated KMS secret key".to_string(),
+        ))
     }
 
     fn is_valid_secret_key_bytes(key_bytes: &[u8; 32]) -> bool {

@@ -30,22 +30,25 @@ pub struct ConclaveWasmClient {
 #[wasm_bindgen]
 impl ConclaveWasmClient {
     #[wasm_bindgen(constructor)]
-    pub fn new(gateway_url: &str, kms_endpoint: Option<String>) -> Self {
+    pub fn new(gateway_url: &str, kms_endpoint: Option<String>) -> Result<Self, JsValue> {
         let http_client = reqwest::Client::new();
         let assets = Arc::new(AssetRegistry::new());
         let businesses = Arc::new(BusinessRegistry::new());
 
         #[cfg(target_arch = "wasm32")]
         let enclave: Arc<dyn EnclaveManager> = if let Some(kms) = kms_endpoint {
-            Arc::new(CloudEnclave::new(kms))
+            Arc::new(CloudEnclave::new(kms).map_err(|e| JsValue::from_str(&format!("{:?}", e)))?)
         } else {
             Arc::new(AndroidStrongBox::new())
         };
 
         #[cfg(not(target_arch = "wasm32"))]
-        let enclave: Arc<dyn EnclaveManager> = Arc::new(CloudEnclave::new(
-            kms_endpoint.unwrap_or_else(|| "https://vault.conxian.io".to_string()),
-        ));
+        let enclave: Arc<dyn EnclaveManager> = Arc::new(
+            CloudEnclave::new(
+                kms_endpoint.unwrap_or_else(|| "https://vault.conxian.io".to_string()),
+            )
+            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?,
+        );
 
         let rails = Arc::new(RailProxy::new(
             gateway_url.to_string(),
@@ -58,7 +61,7 @@ impl ConclaveWasmClient {
         let a2p = Arc::new(A2pRouterService::new(gateway_url.to_string()));
         let mmr = Arc::new(MmrService::new(gateway_url.to_string()));
 
-        Self {
+        Ok(Self {
             enclave,
             assets,
             businesses,
@@ -67,7 +70,7 @@ impl ConclaveWasmClient {
             a2p,
             mmr,
             http_client,
-        }
+        })
     }
 
     /// Unlocks the secure enclave using a secret (PIN/Passphrase) and salt.
