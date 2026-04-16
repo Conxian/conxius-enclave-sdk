@@ -21,8 +21,8 @@ fn unix_time_secs() -> u64 {
 /// using hardware-backed keys and Cloud TEE (e.g., Azure SNP) for attestation.
 pub struct CloudEnclave {
     pub kms_endpoint: String,
-    /// Optional local secret key for development and testing.
-    /// If None, the enclave simulates remote KMS operations.
+    /// Optional local development key material, stored as zeroizing bytes.
+    /// If None, the enclave uses an ephemeral in-memory key and simulates remote KMS operations.
     local_dev_key_bytes: Option<Zeroizing<[u8; 32]>>,
     ephemeral_key_bytes: Zeroizing<[u8; 32]>,
 }
@@ -40,10 +40,11 @@ impl CloudEnclave {
     /// Sets a local development key for deterministic testing.
     /// WARNING: For development use only.
     pub fn with_dev_key(mut self, key_bytes: [u8; 32]) -> ConclaveResult<Self> {
-        let secret_key = SecretKey::from_byte_array(key_bytes)
+        let key_bytes = Zeroizing::new(key_bytes);
+        SecretKey::from_byte_array(*key_bytes)
             .map_err(|e| ConclaveError::CryptoError(format!("Invalid dev key: {}", e)))?;
 
-        self.local_dev_key_bytes = Some(Zeroizing::new(secret_key.secret_bytes()));
+        self.local_dev_key_bytes = Some(key_bytes);
         Ok(self)
     }
 
