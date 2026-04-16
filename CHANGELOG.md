@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored `RailProxy` to inject the gateway endpoint into all registered Rails.
 - Updated `ConclaveWasmClient` to use the unified gateway URL for all protocol services.
 - Refactored `BusinessRegistry` and `AssetRegistry` to use thread-safe interior mutability (`RwLock`), preventing runtime panics during registration.
+- `CloudEnclave::with_dev_key` now returns `ConclaveResult<Self>` instead of panicking on invalid key bytes.
 - Normalized SDK naming and discovery across documentation and external issue tracking (CON-171).
 - Switched test cases from testnet (`ST...`) to mainnet (`SP...`) principal examples.
 - Updated `RELEASING.md` with detailed release flow and security audit requirements.

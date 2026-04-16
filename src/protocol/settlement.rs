@@ -1,5 +1,6 @@
 use crate::protocol::asset::{AssetIdentifier, Chain};
 use crate::{ConclaveError, ConclaveResult};
+use quick_xml::{Reader, events::Event};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -124,6 +125,69 @@ impl SettlementManager {
         Self { asset_registry }
     }
 
+    fn validate_iso20022_trigger_payload(payload: &[u8]) -> bool {
+        fn local_name(name: &[u8]) -> &[u8] {
+            match name.iter().rposition(|b| *b == b':') {
+                Some(idx) => &name[idx + 1..],
+                None => name,
+            }
+        }
+
+        let mut reader = Reader::from_reader(payload);
+        reader.config_mut().trim_text(true);
+
+        let mut buf = Vec::new();
+
+        let mut document_namespace_ok = false;
+        let mut saw_document_root = false;
+        let mut saw_credit_transfer = false;
+
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(Event::Eof) => break,
+                Ok(Event::DocType(_)) => return false,
+                Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
+                    let qname = e.name();
+                    let name = local_name(qname.as_ref());
+
+                    if !saw_document_root {
+                        saw_document_root = name == b"Document";
+                        if saw_document_root {
+                            for attr in e.attributes() {
+                                let Ok(attr) = attr else {
+                                    return false;
+                                };
+
+                                let key = attr.key.as_ref();
+                                if !key.starts_with(b"xmlns") {
+                                    continue;
+                                }
+
+                                let Ok(value) = std::str::from_utf8(attr.value.as_ref()) else {
+                                    return false;
+                                };
+                                if value.contains("urn:iso:std:iso:20022") {
+                                    document_namespace_ok = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if name == b"FIToFICstmrCdtTrf" {
+                        saw_credit_transfer = true;
+                    }
+                }
+                Ok(_) => {}
+                Err(_) => return false,
+            }
+
+            buf.clear();
+        }
+
+        saw_document_root && document_namespace_ok && saw_credit_transfer
+    }
+
     /// Verifies an external settlement trigger inside the TEE boundary.
     /// Performs structured validation based on the source (e.g., ISO 20022).
     pub fn verify_trigger(&self, trigger: &SettlementTrigger) -> ConclaveResult<bool> {
@@ -138,14 +202,7 @@ impl SettlementManager {
 
         match trigger.source {
             TriggerSource::Iso20022 => {
-                let payload_str = String::from_utf8_lossy(&trigger.raw_payload_bytes);
-                // Basic structural validation for ISO 20022 XML (e.g., pacs.008)
-                if !payload_str.contains("urn:iso:std:iso:20022") {
-                    return Ok(false);
-                }
-                if !payload_str.contains("<FIToFICstmrCdtTrf>")
-                    && !payload_str.contains("<Document")
-                {
+                if !Self::validate_iso20022_trigger_payload(&trigger.raw_payload_bytes) {
                     return Ok(false);
                 }
             }
