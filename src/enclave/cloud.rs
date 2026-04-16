@@ -6,7 +6,7 @@ use crate::{
 use rand::Rng;
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use std::time::{SystemTime, UNIX_EPOCH};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 fn unix_time_secs() -> u64 {
     SystemTime::now()
@@ -21,31 +21,52 @@ fn unix_time_secs() -> u64 {
 /// using hardware-backed keys and Cloud TEE (e.g., Azure SNP) for attestation.
 pub struct CloudEnclave {
     pub kms_endpoint: String,
-    /// Optional local secret key for development and testing.
-    /// If None, the enclave simulates remote KMS operations.
-    local_dev_key: Option<SecretKey>,
+    /// Optional local secret key bytes for deterministic development/testing.
+    local_dev_key_bytes: Option<Zeroizing<[u8; 32]>>,
+    /// Per-instance simulated key used when no local dev key is configured.
+    simulated_kms_key_bytes: Zeroizing<[u8; 32]>,
 }
 
 impl CloudEnclave {
     pub fn new(kms_endpoint: String) -> Self {
+        let simulated_kms_key_bytes = Self::generate_simulated_kms_key_bytes();
         Self {
             kms_endpoint,
-            local_dev_key: None,
+            local_dev_key_bytes: None,
+            simulated_kms_key_bytes,
         }
     }
 
     /// Sets a local development key for deterministic testing.
     /// WARNING: For development use only.
-    pub fn with_dev_key(mut self, key_bytes: [u8; 32]) -> Self {
-        self.local_dev_key = Some(SecretKey::from_byte_array(key_bytes).unwrap());
-        self
+    pub fn with_dev_key(mut self, key_bytes: [u8; 32]) -> ConclaveResult<Self> {
+        SecretKey::from_byte_array(key_bytes)
+            .map_err(|e| ConclaveError::CryptoError(format!("Invalid dev key: {e}")))?;
+
+        self.local_dev_key_bytes = Some(Zeroizing::new(key_bytes));
+        Ok(self)
     }
 
-    fn get_active_key(&self) -> SecretKey {
-        self.local_dev_key.unwrap_or_else(|| {
-            // Default to a deterministic but non-obvious key for testing if no key is set
-            SecretKey::from_byte_array([0xCD; 32]).unwrap()
-        })
+    fn generate_simulated_kms_key_bytes() -> Zeroizing<[u8; 32]> {
+        let mut rng = rand::rng();
+        let mut key_bytes = Zeroizing::new([0u8; 32]);
+
+        loop {
+            rng.fill_bytes(&mut *key_bytes);
+            if SecretKey::from_byte_array(*key_bytes).is_ok() {
+                return key_bytes;
+            }
+        }
+    }
+
+    fn get_active_key(&self) -> ConclaveResult<SecretKey> {
+        let key_bytes: &[u8; 32] = match self.local_dev_key_bytes.as_ref() {
+            Some(key_bytes) => &**key_bytes,
+            None => &*self.simulated_kms_key_bytes,
+        };
+
+        SecretKey::from_byte_array(*key_bytes)
+            .map_err(|e| ConclaveError::CryptoError(format!("SEC1 Error: {e}")))
     }
 
     fn generate_attestation_report(&self, challenge: &[u8]) -> DeviceIntegrityReport {
@@ -86,7 +107,7 @@ impl EnclaveManager for CloudEnclave {
 
     fn get_public_key(&self, _derivation_path: &str) -> ConclaveResult<String> {
         let secp = Secp256k1::new();
-        let secret_key = self.get_active_key();
+        let secret_key = self.get_active_key()?;
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
         Ok(hex::encode(public_key.serialize()))
     }
@@ -97,7 +118,7 @@ impl EnclaveManager for CloudEnclave {
         }
 
         let secp = Secp256k1::new();
-        let secret_key = self.get_active_key();
+        let secret_key = self.get_active_key()?;
         let message_bytes: [u8; 32] = request.message_hash.clone().try_into().unwrap();
         let message = Message::from_digest(message_bytes);
 
