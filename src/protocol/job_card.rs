@@ -84,7 +84,10 @@ impl ConxianJobCard {
         }
 
         let whole_all_zero = whole.chars().all(|c| c == '0');
-        let frac_all_zero = frac.is_none_or(|f| f.chars().all(|c| c == '0'));
+        let frac_all_zero = match frac {
+            None => true,
+            Some(f) => f.chars().all(|c| c == '0'),
+        };
         if whole_all_zero && frac_all_zero {
             return Err(ConclaveError::IsoError(
                 "ISO-422: amount_sBTC must be greater than zero".to_string(),
@@ -237,7 +240,14 @@ mod tests {
 
     #[test]
     fn test_amount_validation_rejects_zero_amounts() {
-        let invalid_amounts = ["0", "0.0", "000000.00000000", "0.00000000"];
+        let invalid_amounts = [
+            "0",
+            "0.0",
+            "000000",
+            "000000.0",
+            "000000.00000000",
+            "0.00000000",
+        ];
 
         for amount in invalid_amounts {
             let card = ConxianJobCard::new(
