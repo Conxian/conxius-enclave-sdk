@@ -139,6 +139,36 @@ impl SettlementManager {
             prefix_overrides: Vec<(Vec<u8>, bool)>,
         }
 
+        fn build_namespace_scope(
+            e: &quick_xml::events::BytesStart<'_>,
+            inherited_default_is_iso: bool,
+        ) -> Option<NamespaceScope> {
+            let mut scope = NamespaceScope {
+                default_is_iso: inherited_default_is_iso,
+                prefix_overrides: Vec::new(),
+            };
+
+            for attr in e.attributes() {
+                let attr = attr.ok()?;
+
+                let key = attr.key.as_ref();
+                if key == b"xmlns" {
+                    let value = std::str::from_utf8(attr.value.as_ref()).ok()?;
+                    scope.default_is_iso = value.starts_with("urn:iso:std:iso:20022");
+                    continue;
+                }
+
+                if let Some(suffix) = key.strip_prefix(b"xmlns:") {
+                    let value = std::str::from_utf8(attr.value.as_ref()).ok()?;
+                    scope
+                        .prefix_overrides
+                        .push((suffix.to_vec(), value.starts_with("urn:iso:std:iso:20022")));
+                }
+            }
+
+            Some(scope)
+        }
+
         fn lookup_prefix_is_iso(
             prefix: &[u8],
             current: &NamespaceScope,
@@ -208,32 +238,9 @@ impl SettlementManager {
                             .position(|b| *b == b':')
                             .map(|idx| &qname_bytes[..idx]);
 
-                        let mut scope = NamespaceScope {
-                            default_is_iso: false,
-                            prefix_overrides: Vec::new(),
+                        let Some(scope) = build_namespace_scope(&e, false) else {
+                            return false;
                         };
-
-                        for attr in e.attributes() {
-                            let Ok(attr) = attr else {
-                                return false;
-                            };
-
-                            let key = attr.key.as_ref();
-                            if key != b"xmlns" && !key.starts_with(b"xmlns:") {
-                                continue;
-                            }
-
-                            let Ok(value) = std::str::from_utf8(attr.value.as_ref()) else {
-                                return false;
-                            };
-                            let is_iso = value.starts_with("urn:iso:std:iso:20022");
-
-                            if key == b"xmlns" {
-                                scope.default_is_iso = is_iso;
-                            } else if let Some(suffix) = key.strip_prefix(b"xmlns:") {
-                                scope.prefix_overrides.push((suffix.to_vec(), is_iso));
-                            }
-                        }
 
                         document_namespace_ok = match document_prefix_bytes {
                             None => scope.default_is_iso,
@@ -260,34 +267,9 @@ impl SettlementManager {
                             None => return false,
                         };
 
-                        let mut scope = NamespaceScope {
-                            default_is_iso: parent_default_is_iso,
-                            prefix_overrides: Vec::new(),
+                        let Some(scope) = build_namespace_scope(&e, parent_default_is_iso) else {
+                            return false;
                         };
-                        for attr in e.attributes() {
-                            let Ok(attr) = attr else {
-                                return false;
-                            };
-
-                            let key = attr.key.as_ref();
-                            if key == b"xmlns" {
-                                let Ok(value) = std::str::from_utf8(attr.value.as_ref()) else {
-                                    return false;
-                                };
-                                scope.default_is_iso = value.starts_with("urn:iso:std:iso:20022");
-                                continue;
-                            }
-
-                            if let Some(suffix) = key.strip_prefix(b"xmlns:") {
-                                let Ok(value) = std::str::from_utf8(attr.value.as_ref()) else {
-                                    return false;
-                                };
-                                scope.prefix_overrides.push((
-                                    suffix.to_vec(),
-                                    value.starts_with("urn:iso:std:iso:20022"),
-                                ));
-                            }
-                        }
                         scope
                     };
 
@@ -337,36 +319,10 @@ impl SettlementManager {
                         None => return false,
                     };
 
-                    let mut scope = NamespaceScope {
-                        default_is_iso: parent_default_is_iso,
-                        prefix_overrides: Vec::new(),
-                    };
-
                     let qname_bytes = qname.as_ref();
-                    for attr in e.attributes() {
-                        let Ok(attr) = attr else {
-                            return false;
-                        };
-
-                        let key = attr.key.as_ref();
-                        if key == b"xmlns" {
-                            let Ok(value) = std::str::from_utf8(attr.value.as_ref()) else {
-                                return false;
-                            };
-                            scope.default_is_iso = value.starts_with("urn:iso:std:iso:20022");
-                            continue;
-                        }
-
-                        if let Some(suffix) = key.strip_prefix(b"xmlns:") {
-                            let Ok(value) = std::str::from_utf8(attr.value.as_ref()) else {
-                                return false;
-                            };
-                            scope.prefix_overrides.push((
-                                suffix.to_vec(),
-                                value.starts_with("urn:iso:std:iso:20022"),
-                            ));
-                        }
-                    }
+                    let Some(scope) = build_namespace_scope(&e, parent_default_is_iso) else {
+                        return false;
+                    };
 
                     if name == b"FIToFICstmrCdtTrf" {
                         let element_prefix = qname_bytes
