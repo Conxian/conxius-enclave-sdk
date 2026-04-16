@@ -376,10 +376,11 @@ impl SettlementManager {
                 Ok(event) => match event {
                     Event::Text(t) => {
                         let bytes = t.as_ref();
-                        if !bytes.is_empty() && !bytes.iter().all(|b| b.is_ascii_whitespace()) {
-                            if !saw_document_root || document_closed {
-                                return false;
-                            }
+                        if !bytes.is_empty()
+                            && !bytes.iter().all(|b| b.is_ascii_whitespace())
+                            && (!saw_document_root || document_closed)
+                        {
+                            return false;
                         }
                     }
                     Event::Decl(_) => {
