@@ -180,14 +180,14 @@ impl EnclaveManager for CoreEnclaveManager {
             return Err(ConclaveError::CryptoError("PIN too short".to_string()));
         }
 
-        let mut key = [0u8; 64];
-        pbkdf2_hmac::<Sha512>(pin.as_bytes(), salt, 600_000, &mut key);
+        let mut key = Zeroizing::new([0u8; 64]);
+        pbkdf2_hmac::<Sha512>(pin.as_bytes(), salt, 600_000, &mut *key);
 
         let mut session = self
             .session_key
             .lock()
             .map_err(|_| ConclaveError::EnclaveFailure("Mutex poison".to_string()))?;
-        *session = Some(Zeroizing::new(key));
+        *session = Some(key);
 
         Ok(())
     }
