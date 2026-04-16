@@ -39,13 +39,14 @@ impl CloudEnclave {
 
     /// Sets a local development key for deterministic testing.
     /// WARNING: For development use only.
-    pub fn with_dev_key(mut self, mut key_bytes: [u8; 32]) -> ConclaveResult<Self> {
-        let mut dev_key = SecretKey::from_byte_array(key_bytes)
+    pub fn with_dev_key(mut self, key_bytes: [u8; 32]) -> ConclaveResult<Self> {
+        let key_bytes = Zeroizing::new(key_bytes);
+
+        let mut dev_key = SecretKey::from_byte_array(*key_bytes)
             .map_err(|e| ConclaveError::CryptoError(format!("Invalid dev key: {e}")))?;
         dev_key.non_secure_erase();
 
-        self.local_dev_key_bytes = Some(Zeroizing::new(key_bytes));
-        key_bytes.zeroize();
+        self.local_dev_key_bytes = Some(key_bytes);
         Ok(self)
     }
 
@@ -55,16 +56,13 @@ impl CloudEnclave {
 
         loop {
             rng.fill_bytes(&mut *key_bytes);
-            let mut candidate_bytes = *key_bytes;
-            match SecretKey::from_byte_array(candidate_bytes) {
-                Ok(mut key) => {
+            if SecretKey::from_byte_array(*key_bytes)
+                .map(|mut key| {
                     key.non_secure_erase();
-                    candidate_bytes.zeroize();
-                    return key_bytes;
-                }
-                Err(_) => {
-                    candidate_bytes.zeroize();
-                }
+                })
+                .is_ok()
+            {
+                return key_bytes;
             }
         }
     }
@@ -75,10 +73,10 @@ impl CloudEnclave {
             None => &*self.simulated_kms_key_bytes,
         };
 
-        let mut candidate_bytes = *key_bytes;
-        let secret_key = SecretKey::from_byte_array(candidate_bytes)
+        let candidate_bytes = Zeroizing::new(*key_bytes);
+
+        let secret_key = SecretKey::from_byte_array(*candidate_bytes)
             .map_err(|e| ConclaveError::CryptoError(format!("SEC1 Error: {e}")))?;
-        candidate_bytes.zeroize();
         Ok(secret_key)
     }
 
