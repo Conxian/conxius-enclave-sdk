@@ -24,7 +24,7 @@ impl ConxianJobCard {
     pub fn new(
         sender: &str,
         receiver: &str,
-        amount_sbtc: String,
+        amount_sbtc: impl Into<String>,
         town: Option<String>,
         country: Option<String>,
     ) -> Self {
@@ -34,7 +34,7 @@ impl ConxianJobCard {
             work_intent: WorkIntent {
                 sender_address: sender.to_string(),
                 receiver_address: receiver.to_string(),
-                amount_sbtc,
+                amount_sbtc: amount_sbtc.into(),
                 town_name: town,
                 country_code: country,
             },
