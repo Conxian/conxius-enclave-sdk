@@ -16,7 +16,7 @@ use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 
 fn to_js_error<E: Display>(e: E) -> JsValue {
-    JsValue::from_str(&e.to_string())
+    js_sys::Error::new(&e.to_string()).into()
 }
 
 #[wasm_bindgen]
