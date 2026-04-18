@@ -32,3 +32,48 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 - **Status**: COMPLETED.
 - **Implementation**: Fixed a critical security vulnerability in `src/enclave/android_strongbox.rs` where `generate_key` was returning raw secret seeds. The implementation now derives the public key, zeroizes the seed, and returns only the public hex.
 - **Verification**: Verified with `cargo test`.
+
+## 7. Oracle Fail-Closed Logic (CON-496)
+- **Status**: COMPLETED.
+- **Implementation**:
+    - `contracts/oracle/oracle-aggregator.clar` implemented with quorum-based aggregation, stale price rejection, and emergency override.
+    - `contracts/oracle/dimensional-oracle.clar` implemented with fail-closed confidence and staleness checks.
+- **Verification**: Verified via manual inspection of Clarity logic.
+
+## 8. Risk Management & Health Factor (CON-499)
+- **Status**: COMPLETED.
+- **Implementation**: `contracts/core/risk-manager.clar` defines canonical LTV thresholds and health-factor calculations for fail-closed solvency enforcement.
+
+## 9. RBAC & Admin Facade (CON-498)
+- **Status**: COMPLETED.
+- **Implementation**: `contracts/core/admin-facade.clar` replaces tautological checks with explicit role-based access control (RBAC).
+
+## 7. Oracle Fail-Closed Logic (CON-496)
+- **Status**: COMPLETED.
+- **Implementation**:
+    - `contracts/oracle/oracle-aggregator.clar` implemented with quorum-based aggregation, stale price rejection, and emergency override.
+    - `contracts/oracle/dimensional-oracle.clar` implemented with fail-closed confidence and staleness checks.
+- **Verification**: Verified via manual inspection of Clarity logic.
+
+## 8. Risk Management & Health Factor (CON-499)
+- **Status**: COMPLETED.
+- **Implementation**: `contracts/core/risk-manager.clar` defines canonical LTV thresholds and health-factor calculations for fail-closed solvency enforcement.
+
+## 9. RBAC & Admin Facade (CON-498)
+- **Status**: COMPLETED.
+- **Implementation**: `contracts/core/admin-facade.clar` replaces tautological checks with explicit role-based access control (RBAC).
+
+## 10. Circuit Breaker & Emergency Control (CON-500)
+- **Status**: COMPLETED.
+- **Implementation**: `contracts/core/emergency-control.clar` provides a centralized pause mechanism to block sensitive operations during market volatility or incidents.
+
+## 11. Lending Solvency Checks (CON-497)
+- **Status**: COMPLETED.
+- **Implementation**: `contracts/lending/lending-manager.clar` integrates with `risk-manager.clar` to enforce health-factor checks on borrow and withdraw flows.
+
+## 12. Fail-Closed Integration (Final Phase)
+- **Status**: COMPLETED.
+- **Implementation**:
+    - Fully enabled cross-contract calls between `lending-manager.clar`, `emergency-control.clar`, and `risk-manager.clar`.
+    - `oracle-aggregator.clar` now includes explicit quorum counting (`AssetQuorumCount`) and resets on update to ensure each epoch meets the required validator threshold.
+- **Verification**: Verified via manual inspection and local unit tests for the Rust SDK layer.

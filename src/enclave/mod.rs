@@ -1,6 +1,6 @@
 pub mod android_strongbox;
 pub mod attestation;
-#[cfg(any(test, feature = "mock-cloud-enclave"))]
+
 pub mod cloud;
 
 use crate::ConclaveResult;
