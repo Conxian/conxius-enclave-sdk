@@ -205,13 +205,11 @@ mod tests {
     use crate::enclave::cloud::CloudEnclave;
 
     #[test]
-    fn test_attribution_verification() {
-        let enclave = CloudEnclave::new("test".to_string());
+    fn test_attribution_verification() -> ConclaveResult<()> {
+        let enclave = CloudEnclave::new("test".to_string())?;
         let registry = BusinessRegistry::new();
 
-        let public_key = enclave
-            .get_public_key("m/44'/5757'/0'/0/business/partner_01")
-            .unwrap();
+        let public_key = enclave.get_public_key("m/44'/5757'/0'/0/business/partner_01")?;
 
         let profile = BusinessProfile {
             id: "partner_01".to_string(),
@@ -222,11 +220,9 @@ mod tests {
         registry.register_business(profile.clone());
 
         let mgr = BusinessManager::new(&enclave, &registry);
-        let attribution = mgr
-            .generate_attribution("partner_01", "user_123", HashMap::new())
-            .unwrap();
+        let attribution = mgr.generate_attribution("partner_01", "user_123", HashMap::new())?;
 
-        let res = attribution.verify(&profile.public_key);
-        assert!(res.is_ok(), "Verification failed: {:?}", res.err());
+        attribution.verify(&profile.public_key)?;
+        Ok(())
     }
 }

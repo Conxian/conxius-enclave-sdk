@@ -11,8 +11,13 @@ use crate::protocol::job_card::Iso20022Wrapper;
 use crate::protocol::mmr::MmrService;
 use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapIntent};
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
+
+fn to_js_error<E: Display>(e: E) -> JsValue {
+    js_sys::Error::new(&e.to_string()).into()
+}
 
 #[wasm_bindgen]
 pub struct ConclaveWasmClient {
@@ -30,22 +35,25 @@ pub struct ConclaveWasmClient {
 #[wasm_bindgen]
 impl ConclaveWasmClient {
     #[wasm_bindgen(constructor)]
-    pub fn new(gateway_url: &str, kms_endpoint: Option<String>) -> Self {
+    pub fn new(gateway_url: &str, kms_endpoint: Option<String>) -> Result<Self, JsValue> {
         let http_client = reqwest::Client::new();
         let assets = Arc::new(AssetRegistry::new());
         let businesses = Arc::new(BusinessRegistry::new());
 
         #[cfg(target_arch = "wasm32")]
         let enclave: Arc<dyn EnclaveManager> = if let Some(kms) = kms_endpoint {
-            Arc::new(CloudEnclave::new(kms))
+            Arc::new(CloudEnclave::new(kms).map_err(to_js_error)?)
         } else {
             Arc::new(AndroidStrongBox::new())
         };
 
         #[cfg(not(target_arch = "wasm32"))]
-        let enclave: Arc<dyn EnclaveManager> = Arc::new(CloudEnclave::new(
-            kms_endpoint.unwrap_or_else(|| "https://vault.conxian.io".to_string()),
-        ));
+        let enclave: Arc<dyn EnclaveManager> = Arc::new(
+            CloudEnclave::new(
+                kms_endpoint.unwrap_or_else(|| "https://vault.conxian.io".to_string()),
+            )
+            .map_err(to_js_error)?,
+        );
 
         let rails = Arc::new(RailProxy::new(
             gateway_url.to_string(),
@@ -58,7 +66,7 @@ impl ConclaveWasmClient {
         let a2p = Arc::new(A2pRouterService::new(gateway_url.to_string()));
         let mmr = Arc::new(MmrService::new(gateway_url.to_string()));
 
-        Self {
+        Ok(Self {
             enclave,
             assets,
             businesses,
@@ -67,7 +75,7 @@ impl ConclaveWasmClient {
             a2p,
             mmr,
             http_client,
-        }
+        })
     }
 
     /// Unlocks the secure enclave using a secret (PIN/Passphrase) and salt.
@@ -75,7 +83,7 @@ impl ConclaveWasmClient {
         let salt_bytes = hex::decode(salt).map_err(|_| JsValue::from_str("Invalid salt hex"))?;
         self.enclave
             .unlock(secret, &salt_bytes)
-            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+            .map_err(to_js_error)
     }
 
     /// Registers a business partner in the local registry.
@@ -132,9 +140,9 @@ impl ConclaveWasmClient {
         let mgr = BusinessManager::new(self.enclave.as_ref(), self.businesses.as_ref());
         let profile = mgr
             .generate_business_identity(business_id, name)
-            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+            .map_err(to_js_error)?;
 
-        serde_wasm_bindgen::to_value(&profile).map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+        serde_wasm_bindgen::to_value(&profile).map_err(to_js_error)
     }
 
     /// Generates a signed proof of attribution for a business partner.
@@ -150,10 +158,9 @@ impl ConclaveWasmClient {
         let mgr = BusinessManager::new(self.enclave.as_ref(), self.businesses.as_ref());
         let attribution = mgr
             .generate_attribution(business_id, user_id, metadata_map)
-            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+            .map_err(to_js_error)?;
 
-        serde_wasm_bindgen::to_value(&attribution)
-            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+        serde_wasm_bindgen::to_value(&attribution).map_err(to_js_error)
     }
 
     pub async fn execute_swap(
@@ -169,9 +176,9 @@ impl ConclaveWasmClient {
             .rails
             .broadcast_signed_intent(intent_obj, signature, attestation)
             .await
-            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+            .map_err(to_js_error)?;
 
-        serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+        serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
     }
 
     pub async fn create_fiat_session(
@@ -186,9 +193,9 @@ impl ConclaveWasmClient {
             .fiat
             .create_session(intent_obj, signature)
             .await
-            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+            .map_err(to_js_error)?;
 
-        serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+        serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
     }
 
     pub async fn initiate_a2p_verification(
@@ -203,9 +210,9 @@ impl ConclaveWasmClient {
             .a2p
             .initiate_verification(intent_obj, signature)
             .await
-            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+            .map_err(to_js_error)?;
 
-        serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+        serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
     }
 
     pub async fn get_mmr_proof(&self, node_id: &str) -> Result<JsValue, JsValue> {
@@ -213,9 +220,9 @@ impl ConclaveWasmClient {
             .mmr
             .fetch_remote_proof(node_id)
             .await
-            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+            .map_err(to_js_error)?;
 
-        serde_wasm_bindgen::to_value(&proof).map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+        serde_wasm_bindgen::to_value(&proof).map_err(to_js_error)
     }
 
     pub fn generate_job_card(
@@ -228,12 +235,11 @@ impl ConclaveWasmClient {
     ) -> Result<String, JsValue> {
         use crate::protocol::job_card::ConxianJobCard;
         let card = ConxianJobCard::new(sender, receiver, amount_sbtc, town, country);
-        Iso20022Wrapper::wrap_pacs008(&card).map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+        Iso20022Wrapper::wrap_pacs008(&card).map_err(to_js_error)
     }
 
     pub fn derive_taproot_address(&self, path: &str) -> Result<String, JsValue> {
         let mgr = TaprootManager::new(self.enclave.as_ref());
-        mgr.derive_address(path)
-            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+        mgr.derive_address(path).map_err(to_js_error)
     }
 }
