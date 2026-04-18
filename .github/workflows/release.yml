@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Release version to validate (X.Y.Z or vX.Y.Z)"
+        required: true
+        type: string
+      publish_to_crates_io:
+        description: "Publish to crates.io after validation (manual only)"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-release:
+    name: Validate release metadata and package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Select expected release version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ inputs.release_version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify release metadata
+        run: .github/scripts/verify-release-metadata.sh "${{ steps.version.outputs.value }}"
+
+      - name: Run tests
+        run: cargo test
+
+      - name: Verify crates.io package (dry-run)
+        run: cargo publish --dry-run
+
+  publish-crates-io:
+    name: Publish crate to crates.io (manual gate)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_crates_io }}
+    needs: validate-release
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Enforce publish from release tag
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
+            echo "error: publishing is only allowed when workflow_dispatch is run against a release tag (vX.Y.Z)" >&2
+            exit 1
+          fi
+
+      - name: Verify release metadata against requested version
+        run: .github/scripts/verify-release-metadata.sh "${{ inputs.release_version }}"
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --token "${CARGO_REGISTRY_TOKEN}"
