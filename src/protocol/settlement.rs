@@ -126,6 +126,8 @@ impl SettlementManager {
     }
 
     fn validate_iso20022_trigger_payload(payload: &[u8]) -> bool {
+        const ISO_MESSAGE_URN_PREFIX: &str = "urn:iso:std:iso:20022:tech:xsd:";
+
         fn local_name(name: &[u8]) -> &[u8] {
             match name.iter().rposition(|b| *b == b':') {
                 Some(idx) => &name[idx + 1..],
@@ -133,42 +135,48 @@ impl SettlementManager {
             }
         }
 
+        fn is_iso_message_id(value: &str) -> bool {
+            let mut parts = value.split('.');
+
+            let Some(business_area) = parts.next() else {
+                return false;
+            };
+            let Some(message_type) = parts.next() else {
+                return false;
+            };
+            let Some(variant) = parts.next() else {
+                return false;
+            };
+            let Some(version) = parts.next() else {
+                return false;
+            };
+
+            if parts.next().is_some() {
+                return false;
+            }
+
+            business_area.len() == 4
+                && business_area.bytes().all(|b| b.is_ascii_alphabetic())
+                && message_type.len() == 3
+                && message_type.bytes().all(|b| b.is_ascii_digit())
+                && variant.len() == 3
+                && variant.bytes().all(|b| b.is_ascii_digit())
+                && version.len() == 2
+                && version.bytes().all(|b| b.is_ascii_digit())
+        }
+
+        fn is_iso_urn(value: &str) -> bool {
+            let Some(message_id) = value.strip_prefix(ISO_MESSAGE_URN_PREFIX) else {
+                return false;
+            };
+
+            is_iso_message_id(message_id)
+        }
+
         #[derive(Clone)]
         struct NamespaceScope {
             default_is_iso: bool,
             prefix_overrides: Vec<(Vec<u8>, bool)>,
-        }
-
-        const ISO_20022_URN_PREFIX: &str = "urn:iso:std:iso:20022";
-
-        fn build_namespace_scope(
-            e: &quick_xml::events::BytesStart<'_>,
-            inherited_default_is_iso: bool,
-        ) -> Option<NamespaceScope> {
-            let mut scope = NamespaceScope {
-                default_is_iso: inherited_default_is_iso,
-                prefix_overrides: Vec::new(),
-            };
-
-            for attr in e.attributes() {
-                let attr = attr.ok()?;
-
-                let key = attr.key.as_ref();
-                if key == b"xmlns" {
-                    let value = std::str::from_utf8(attr.value.as_ref()).ok()?;
-                    scope.default_is_iso = value.starts_with(ISO_20022_URN_PREFIX);
-                    continue;
-                }
-
-                if let Some(suffix) = key.strip_prefix(b"xmlns:") {
-                    let value = std::str::from_utf8(attr.value.as_ref()).ok()?;
-                    scope
-                        .prefix_overrides
-                        .push((suffix.to_vec(), value.starts_with(ISO_20022_URN_PREFIX)));
-                }
-            }
-
-            Some(scope)
         }
 
         fn lookup_prefix_is_iso(
@@ -191,6 +199,36 @@ impl SettlementManager {
             }
 
             false
+        }
+
+        fn build_namespace_scope<'a>(
+            attrs: quick_xml::events::attributes::Attributes<'a>,
+            parent_default_is_iso: bool,
+        ) -> Option<NamespaceScope> {
+            let mut scope = NamespaceScope {
+                default_is_iso: parent_default_is_iso,
+                prefix_overrides: Vec::new(),
+            };
+
+            for attr in attrs {
+                let attr = attr.ok()?;
+                let key = attr.key.as_ref();
+
+                if key == b"xmlns" {
+                    let value = std::str::from_utf8(attr.value.as_ref()).ok()?;
+                    scope.default_is_iso = is_iso_urn(value);
+                    continue;
+                }
+
+                if let Some(suffix) = key.strip_prefix(b"xmlns:") {
+                    let value = std::str::from_utf8(attr.value.as_ref()).ok()?;
+                    scope
+                        .prefix_overrides
+                        .push((suffix.to_vec(), is_iso_urn(value)));
+                }
+            }
+
+            Some(scope)
         }
 
         let mut reader = Reader::from_reader(payload);
@@ -240,7 +278,7 @@ impl SettlementManager {
                             .position(|b| *b == b':')
                             .map(|idx| &qname_bytes[..idx]);
 
-                        let Some(scope) = build_namespace_scope(&e, false) else {
+                        let Some(scope) = build_namespace_scope(e.attributes(), false) else {
                             return false;
                         };
 
@@ -269,9 +307,12 @@ impl SettlementManager {
                             None => return false,
                         };
 
-                        let Some(scope) = build_namespace_scope(&e, parent_default_is_iso) else {
+                        let Some(scope) =
+                            build_namespace_scope(e.attributes(), parent_default_is_iso)
+                        else {
                             return false;
                         };
+
                         scope
                     };
 
@@ -322,7 +363,8 @@ impl SettlementManager {
                     };
 
                     let qname_bytes = qname.as_ref();
-                    let Some(scope) = build_namespace_scope(&e, parent_default_is_iso) else {
+                    let Some(scope) = build_namespace_scope(e.attributes(), parent_default_is_iso)
+                    else {
                         return false;
                     };
 
@@ -501,5 +543,27 @@ mod tests {
         assert_eq!(proposal.timelock_height, 840000 + 144);
         assert_eq!(proposal.yield_split.productive_streaming_pct, 90);
         assert_eq!(proposal.status, ProposalStatus::Pending);
+    }
+
+    #[test]
+    fn test_rejects_iso20022_namespace_without_boundary() {
+        let registry = Arc::new(AssetRegistry::new());
+        let manager = SettlementManager::new(registry);
+
+        let payload = b"<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022evil:tech:xsd:pacs.008.001.08\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
+        let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
+
+        assert!(!manager.verify_trigger(&trigger).unwrap());
+    }
+
+    #[test]
+    fn test_rejects_iso20022_namespace_with_invalid_message_id() {
+        let registry = Arc::new(AssetRegistry::new());
+        let manager = SettlementManager::new(registry);
+
+        let payload = b"<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08evil\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
+        let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
+
+        assert!(!manager.verify_trigger(&trigger).unwrap());
     }
 }
