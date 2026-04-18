@@ -127,6 +127,7 @@ impl SettlementManager {
 
     fn validate_iso20022_trigger_payload(payload: &[u8]) -> bool {
         const ISO_MESSAGE_URN_PREFIX: &str = "urn:iso:std:iso:20022:tech:xsd:";
+        const MAX_XMLNS_DECLS: usize = 64;
 
         fn local_name(name: &[u8]) -> &[u8] {
             match name.iter().rposition(|b| *b == b':') {
@@ -209,18 +210,29 @@ impl SettlementManager {
                 default_is_iso: parent_default_is_iso,
                 prefix_overrides: Vec::new(),
             };
+            let mut xmlns_decl_count: usize = 0;
 
             for attr in attrs {
                 let attr = attr.ok()?;
                 let key = attr.key.as_ref();
 
                 if key == b"xmlns" {
+                    xmlns_decl_count += 1;
+                    if xmlns_decl_count > MAX_XMLNS_DECLS {
+                        return None;
+                    }
+
                     let value = std::str::from_utf8(attr.value.as_ref()).ok()?;
                     scope.default_is_iso = is_iso_urn(value);
                     continue;
                 }
 
                 if let Some(suffix) = key.strip_prefix(b"xmlns:") {
+                    xmlns_decl_count += 1;
+                    if xmlns_decl_count > MAX_XMLNS_DECLS {
+                        return None;
+                    }
+
                     let value = std::str::from_utf8(attr.value.as_ref()).ok()?;
                     scope
                         .prefix_overrides
