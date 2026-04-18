@@ -79,7 +79,7 @@ mod tests {
         let registry = Arc::new(AssetRegistry::new());
         let svc = ConclaveSettlementService::new(registry);
 
-        let payload = b"<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
+        let payload = b"<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
         let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
 
         let proposal = svc
