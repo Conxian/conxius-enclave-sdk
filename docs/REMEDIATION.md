@@ -39,3 +39,34 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
     - `contracts/oracle/oracle-aggregator.clar` implemented with quorum-based aggregation, stale price rejection, and emergency override.
     - `contracts/oracle/dimensional-oracle.clar` implemented with fail-closed confidence and staleness checks.
 - **Verification**: Verified via manual inspection of Clarity logic.
+
+## 8. Risk Management & Health Factor (CON-499)
+- **Status**: COMPLETED.
+- **Implementation**: `contracts/core/risk-manager.clar` defines canonical LTV thresholds and health-factor calculations for fail-closed solvency enforcement.
+
+## 9. RBAC & Admin Facade (CON-498)
+- **Status**: COMPLETED.
+- **Implementation**: `contracts/core/admin-facade.clar` replaces tautological checks with explicit role-based access control (RBAC).
+
+## 7. Oracle Fail-Closed Logic (CON-496)
+- **Status**: COMPLETED.
+- **Implementation**:
+    - `contracts/oracle/oracle-aggregator.clar` implemented with quorum-based aggregation, stale price rejection, and emergency override.
+    - `contracts/oracle/dimensional-oracle.clar` implemented with fail-closed confidence and staleness checks.
+- **Verification**: Verified via manual inspection of Clarity logic.
+
+## 8. Risk Management & Health Factor (CON-499)
+- **Status**: COMPLETED.
+- **Implementation**: `contracts/core/risk-manager.clar` defines canonical LTV thresholds and health-factor calculations for fail-closed solvency enforcement.
+
+## 9. RBAC & Admin Facade (CON-498)
+- **Status**: COMPLETED.
+- **Implementation**: `contracts/core/admin-facade.clar` replaces tautological checks with explicit role-based access control (RBAC).
+
+## 10. Circuit Breaker & Emergency Control (CON-500)
+- **Status**: COMPLETED.
+- **Implementation**: `contracts/core/emergency-control.clar` provides a centralized pause mechanism to block sensitive operations during market volatility or incidents.
+
+## 11. Lending Solvency Checks (CON-497)
+- **Status**: COMPLETED.
+- **Implementation**: `contracts/lending/lending-manager.clar` integrates with `risk-manager.clar` to enforce health-factor checks on borrow and withdraw flows.

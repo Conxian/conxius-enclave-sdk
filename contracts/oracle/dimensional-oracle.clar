@@ -21,26 +21,20 @@
 (define-data-var contract-owner principal tx-sender)
 
 ;; Read-only Functions
-
 (define-read-only (get-dimension (asset (string-ascii 16)) (dimension (string-ascii 24)))
     (let (
         (data (unwrap! (map-get? MarketDimensions { asset: asset, dimension: dimension }) ERR-NOT-FOUND))
     )
-        ;; Fail-closed on stale data (Threshold: 72 blocks / ~12 hours)
-        (asserts! (< (+ (get last-block data) u72) block-height) ERR-STALE-DATA)
-        ;; Fail-closed on low confidence (< 80%)
+        (asserts! (<= (+ (get last-block data) u72) block-height) ERR-STALE-DATA)
         (asserts! (>= (get confidence data) u8000) ERR-STALE-DATA)
         (ok (get value data))
     )
 )
 
 ;; Public Functions
-
 (define-public (update-dimension (asset (string-ascii 16)) (dimension (string-ascii 24)) (value uint) (confidence uint))
     (begin
-        ;; Only owner or authorized data-engine for now
         (asserts! (is-eq tx-sender (var-get contract-owner)) ERR-NOT-AUTHORIZED)
-
         (map-set MarketDimensions { asset: asset, dimension: dimension }
             {
                 value: value,
