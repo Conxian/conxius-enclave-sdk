@@ -84,8 +84,8 @@ impl CloudEnclave {
 
     fn get_active_key(&self) -> ConclaveResult<SecretKey> {
         let key_bytes: &[u8; 32] = match self.local_dev_key_bytes.as_ref() {
-            Some(key_bytes) => &**key_bytes,
-            None => &*self.simulated_kms_key_bytes,
+            Some(key_bytes) => key_bytes,
+            None => &self.simulated_kms_key_bytes,
         };
 
         SecretKey::from_byte_array(*key_bytes)
