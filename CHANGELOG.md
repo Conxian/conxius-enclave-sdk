@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Switched test cases from testnet (`ST...`) to mainnet (`SP...`) principal examples.
 - Updated `RELEASING.md` with detailed release flow and security audit requirements.
 - Improved idiomatic Rust and fixed 14 Clippy warnings across the codebase.
+- Enforced "No-Panic" standards across core SDK modules (`src/enclave`, `src/state`) by replacing `unwrap()` with safe error handling.
 - Updated documentation to reflect the current verified toolchain (Rust 1.94+).
 - Clarified repository categorization as a "Security Infrastructure SDK".
 

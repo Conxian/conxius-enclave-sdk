@@ -84,8 +84,8 @@ impl CloudEnclave {
 
     fn get_active_key(&self) -> ConclaveResult<SecretKey> {
         let key_bytes: &[u8; 32] = match self.local_dev_key_bytes.as_ref() {
-            Some(key_bytes) => &**key_bytes,
-            None => &*self.simulated_kms_key_bytes,
+            Some(key_bytes) => key_bytes,
+            None => &self.simulated_kms_key_bytes,
         };
 
         SecretKey::from_byte_array(*key_bytes)
@@ -142,7 +142,11 @@ impl EnclaveManager for CloudEnclave {
 
         let secp = Secp256k1::new();
         let secret_key = self.get_active_key()?;
-        let message_bytes: [u8; 32] = request.message_hash.clone().try_into().unwrap();
+        let message_bytes: [u8; 32] = request
+            .message_hash
+            .clone()
+            .try_into()
+            .map_err(|_| ConclaveError::InvalidPayload)?;
         let message = Message::from_digest(message_bytes);
 
         let sig = secp.sign_ecdsa(message, &secret_key);

@@ -91,10 +91,10 @@ impl MerkleMountainRange {
     }
 
     pub fn get_root(&self) -> String {
-        if self.nodes.is_empty() {
-            return "".to_string();
+        match self.nodes.last() {
+            Some(node) => hex::encode(node.hash),
+            None => "".to_string(),
         }
-        hex::encode(self.nodes.last().unwrap().hash)
     }
 
     pub fn generate_proof(&self, pos: u64) -> Result<MmrInclusionProof, String> {

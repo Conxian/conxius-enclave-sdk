@@ -44,7 +44,10 @@ impl CoreEnclaveManager {
     }
 
     pub fn is_initialized(&self) -> bool {
-        let session = self.session_key.lock().unwrap();
+        let session = match self.session_key.lock() {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
         session.is_some()
     }
 
