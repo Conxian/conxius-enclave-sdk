@@ -10,6 +10,10 @@ use crate::protocol::fiat::{FiatRouterService, FiatSessionIntent};
 use crate::protocol::job_card::Iso20022Wrapper;
 use crate::protocol::mmr::MmrService;
 use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapIntent};
+use crate::protocol::zkml::{ZkmlService, ZkmlProofRequest};
+use crate::protocol::sidl::{SidlService, SidlVote, SidlCartMandate};
+use crate::protocol::dlc::DlcManager;
+use crate::protocol::identity::{IdentityManager, IdentityProfile};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
@@ -28,6 +32,10 @@ pub struct ConclaveWasmClient {
     fiat: Arc<FiatRouterService>,
     a2p: Arc<A2pRouterService>,
     mmr: Arc<MmrService>,
+    zkml: Arc<ZkmlService>,
+    sidl: Arc<SidlService>,
+    identity: Arc<IdentityManager>,
+    dlc: Arc<DlcManager>,
     #[allow(dead_code)]
     http_client: reqwest::Client,
 }
@@ -65,6 +73,10 @@ impl ConclaveWasmClient {
         let fiat = Arc::new(FiatRouterService::new(gateway_url.to_string()));
         let a2p = Arc::new(A2pRouterService::new(gateway_url.to_string()));
         let mmr = Arc::new(MmrService::new(gateway_url.to_string()));
+        let zkml = Arc::new(ZkmlService::new(gateway_url.to_string(), http_client.clone()));
+        let sidl = Arc::new(SidlService::new(gateway_url.to_string(), http_client.clone()));
+        let identity = Arc::new(IdentityManager::new(enclave.clone()));
+        let dlc = Arc::new(DlcManager::new());
 
         Ok(Self {
             enclave,
@@ -74,11 +86,14 @@ impl ConclaveWasmClient {
             fiat,
             a2p,
             mmr,
+            zkml,
+            sidl,
+            identity,
+            dlc,
             http_client,
         })
     }
 
-    /// Unlocks the secure enclave using a secret (PIN/Passphrase) and salt.
     pub async fn unlock_enclave(&self, secret: &str, salt: &str) -> Result<(), JsValue> {
         let salt_bytes = hex::decode(salt).map_err(|_| JsValue::from_str("Invalid salt hex"))?;
         self.enclave
@@ -86,7 +101,11 @@ impl ConclaveWasmClient {
             .map_err(to_js_error)
     }
 
-    /// Registers a business partner in the local registry.
+    pub fn create_personal_identity(&self) -> Result<JsValue, JsValue> {
+        let profile = self.identity.create_identity().map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&profile).map_err(to_js_error)
+    }
+
     pub fn register_business(&self, id: &str, name: &str, public_key: &str) {
         let profile = BusinessProfile {
             id: id.to_string(),
@@ -97,7 +116,6 @@ impl ConclaveWasmClient {
         self.businesses.register_business(profile);
     }
 
-    /// Registers a new asset in the local registry.
     pub fn register_asset(
         &self,
         chain: &str,
@@ -115,7 +133,7 @@ impl ConclaveWasmClient {
             "ARBITRUM" => Chain::ARBITRUM,
             "BASE" => Chain::BASE,
             "LIGHTNING" => Chain::LIGHTNING,
-            _ => Chain::BITCOIN, // Default
+            _ => Chain::BITCOIN,
         };
 
         let id = AssetIdentifier {
@@ -131,7 +149,6 @@ impl ConclaveWasmClient {
         self.assets.register_asset(id, metadata);
     }
 
-    /// Generates a hardware-backed business identity.
     pub async fn generate_business_identity(
         &self,
         business_id: &str,
@@ -145,7 +162,6 @@ impl ConclaveWasmClient {
         serde_wasm_bindgen::to_value(&profile).map_err(to_js_error)
     }
 
-    /// Generates a signed proof of attribution for a business partner.
     pub async fn generate_attribution(
         &self,
         business_id: &str,
@@ -223,6 +239,32 @@ impl ConclaveWasmClient {
             .map_err(to_js_error)?;
 
         serde_wasm_bindgen::to_value(&proof).map_err(to_js_error)
+    }
+
+    pub async fn generate_zkml_proof(&self, request: JsValue) -> Result<JsValue, JsValue> {
+        let req_obj: ZkmlProofRequest = serde_wasm_bindgen::from_value(request)
+            .map_err(|_| JsValue::from_str("Invalid ZKML request format"))?;
+
+        let result = self.zkml.generate_compliance_proof(req_obj).await.map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
+    }
+
+    pub async fn broadcast_sidl_vote(&self, vote: JsValue, signature: String) -> Result<bool, JsValue> {
+        let vote_obj: SidlVote = serde_wasm_bindgen::from_value(vote)
+            .map_err(|_| JsValue::from_str("Invalid SIDL vote format"))?;
+
+        self.sidl.broadcast_vote(vote_obj, signature).await.map_err(to_js_error)
+    }
+
+    pub async fn broadcast_sidl_cart_mandate(&self, mandate: JsValue, signature: String) -> Result<bool, JsValue> {
+        let mandate_obj: SidlCartMandate = serde_wasm_bindgen::from_value(mandate)
+            .map_err(|_| JsValue::from_str("Invalid SIDL mandate format"))?;
+
+        self.sidl.broadcast_cart_mandate(mandate_obj, signature).await.map_err(to_js_error)
+    }
+
+    pub fn generate_dlc_contract_id(&self, oracle_announcement: &str, local_collateral: u64) -> String {
+        self.dlc.generate_contract_id(oracle_announcement, local_collateral)
     }
 
     pub fn generate_job_card(

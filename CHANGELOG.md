@@ -80,3 +80,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Explicit quorum tracking in `oracle-aggregator.clar`.
 - Active circuit breaker and solvency cross-calls in `lending-manager.clar`.
+
+## [0.1.2] - 2026-04-24
+
+### Added
+- `IdentityManager` in `src/protocol/identity.rs` for hardware-backed Personal Sovereign Identity (PSI).
+- `ZkmlService` in `src/protocol/zkml.rs` for Zero-Knowledge Machine Learning compliance proofs.
+- `DlcManager` in `src/protocol/dlc.rs` for Discreet Log Contract support.
+- `SidlService` in `src/protocol/sidl.rs` for Sovereign Identity Layer governance.
+- `create_personal_identity` and `generate_zkml_proof` to WASM bindings.
+- `docs/SYSTEM_ALIGNMENT.md` for v1.9.2 status tracking.
+
+### Fixed
+- Remediated `RUSTSEC-2025-0055` by locking `sha2` version.
+- Completed integration of shared services into `ConclaveWasmClient`.
+- Updated `REMEDIATION.md` with final v1.9.2 status.

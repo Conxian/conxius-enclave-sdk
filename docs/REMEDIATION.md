@@ -1,6 +1,6 @@
 # Remediation Report: SDK Core Architecture Alignment
 
-The SDK has been successfully refactored and aligned with the `sdk-core-architecture` proposal.
+The SDK has been successfully refactored and aligned with the `sdk-core-architecture` proposal and v1.9.2 standards.
 
 ## 1. Business Management
 - **Status**: COMPLETED.
@@ -9,7 +9,7 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 
 ## 2. Asset Registry
 - **Status**: COMPLETED.
-- **Implementation**: `AssetRegistry` manages cross-chain asset metadata and validation. Supports dynamic registration via `register_asset`. Defaults include BTC, ETH, STX, and USDT.
+- **Implementation**: `AssetRegistry` manages cross-chain asset metadata and validation. Supports dynamic registration via `register_asset`. Defaults include BTC, ETH, STX, USDT, SOL, USDC, LIQUID, and LIGHTNING.
 
 ## 3. Modular Architecture
 - **Status**: COMPLETED.
@@ -24,29 +24,14 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 - **Implementation**: Handshake enforces hardware attestation and business attribution verification in `RailProxy`. Wasm bindings provide `execute_swap` as a high-level orchestration helper.
 
 ## 5. Mainnet Readiness (CON-145)
-- **Governance**: `LICENSE`, `SECURITY.md`, and `CONTRIBUTING.md` added.
-- **Robustness**: Eliminated unsafe panics in `job_card.rs`.
-- **Security**: Telemetry and attestation verified across core rails.
+- **Governance**: `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, and `GOVERNANCE.md` added.
+- **Robustness**: Eliminated unsafe panics across all core modules.
+- **Security**: Telemetry and attestation verified across core rails. Remediated RUSTSEC-2025-0055 by locking `sha2` to `0.10.9`.
 
 ## 6. Zero Secret Egress (Remediation)
 - **Status**: COMPLETED.
 - **Implementation**: Fixed a critical security vulnerability in `src/enclave/android_strongbox.rs` where `generate_key` was returning raw secret seeds. The implementation now derives the public key, zeroizes the seed, and returns only the public hex.
 - **Verification**: Verified with `cargo test`.
-
-## 7. Oracle Fail-Closed Logic (CON-496)
-- **Status**: COMPLETED.
-- **Implementation**:
-    - `contracts/oracle/oracle-aggregator.clar` implemented with quorum-based aggregation, stale price rejection, and emergency override.
-    - `contracts/oracle/dimensional-oracle.clar` implemented with fail-closed confidence and staleness checks.
-- **Verification**: Verified via manual inspection of Clarity logic.
-
-## 8. Risk Management & Health Factor (CON-499)
-- **Status**: COMPLETED.
-- **Implementation**: `contracts/core/risk-manager.clar` defines canonical LTV thresholds and health-factor calculations for fail-closed solvency enforcement.
-
-## 9. RBAC & Admin Facade (CON-498)
-- **Status**: COMPLETED.
-- **Implementation**: `contracts/core/admin-facade.clar` replaces tautological checks with explicit role-based access control (RBAC).
 
 ## 7. Oracle Fail-Closed Logic (CON-496)
 - **Status**: COMPLETED.
@@ -77,3 +62,9 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
     - Fully enabled cross-contract calls between `lending-manager.clar`, `emergency-control.clar`, and `risk-manager.clar`.
     - `oracle-aggregator.clar` now includes explicit quorum counting (`AssetQuorumCount`) and resets on update to ensure each epoch meets the required validator threshold.
 - **Verification**: Verified via manual inspection and local unit tests for the Rust SDK layer.
+
+## 13. Shared Services (v1.9.2 Alignment)
+- **Personal Identity (PSI)**: `IdentityManager` implemented for hardware-backed DIDs.
+- **ZKML**: `ZkmlService` for privacy-preserving compliance proofs.
+- **DLC**: `DlcManager` for non-custodial financial agreements.
+- **SIDL**: `SidlService` for decentralized identity layer governance.
