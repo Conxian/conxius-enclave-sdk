@@ -21,3 +21,8 @@
 ### Documentation
 - All files (README.md, GOVERNANCE.md, REMEDIATION.md) updated to reflect v1.9.2 standards.
 - Coding standards (No-Panic, Zeroization) strictly enforced.
+
+### v1.9.3 Updates
+- **Modular Rail Consolidation**: Unified rail implementations in `src/protocol/rails/` and ensured consistent Gateway API interaction.
+- **Enhanced Test Coverage**: Added comprehensive unit tests for `IdentityManager`, `ZkmlService`, `DlcManager`, `SidlService`, and `MmrService`.
+- **Shared Network Client**: Refactored all network-facing services (`Fiat`, `A2p`, `Mmr`, `ZKML`, `SIDL`) to utilize a shared `reqwest::Client` for improved performance and connection pooling.

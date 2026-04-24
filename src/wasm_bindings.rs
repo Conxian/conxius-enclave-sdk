@@ -6,14 +6,14 @@ use crate::protocol::a2p::{A2pRouterService, A2pSessionIntent};
 use crate::protocol::asset::{AssetIdentifier, AssetMetadata, AssetRegistry, Chain};
 use crate::protocol::bitcoin::TaprootManager;
 use crate::protocol::business::{BusinessManager, BusinessProfile, BusinessRegistry};
+use crate::protocol::dlc::DlcManager;
 use crate::protocol::fiat::{FiatRouterService, FiatSessionIntent};
+use crate::protocol::identity::{IdentityManager, IdentityProfile};
 use crate::protocol::job_card::Iso20022Wrapper;
 use crate::protocol::mmr::MmrService;
 use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapIntent};
-use crate::protocol::zkml::{ZkmlService, ZkmlProofRequest};
-use crate::protocol::sidl::{SidlService, SidlVote, SidlCartMandate};
-use crate::protocol::dlc::DlcManager;
-use crate::protocol::identity::{IdentityManager, IdentityProfile};
+use crate::protocol::sidl::{SidlCartMandate, SidlService, SidlVote};
+use crate::protocol::zkml::{ZkmlProofRequest, ZkmlService};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
@@ -70,11 +70,26 @@ impl ConclaveWasmClient {
             businesses.clone(),
         ));
 
-        let fiat = Arc::new(FiatRouterService::new(gateway_url.to_string()));
-        let a2p = Arc::new(A2pRouterService::new(gateway_url.to_string()));
-        let mmr = Arc::new(MmrService::new(gateway_url.to_string()));
-        let zkml = Arc::new(ZkmlService::new(gateway_url.to_string(), http_client.clone()));
-        let sidl = Arc::new(SidlService::new(gateway_url.to_string(), http_client.clone()));
+        let fiat = Arc::new(FiatRouterService::new(
+            gateway_url.to_string(),
+            http_client.clone(),
+        ));
+        let a2p = Arc::new(A2pRouterService::new(
+            gateway_url.to_string(),
+            http_client.clone(),
+        ));
+        let mmr = Arc::new(MmrService::new(
+            gateway_url.to_string(),
+            http_client.clone(),
+        ));
+        let zkml = Arc::new(ZkmlService::new(
+            gateway_url.to_string(),
+            http_client.clone(),
+        ));
+        let sidl = Arc::new(SidlService::new(
+            gateway_url.to_string(),
+            http_client.clone(),
+        ));
         let identity = Arc::new(IdentityManager::new(enclave.clone()));
         let dlc = Arc::new(DlcManager::new());
 
@@ -245,26 +260,49 @@ impl ConclaveWasmClient {
         let req_obj: ZkmlProofRequest = serde_wasm_bindgen::from_value(request)
             .map_err(|_| JsValue::from_str("Invalid ZKML request format"))?;
 
-        let result = self.zkml.generate_compliance_proof(req_obj).await.map_err(to_js_error)?;
+        let result = self
+            .zkml
+            .generate_compliance_proof(req_obj)
+            .await
+            .map_err(to_js_error)?;
         serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
     }
 
-    pub async fn broadcast_sidl_vote(&self, vote: JsValue, signature: String) -> Result<bool, JsValue> {
+    pub async fn broadcast_sidl_vote(
+        &self,
+        vote: JsValue,
+        signature: String,
+    ) -> Result<bool, JsValue> {
         let vote_obj: SidlVote = serde_wasm_bindgen::from_value(vote)
             .map_err(|_| JsValue::from_str("Invalid SIDL vote format"))?;
 
-        self.sidl.broadcast_vote(vote_obj, signature).await.map_err(to_js_error)
+        self.sidl
+            .broadcast_vote(vote_obj, signature)
+            .await
+            .map_err(to_js_error)
     }
 
-    pub async fn broadcast_sidl_cart_mandate(&self, mandate: JsValue, signature: String) -> Result<bool, JsValue> {
+    pub async fn broadcast_sidl_cart_mandate(
+        &self,
+        mandate: JsValue,
+        signature: String,
+    ) -> Result<bool, JsValue> {
         let mandate_obj: SidlCartMandate = serde_wasm_bindgen::from_value(mandate)
             .map_err(|_| JsValue::from_str("Invalid SIDL mandate format"))?;
 
-        self.sidl.broadcast_cart_mandate(mandate_obj, signature).await.map_err(to_js_error)
+        self.sidl
+            .broadcast_cart_mandate(mandate_obj, signature)
+            .await
+            .map_err(to_js_error)
     }
 
-    pub fn generate_dlc_contract_id(&self, oracle_announcement: &str, local_collateral: u64) -> String {
-        self.dlc.generate_contract_id(oracle_announcement, local_collateral)
+    pub fn generate_dlc_contract_id(
+        &self,
+        oracle_announcement: &str,
+        local_collateral: u64,
+    ) -> String {
+        self.dlc
+            .generate_contract_id(oracle_announcement, local_collateral)
     }
 
     pub fn generate_job_card(

@@ -44,14 +44,76 @@ impl DlcManager {
     }
 
     /// Transitions a contract to a new state if the move is valid.
-    pub fn transition_state(&self, contract: &mut DlcContract, new_state: DlcState) -> Result<(), String> {
+    pub fn transition_state(
+        &self,
+        contract: &mut DlcContract,
+        new_state: DlcState,
+    ) -> Result<(), String> {
         match (&contract.state, &new_state) {
             (DlcState::Offered, DlcState::Accepted) => contract.state = new_state,
             (DlcState::Accepted, DlcState::Signed) => contract.state = new_state,
             (DlcState::Signed, DlcState::Broadcast) => contract.state = new_state,
             (DlcState::Broadcast, DlcState::Closed) => contract.state = new_state,
-            _ => return Err(format!("Invalid state transition from {:?} to {:?}", contract.state, new_state)),
+            _ => {
+                return Err(format!(
+                    "Invalid state transition from {:?} to {:?}",
+                    contract.state, new_state
+                ));
+            }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dlc_contract_id_generation() {
+        let mgr = DlcManager::new();
+        let id1 = mgr.generate_contract_id("oracle_announcement_1", 1000);
+        let id2 = mgr.generate_contract_id("oracle_announcement_1", 1000);
+        let id3 = mgr.generate_contract_id("oracle_announcement_2", 1000);
+
+        assert_eq!(id1, id2);
+        assert_ne!(id1, id3);
+    }
+
+    #[test]
+    fn test_dlc_state_transitions() {
+        let mgr = DlcManager::new();
+        let mut contract = DlcContract {
+            contract_id: "test".to_string(),
+            oracle_announcement: "test".to_string(),
+            local_collateral: 1000,
+            remote_collateral: 1000,
+            state: DlcState::Offered,
+        };
+
+        assert!(
+            mgr.transition_state(&mut contract, DlcState::Accepted)
+                .is_ok()
+        );
+        assert_eq!(contract.state, DlcState::Accepted);
+
+        assert!(
+            mgr.transition_state(&mut contract, DlcState::Signed)
+                .is_ok()
+        );
+        assert!(
+            mgr.transition_state(&mut contract, DlcState::Broadcast)
+                .is_ok()
+        );
+        assert!(
+            mgr.transition_state(&mut contract, DlcState::Closed)
+                .is_ok()
+        );
+
+        // Invalid transition
+        assert!(
+            mgr.transition_state(&mut contract, DlcState::Offered)
+                .is_err()
+        );
     }
 }

@@ -35,12 +35,16 @@ struct BroadcastFiatRequest {
 }
 
 pub struct FiatRouterService {
+    pub http_client: reqwest::Client,
     pub gateway_endpoint: String,
 }
 
 impl FiatRouterService {
-    pub fn new(gateway_endpoint: String) -> Self {
-        Self { gateway_endpoint }
+    pub fn new(gateway_endpoint: String, http_client: reqwest::Client) -> Self {
+        Self {
+            gateway_endpoint,
+            http_client,
+        }
     }
 
     /// Prepares a stateless on-ramp session intent for signing.
@@ -63,14 +67,16 @@ impl FiatRouterService {
         signature: String,
     ) -> ConclaveResult<FiatSessionResponse> {
         let url = format!("{}/v1/fiat/session", self.gateway_endpoint);
-        let client = reqwest::Client::new();
 
         let payload = BroadcastFiatRequest { intent, signature };
 
-        let response =
-            client.post(&url).json(&payload).send().await.map_err(|e| {
-                ConclaveError::EnclaveFailure(format!("Gateway request failed: {}", e))
-            })?;
+        let response = self
+            .http_client
+            .post(&url)
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|e| ConclaveError::EnclaveFailure(format!("Gateway request failed: {}", e)))?;
 
         if !response.status().is_success() {
             return Err(ConclaveError::EnclaveFailure(format!(
@@ -85,5 +91,33 @@ impl FiatRouterService {
             .map_err(|e| ConclaveError::CryptoError(format!("Invalid gateway response: {}", e)))?;
 
         Ok(session_resp)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::asset::{AssetIdentifier, Chain};
+
+    #[test]
+    fn test_prepare_fiat_session() {
+        let client = reqwest::Client::new();
+        let service = FiatRouterService::new("https://api.conxian.io".to_string(), client);
+
+        let request = FiatOnRampRequest {
+            fiat_currency: "USD".to_string(),
+            crypto_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            amount: 100.0,
+            wallet_address: "bc1q...".to_string(),
+            provider: "stripe".to_string(),
+            attribution: None,
+        };
+
+        let intent = service.prepare_session(request);
+        assert!(!intent.signable_hash.is_empty());
+        assert_eq!(intent.gateway_url, "https://api.conxian.io");
     }
 }

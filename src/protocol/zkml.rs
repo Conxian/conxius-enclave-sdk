@@ -23,25 +23,51 @@ pub struct ZkmlService {
 
 impl ZkmlService {
     pub fn new(gateway_url: String, http_client: reqwest::Client) -> Self {
-        Self { gateway_url, http_client }
+        Self {
+            gateway_url,
+            http_client,
+        }
     }
 
     /// Generates a ZK proof for compliance verification.
-    pub async fn generate_compliance_proof(&self, request: ZkmlProofRequest) -> ConclaveResult<ZkmlProofResponse> {
+    pub async fn generate_compliance_proof(
+        &self,
+        request: ZkmlProofRequest,
+    ) -> ConclaveResult<ZkmlProofResponse> {
         let url = format!("{}/v1/zkml/prove", self.gateway_url);
 
-        let response = self.http_client.post(&url).json(&request).send().await.map_err(|e| {
-            ConclaveError::EnclaveFailure(format!("ZKML request failed: {}", e))
-        })?;
+        let response = self
+            .http_client
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| ConclaveError::EnclaveFailure(format!("ZKML request failed: {}", e)))?;
 
         if !response.status().is_success() {
-            return Err(ConclaveError::EnclaveFailure(format!("Gateway ZKML error: {}", response.status())));
+            return Err(ConclaveError::EnclaveFailure(format!(
+                "Gateway ZKML error: {}",
+                response.status()
+            )));
         }
 
-        let proof = response.json::<ZkmlProofResponse>().await.map_err(|e| {
-            ConclaveError::CryptoError(format!("Invalid ZKML response: {}", e))
-        })?;
+        let proof = response
+            .json::<ZkmlProofResponse>()
+            .await
+            .map_err(|e| ConclaveError::CryptoError(format!("Invalid ZKML response: {}", e)))?;
 
         Ok(proof)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_zkml_service_new() {
+        let client = reqwest::Client::new();
+        let service = ZkmlService::new("https://api.conxian.io".to_string(), client);
+        assert_eq!(service.gateway_url, "https://api.conxian.io");
     }
 }

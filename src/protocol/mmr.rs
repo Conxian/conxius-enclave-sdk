@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Service for handling Merkle Mountain Range (MMR) operations.
 pub struct MmrService {
+    pub http_client: reqwest::Client,
     pub base_url: String,
 }
 
@@ -15,8 +16,11 @@ pub struct MmrProofResponse {
 }
 
 impl MmrService {
-    pub fn new(base_url: String) -> Self {
-        Self { base_url }
+    pub fn new(base_url: String, http_client: reqwest::Client) -> Self {
+        Self {
+            base_url,
+            http_client,
+        }
     }
 
     /// Generates a local MMR proof.
@@ -38,9 +42,8 @@ impl MmrService {
     /// Fetches an MMR proof from the remote /v1/mmr-proof endpoint.
     pub async fn fetch_remote_proof(&self, node_id: &str) -> ConclaveResult<MmrProofResponse> {
         let url = format!("{}/v1/mmr-proof/{}", self.base_url, node_id);
-        let client = reqwest::Client::new();
 
-        let response = client.get(&url).send().await.map_err(|e| {
+        let response = self.http_client.get(&url).send().await.map_err(|e| {
             crate::ConclaveError::EnclaveFailure(format!("API Request failed: {}", e))
         })?;
 
@@ -50,5 +53,26 @@ impl MmrService {
             .map_err(|e| crate::ConclaveError::CryptoError(format!("Invalid response: {}", e)))?;
 
         Ok(proof)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mmr_local_proof() -> crate::ConclaveResult<()> {
+        let client = reqwest::Client::new();
+        let service = MmrService::new("https://api.conxian.io".to_string(), client);
+
+        let data = b"conxian_block_data";
+        let proof = service.generate_local_proof(data, 1)?;
+
+        assert_eq!(proof.position, 1);
+        assert!(!proof.root.is_empty());
+        // For a single leaf, the proof path is empty
+        assert!(!proof.proof.is_empty());
+
+        Ok(())
     }
 }

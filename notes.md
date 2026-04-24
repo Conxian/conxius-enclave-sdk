@@ -33,3 +33,8 @@ To ensure the SDK meets the v1.9.2 production standards, including remediation o
 
 ## Approval note
 This PR successfully aligns lib-conclave-sdk with the v1.9.2 standard, remediates known security risks, and provides the full suite of shared services needed for production deployment.
+
+## v1.9.3 Update (Review & Repair)
+- **Shared Network Client**: All protocol services (`Fiat`, `A2p`, `Mmr`, `ZKML`, `SIDL`) now share a single `reqwest::Client` managed by the `ConclaveWasmClient`.
+- **Test Coverage**: Added 8 new unit tests covering shared service logic and local MMR proof generation.
+- **Code Hygiene**: Consolidated modular rail implementations and synchronized documentation across `SYSTEM_ALIGNMENT.md` and `CHANGELOG.md`.

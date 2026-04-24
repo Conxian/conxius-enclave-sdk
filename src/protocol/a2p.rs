@@ -36,12 +36,16 @@ struct BroadcastOtpRequest {
 }
 
 pub struct A2pRouterService {
+    pub http_client: reqwest::Client,
     pub gateway_endpoint: String,
 }
 
 impl A2pRouterService {
-    pub fn new(gateway_endpoint: String) -> Self {
-        Self { gateway_endpoint }
+    pub fn new(gateway_endpoint: String, http_client: reqwest::Client) -> Self {
+        Self {
+            gateway_endpoint,
+            http_client,
+        }
     }
 
     /// Prepares a stateless OTP request intent for signing.
@@ -63,14 +67,16 @@ impl A2pRouterService {
         signature: String,
     ) -> ConclaveResult<A2pResponse> {
         let url = format!("{}/v1/a2p/otp/initiate", self.gateway_endpoint);
-        let client = reqwest::Client::new();
 
         let payload = BroadcastOtpRequest { intent, signature };
 
-        let response =
-            client.post(&url).json(&payload).send().await.map_err(|e| {
-                ConclaveError::EnclaveFailure(format!("Gateway request failed: {}", e))
-            })?;
+        let response = self
+            .http_client
+            .post(&url)
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|e| ConclaveError::EnclaveFailure(format!("Gateway request failed: {}", e)))?;
 
         if !response.status().is_success() {
             return Err(ConclaveError::EnclaveFailure(format!(
@@ -94,7 +100,6 @@ impl A2pRouterService {
         signature: String,
     ) -> ConclaveResult<bool> {
         let url = format!("{}/v1/a2p/otp/verify", self.gateway_endpoint);
-        let client = reqwest::Client::new();
 
         #[derive(Debug, Serialize, Deserialize)]
         struct VerifyPayload {
@@ -107,10 +112,13 @@ impl A2pRouterService {
             signature,
         };
 
-        let response =
-            client.post(&url).json(&payload).send().await.map_err(|e| {
-                ConclaveError::EnclaveFailure(format!("Gateway request failed: {}", e))
-            })?;
+        let response = self
+            .http_client
+            .post(&url)
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|e| ConclaveError::EnclaveFailure(format!("Gateway request failed: {}", e)))?;
 
         if !response.status().is_success() {
             return Ok(false);
@@ -122,5 +130,25 @@ impl A2pRouterService {
             .map_err(|e| ConclaveError::CryptoError(format!("Invalid gateway response: {}", e)))?;
 
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_prepare_otp_intent() {
+        let client = reqwest::Client::new();
+        let service = A2pRouterService::new("https://api.conxian.io".to_string(), client);
+
+        let request = OtpRequest {
+            phone_number: "+1234567890".to_string(),
+            channel: "SMS".to_string(),
+            attribution: None,
+        };
+
+        let intent = service.prepare_otp(request);
+        assert!(!intent.signable_hash.is_empty());
     }
 }
