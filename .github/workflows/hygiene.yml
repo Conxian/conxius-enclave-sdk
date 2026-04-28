@@ -1,0 +1,23 @@
+name: Hygiene Check
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  hygiene:
+    name: Repository Hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for forbidden files
+        run: |
+          ! git ls-files | grep -E "^.env$|^target/|^pkg/|^node_modules/"
+      - name: Check for sensitive extensions
+        run: |
+          ! git ls-files | grep -E "\.key$|\.pem$|\.p12$|\.jks$"
+      - name: Verify Mainnet Principals
+        run: |
+          ! grep -rnE "ST[123456789ABCDEFGHJKMNPQRSTVWXYZ]{28,}" contracts/ src/

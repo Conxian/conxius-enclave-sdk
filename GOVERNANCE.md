@@ -4,7 +4,14 @@ This document defines the business role, ownership, and operational standards fo
 
 ## 1. Business Role
 
-The Conclave SDK (`lib-conclave-sdk`) is the **canonical high-integrity integration surface** for the Conxian ecosystem. Its primary role is to provide a unified, secure interface for:
+The Conclave SDK (`lib-conclave-sdk`) is the **canonical high-integrity integration surface** for hardware-backed operations in the Conxian ecosystem.
+
+### Architectural Boundaries
+To maintain a clear separation of concerns:
+- **`lib-conclave-sdk` (This Repo)**: Dedicated to secure enclave abstractions, hardware attestation integration, and cryptographic signing orchestration. It is the "Enforcer" of Zero Secret Egress.
+- **`lib-conxian-core`**: Dedicated to shared protocol primitives, data schemas, and non-enclave-specific logic.
+
+Its primary role is to provide a unified, secure interface for:
 
 - **Institutional Key Custody**: Hardware-backed key management and signing.
 - **Sovereign Interoperability**: Orchestration of non-custodial cross-chain swaps via the Sovereign Handshake.
@@ -54,3 +61,12 @@ The following items are prioritized for the SDK's progression toward mainnet rea
 3. **Release Hygiene (CON-214)**: Establishment of automated release tagging and structured changelog verification.
 4. **Secret and Artifact Cleanup (CON-215)**: Continuous monitoring for accidental secret exposure or vendored dependency creep.
 5. **Mainnet Readiness Gate (CON-171)**: Final check of canonical repo name and ownership across all Conxian infrastructure.
+
+## 6. Repository Hygiene & Anti-Drift
+
+To prevent degradation of security and operational standards, the following controls are enforced:
+
+- **Automated Hygiene Checks**: CI-integrated checks for forbidden files (e.g., `.env`), sensitive extensions (e.g., `.pem`), and testnet principal contamination.
+- **Dependency Integrity**: Regular `cargo audit` and `deny.toml` enforcement to mitigate supply-chain risks.
+- **Audit Cadence**: A manual hygiene audit is performed at the end of every major release cycle.
+- **Exception Register**: Any deviation from the standard hygiene rules must be documented in `docs/REMEDIATION.md` with an explicit rationale and expiration date.

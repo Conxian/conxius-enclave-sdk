@@ -8,11 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Automated Repository Hygiene checks in CI to prevent tracked secrets and testnet contamination.
 - Comprehensive unit tests for `IdentityManager`, `ZkmlService`, `DlcManager`, `SidlService`, and `MmrService`.
 
 ### Changed
+- Updated architectural boundaries in `GOVERNANCE.md` to clarify the split between enclave-specific SDK logic and shared protocol primitives.
 - Refactored `MmrService`, `FiatRouterService`, and `A2pRouterService` to use a shared `reqwest::Client` for better resource management.
 - Cleaned up modular rail structure in `src/protocol/rails/`.
+- Locked `sha2` to `0.10.9` to remediate RUSTSEC-2025-0055 and updated remediation docs.
 
 ### Added
 - Functional `execute_swap` implementation for all Sovereign Rails (Changelly, Bisq, Wormhole, Boltz, NTT) replacing mock responses with real Gateway API interactions (CON-409).

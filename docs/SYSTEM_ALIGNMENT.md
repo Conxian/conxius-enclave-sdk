@@ -4,7 +4,7 @@
 
 ### Remediations
 - **CON-371 (Principals)**: Verified that core contracts and protocols use `SP...` mainnet principals.
-- **RUSTSEC-2025-0055**: Remediated by upgrading `sha2` to `0.10.9` to ensure cryptographic integrity in CI.
+- **RUSTSEC-2025-0055**: Remediated by locking `sha2` to `0.10.9` to ensure cryptographic integrity in CI.
 - **Contamination Guard**: All mock/placeholder logic in `CloudEnclave` and `RailProxy` has been replaced with functional Gateway API implementations.
 
 ### Shared Services
