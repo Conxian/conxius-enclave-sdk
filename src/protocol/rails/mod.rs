@@ -36,6 +36,25 @@ pub struct SwapRequest {
     pub attribution: Option<BusinessAttribution>,
 }
 
+impl SwapRequest {
+    /// Generates a deterministic byte representation of the request for hashing.
+    pub fn get_hash_bytes(&self) -> Vec<u8> {
+        let mut data = Vec::new();
+        data.extend_from_slice(self.from_asset.chain.as_str().as_bytes());
+        data.extend_from_slice(self.from_asset.symbol.as_bytes());
+        data.extend_from_slice(self.to_asset.chain.as_str().as_bytes());
+        data.extend_from_slice(self.to_asset.symbol.as_bytes());
+        data.extend_from_slice(&self.amount.to_be_bytes());
+        data.extend_from_slice(self.recipient_address.as_bytes());
+
+        if let Some(attribution) = &self.attribution {
+            data.extend_from_slice(&attribution.get_hash());
+        }
+
+        data
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwapIntent {
     pub request: SwapRequest,
@@ -219,13 +238,16 @@ impl SovereignHandshake for RailProxy {
         let chain_context = rail.validate_request(&request)?;
 
         let mut hasher = Sha256::new();
-        hasher.update(
-            format!(
-                "{}:{:?}:{:?}:{}",
-                rail_name, request, chain_context, self.endpoint
-            )
-            .as_bytes(),
-        );
+        hasher.update(rail_name.as_bytes());
+        hasher.update(b":");
+        hasher.update(&request.get_hash_bytes());
+        hasher.update(b":");
+        if let Some(ctx) = &chain_context {
+            hasher.update(ctx.as_bytes());
+        }
+        hasher.update(b":");
+        hasher.update(self.endpoint.as_bytes());
+
         let signable_hash = hasher.finalize().to_vec();
 
         Ok(SwapIntent {
@@ -281,5 +303,63 @@ impl SovereignRail for CustomRail {
             estimated_arrival: 1200,
             rail_used: self.name().to_string(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::asset::{AssetIdentifier, Chain};
+    use crate::protocol::business::BusinessAttribution;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_swap_request_hash_determinism() {
+        let from_asset = AssetIdentifier { chain: Chain::BITCOIN, symbol: "BTC".to_string() };
+        let to_asset = AssetIdentifier { chain: Chain::ETHEREUM, symbol: "ETH".to_string() };
+
+        let mut metadata1 = HashMap::new();
+        metadata1.insert("a".to_string(), "1".to_string());
+        metadata1.insert("b".to_string(), "2".to_string());
+        metadata1.insert("c".to_string(), "3".to_string());
+
+        let mut metadata2 = HashMap::new();
+        metadata2.insert("c".to_string(), "3".to_string());
+        metadata2.insert("b".to_string(), "2".to_string());
+        metadata2.insert("a".to_string(), "1".to_string());
+
+        let req1 = SwapRequest {
+            from_asset: from_asset.clone(),
+            to_asset: to_asset.clone(),
+            amount: 1000,
+            recipient_address: "0x123".to_string(),
+            attribution: Some(BusinessAttribution {
+                business_id: "p1".to_string(),
+                user_id: "u1".to_string(),
+                timestamp: 100,
+                expiration: 200,
+                nonce: [0u8; 16],
+                signature: String::new(),
+                metadata: metadata1,
+            }),
+        };
+
+        let req2 = SwapRequest {
+            from_asset: from_asset.clone(),
+            to_asset: to_asset.clone(),
+            amount: 1000,
+            recipient_address: "0x123".to_string(),
+            attribution: Some(BusinessAttribution {
+                business_id: "p1".to_string(),
+                user_id: "u1".to_string(),
+                timestamp: 100,
+                expiration: 200,
+                nonce: [0u8; 16],
+                signature: String::new(),
+                metadata: metadata2,
+            }),
+        };
+
+        assert_eq!(req1.get_hash_bytes(), req2.get_hash_bytes());
     }
 }
