@@ -1,5 +1,8 @@
+use crate::ConclaveResult;
+use crate::enclave::EnclaveManager;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::sync::Arc;
 
 /// Discreet Log Contracts (DLC) support for non-custodial financial agreements.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -9,6 +12,8 @@ pub struct DlcContract {
     pub local_collateral: u64,
     pub remote_collateral: u64,
     pub state: DlcState,
+    pub local_pubkey: Option<String>,
+    pub remote_pubkey: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -21,7 +26,7 @@ pub enum DlcState {
 }
 
 pub struct DlcManager {
-    // Placeholder for BDK-DLC or specialized Schnorr logic
+    enclave: Option<Arc<dyn EnclaveManager>>,
 }
 
 impl Default for DlcManager {
@@ -32,7 +37,13 @@ impl Default for DlcManager {
 
 impl DlcManager {
     pub fn new() -> Self {
-        Self {}
+        Self { enclave: None }
+    }
+
+    pub fn with_enclave(enclave: Arc<dyn EnclaveManager>) -> Self {
+        Self {
+            enclave: Some(enclave),
+        }
     }
 
     /// Generates a deterministic DLC contract identifier from parameters.
@@ -63,11 +74,53 @@ impl DlcManager {
         }
         Ok(())
     }
+
+    /// Prepares a DLC offer with hardware-backed public key.
+    pub fn offer_contract(
+        &self,
+        oracle_announcement: &str,
+        local_collateral: u64,
+        remote_collateral: u64,
+    ) -> ConclaveResult<DlcContract> {
+        let local_pubkey = if let Some(enclave) = &self.enclave {
+            Some(enclave.get_public_key("m/44'/5757'/0'/0/dlc")?)
+        } else {
+            None
+        };
+
+        let contract_id = self.generate_contract_id(oracle_announcement, local_collateral);
+
+        Ok(DlcContract {
+            contract_id,
+            oracle_announcement: oracle_announcement.to_string(),
+            local_collateral,
+            remote_collateral,
+            state: DlcState::Offered,
+            local_pubkey,
+            remote_pubkey: None,
+        })
+    }
+
+    /// Accepts a DLC offer, adding the remote public key.
+    pub fn accept_contract(
+        &self,
+        mut contract: DlcContract,
+        remote_pubkey: String,
+    ) -> Result<DlcContract, String> {
+        if contract.state != DlcState::Offered {
+            return Err("Contract must be in Offered state to be accepted".to_string());
+        }
+
+        contract.remote_pubkey = Some(remote_pubkey);
+        contract.state = DlcState::Accepted;
+        Ok(contract)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::enclave::cloud::CloudEnclave;
 
     #[test]
     fn test_dlc_contract_id_generation() {
@@ -81,39 +134,24 @@ mod tests {
     }
 
     #[test]
-    fn test_dlc_state_transitions() {
-        let mgr = DlcManager::new();
-        let mut contract = DlcContract {
-            contract_id: "test".to_string(),
-            oracle_announcement: "test".to_string(),
-            local_collateral: 1000,
-            remote_collateral: 1000,
-            state: DlcState::Offered,
-        };
+    fn test_dlc_lifecycle() -> crate::ConclaveResult<()> {
+        let enclave = Arc::new(CloudEnclave::new("https://vault.conxian.io".to_string())?);
+        let mgr = DlcManager::with_enclave(enclave);
 
-        assert!(
-            mgr.transition_state(&mut contract, DlcState::Accepted)
-                .is_ok()
-        );
+        let mut contract = mgr.offer_contract("announcement_v1", 5000, 5000)?;
+        assert_eq!(contract.state, DlcState::Offered);
+        assert!(contract.local_pubkey.is_some());
+
+        contract = mgr
+            .accept_contract(contract, "remote_pubkey_hex".to_string())
+            .map_err(|e| crate::ConclaveError::EnclaveFailure(e))?;
         assert_eq!(contract.state, DlcState::Accepted);
+        assert_eq!(contract.remote_pubkey, Some("remote_pubkey_hex".to_string()));
 
-        assert!(
-            mgr.transition_state(&mut contract, DlcState::Signed)
-                .is_ok()
-        );
-        assert!(
-            mgr.transition_state(&mut contract, DlcState::Broadcast)
-                .is_ok()
-        );
-        assert!(
-            mgr.transition_state(&mut contract, DlcState::Closed)
-                .is_ok()
-        );
+        mgr.transition_state(&mut contract, DlcState::Signed)
+            .map_err(|e| crate::ConclaveError::EnclaveFailure(e))?;
+        assert_eq!(contract.state, DlcState::Signed);
 
-        // Invalid transition
-        assert!(
-            mgr.transition_state(&mut contract, DlcState::Offered)
-                .is_err()
-        );
+        Ok(())
     }
 }

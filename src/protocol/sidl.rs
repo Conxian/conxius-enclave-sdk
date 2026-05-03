@@ -79,11 +79,32 @@ impl SidlService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn test_sidl_service_new() {
         let client = reqwest::Client::new();
         let service = SidlService::new("https://api.conxian.io".to_string(), client);
         assert_eq!(service.gateway_url, "https://api.conxian.io");
+    }
+
+    #[test]
+    fn test_sidl_vote_serialization() {
+        let vote = SidlVote {
+            proposal_id: "prop_1".to_string(),
+            vote_option: "YES".to_string(),
+            attribution: BusinessAttribution {
+                business_id: "b1".to_string(),
+                user_id: "u1".to_string(),
+                timestamp: 100,
+                expiration: 200,
+                nonce: [0u8; 16],
+                signature: "sig".to_string(),
+                metadata: HashMap::new(),
+            },
+        };
+        let json = serde_json::to_string(&vote).unwrap();
+        assert!(json.contains("prop_1"));
+        assert!(json.contains("YES"));
     }
 }

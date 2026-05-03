@@ -42,7 +42,7 @@ impl ZkmlService {
             .json(&request)
             .send()
             .await
-            .map_err(|e| ConclaveError::EnclaveFailure(format!("ZKML request failed: {}", e)))?;
+            .map_err(|e| ConclaveError::NetworkError(format!("ZKML request failed: {}", e)))?;
 
         if !response.status().is_success() {
             return Err(ConclaveError::EnclaveFailure(format!(
@@ -69,5 +69,17 @@ mod tests {
         let client = reqwest::Client::new();
         let service = ZkmlService::new("https://api.conxian.io".to_string(), client);
         assert_eq!(service.gateway_url, "https://api.conxian.io");
+    }
+
+    #[tokio::test]
+    async fn test_zkml_request_construction() {
+        // Test request serialization
+        let req = ZkmlProofRequest {
+            model_id: "compliance_v1".to_string(),
+            input_commitment: "0xabc".to_string(),
+            compliance_rule: "KYC_AML".to_string(),
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        assert!(json.contains("compliance_v1"));
     }
 }
