@@ -11,7 +11,7 @@ jobs:
     name: Repository Hygiene
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Check for forbidden files
         run: |
           ! git ls-files | grep -E "^.env$|^target/|^pkg/|^node_modules/"
