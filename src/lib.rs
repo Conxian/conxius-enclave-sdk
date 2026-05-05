@@ -20,4 +20,6 @@ pub enum ConclaveError {
     IsoError(String),
     #[error("Network error: {0}")]
     NetworkError(String),
+    #[error("Rail Error: {0}")]
+    RailError(String),
 }

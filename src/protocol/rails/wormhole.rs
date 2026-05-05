@@ -1,4 +1,5 @@
 use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
+use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
@@ -19,9 +20,9 @@ impl SovereignRail for WormholeRail {
         "wormhole"
     }
 
-    fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String> {
+    fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {
         if request.recipient_address.len() < 40 {
-            return Err("Invalid EVM/Solana address for Wormhole transceiver".to_string());
+            return Err(ConclaveError::RailError("Invalid EVM/Solana address for Wormhole transceiver".to_string()));
         }
         Ok(Some(format!(
             "WORMHOLE_VAA_TARGET_{}",
@@ -33,7 +34,7 @@ impl SovereignRail for WormholeRail {
         &self,
         intent: SwapIntent,
         signature: String,
-    ) -> Result<SwapResponse, String> {
+    ) -> ConclaveResult<SwapResponse> {
         let url = format!("{}/v1/swap/execute", self.gateway_url);
         let payload = BroadcastSwapRequest { intent, signature };
 
@@ -43,16 +44,16 @@ impl SovereignRail for WormholeRail {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| format!("Gateway request failed: {}", e))?;
+            .map_err(|e| ConclaveError::NetworkError(format!("Gateway request failed: {}", e)))?;
 
         if !response.status().is_success() {
-            return Err(format!("Gateway returned error: {}", response.status()));
+            return Err(ConclaveError::NetworkError(format!("Gateway returned error: {}", response.status())));
         }
 
         let swap_resp = response
             .json::<SwapResponse>()
             .await
-            .map_err(|e| format!("Invalid gateway response: {}", e))?;
+            .map_err(|e| ConclaveError::CryptoError(format!("Invalid gateway response: {}", e)))?;
 
         Ok(swap_resp)
     }

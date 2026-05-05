@@ -1,5 +1,6 @@
 use crate::protocol::asset::Chain;
 use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
+use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
@@ -20,12 +21,12 @@ impl SovereignRail for BoltzRail {
         "boltz"
     }
 
-    fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String> {
+    fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {
         // Boltz atomic swap validation
         if request.from_asset.chain != Chain::LIGHTNING
             && request.to_asset.chain != Chain::LIGHTNING
         {
-            return Err("Boltz rail requires Lightning as one of the swap legs".to_string());
+            return Err(ConclaveError::RailError("Boltz rail requires Lightning as one of the swap legs".to_string()));
         }
 
         Ok(Some(format!(
@@ -38,7 +39,7 @@ impl SovereignRail for BoltzRail {
         &self,
         intent: SwapIntent,
         signature: String,
-    ) -> Result<SwapResponse, String> {
+    ) -> ConclaveResult<SwapResponse> {
         let url = format!("{}/v1/swap/execute", self.gateway_url);
         let payload = BroadcastSwapRequest { intent, signature };
 
@@ -48,16 +49,16 @@ impl SovereignRail for BoltzRail {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| format!("Gateway request failed: {}", e))?;
+            .map_err(|e| ConclaveError::NetworkError(format!("Gateway request failed: {}", e)))?;
 
         if !response.status().is_success() {
-            return Err(format!("Gateway returned error: {}", response.status()));
+            return Err(ConclaveError::NetworkError(format!("Gateway returned error: {}", response.status())));
         }
 
         let swap_resp = response
             .json::<SwapResponse>()
             .await
-            .map_err(|e| format!("Invalid gateway response: {}", e))?;
+            .map_err(|e| ConclaveError::CryptoError(format!("Invalid gateway response: {}", e)))?;
 
         Ok(swap_resp)
     }

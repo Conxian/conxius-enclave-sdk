@@ -1,4 +1,5 @@
-use super::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
+use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
+use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
 use serde_json::json;
 
@@ -13,10 +14,10 @@ impl SovereignRail for NTTRail {
         "ntt"
     }
 
-    fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String> {
+    fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {
         // NTT same-asset transfers validation
         if request.from_asset.symbol != request.to_asset.symbol {
-            return Err("NTT rail only supports same-asset transfers".to_string());
+            return Err(ConclaveError::RailError("NTT rail only supports same-asset transfers".to_string()));
         }
         Ok(Some("NTT_WORMHOLE_V1".to_string()))
     }
@@ -25,7 +26,7 @@ impl SovereignRail for NTTRail {
         &self,
         intent: SwapIntent,
         signature: String,
-    ) -> Result<SwapResponse, String> {
+    ) -> ConclaveResult<SwapResponse> {
         let url = format!("{}/v1/rails/ntt/execute", self.gateway_url);
         let payload = json!({
             "intent": intent,
@@ -39,16 +40,16 @@ impl SovereignRail for NTTRail {
             .json(&payload)
             .send()
             .await
-            .map_err(|e| format!("Gateway request failed: {}", e))?;
+            .map_err(|e| ConclaveError::NetworkError(format!("Gateway request failed: {}", e)))?;
 
         if !response.status().is_success() {
-            return Err(format!("Gateway returned error: {}", response.status()));
+            return Err(ConclaveError::NetworkError(format!("Gateway returned error: {}", response.status())));
         }
 
         let swap_resp = response
             .json::<SwapResponse>()
             .await
-            .map_err(|e| format!("Invalid gateway response: {}", e))?;
+            .map_err(|e| ConclaveError::CryptoError(format!("Invalid gateway response: {}", e)))?;
 
         Ok(swap_resp)
     }

@@ -1,16 +1,17 @@
-# Audit Notes - Mainnet Readiness & functional Alignment
+# Audit Notes - System Alignment & Enhancements (v1.9.3)
 
 ## Task
-Standardize repository hygiene, release discipline, and architectural boundaries for `lib-conclave-sdk` (CON-623). Implement functional production-ready logic for core components (CON-613).
+Perform full system review, align enhancements, and ensure Mainnet readiness across all core SDK modules. Remediate dependency conflicts and integrate optional telemetry tracking.
 
 ## Evidence
-- **MMR**: Implemented functional Merkle Mountain Range (MMR) logic in `src/state/mod.rs` with real peak merging and inclusion proof generation.
-- **Attestation**: Refactored `CloudEnclave` and `CoreEnclaveManager` to use structured `DeviceIntegrityReport` generation for all signing operations.
-- **Hygiene**: Verified absence of `unwrap()`, `expect()`, and placeholder markers in production paths.
-- **Governance**: Confirmed alignment of `README.md`, `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS`, and `GOVERNANCE.md`.
-- **Versioning**: Crate version locked at `0.1.3`.
+- **Dependency Remediation**: Fixed build failures by aligning `getrandom` (0.2.15) and `pbkdf2` (0.12.2) versions. Locked `sha2` to 0.10.9 for `RUSTSEC-2025-0055`.
+- **Telemetry Integration**: Added `TelemetryClient` to `RailProxy` for non-blocking signature tracking via Conxian Nexus.
+- **WASM Enhancements**: Updated `ConclaveWasmClient` constructor to support Nexus orchestration and fixed `DlcManager` enclave access.
+- **Error Handling**: Introduced `RailError` and refined `NetworkError` variants for institutional-grade reliability.
+- **Protocol Validation**: Verified functional logic for `IdentityManager`, `ZkmlService`, `DlcManager`, and `SidlService`.
+- **Security Baseline**: Confirmed 'No-Panic' compliance and `zeroize` integration in all hardware signing paths.
 
 ## Validation
-- `cargo test` passed with 28 tests.
-- Verified functional inclusion proof generation for MMR.
-- Manual verification of attestation serialization in SignResponse.
+- `cargo test` passed with 34 tests (100% pass rate).
+- Verified telemetry integration with async test case.
+- Confirmed mainnet principal (`SP...`) integrity in all Clarity contracts.

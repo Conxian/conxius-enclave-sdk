@@ -7,6 +7,8 @@ pub mod wormhole;
 use crate::enclave::attestation::DeviceIntegrityReport;
 use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 use crate::protocol::business::{BusinessAttribution, BusinessRegistry};
+use crate::telemetry::TelemetryClient;
+use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -74,12 +76,12 @@ pub struct SwapResponse {
 #[async_trait]
 pub trait SovereignRail: Send + Sync {
     fn name(&self) -> &'static str;
-    fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String>;
+    fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>>;
     async fn execute_swap(
         &self,
         intent: SwapIntent,
         signature: String,
-    ) -> Result<SwapResponse, String>;
+    ) -> ConclaveResult<SwapResponse>;
 }
 
 /// The Sovereign Handshake: A non-custodial protocol where the Gateway
@@ -87,7 +89,7 @@ pub trait SovereignRail: Send + Sync {
 #[async_trait]
 pub trait SovereignHandshake {
     /// Prepare a signable intent from a request.
-    fn prepare_intent(&self, rail_name: &str, request: SwapRequest) -> Result<SwapIntent, String>;
+    fn prepare_intent(&self, rail_name: &str, request: SwapRequest) -> ConclaveResult<SwapIntent>;
 
     /// Broadcast a signed intent to the rail, optionally verifying hardware attestation.
     async fn broadcast_signed_intent(
@@ -95,7 +97,7 @@ pub trait SovereignHandshake {
         intent: SwapIntent,
         signature: String,
         attestation: Option<String>,
-    ) -> Result<SwapResponse, String>;
+    ) -> ConclaveResult<SwapResponse>;
 }
 
 pub struct RailProxy {
@@ -106,6 +108,7 @@ pub struct RailProxy {
     pub enforce_attestation: bool,
     pub asset_registry: Arc<AssetRegistry>,
     pub business_registry: Arc<BusinessRegistry>,
+    pub telemetry: Option<Arc<TelemetryClient>>,
 }
 
 impl RailProxy {
@@ -115,7 +118,7 @@ impl RailProxy {
         asset_registry: Arc<AssetRegistry>,
         business_registry: Arc<BusinessRegistry>,
     ) -> Self {
-        let mut rails: HashMap<String, Box<dyn SovereignRail>> = HashMap::new();
+        let mut rails: HashMap<String, Box<dyn SovereignRail>> = HashMap::with_capacity(5);
 
         // Register core rails with gateway endpoint and shared client
         rails.insert(
@@ -162,7 +165,18 @@ impl RailProxy {
             enforce_attestation: true,
             asset_registry,
             business_registry,
+            telemetry: None,
         }
+    }
+
+    pub fn with_telemetry(mut self, telemetry: Arc<TelemetryClient>) -> Self {
+        self.telemetry = Some(telemetry);
+        self
+    }
+
+    pub fn with_api_key(mut self, api_key: String) -> Self {
+        self.api_key = Some(api_key);
+        self
     }
 
     pub fn register_rail(&mut self, rail: Box<dyn SovereignRail>) {
@@ -173,19 +187,19 @@ impl RailProxy {
         &self,
         intent: &SwapIntent,
         attestation_json: &Option<String>,
-    ) -> Result<(), String> {
+    ) -> ConclaveResult<()> {
         if !self.enforce_attestation {
             return Ok(());
         }
 
         let json = attestation_json
             .as_ref()
-            .ok_or("Hardware attestation report missing for high-value rail operation")?;
+            .ok_or_else(|| ConclaveError::EnclaveFailure("Hardware attestation report missing for high-value rail operation".to_string()))?;
         let report: DeviceIntegrityReport =
-            serde_json::from_str(json).map_err(|e| format!("Invalid attestation format: {}", e))?;
+            serde_json::from_str(json).map_err(|_| ConclaveError::InvalidPayload)?;
 
         if !report.verify(&intent.signable_hash) {
-            return Err("Hardware attestation verification failed: Device integrity compromised, nonce mismatch, or attempting to use a Software/Simulated enclave for a high-value operation".to_string());
+            return Err(ConclaveError::EnclaveFailure("Hardware attestation verification failed: Device integrity compromised, nonce mismatch, or attempting to use a Software/Simulated enclave for a high-value operation".to_string()));
         }
 
         // Verify business attribution if present
@@ -193,23 +207,20 @@ impl RailProxy {
             let profile = self
                 .business_registry
                 .get_business(&attribution.business_id)
-                .ok_or_else(|| format!("Unknown business partner: {}", attribution.business_id))?;
+                .ok_or_else(|| ConclaveError::InvalidPayload)?;
 
             if !profile.active {
-                return Err(format!(
-                    "Business partner {} is currently inactive",
-                    attribution.business_id
-                ));
+                return Err(ConclaveError::InvalidPayload);
             }
 
             if attribution.expiration < unix_time_secs() {
-                return Err("Business attribution expired".to_string());
+                return Err(ConclaveError::InvalidPayload);
             }
 
             // Cryptographic verification of attribution signature
             attribution
                 .verify(&profile.public_key)
-                .map_err(|e| format!("Business attribution verification failed: {}", e))?;
+                .map_err(|e| ConclaveError::CryptoError(format!("Business attribution verification failed: {}", e)))?;
         }
 
         Ok(())
@@ -218,24 +229,24 @@ impl RailProxy {
 
 #[async_trait]
 impl SovereignHandshake for RailProxy {
-    fn prepare_intent(&self, rail_name: &str, request: SwapRequest) -> Result<SwapIntent, String> {
+    fn prepare_intent(&self, rail_name: &str, request: SwapRequest) -> ConclaveResult<SwapIntent> {
         let rail = self
             .rails
             .get(rail_name)
-            .ok_or_else(|| format!("Rail {} not found", rail_name))?;
+            .ok_or_else(|| ConclaveError::InvalidPayload)?;
 
         if request.amount == 0 {
-            return Err("Amount must be greater than zero".to_string());
+            return Err(ConclaveError::InvalidPayload);
         }
 
         if !self
             .asset_registry
             .validate_pair(&request.from_asset, &request.to_asset)
         {
-            return Err("Invalid or unsupported asset pair".to_string());
+            return Err(ConclaveError::InvalidPayload);
         }
 
-        let chain_context = rail.validate_request(&request)?;
+        let chain_context = rail.validate_request(&request).map_err(|e| ConclaveError::RailError(e.to_string()))?;
 
         let mut hasher = Sha256::new();
         hasher.update(rail_name.as_bytes());
@@ -263,17 +274,23 @@ impl SovereignHandshake for RailProxy {
         intent: SwapIntent,
         signature: String,
         attestation: Option<String>,
-    ) -> Result<SwapResponse, String> {
+    ) -> ConclaveResult<SwapResponse> {
         let rail = self
             .rails
             .get(&intent.rail_type)
-            .ok_or_else(|| format!("Rail {} not found", intent.rail_type))?;
+            .ok_or_else(|| ConclaveError::InvalidPayload)?;
 
         if signature.is_empty() {
-            return Err("Sovereign signature required for broadcast".to_string());
+            return Err(ConclaveError::CryptoError("Sovereign signature required for broadcast".to_string()));
         }
 
         self.verify_hardware_integrity(&intent, &attestation)?;
+
+        if let Some(telemetry) = &self.telemetry {
+            let mut hasher = Sha256::new();
+            hasher.update(signature.as_bytes());
+            telemetry.track_signature(hex::encode(hasher.finalize()));
+        }
 
         rail.execute_swap(intent, signature).await
     }
@@ -286,9 +303,9 @@ impl SovereignRail for CustomRail {
     fn name(&self) -> &'static str {
         "custom_partner"
     }
-    fn validate_request(&self, request: &SwapRequest) -> Result<Option<String>, String> {
+    fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {
         if request.from_asset.chain != Chain::BITCOIN {
-            return Err("CustomPartner only accepts BTC as inbound".to_string());
+            return Err(ConclaveError::InvalidPayload);
         }
         Ok(Some("PARTNER_CUSTOM_v1".to_string()))
     }
@@ -296,7 +313,7 @@ impl SovereignRail for CustomRail {
         &self,
         intent: SwapIntent,
         _signature: String,
-    ) -> Result<SwapResponse, String> {
+    ) -> ConclaveResult<SwapResponse> {
         Ok(SwapResponse {
             transaction_id: format!("PARTNER-{}", hex::encode(&intent.signable_hash[..8])),
             status: "Partner processing".to_string(),
@@ -367,5 +384,31 @@ mod tests {
         };
 
         assert_eq!(req1.get_hash_bytes(), req2.get_hash_bytes());
+    }
+}
+
+#[cfg(test)]
+mod rail_proxy_tests {
+    use super::*;
+    use crate::protocol::asset::AssetRegistry;
+    use crate::protocol::business::BusinessRegistry;
+    use crate::telemetry::TelemetryClient;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_rail_proxy_with_telemetry() {
+        let registry = Arc::new(AssetRegistry::new());
+        let business = Arc::new(BusinessRegistry::new());
+        let telemetry = Arc::new(TelemetryClient::new("http://localhost".to_string(), "test_key".to_string()));
+
+        let mut proxy = RailProxy::new(
+            "https://api.conxian.io".to_string(),
+            reqwest::Client::new(),
+            registry,
+            business,
+        );
+        proxy = proxy.with_telemetry(telemetry);
+
+        assert!(proxy.telemetry.is_some());
     }
 }
