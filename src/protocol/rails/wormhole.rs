@@ -22,7 +22,9 @@ impl SovereignRail for WormholeRail {
 
     fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {
         if request.recipient_address.len() < 40 {
-            return Err(ConclaveError::RailError("Invalid EVM/Solana address for Wormhole transceiver".to_string()));
+            return Err(ConclaveError::RailError(
+                "Invalid EVM/Solana address for Wormhole transceiver".to_string(),
+            ));
         }
         Ok(Some(format!(
             "WORMHOLE_VAA_TARGET_{}",
@@ -47,7 +49,10 @@ impl SovereignRail for WormholeRail {
             .map_err(|e| ConclaveError::NetworkError(format!("Gateway request failed: {}", e)))?;
 
         if !response.status().is_success() {
-            return Err(ConclaveError::NetworkError(format!("Gateway returned error: {}", response.status())));
+            return Err(ConclaveError::NetworkError(format!(
+                "Gateway returned error: {}",
+                response.status()
+            )));
         }
 
         let swap_resp = response

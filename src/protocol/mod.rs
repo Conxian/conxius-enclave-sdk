@@ -1,6 +1,8 @@
 pub mod a2p;
 pub mod asset;
+pub mod asset_tests;
 pub mod bitcoin;
+pub mod bitcoin_tests;
 pub mod business;
 pub mod dlc;
 pub mod fiat;
@@ -14,5 +16,3 @@ pub mod settlement_service;
 pub mod sidl;
 pub mod stacks;
 pub mod zkml;
-pub mod asset_tests;
-pub mod bitcoin_tests;

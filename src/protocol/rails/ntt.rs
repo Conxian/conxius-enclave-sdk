@@ -17,7 +17,9 @@ impl SovereignRail for NTTRail {
     fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {
         // NTT same-asset transfers validation
         if request.from_asset.symbol != request.to_asset.symbol {
-            return Err(ConclaveError::RailError("NTT rail only supports same-asset transfers".to_string()));
+            return Err(ConclaveError::RailError(
+                "NTT rail only supports same-asset transfers".to_string(),
+            ));
         }
         Ok(Some("NTT_WORMHOLE_V1".to_string()))
     }
@@ -43,7 +45,10 @@ impl SovereignRail for NTTRail {
             .map_err(|e| ConclaveError::NetworkError(format!("Gateway request failed: {}", e)))?;
 
         if !response.status().is_success() {
-            return Err(ConclaveError::NetworkError(format!("Gateway returned error: {}", response.status())));
+            return Err(ConclaveError::NetworkError(format!(
+                "Gateway returned error: {}",
+                response.status()
+            )));
         }
 
         let swap_resp = response

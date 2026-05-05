@@ -144,7 +144,7 @@ mod tests {
 
         contract = mgr
             .accept_contract(contract, "remote_pubkey_hex".to_string())
-            .map_err(|e| crate::ConclaveError::EnclaveFailure(e))?;
+            .map_err(crate::ConclaveError::EnclaveFailure)?;
         assert_eq!(contract.state, DlcState::Accepted);
         assert_eq!(
             contract.remote_pubkey,
@@ -152,7 +152,7 @@ mod tests {
         );
 
         mgr.transition_state(&mut contract, DlcState::Signed)
-            .map_err(|e| crate::ConclaveError::EnclaveFailure(e))?;
+            .map_err(crate::ConclaveError::EnclaveFailure)?;
         assert_eq!(contract.state, DlcState::Signed);
 
         Ok(())

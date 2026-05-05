@@ -192,9 +192,11 @@ impl RailProxy {
             return Ok(());
         }
 
-        let json = attestation_json
-            .as_ref()
-            .ok_or_else(|| ConclaveError::EnclaveFailure("Hardware attestation report missing for high-value rail operation".to_string()))?;
+        let json = attestation_json.as_ref().ok_or_else(|| {
+            ConclaveError::EnclaveFailure(
+                "Hardware attestation report missing for high-value rail operation".to_string(),
+            )
+        })?;
         let report: DeviceIntegrityReport =
             serde_json::from_str(json).map_err(|_| ConclaveError::InvalidPayload)?;
 
@@ -207,7 +209,7 @@ impl RailProxy {
             let profile = self
                 .business_registry
                 .get_business(&attribution.business_id)
-                .ok_or_else(|| ConclaveError::InvalidPayload)?;
+                .ok_or(ConclaveError::InvalidPayload)?;
 
             if !profile.active {
                 return Err(ConclaveError::InvalidPayload);
@@ -218,9 +220,12 @@ impl RailProxy {
             }
 
             // Cryptographic verification of attribution signature
-            attribution
-                .verify(&profile.public_key)
-                .map_err(|e| ConclaveError::CryptoError(format!("Business attribution verification failed: {}", e)))?;
+            attribution.verify(&profile.public_key).map_err(|e| {
+                ConclaveError::CryptoError(format!(
+                    "Business attribution verification failed: {}",
+                    e
+                ))
+            })?;
         }
 
         Ok(())
@@ -233,7 +238,7 @@ impl SovereignHandshake for RailProxy {
         let rail = self
             .rails
             .get(rail_name)
-            .ok_or_else(|| ConclaveError::InvalidPayload)?;
+            .ok_or(ConclaveError::InvalidPayload)?;
 
         if request.amount == 0 {
             return Err(ConclaveError::InvalidPayload);
@@ -246,7 +251,9 @@ impl SovereignHandshake for RailProxy {
             return Err(ConclaveError::InvalidPayload);
         }
 
-        let chain_context = rail.validate_request(&request).map_err(|e| ConclaveError::RailError(e.to_string()))?;
+        let chain_context = rail
+            .validate_request(&request)
+            .map_err(|e| ConclaveError::RailError(e.to_string()))?;
 
         let mut hasher = Sha256::new();
         hasher.update(rail_name.as_bytes());
@@ -278,10 +285,12 @@ impl SovereignHandshake for RailProxy {
         let rail = self
             .rails
             .get(&intent.rail_type)
-            .ok_or_else(|| ConclaveError::InvalidPayload)?;
+            .ok_or(ConclaveError::InvalidPayload)?;
 
         if signature.is_empty() {
-            return Err(ConclaveError::CryptoError("Sovereign signature required for broadcast".to_string()));
+            return Err(ConclaveError::CryptoError(
+                "Sovereign signature required for broadcast".to_string(),
+            ));
         }
 
         self.verify_hardware_integrity(&intent, &attestation)?;
@@ -399,7 +408,10 @@ mod rail_proxy_tests {
     async fn test_rail_proxy_with_telemetry() {
         let registry = Arc::new(AssetRegistry::new());
         let business = Arc::new(BusinessRegistry::new());
-        let telemetry = Arc::new(TelemetryClient::new("http://localhost".to_string(), "test_key".to_string()));
+        let telemetry = Arc::new(TelemetryClient::new(
+            "http://localhost".to_string(),
+            "test_key".to_string(),
+        ));
 
         let mut proxy = RailProxy::new(
             "https://api.conxian.io".to_string(),

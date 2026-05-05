@@ -26,7 +26,9 @@ impl SovereignRail for BoltzRail {
         if request.from_asset.chain != Chain::LIGHTNING
             && request.to_asset.chain != Chain::LIGHTNING
         {
-            return Err(ConclaveError::RailError("Boltz rail requires Lightning as one of the swap legs".to_string()));
+            return Err(ConclaveError::RailError(
+                "Boltz rail requires Lightning as one of the swap legs".to_string(),
+            ));
         }
 
         Ok(Some(format!(
@@ -52,7 +54,10 @@ impl SovereignRail for BoltzRail {
             .map_err(|e| ConclaveError::NetworkError(format!("Gateway request failed: {}", e)))?;
 
         if !response.status().is_success() {
-            return Err(ConclaveError::NetworkError(format!("Gateway returned error: {}", response.status())));
+            return Err(ConclaveError::NetworkError(format!(
+                "Gateway returned error: {}",
+                response.status()
+            )));
         }
 
         let swap_resp = response

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::protocol::asset::{AssetRegistry, AssetIdentifier, Chain};
+    use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 
     #[test]
     fn test_rsk_bob_registration() {

@@ -23,7 +23,9 @@ impl SovereignRail for ChangellyRail {
     fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {
         // Changelly specific validation
         if request.amount < 100 {
-            return Err(ConclaveError::RailError("Amount below Changelly minimum".to_string()));
+            return Err(ConclaveError::RailError(
+                "Amount below Changelly minimum".to_string(),
+            ));
         }
         Ok(None)
     }
@@ -45,7 +47,10 @@ impl SovereignRail for ChangellyRail {
             .map_err(|e| ConclaveError::NetworkError(format!("Gateway request failed: {}", e)))?;
 
         if !response.status().is_success() {
-            return Err(ConclaveError::NetworkError(format!("Gateway returned error: {}", response.status())));
+            return Err(ConclaveError::NetworkError(format!(
+                "Gateway returned error: {}",
+                response.status()
+            )));
         }
 
         let swap_resp = response
