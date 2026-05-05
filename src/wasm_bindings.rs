@@ -14,6 +14,7 @@ use crate::protocol::mmr::MmrService;
 use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapIntent};
 use crate::protocol::sidl::{SidlCartMandate, SidlService, SidlVote};
 use crate::protocol::zkml::{ZkmlProofRequest, ZkmlService};
+use crate::telemetry::TelemetryClient;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
@@ -36,6 +37,7 @@ pub struct ConclaveWasmClient {
     sidl: Arc<SidlService>,
     identity: Arc<IdentityManager>,
     dlc: Arc<DlcManager>,
+    telemetry: Option<Arc<TelemetryClient>>,
     #[allow(dead_code)]
     http_client: reqwest::Client,
 }
@@ -43,7 +45,12 @@ pub struct ConclaveWasmClient {
 #[wasm_bindgen]
 impl ConclaveWasmClient {
     #[wasm_bindgen(constructor)]
-    pub fn new(gateway_url: &str, kms_endpoint: Option<String>) -> Result<Self, JsValue> {
+    pub fn new(
+        gateway_url: &str,
+        kms_endpoint: Option<String>,
+        nexus_url: Option<String>,
+        api_key: Option<String>,
+    ) -> Result<Self, JsValue> {
         let http_client = reqwest::Client::new();
         let assets = Arc::new(AssetRegistry::new());
         let businesses = Arc::new(BusinessRegistry::new());
@@ -63,12 +70,28 @@ impl ConclaveWasmClient {
             .map_err(to_js_error)?,
         );
 
-        let rails = Arc::new(RailProxy::new(
+        let telemetry = if let (Some(url), Some(key)) = (nexus_url, api_key.clone()) {
+            Some(Arc::new(TelemetryClient::new(url, key)))
+        } else {
+            None
+        };
+
+        let mut rails_obj = RailProxy::new(
             gateway_url.to_string(),
             http_client.clone(),
             assets.clone(),
             businesses.clone(),
-        ));
+        );
+
+        if let Some(tel) = &telemetry {
+            rails_obj = rails_obj.with_telemetry(tel.clone());
+        }
+
+        if let Some(key) = api_key {
+            rails_obj = rails_obj.with_api_key(key);
+        }
+
+        let rails = Arc::new(rails_obj);
 
         let fiat = Arc::new(FiatRouterService::new(
             gateway_url.to_string(),
@@ -91,7 +114,7 @@ impl ConclaveWasmClient {
             http_client.clone(),
         ));
         let identity = Arc::new(IdentityManager::new(enclave.clone()));
-        let dlc = Arc::new(DlcManager::new());
+        let dlc = Arc::new(DlcManager::with_enclave(enclave.clone()));
 
         Ok(Self {
             enclave,
@@ -105,6 +128,7 @@ impl ConclaveWasmClient {
             sidl,
             identity,
             dlc,
+            telemetry,
             http_client,
         })
     }
@@ -148,6 +172,8 @@ impl ConclaveWasmClient {
             "ARBITRUM" => Chain::ARBITRUM,
             "BASE" => Chain::BASE,
             "LIGHTNING" => Chain::LIGHTNING,
+            "ROOTSTOCK" => Chain::ROOTSTOCK,
+            "BOB" => Chain::BOB,
             _ => Chain::BITCOIN,
         };
 
