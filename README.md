@@ -5,11 +5,11 @@
 [![CI Status](https://github.com/Conxian/lib-conclave-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/Conxian/lib-conclave-sdk/actions/workflows/ci.yml)
 [![v1.9.2 Aligned](https://img.shields.io/badge/Mainnet--Readiness-v1.9.2--Aligned-green.svg)](docs/SYSTEM_ALIGNMENT.md)
 
-The canonical hardware security interface for the Conxian ecosystem.
+**Conxian builds native application infrastructure for Bitcoin.**
 
 ## Purpose
 
-The **Conclave SDK** provides a high-integrity integration surface for hardware-backed security. It abstracts complex hardware enclave operations (Android StrongBox, Apple Secure Enclave, Cloud TEE) into a unified API for key management, attestation, and cross-chain signing.
+The **Conclave SDK** is the core infrastructure for building native, hardware-secure applications on Bitcoin. It provides a high-integrity interface for hardware-backed signing, policy enforcement, and transaction coordination, binding cryptographic trust anchors directly to existing Bitcoin layers (L1, Lightning, Taproot).
 
 ## Status & Categorization
 
@@ -21,7 +21,7 @@ The **Conclave SDK** provides a high-integrity integration surface for hardware-
 
 - **Hardware-Backed Security**: Standardized interface for key generation and signing within secure hardware.
 - **Hardware Attestation**: Cryptographic proof of device integrity, required for high-value rail operations.
-- **Sovereign Handshake**: Non-custodial signing protocol ensuring **Zero Secret Egress** for all cross-chain swaps.
+- **Sovereign Handshake**: Native coordination protocol ensuring **Zero Secret Egress** for all cross-chain swaps.
 - **Business Management**: Hardware-backed identity and cryptographic attribution for partners.
 - **Asset Registry**: Centralized metadata and validation for cross-chain assets (BTC, ETH, STX, etc.).
 - **Multi-Chain Support**: Native support for ECDSA (EVM, Bitcoin, Stacks) and Schnorr (Taproot, RGB, BitVM).

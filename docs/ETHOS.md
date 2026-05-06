@@ -1,8 +1,11 @@
 # Conxian Ethos & Security Alignment
+
+**Conxian builds native application infrastructure for Bitcoin.**
+
 ## Core Principles
-1. **Zero Secret Egress**: Private keys never leave the hardware enclave (StrongBox/TEE).
-2. **Sovereign Handshake**: Non-custodial signing workflow where the Gateway pushes requests to the mobile Enclave.
-3. **Hardware Attestation**: Cryptographic proof of device integrity before high-value operations.
+1. **Zero Secret Egress**: Private keys never leave the hardware enclave (StrongBox/TEE). Key generation and signing are strictly internal to the hardware security module.
+2. **Sovereign Handshake**: A native, non-custodial coordination protocol where transaction intents are verified and signed within the hardware enclave before broadcast.
+3. **Hardware Attestation**: Mandatory cryptographic proof of device integrity. High-value operations on Bitcoin rails require a verified hardware report.
 
 ## Status & Gaps
 - [x] SDK Hardware Abstraction (Headless/Android)
