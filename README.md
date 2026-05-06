@@ -38,6 +38,14 @@ As part of the Unified Vault SDK Pivot, the Conclave SDK is the **primary sellab
 > [!WARNING]
 > **Simulation Notice**: The default enclave drivers (`CoreEnclaveManager` and `CloudEnclave`) in this repository are software-based simulations. They report `AttestationLevel::Software` and are intended for development only. Production use requires hardware-bound drivers.
 
+## Architecture
+
+The SDK is organized into three main layers:
+
+1. **Enclave Layer** (`src/enclave`): Hardware abstractions (`EnclaveManager`).
+2. **Protocol Layer** (`src/protocol`): Multi-chain logic, Business Management, and Sovereign Rails.
+3. **Binding Layer** (`src/wasm_bindings.rs`): High-level JavaScript/TypeScript interfaces.
+
 ## Usage (WASM)
 
 ```typescript
