@@ -15,6 +15,12 @@ pub trait SettlementService: Send + Sync {
         recipient: String,
         current_height: u64,
     ) -> ConclaveResult<SettlementProposal>;
+
+    async fn verify_reconciliation(
+        &self,
+        proposal: &SettlementProposal,
+        trigger: &SettlementTrigger,
+    ) -> ConclaveResult<bool>;
 }
 
 pub struct ConclaveSettlementService {
@@ -66,6 +72,31 @@ impl SettlementService for ConclaveSettlementService {
 
         Ok(proposal)
     }
+
+    /// Verifies reconciliation between the on-chain proposal and the external trigger.
+    /// This is a critical requirement for Wave 2 (Enterprise Lane) pilots.
+    async fn verify_reconciliation(
+        &self,
+        proposal: &SettlementProposal,
+        trigger: &SettlementTrigger,
+    ) -> ConclaveResult<bool> {
+        // In a production environment, this would query the MMR state to verify
+        // the inclusion of the trigger hash and cross-reference it with the proposal ID.
+
+        if proposal.trigger_id != trigger.trigger_id {
+            return Ok(false);
+        }
+
+        // Structural check for ISO 20022 pacs.008 payloads
+        if trigger.source == crate::protocol::settlement::TriggerSource::Iso20022 {
+            let payload = String::from_utf8_lossy(&trigger.raw_payload_bytes);
+            if !payload.contains("pacs.008.001.08") {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
 }
 
 #[cfg(test)]
@@ -97,5 +128,34 @@ mod tests {
         assert_eq!(proposal.asset.chain, Chain::STACKS);
         assert_eq!(proposal.timelock_height, 120000 + 144);
         assert_eq!(proposal.amount, 500000000);
+    }
+
+    #[tokio::test]
+    async fn test_verify_reconciliation() {
+        let registry = Arc::new(AssetRegistry::new());
+        let svc = ConclaveSettlementService::new(registry);
+
+        let payload = b"<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
+        let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
+
+        let proposal = svc
+            .process_external_trigger(
+                trigger.clone(),
+                "BITCOIN",
+                "BTC",
+                1000000,
+                "bc1q...".to_string(),
+                840000,
+            )
+            .await
+            .unwrap();
+
+        let reconciled = svc.verify_reconciliation(&proposal, &trigger).await.unwrap();
+        assert!(reconciled);
+
+        // Tamper with trigger
+        let bad_trigger = SettlementTrigger::new(TriggerSource::Iso20022, b"tampered".to_vec());
+        let reconciled = svc.verify_reconciliation(&proposal, &bad_trigger).await.unwrap();
+        assert!(!reconciled);
     }
 }
