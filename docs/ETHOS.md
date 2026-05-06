@@ -7,6 +7,13 @@
 2. **Sovereign Handshake**: A native, non-custodial coordination protocol where transaction intents are verified and signed within the hardware enclave before broadcast.
 3. **Hardware Attestation**: Mandatory cryptographic proof of device integrity. High-value operations on Bitcoin rails require a verified hardware report.
 
+## Strategic Alignment
+As of May 2026, Conxian has pivoted to an **SDK-first GTM strategy**.
+
+- **Primary Goal**: Empower developers to build secure, native Bitcoin applications using the Conclave SDK.
+- **Reference Application**: The `conxius-wallet` is demoted to a reference client for developer validation.
+- **Infrastructure Supporting**: The `conxian-gateway` and related protocol work are repositioned as secondary supporting infrastructure for the SDK.
+
 ## Status & Gaps
 - [x] SDK Hardware Abstraction (Headless/Android)
 - [x] Stacks CLP Security & Math Fixes (CON-15)
