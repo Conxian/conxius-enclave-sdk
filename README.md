@@ -4,8 +4,12 @@
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
 [![CI Status](https://github.com/Conxian/lib-conclave-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/Conxian/lib-conclave-sdk/actions/workflows/ci.yml)
 [![v1.9.2 Aligned](https://img.shields.io/badge/Mainnet--Readiness-v1.9.2--Aligned-green.svg)](docs/SYSTEM_ALIGNMENT.md)
+[![SDK Version](https://img.shields.io/badge/SDK--Version-v0.2.0-blue.svg)](CHANGELOG.md)
 
 **Conxian builds native application infrastructure for Bitcoin.**
+
+> [!NOTE]
+> **Versioning & Alignment**: This SDK follows [Semantic Versioning](https://semver.org/). The "v1.9.2 Aligned" status refers to its compatibility with the broader Conxian protocol and mainnet readiness standards. Current SDK version is **0.2.0**.
 
 ## Purpose
 
@@ -46,13 +50,61 @@ The SDK is organized into three main layers:
 2. **Protocol Layer** (`src/protocol`): Multi-chain logic, Business Management, and Sovereign Rails.
 3. **Binding Layer** (`src/wasm_bindings.rs`): High-level JavaScript/TypeScript interfaces.
 
-## Usage (WASM)
+## Usage
+
+### WebAssembly (WASM)
+
+For browser and mobile environments:
 
 ```typescript
 import { ConclaveWasmClient } from 'lib-conclave-sdk';
 
-const client = new ConclaveWasmClient();
-// ... configuration and usage ...
+const client = new ConclaveWasmClient(
+  "https://gateway.conxian.io", // gateway_url
+  "https://vault.conxian.io",   // kms_endpoint (optional)
+  "https://nexus.conxian.io",   // nexus_url (optional)
+  "your-api-key"                // api_key (optional)
+);
+
+// Unlock the enclave before use
+await client.unlock_enclave("user-secret", "user-salt-hex");
+
+// Create a personal identity
+const identity = await client.create_personal_identity();
+console.log('Identity created:', identity.id);
+```
+
+### Rust
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+lib-conclave-sdk = { git = "https://github.com/Conxian/lib-conclave-sdk.git", branch = "master" }
+tokio = { version = "1.0", features = ["full"] }
+```
+
+Basic usage:
+
+```rust
+use lib_conclave_sdk::enclave::cloud::CloudEnclave;
+use lib_conclave_sdk::protocol::identity::IdentityManager;
+use std::sync::Arc;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize Cloud Enclave
+    let enclave = CloudEnclave::new("https://vault.conxian.io".to_string())?;
+
+    // Initialize Identity Manager
+    let identity_mgr = IdentityManager::new(Arc::new(enclave));
+
+    // Create a new hardware-backed identity
+    let profile = identity_mgr.create_identity()?;
+    println!("Created identity: {}", profile.id);
+
+    Ok(())
+}
 ```
 
 ## Development
@@ -74,7 +126,9 @@ wasm-pack build
 
 - **Ownership**: Managed by [Conxian-Labs](https://github.com/Conxian).
 - **Guidelines**: See [GOVERNANCE.md](GOVERNANCE.md) for architectural boundaries and release discipline.
-- **Security**: Report vulnerabilities to `security@conxian.com`.
+- **Support**: For bugs and feature requests, see [SUPPORT.md](SUPPORT.md).
+- **Contributing**: We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our bounty workflow.
+- **Security**: Report vulnerabilities to `security@conxian.com` as per our [Security Policy](SECURITY.md).
 
 ## License
 
