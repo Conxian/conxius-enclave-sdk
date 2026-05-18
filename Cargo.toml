@@ -21,7 +21,7 @@ js-sys = "0.3.98"
 k256 = "0.14.0-rc.9"
 musig2 = "0.3.1"
 pbkdf2 = "0.13.0"
-quick-xml = "0.39.4"
+quick-xml = "0.40.1"
 rand = "0.10.0"
 rand_core = "0.10.0"
 reqwest = { version = "0.13.3", default-features = false, features = ["json", "rustls"] }
