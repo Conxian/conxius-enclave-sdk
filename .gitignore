@@ -9,6 +9,8 @@ wasm-pack.log
 .wasm-pack-lock
 
 # Tooling & Agents
+notes.md
+pre_commit_*.json
 .claude/
 .cursor/
 .github/skills/

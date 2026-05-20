@@ -6,12 +6,30 @@ This document defines the business role, ownership, and operational standards fo
 
 The Conclave SDK (`lib-conclave-sdk`) is the **canonical high-integrity integration surface** for hardware-backed operations in the Conxian ecosystem.
 
-### Architectural Boundaries
-To maintain a clear separation of concerns:
-- **`lib-conclave-sdk` (This Repo)**: Dedicated to secure enclave abstractions, hardware attestation integration, and cryptographic signing orchestration. It is the "Enforcer" of Zero Secret Egress.
-- **`lib-conxian-core`**: Dedicated to shared protocol primitives, data schemas, and non-enclave-specific logic.
+### Architectural Boundaries & Ownership
+To maintain a clear separation of concerns and ensure narrative clarity:
 
-Its primary role is to provide a unified, secure interface for:
+#### This repository owns:
+- Enclave-backed signing abstractions.
+- Secure execution and hardware trust integrations.
+- Signer policy enforcement where tied to secure execution.
+- Device trust and attestation support where relevant.
+
+#### This repository does not own:
+- Network adapters (handled by Gateway or Supporting Infrastructure).
+- Application orchestration logic.
+- Wallet UX or UI state.
+- General platform runtime concerns.
+
+#### The Boundary Rule
+If the concern is about secure signing, device trust, or controlled key use, it belongs here. If it is about layer-specific broadcast, observation, or application behavior, it belongs elsewhere.
+
+#### Strategic Alignment
+- **`lib-conclave-sdk` (This Repo)**: The primary strategic "sellable primitive." Dedicated to secure enclave abstractions, hardware attestation integration, and cryptographic signing orchestration. It is the "Enforcer" of Zero Secret Egress.
+- **`lib-conxian-core`**: Supporting infrastructure for shared protocol primitives, data schemas (ISO 20022), and core business registries.
+
+### Primary Functions
+The SDK provides a unified, secure interface for:
 
 - **Institutional Key Custody**: Hardware-backed key management and signing.
 - **Sovereign Interoperability**: Orchestration of non-custodial cross-chain swaps via the Sovereign Handshake.
