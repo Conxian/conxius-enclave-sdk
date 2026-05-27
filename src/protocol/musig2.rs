@@ -26,15 +26,24 @@ impl MuSig2Session {
         Ok(Self { key_agg_ctx })
     }
 
-    pub fn generate_nonce(&self, _secret_key: &SecretKey) -> (SecNonce, PubNonce) {
+    pub fn generate_nonce(&self, secret_key: &SecretKey) -> ConclaveResult<(SecNonce, PubNonce)> {
         let mut rng = rand::rng();
         // Use random bytes to build a nonce seed
         let mut seed = [0u8; 32];
         rng.fill_bytes(&mut seed);
 
-        let sec_nonce = SecNonce::build(seed).build();
+        let sk = musig2::secp256k1::SecretKey::from_byte_array(secret_key.to_secret_bytes())
+            .map_err(|e| ConclaveError::CryptoError(format!("Invalid secret key for MuSig2: {e:?}")))?;
+
+        let sec_nonce = SecNonce::generate(
+            seed,
+            sk,
+            self.key_agg_ctx.aggregated_pubkey::<musig2::secp256k1::PublicKey>(),
+            [],
+            [],
+        );
         let pub_nonce = sec_nonce.public_nonce();
-        (sec_nonce, pub_nonce)
+        Ok((sec_nonce, pub_nonce))
     }
 
     pub fn partial_sign(
