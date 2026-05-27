@@ -128,7 +128,7 @@ impl ConclaveWasmClient {
         let dlc = Arc::new(DlcManager::with_enclave(enclave.clone()));
 
         Ok(Self {
-            config,
+
             config,
             enclave,
             assets,
