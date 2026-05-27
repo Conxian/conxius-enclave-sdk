@@ -15,4 +15,7 @@ pub mod settlement;
 pub mod settlement_service;
 pub mod sidl;
 pub mod stacks;
+pub mod economy;
+pub mod opportunity;
+pub mod economy_tests;
 pub mod zkml;

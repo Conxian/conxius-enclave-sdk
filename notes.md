@@ -14,3 +14,10 @@ Standardize repository hygiene, align company positioning with the "Unified Vaul
 - `cargo test` passed with 33 tests.
 - Verified functional inclusion proof generation for MMR.
 - Manual verification of attestation serialization in SignResponse.
+
+## Omni-SDK & Economic Architecture (CONX-101, CONX-102, CONX-103, CONX-104)
+- **Omni-SDK Foundation**: Implemented a unified configuration layer in `src/config.rs` supporting Mainnet/Testnet/Devnet and Dual Release Tracks (LTS/Bleeding Edge).
+- **Viral Economy Layer**: Added `src/protocol/economy.rs` with native support for sBTC 'Dual Stacking' and 'sBTC as Gas' fee sponsorship.
+- **BOS Kernel Integration**: Implemented `src/protocol/opportunity.rs` to route business opportunities to SDK execution paths.
+- **CI/CD Governance**: Configured GitHub Actions for track management with a 30-day upstream buffer enforcement.
+- **Validation**: Verified with 2 new unit tests in `src/protocol/economy_tests.rs`. Total test count: 37/37 passing.
