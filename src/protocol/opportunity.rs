@@ -1,7 +1,7 @@
-use serde::{Serialize, Deserialize};
 use crate::ConclaveResult;
-use crate::protocol::economy::{DualStackIntent, YieldEngine};
 use crate::enclave::EnclaveManager;
+use crate::protocol::economy::{DualStackIntent, YieldEngine};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -29,7 +29,11 @@ impl<'a> OpportunityDispatcher<'a> {
 
     pub async fn execute(&self, payload: OpportunityPayload) -> ConclaveResult<String> {
         match payload {
-            OpportunityPayload::DualStack { amount_sbtc, amount_stx, lock_period } => {
+            OpportunityPayload::DualStack {
+                amount_sbtc,
+                amount_stx,
+                lock_period,
+            } => {
                 let engine = YieldEngine::new(self.enclave);
                 let (sig, _) = engine.dual_stack(DualStackIntent {
                     amount_sbtc,
@@ -37,10 +41,8 @@ impl<'a> OpportunityDispatcher<'a> {
                     lock_period,
                 })?;
                 Ok(sig)
-            },
-            OpportunityPayload::Swap { .. } => {
-                Ok("swap_executed_mock_sig".to_string())
             }
+            OpportunityPayload::Swap { .. } => Ok("swap_executed_mock_sig".to_string()),
         }
     }
 }

@@ -32,7 +32,14 @@ impl MuSig2Session {
         let mut seed = [0u8; 32];
         rng.fill_bytes(&mut seed);
 
-        let sec_nonce = SecNonce::generate(seed, musig2::secp256k1::SecretKey::from_byte_array(_secret_key.to_secret_bytes()).unwrap(), self.key_agg_ctx.aggregated_pubkey::<musig2::secp256k1::PublicKey>(), [0u8; 32], [0u8; 0]);
+        let sec_nonce = SecNonce::generate(
+            seed,
+            musig2::secp256k1::SecretKey::from_byte_array(_secret_key.to_secret_bytes()).unwrap(),
+            self.key_agg_ctx
+                .aggregated_pubkey::<musig2::secp256k1::PublicKey>(),
+            [0u8; 32],
+            [0u8; 0],
+        );
         let pub_nonce = sec_nonce.public_nonce();
         (sec_nonce, pub_nonce)
     }

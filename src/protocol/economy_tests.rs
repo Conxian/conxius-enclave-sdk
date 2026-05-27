@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::protocol::economy::{YieldEngine, DualStackIntent};
     use crate::enclave::cloud::CloudEnclave;
+    use crate::protocol::economy::{DualStackIntent, YieldEngine};
 
     #[test]
     fn test_dual_stack_generation() {
@@ -32,5 +32,4 @@ mod tests {
         let sig = engine.prepare_gas_sponsored_tx(intent).unwrap();
         assert!(!sig.is_empty());
     }
-
 }

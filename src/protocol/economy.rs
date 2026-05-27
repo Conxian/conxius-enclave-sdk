@@ -1,7 +1,7 @@
 use crate::ConclaveResult;
 use crate::enclave::EnclaveManager;
 use crate::protocol::stacks::StacksManager;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DualStackIntent {
@@ -33,7 +33,10 @@ impl<'a> YieldEngine<'a> {
     }
 
     /// Abstract sBTC 'Dual Stacking' into a 1-click SDK method.
-    pub fn dual_stack(&self, intent: DualStackIntent) -> ConclaveResult<(String, Vec<StacksPostCondition>)> {
+    pub fn dual_stack(
+        &self,
+        intent: DualStackIntent,
+    ) -> ConclaveResult<(String, Vec<StacksPostCondition>)> {
         let post_conditions = vec![
             StacksPostCondition {
                 asset_name: "sBTC".to_string(),
@@ -47,10 +50,15 @@ impl<'a> YieldEngine<'a> {
             },
         ];
 
-        let payload = format!("(dual-stack {} {} {})", intent.amount_sbtc, intent.amount_stx, intent.lock_period);
+        let payload = format!(
+            "(dual-stack {} {} {})",
+            intent.amount_sbtc, intent.amount_stx, intent.lock_period
+        );
 
         let stacks_mgr = StacksManager::new(self.enclave);
-        let tx_intent = stacks_mgr.prepare_transaction(payload.as_bytes()).map_err(|_e| crate::ConclaveError::InvalidPayload)?;
+        let tx_intent = stacks_mgr
+            .prepare_transaction(payload.as_bytes())
+            .map_err(|_e| crate::ConclaveError::InvalidPayload)?;
         let signature = stacks_mgr.sign_prepared_transaction(tx_intent, "default-key")?;
 
         Ok((signature, post_conditions))
@@ -62,7 +70,9 @@ impl<'a> YieldEngine<'a> {
         payload.extend_from_slice(&intent.estimated_fee_sbtc.to_le_bytes());
 
         let stacks_mgr = StacksManager::new(self.enclave);
-        let tx_intent = stacks_mgr.prepare_transaction(&payload).map_err(|_e| crate::ConclaveError::InvalidPayload)?;
+        let tx_intent = stacks_mgr
+            .prepare_transaction(&payload)
+            .map_err(|_e| crate::ConclaveError::InvalidPayload)?;
         let signature = stacks_mgr.sign_prepared_transaction(tx_intent, "default-key")?;
 
         Ok(signature)
