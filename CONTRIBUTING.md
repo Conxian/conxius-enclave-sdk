@@ -1,44 +1,42 @@
-# Contributing to lib-conclave-sdk
+# Contributing to conxius-enclave-sdk
 
-## Getting Started
+This repository adopts Conxian Labs' parent governance defaults from `Conxian/.github` for policy, templates, and control workflows.
 
-1. Ensure you have **Rust 1.94+** installed (Edition 2024).
-2. For WebAssembly (WASM) development, install [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/).
-3. Clone the repository.
-4. Run `cargo test` to ensure the baseline is stable.
+## Protocol for Contributions
 
-## Development Workflow
+We use [GitHub Flow](https://guides.github.com/introduction/flow/index.html). All changes must occur through Pull Requests (PRs).
 
-### Building the SDK
-To build the core Rust SDK:
-```bash
-cargo build
-```
+### 1. Preparation
+- Create your branch from the repository default branch.
+- Ensure your proposed change is aligned with repository architecture and security posture.
 
-### Running Tests
-Run `cargo test` to execute the unit test suite:
-```bash
-cargo test
-```
+### 2. Implementation
+- Keep diffs precise and scoped.
+- Update relevant docs/policies when controls or behavior change.
+- Run the repo's relevant local checks before requesting review.
 
-### WASM Bindings
-To build the WASM package for web environments:
-```bash
-wasm-pack build
-```
+### 3. Submission
+- Link a tracking issue (for example, `CON-727`) in your PR.
+- Complete the PR security/governance checklist in `.github/PULL_REQUEST_TEMPLATE.md`.
+- If sensitive files changed, obtain required CODEOWNERS review before merge.
+- By contributing, you agree your work is licensed under this repository's [MIT License](LICENSE).
 
-## Bounty Workflow
+## Sensitive File Changes
 
-We use a community-driven bounty model for many features and bug fixes.
+Changes to the following files require CODEOWNERS review and adherence to the PR security checklist:
 
-1. Find an issue in Linear or GitHub labeled as a "Bounty".
-2. Claim the issue by using the [Bounty Claim template](.github/ISSUE_TEMPLATE/bounty_claim.md) or requesting assignment.
-3. Follow the "Zero Secret Egress" and "Hardware Attestation" principles in your implementation.
-4. Submit a Pull Request using the [PR Template](.github/PULL_REQUEST_TEMPLATE.md), ensuring all security checklists are completed.
+- `CODEOWNERS`
+- `SECURITY.md`
+- `SUPPORT.md`
+- `.github/ISSUE_TEMPLATE/**`
+- `.github/PULL_REQUEST_TEMPLATE*`
+- `.github/workflows/**`
+- `.github/release.yml`
 
-## Coding Standards
+## Support and Security Routing
 
-- **No Panics**: Avoid `unwrap()`, `expect()`, or `panic!()` in non-test code. Return a `ConclaveError` instead.
-- **Constant Time**: Use the `subtle` crate for sensitive comparisons.
-- **Zeroization**: Ensure sensitive material is zeroized after use using the `zeroize` crate.
-- **Async Traits**: Prefer plain traits and synchronous methods where possible. Use `#[async_trait]` only when you need async methods in trait interfaces on stable Rust and accept the extra overhead it can introduce.
+Use the GitHub issue tracker in this repository for public discussions.
+
+For support routing, refer to [SUPPORT.md](SUPPORT.md).
+
+For security vulnerabilities, refer to [SECURITY.md](SECURITY.md).
