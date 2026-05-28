@@ -28,7 +28,6 @@ impl MuSig2Session {
 
     pub fn generate_nonce(&self, secret_key: &SecretKey) -> ConclaveResult<(SecNonce, PubNonce)> {
         let mut rng = rand::rng();
-        // Use random bytes to build a nonce seed
         let mut seed = [0u8; 32];
         rng.fill_bytes(&mut seed);
 
@@ -39,8 +38,8 @@ impl MuSig2Session {
             seed,
             sk,
             self.key_agg_ctx.aggregated_pubkey::<musig2::secp256k1::PublicKey>(),
-            [],
-            [],
+            [0u8; 32],
+            [0u8; 0],
         );
         let pub_nonce = sec_nonce.public_nonce();
         Ok((sec_nonce, pub_nonce))

@@ -1,4 +1,8 @@
+use crate::config::{Network, ReleaseTrack, SdkConfig};
 use crate::enclave::EnclaveManager;
+use crate::protocol::economy::{DualStackIntent, GasFeeIntent, YieldEngine};
+use crate::protocol::opportunity::{OpportunityDispatcher, OpportunityPayload};
+
 #[cfg(target_arch = "wasm32")]
 use crate::enclave::android_strongbox::CoreEnclaveManager as AndroidStrongBox;
 use crate::enclave::cloud::CloudEnclave;
@@ -7,10 +11,12 @@ use crate::protocol::asset::{AssetIdentifier, AssetMetadata, AssetRegistry, Chai
 use crate::protocol::bitcoin::TaprootManager;
 use crate::protocol::business::{BusinessManager, BusinessProfile, BusinessRegistry};
 use crate::protocol::dlc::DlcManager;
+use crate::protocol::economy::{DualStackIntent, YieldEngine};
 use crate::protocol::fiat::{FiatRouterService, FiatSessionIntent};
 use crate::protocol::identity::{IdentityManager, IdentityProfile};
 use crate::protocol::job_card::Iso20022Wrapper;
 use crate::protocol::mmr::MmrService;
+use crate::protocol::opportunity::{OpportunityDispatcher, OpportunityPayload};
 use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapIntent};
 use crate::protocol::sidl::{SidlCartMandate, SidlService, SidlVote};
 use crate::protocol::zkml::{ZkmlProofRequest, ZkmlService};
@@ -26,6 +32,7 @@ fn to_js_error<E: Display>(e: E) -> JsValue {
 
 #[wasm_bindgen]
 pub struct ConclaveWasmClient {
+    config: SdkConfig,
     enclave: Arc<dyn EnclaveManager>,
     assets: Arc<AssetRegistry>,
     businesses: Arc<BusinessRegistry>,
@@ -46,11 +53,15 @@ pub struct ConclaveWasmClient {
 impl ConclaveWasmClient {
     #[wasm_bindgen(constructor)]
     pub fn new(
-        gateway_url: &str,
+        config_js: JsValue,
         kms_endpoint: Option<String>,
         nexus_url: Option<String>,
-        api_key: Option<String>,
     ) -> Result<Self, JsValue> {
+        let config: SdkConfig = serde_wasm_bindgen::from_value(config_js)
+            .map_err(|_| JsValue::from_str("Invalid config format"))?;
+
+        let gateway_url = &config.gateway_url;
+        let api_key = &config.api_key;
         let http_client = reqwest::Client::new();
         let assets = Arc::new(AssetRegistry::new());
         let businesses = Arc::new(BusinessRegistry::new());
@@ -87,7 +98,7 @@ impl ConclaveWasmClient {
             rails_obj = rails_obj.with_telemetry(tel.clone());
         }
 
-        if let Some(key) = api_key {
+        if let Some(key) = api_key.clone() {
             rails_obj = rails_obj.with_api_key(key);
         }
 
@@ -117,6 +128,8 @@ impl ConclaveWasmClient {
         let dlc = Arc::new(DlcManager::with_enclave(enclave.clone()));
 
         Ok(Self {
+
+            config,
             enclave,
             assets,
             businesses,
@@ -347,5 +360,51 @@ impl ConclaveWasmClient {
     pub fn derive_taproot_address(&self, path: &str) -> Result<String, JsValue> {
         let mgr = TaprootManager::new(self.enclave.as_ref());
         mgr.derive_address(path).map_err(to_js_error)
+    }
+    pub async fn get_block_height(&self, chain: &str) -> Result<u64, JsValue> {
+        match chain.to_uppercase().as_str() {
+            "BITCOIN" => Ok(840000), // Mock height
+            "STACKS" => Ok(150000),  // Mock height
+            _ => Err(JsValue::from_str("Unsupported chain for block height")),
+        }
+    }
+    pub async fn execute_dual_stack(
+        &self,
+        amount_sbtc: u64,
+        amount_stx: u64,
+        lock_period: u32,
+    ) -> Result<JsValue, JsValue> {
+        let engine = YieldEngine::new(self.enclave.as_ref());
+        let intent = DualStackIntent {
+            amount_sbtc,
+            amount_stx,
+            lock_period,
+        };
+        let result = engine.dual_stack(intent).map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
+    }
+    pub async fn execute_opportunity(&self, payload_js: JsValue) -> Result<String, JsValue> {
+        let payload: OpportunityPayload = serde_wasm_bindgen::from_value(payload_js)
+            .map_err(|_| JsValue::from_str("Invalid opportunity payload format"))?;
+
+        let dispatcher = OpportunityDispatcher::new(self.enclave.as_ref());
+        let sig = dispatcher.execute(payload).await.map_err(to_js_error)?;
+        Ok(sig)
+    }
+    pub async fn prepare_gas_sponsored_tx(
+        &self,
+        tx_payload: Vec<u8>,
+        estimated_fee_sbtc: u64,
+    ) -> Result<String, JsValue> {
+        use crate::protocol::economy::GasFeeIntent;
+        let engine = YieldEngine::new(self.enclave.as_ref());
+        let intent = GasFeeIntent {
+            tx_payload,
+            estimated_fee_sbtc,
+        };
+        let sig = engine
+            .prepare_gas_sponsored_tx(intent)
+            .map_err(to_js_error)?;
+        Ok(sig)
     }
 }

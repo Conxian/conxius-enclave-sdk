@@ -36,6 +36,22 @@ Before a release tag is pushed:
 
 These checks are enforced by CI and release workflows.
 
+## GitHub Release Environment Setup
+
+1. Open the repository in GitHub and go to **Settings** → **Environments**.
+2. Create (or open) an environment named `release`.
+3. In that environment, under **Environment secrets**, click **Add secret**.
+4. Add secret name `CARGO_REGISTRY_TOKEN` and set it to the crates.io API token used for publishing.
+
+## Manual Publish Operator Checklist
+
+- Go to **Actions** → **Release** → **Run workflow**.
+- Set **Use workflow from** to the release tag (`vX.Y.Z`).
+- Set `release_version` to `X.Y.Z` or `vX.Y.Z` matching the tag/Cargo version.
+- Set `publish_to_crates_io` to `true`.
+- Verify both `validate-release` and `publish-crates-io` jobs pass.
+- Verify the expected version appears on crates.io.
+
 ## Release Flow
 
 1. **Prepare release commit**
