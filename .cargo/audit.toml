@@ -1,0 +1,6 @@
+[advisories]
+ignore = []
+
+[yanked]
+enabled = true
+update_index = true
