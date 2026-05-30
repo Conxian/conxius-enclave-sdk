@@ -26,7 +26,7 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 ## 5. Mainnet Readiness (CON-145)
 - **Governance**: `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, and `GOVERNANCE.md` added.
 - **Robustness**: Eliminated unsafe panics across all core modules.
-- **Security**: Telemetry and attestation verified across core rails. Remediated RUSTSEC-2025-0055 by locking `sha2` to `0.10.9`.
+- **Security**: Telemetry and attestation verified across core rails. Remediated RUSTSEC-2025-0055 by upgrading `sha2` to `0.11.0`.
 
 ## 6. Zero Secret Egress (Remediation)
 - **Status**: COMPLETED.

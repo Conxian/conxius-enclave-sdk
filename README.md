@@ -60,10 +60,14 @@ For browser and mobile environments:
 import { ConclaveWasmClient } from 'lib-conclave-sdk';
 
 const client = new ConclaveWasmClient(
-  "https://gateway.conxian-labs.com", // gateway_url
-  "https://vault.conxian-labs.com",   // kms_endpoint (optional)
-  "https://nexus.conxian-labs.com",   // nexus_url (optional)
-  "your-api-key"                // api_key (optional)
+  {
+    network: "Mainnet",
+    track: "Lts",
+    gateway_url: "https://gateway.conxian-labs.com",
+    api_key: "your-api-key"
+  },
+  "https://vault.conxian-labs.com", // kms_endpoint (optional)
+  "https://nexus.conxian-labs.com"  // nexus_url (optional)
 );
 
 // Unlock the enclave before use
