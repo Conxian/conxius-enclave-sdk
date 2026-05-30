@@ -7,7 +7,7 @@ body:
       value: |
         Use this template for policy, process, and governance-default changes.
 
-        For support routing details, see [SUPPORT.md](https://github.com/Conxian/conxius-enclave-sdk/blob/master/SUPPORT.md).
+        For support routing details, see [SUPPORT.md](https://github.com/Conxian/lib-conclave-sdk/blob/master/SUPPORT.md).
   - type: textarea
     id: context
     attributes:
