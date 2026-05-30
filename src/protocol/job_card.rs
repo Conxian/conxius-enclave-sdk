@@ -29,7 +29,7 @@ impl ConxianJobCard {
         country: Option<String>,
     ) -> Self {
         Self {
-            context: "https://conxian.com/contexts/job-card/v2.0".to_string(),
+            context: "https://conxian-labs.com/contexts/job-card/v2.0".to_string(),
             r#type: "ConxianJobCard".to_string(),
             work_intent: WorkIntent {
                 sender_address: sender.to_string(),

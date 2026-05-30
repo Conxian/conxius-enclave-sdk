@@ -84,8 +84,8 @@ mod tests {
     #[test]
     fn test_sidl_service_new() {
         let client = reqwest::Client::new();
-        let service = SidlService::new("https://api.conxian.io".to_string(), client);
-        assert_eq!(service.gateway_url, "https://api.conxian.io");
+        let service = SidlService::new("https://gateway.conxian-labs.com".to_string(), client);
+        assert_eq!(service.gateway_url, "https://gateway.conxian-labs.com");
     }
 
     #[test]
