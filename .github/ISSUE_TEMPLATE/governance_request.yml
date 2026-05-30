@@ -1,39 +1,24 @@
 name: "Governance request"
-description: "Propose or request a change to org-level governance defaults."
-title: "[GOVERNANCE] <short request>"
+description: "Propose a policy, process, or governance-default change."
+title: "[GOV] <short summary>"
 body:
   - type: markdown
     attributes:
       value: |
         Use this template for policy, process, and governance-default changes.
 
-        For support routing details, see [SUPPORT.md](https://github.com/Conxian/lib-conclave-sdk/blob/master/SUPPORT.md).
+        For support routing details, see [SUPPORT.md](https://github.com/Conxian/conxius-enclave-sdk/blob/master/SUPPORT.md).
   - type: textarea
     id: context
     attributes:
       label: Context
-      description: What problem or need is driving this request?
+      description: What policy/process needs to change and why?
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
       label: Proposed change
-      description: Describe the change you want and why.
+      description: Describe the change you want made.
     validations:
       required: true
-  - type: textarea
-    id: affected
-    attributes:
-      label: Affected governance artifacts
-      description: Which files/workflows/templates are in scope?
-      placeholder: CODEOWNERS, SECURITY.md, SUPPORT.md, .github/release.yml, templates, workflows
-    validations:
-      required: true
-  - type: textarea
-    id: risks
-    attributes:
-      label: Risks and rollout notes
-      description: Any security/compliance/release risks and suggested rollout approach.
-    validations:
-      required: false
