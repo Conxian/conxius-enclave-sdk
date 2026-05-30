@@ -68,7 +68,7 @@ mod tests {
     #[tokio::test]
     async fn test_ntt_rail_name() {
         let rail = NTTRail {
-            gateway_url: "https://api.conxian.io".to_string(),
+            gateway_url: "https://gateway.conxian-labs.com".to_string(),
             http_client: reqwest::Client::new(),
         };
 

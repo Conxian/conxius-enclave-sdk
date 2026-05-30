@@ -414,7 +414,7 @@ mod rail_proxy_tests {
         ));
 
         let mut proxy = RailProxy::new(
-            "https://api.conxian.io".to_string(),
+            "https://gateway.conxian-labs.com".to_string(),
             reqwest::Client::new(),
             registry,
             business,

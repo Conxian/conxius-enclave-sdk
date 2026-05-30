@@ -13,7 +13,7 @@ Only the latest version of the SDK is supported for security updates.
 
 We take security seriously. If you discover a vulnerability, please report it via one of the following:
 
-- **Email**: security@conxian.com
+- **Email**: security@conxian-labs.com
 - **Linear**: If you have access to the Conxian-Labs workspace, create an issue with the "Security" label.
 
 Please do not disclose vulnerabilities publicly until we have had a chance to remediate them.

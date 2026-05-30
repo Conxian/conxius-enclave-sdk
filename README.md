@@ -60,9 +60,9 @@ For browser and mobile environments:
 import { ConclaveWasmClient } from 'lib-conclave-sdk';
 
 const client = new ConclaveWasmClient(
-  "https://gateway.conxian.io", // gateway_url
-  "https://vault.conxian.io",   // kms_endpoint (optional)
-  "https://nexus.conxian.io",   // nexus_url (optional)
+  "https://gateway.conxian-labs.com", // gateway_url
+  "https://vault.conxian-labs.com",   // kms_endpoint (optional)
+  "https://nexus.conxian-labs.com",   // nexus_url (optional)
   "your-api-key"                // api_key (optional)
 );
 
@@ -94,7 +94,7 @@ use std::sync::Arc;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize Cloud Enclave
-    let enclave = CloudEnclave::new("https://vault.conxian.io".to_string())?;
+    let enclave = CloudEnclave::new("https://vault.conxian-labs.com".to_string())?;
 
     // Initialize Identity Manager
     let identity_mgr = IdentityManager::new(Arc::new(enclave));
@@ -128,7 +128,7 @@ wasm-pack build
 - **Guidelines**: See [GOVERNANCE.md](GOVERNANCE.md) for architectural boundaries and release discipline.
 - **Support**: For bugs and feature requests, see [SUPPORT.md](SUPPORT.md).
 - **Contributing**: We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our bounty workflow.
-- **Security**: Report vulnerabilities to `security@conxian.com` as per our [Security Policy](SECURITY.md).
+- **Security**: Report vulnerabilities to `security@conxian-labs.com` as per our [Security Policy](SECURITY.md).
 
 ## License
 

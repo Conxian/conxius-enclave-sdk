@@ -135,7 +135,7 @@ mod tests {
 
     #[test]
     fn test_dlc_lifecycle() -> crate::ConclaveResult<()> {
-        let enclave = Arc::new(CloudEnclave::new("https://vault.conxian.io".to_string())?);
+        let enclave = Arc::new(CloudEnclave::new("https://vault.conxian-labs.com".to_string())?);
         let mgr = DlcManager::with_enclave(enclave);
 
         let mut contract = mgr.offer_contract("announcement_v1", 5000, 5000)?;

@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn test_prepare_otp_intent() {
         let client = reqwest::Client::new();
-        let service = A2pRouterService::new("https://api.conxian.io".to_string(), client);
+        let service = A2pRouterService::new("https://gateway.conxian-labs.com".to_string(), client);
 
         let request = OtpRequest {
             phone_number: "+1234567890".to_string(),

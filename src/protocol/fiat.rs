@@ -102,7 +102,7 @@ mod tests {
     #[test]
     fn test_prepare_fiat_session() {
         let client = reqwest::Client::new();
-        let service = FiatRouterService::new("https://api.conxian.io".to_string(), client);
+        let service = FiatRouterService::new("https://gateway.conxian-labs.com".to_string(), client);
 
         let request = FiatOnRampRequest {
             fiat_currency: "USD".to_string(),
@@ -118,6 +118,6 @@ mod tests {
 
         let intent = service.prepare_session(request);
         assert!(!intent.signable_hash.is_empty());
-        assert_eq!(intent.gateway_url, "https://api.conxian.io");
+        assert_eq!(intent.gateway_url, "https://gateway.conxian-labs.com");
     }
 }

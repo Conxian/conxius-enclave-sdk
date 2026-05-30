@@ -5,7 +5,7 @@ mod tests {
 
     #[test]
     fn test_dual_stack_generation() {
-        let enclave = CloudEnclave::new("https://vault.conxian.io".to_string()).unwrap();
+        let enclave = CloudEnclave::new("https://vault.conxian-labs.com".to_string()).unwrap();
         let engine = YieldEngine::new(&enclave);
 
         let intent = DualStackIntent {
@@ -21,7 +21,7 @@ mod tests {
 
     #[test]
     fn test_gas_sponsored_tx_generation() {
-        let enclave = CloudEnclave::new("https://vault.conxian.io".to_string()).unwrap();
+        let enclave = CloudEnclave::new("https://vault.conxian-labs.com".to_string()).unwrap();
         let engine = YieldEngine::new(&enclave);
 
         let intent = crate::protocol::economy::GasFeeIntent {

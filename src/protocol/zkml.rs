@@ -67,8 +67,8 @@ mod tests {
     #[test]
     fn test_zkml_service_new() {
         let client = reqwest::Client::new();
-        let service = ZkmlService::new("https://api.conxian.io".to_string(), client);
-        assert_eq!(service.gateway_url, "https://api.conxian.io");
+        let service = ZkmlService::new("https://gateway.conxian-labs.com".to_string(), client);
+        assert_eq!(service.gateway_url, "https://gateway.conxian-labs.com");
     }
 
     #[tokio::test]

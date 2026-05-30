@@ -6,7 +6,7 @@ mod tests {
 
     #[test]
     fn test_bitcoin_manager_descriptors() -> crate::ConclaveResult<()> {
-        let enclave = Arc::new(CloudEnclave::new("https://vault.conxian.io".to_string())?);
+        let enclave = Arc::new(CloudEnclave::new("https://vault.conxian-labs.com".to_string())?);
         let mgr = BitcoinManager::new(enclave);
 
         let wpkh = mgr.generate_wpkh_descriptor("m/84'/0'/0'/0/0")?;

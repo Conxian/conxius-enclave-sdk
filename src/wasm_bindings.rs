@@ -76,7 +76,7 @@ impl ConclaveWasmClient {
         #[cfg(not(target_arch = "wasm32"))]
         let enclave: Arc<dyn EnclaveManager> = Arc::new(
             CloudEnclave::new(
-                kms_endpoint.unwrap_or_else(|| "https://vault.conxian.io".to_string()),
+                kms_endpoint.unwrap_or_else(|| "https://vault.conxian-labs.com".to_string()),
             )
             .map_err(to_js_error)?,
         );

@@ -63,7 +63,7 @@ mod tests {
     #[test]
     fn test_mmr_local_proof() -> crate::ConclaveResult<()> {
         let client = reqwest::Client::new();
-        let service = MmrService::new("https://api.conxian.io".to_string(), client);
+        let service = MmrService::new("https://gateway.conxian-labs.com".to_string(), client);
 
         let data = b"conxian_block_data";
         let proof = service.generate_local_proof(data, 1)?;
