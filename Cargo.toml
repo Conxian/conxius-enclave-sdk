@@ -11,7 +11,7 @@ mock-cloud-enclave = []
 [dependencies]
 zeroize = { version = "1.8.1", features = ["derive", "zeroize_derive"] }
 async-trait = "0.1.86"
-aes = "0.8.4"
+aes = "0.9.1"
 aes-gcm = "0.10.3"
 bdk_wallet = { version = "3.0.0", default-features = false, features = ["std"] }
 bitcoin = { version = "0.33.0-beta", features = ["std", "rand"] }
