@@ -32,12 +32,15 @@ impl MuSig2Session {
         rng.fill_bytes(&mut seed);
 
         let sk = musig2::secp256k1::SecretKey::from_byte_array(secret_key.to_secret_bytes())
-            .map_err(|e| ConclaveError::CryptoError(format!("Invalid secret key for MuSig2: {e:?}")))?;
+            .map_err(|e| {
+                ConclaveError::CryptoError(format!("Invalid secret key for MuSig2: {e:?}"))
+            })?;
 
         let sec_nonce = SecNonce::generate(
             seed,
             sk,
-            self.key_agg_ctx.aggregated_pubkey::<musig2::secp256k1::PublicKey>(),
+            self.key_agg_ctx
+                .aggregated_pubkey::<musig2::secp256k1::PublicKey>(),
             [0u8; 32],
             [0u8; 0],
         );

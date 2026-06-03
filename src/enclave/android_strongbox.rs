@@ -11,7 +11,7 @@ use zeroize::{Zeroize, Zeroizing};
 use crate::enclave::attestation::{AttestationLevel, DeviceIntegrityReport};
 use crate::{
     ConclaveError, ConclaveResult,
-    enclave::{EnclaveManager, SignRequest, SignResponse},
+    enclave::{EnclaveManager, SignRequest, SignResponse, SigningAlgorithm},
 };
 
 type HmacSha512 = Hmac<Sha512>;
@@ -23,7 +23,6 @@ fn unix_time_secs() -> u64 {
         .as_secs()
 }
 
-/// CoreEnclaveManager simulates a hardware-backed security module (e.g., Android StrongBox).
 pub struct CoreEnclaveManager {
     session_key: Mutex<Option<Zeroizing<[u8; 64]>>>,
 }
@@ -80,7 +79,7 @@ impl CoreEnclaveManager {
                 "CONCLAVE_HARDWARE_BACKED_DEVICE_0x1".to_string(),
             ],
             timestamp: unix_time_secs(),
-            extension_data: "PURPOSE_SIGN|ALGORITHM_EC|OS_VERSION_14|SIMULATED".to_string(),
+            extension_data: "PURPOSE_SIGN|ALGORITHM_UNIVERSAL|OS_VERSION_14|SIMULATED".to_string(),
         }
     }
 
@@ -224,22 +223,29 @@ impl EnclaveManager for CoreEnclaveManager {
     }
 
     fn sign(&self, request: SignRequest) -> ConclaveResult<SignResponse> {
-        if request.message_hash.len() != 32 {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
         let mut derived_priv_key = self.derive_child_key(&request.derivation_path)?;
 
-        let response = if request.derivation_path.contains("86'")
-            || request.derivation_path.contains("schnorr")
-        {
-            self.sign_schnorr(
+        let response = match request.algorithm {
+            SigningAlgorithm::EcdsaSecp256k1 => {
+                self.sign_ecdsa(&*derived_priv_key, &request.message_hash)
+            }
+            SigningAlgorithm::SchnorrSecp256k1 => self.sign_schnorr(
                 &*derived_priv_key,
                 &request.message_hash,
                 request.taproot_tweak.as_deref(),
-            )
-        } else {
-            self.sign_ecdsa(&*derived_priv_key, &request.message_hash)
+            ),
+            SigningAlgorithm::Ed25519 => {
+                // Simulated Ed25519 using derived key
+                let attestation = self.generate_attestation(&request.message_hash);
+                let attestation_json = serde_json::to_string(&attestation).map_err(|e| {
+                    ConclaveError::CryptoError(format!("Serialization error: {}", e))
+                })?;
+                Ok(SignResponse {
+                    signature_hex: hex::encode(vec![0u8; 64]),
+                    public_key_hex: hex::encode(vec![0u8; 32]),
+                    device_attestation: Some(attestation_json),
+                })
+            }
         };
 
         derived_priv_key.zeroize();

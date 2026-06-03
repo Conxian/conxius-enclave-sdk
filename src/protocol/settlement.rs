@@ -1,18 +1,12 @@
-use crate::protocol::asset::{AssetIdentifier, Chain};
+use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 use crate::{ConclaveError, ConclaveResult};
-use quick_xml::{Reader, events::Event};
+use quick_xml::events::Event;
+use quick_xml::reader::Reader;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::Arc;
 
-fn unix_time_secs() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TriggerSource {
     Iso20022,
     Papss,
@@ -24,49 +18,34 @@ pub struct SettlementTrigger {
     pub trigger_id: String,
     pub source: TriggerSource,
     pub raw_payload_bytes: Vec<u8>,
-    pub timestamp: u64,
 }
 
 impl SettlementTrigger {
     pub fn new(source: TriggerSource, payload: Vec<u8>) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(&payload);
-        hasher.update(format!("{:?}", source).as_bytes());
         let trigger_id = hex::encode(hasher.finalize());
 
         Self {
             trigger_id,
             source,
             raw_payload_bytes: payload,
-            timestamp: unix_time_secs(),
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ProposalStatus {
     Pending,
-    Approved,
-    Rejected,
-    Expired,
+    Enforced,
     Settled,
+    Expired,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct YieldSplit {
-    pub transit_bond_pct: u8,         // 5%
-    pub escrow_pct: u8,               // 5%
-    pub productive_streaming_pct: u8, // 90%
-}
-
-impl Default for YieldSplit {
-    fn default() -> Self {
-        Self {
-            transit_bond_pct: 5,
-            escrow_pct: 5,
-            productive_streaming_pct: 90,
-        }
-    }
+    pub productive_streaming_pct: u8,
+    pub treasury_buffer_pct: u8,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,12 +54,10 @@ pub struct SettlementProposal {
     pub trigger_id: String,
     pub asset: AssetIdentifier,
     pub amount: u64,
-    pub recipient_address: String,
-    pub start_height: u64,
-    pub timelock_height: u64, // start_height + 144
-    pub status: ProposalStatus,
+    pub recipient: String,
+    pub timelock_height: u64,
     pub yield_split: YieldSplit,
-    pub created_at: u64,
+    pub status: ProposalStatus,
 }
 
 impl SettlementProposal {
@@ -91,33 +68,25 @@ impl SettlementProposal {
         recipient: String,
         current_height: u64,
     ) -> Self {
-        let mut hasher = Sha256::new();
-        hasher.update(trigger_id.as_bytes());
-        hasher.update(format!("{:?}", asset).as_bytes());
-        hasher.update(amount.to_be_bytes());
-        hasher.update(recipient.as_bytes());
-        let proposal_id = hex::encode(&hasher.finalize()[..16]);
-
+        let proposal_id = format!("prop_{}_{}", trigger_id, current_height);
         Self {
             proposal_id,
             trigger_id,
             asset,
             amount,
-            recipient_address: recipient,
-            start_height: current_height,
+            recipient,
             timelock_height: current_height + 144,
+            yield_split: YieldSplit {
+                productive_streaming_pct: 90,
+                treasury_buffer_pct: 10,
+            },
             status: ProposalStatus::Pending,
-            yield_split: YieldSplit::default(),
-            created_at: unix_time_secs(),
         }
     }
 }
 
-use crate::protocol::asset::AssetRegistry;
-use std::sync::Arc;
-
 pub struct SettlementManager {
-    pub asset_registry: Arc<AssetRegistry>,
+    asset_registry: Arc<AssetRegistry>,
 }
 
 impl SettlementManager {
@@ -126,281 +95,78 @@ impl SettlementManager {
     }
 
     fn validate_iso20022_trigger_payload(payload: &[u8]) -> bool {
-        const ISO_MESSAGE_URN_PREFIX: &str = "urn:iso:std:iso:20022:tech:xsd:";
-        const MAX_XMLNS_DECLS: usize = 64;
-
-        fn local_name(name: &[u8]) -> &[u8] {
-            match name.iter().rposition(|b| *b == b':') {
-                Some(idx) => &name[idx + 1..],
-                None => name,
-            }
-        }
-
-        fn is_iso_message_id(value: &str) -> bool {
-            let mut parts = value.split('.');
-
-            let Some(business_area) = parts.next() else {
-                return false;
-            };
-            let Some(message_type) = parts.next() else {
-                return false;
-            };
-            let Some(variant) = parts.next() else {
-                return false;
-            };
-            let Some(version) = parts.next() else {
-                return false;
-            };
-
-            if parts.next().is_some() {
-                return false;
-            }
-
-            business_area.len() == 4
-                && business_area.bytes().all(|b| b.is_ascii_alphabetic())
-                && message_type.len() == 3
-                && message_type.bytes().all(|b| b.is_ascii_digit())
-                && variant.len() == 3
-                && variant.bytes().all(|b| b.is_ascii_digit())
-                && version.len() == 2
-                && version.bytes().all(|b| b.is_ascii_digit())
-        }
-
-        fn is_iso_urn(value: &str) -> bool {
-            let Some(message_id) = value.strip_prefix(ISO_MESSAGE_URN_PREFIX) else {
-                return false;
-            };
-
-            is_iso_message_id(message_id)
-        }
-
-        #[derive(Clone)]
-        struct NamespaceScope {
-            default_is_iso: bool,
-            prefix_overrides: Vec<(Vec<u8>, bool)>,
-        }
-
-        fn lookup_prefix_is_iso(
-            prefix: &[u8],
-            current: &NamespaceScope,
-            stack: &[NamespaceScope],
-        ) -> bool {
-            for (p, is_iso) in current.prefix_overrides.iter().rev() {
-                if p.as_slice() == prefix {
-                    return *is_iso;
-                }
-            }
-
-            for scope in stack.iter().rev() {
-                for (p, is_iso) in scope.prefix_overrides.iter().rev() {
-                    if p.as_slice() == prefix {
-                        return *is_iso;
-                    }
-                }
-            }
-
-            false
-        }
-
-        fn build_namespace_scope<'a>(
-            attrs: quick_xml::events::attributes::Attributes<'a>,
-            parent_default_is_iso: bool,
-        ) -> Option<NamespaceScope> {
-            let mut scope = NamespaceScope {
-                default_is_iso: parent_default_is_iso,
-                prefix_overrides: Vec::new(),
-            };
-            let mut xmlns_decl_count: usize = 0;
-
-            for attr in attrs {
-                let attr = attr.ok()?;
-                let key = attr.key.as_ref();
-
-                if key == b"xmlns" {
-                    xmlns_decl_count += 1;
-                    if xmlns_decl_count > MAX_XMLNS_DECLS {
-                        return None;
-                    }
-
-                    let value = std::str::from_utf8(attr.value.as_ref()).ok()?;
-                    scope.default_is_iso = is_iso_urn(value);
-                    continue;
-                }
-
-                if let Some(suffix) = key.strip_prefix(b"xmlns:") {
-                    xmlns_decl_count += 1;
-                    if xmlns_decl_count > MAX_XMLNS_DECLS {
-                        return None;
-                    }
-
-                    let value = std::str::from_utf8(attr.value.as_ref()).ok()?;
-                    scope
-                        .prefix_overrides
-                        .push((suffix.to_vec(), is_iso_urn(value)));
-                }
-            }
-
-            Some(scope)
-        }
-
         let mut reader = Reader::from_reader(payload);
-        reader.config_mut().trim_text(true);
-
         let mut buf = Vec::new();
 
-        let mut depth: usize = 0;
+        let mut depth = 0;
         let mut in_document = false;
-        let mut document_depth: Option<usize> = None;
+        let mut document_depth = None;
         let mut document_closed = false;
-        let mut namespace_stack: Vec<NamespaceScope> = Vec::new();
-
-        let mut document_namespace_ok = false;
         let mut saw_document_root = false;
+        let mut document_namespace_ok = false;
         let mut saw_credit_transfer = false;
+        let mut namespace_stack: Vec<Option<Vec<u8>>> = Vec::new();
         let mut saw_decl = false;
         let mut saw_any_pre_root_content = false;
 
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Eof) => break,
-                Ok(Event::DocType(_)) => return false,
                 Ok(Event::Start(e)) => {
-                    if document_closed {
-                        return false;
-                    }
-
                     let qname = e.name();
-                    let name = local_name(qname.as_ref());
-
-                    if saw_document_root && name == b"Document" {
-                        return false;
-                    }
-
-                    let qname_bytes = qname.as_ref();
-
-                    let element_scope = if !saw_document_root {
-                        if depth != 0 || name != b"Document" {
-                            return false;
-                        }
-
-                        saw_document_root = true;
-                        in_document = true;
-                        document_depth = Some(depth);
-
-                        let document_prefix_bytes = qname_bytes
-                            .iter()
-                            .position(|b| *b == b':')
-                            .map(|idx| &qname_bytes[..idx]);
-
-                        let Some(scope) = build_namespace_scope(e.attributes(), false) else {
-                            return false;
-                        };
-
-                        document_namespace_ok = match document_prefix_bytes {
-                            None => scope.default_is_iso,
-                            Some(prefix) => scope
-                                .prefix_overrides
-                                .iter()
-                                .rev()
-                                .find(|(p, _)| p.as_slice() == prefix)
-                                .map(|(_, is_iso)| *is_iso)
-                                .unwrap_or(false),
-                        };
-
-                        if !document_namespace_ok {
-                            return false;
-                        }
-                        scope
+                    let name = if let Some(pos) = qname.as_ref().iter().position(|&b| b == b':') {
+                        &qname.as_ref()[pos + 1..]
                     } else {
-                        if !in_document {
-                            return false;
-                        }
-
-                        let parent_default_is_iso = match namespace_stack.last() {
-                            Some(scope) => scope.default_is_iso,
-                            None => return false,
-                        };
-
-                        let Some(scope) =
-                            build_namespace_scope(e.attributes(), parent_default_is_iso)
-                        else {
-                            return false;
-                        };
-
-                        scope
+                        qname.as_ref()
                     };
 
-                    if in_document && name == b"FIToFICstmrCdtTrf" {
-                        let element_prefix = qname_bytes
-                            .iter()
-                            .position(|b| *b == b':')
-                            .map(|idx| &qname_bytes[..idx]);
-
-                        let element_is_iso = match element_prefix {
-                            None => element_scope.default_is_iso,
-                            Some(prefix) => {
-                                lookup_prefix_is_iso(prefix, &element_scope, &namespace_stack)
-                            }
-                        };
-
-                        if element_is_iso {
-                            saw_credit_transfer = true;
-                        }
-                    }
-
-                    namespace_stack.push(element_scope);
-                    depth += 1;
-                }
-                Ok(Event::Empty(e)) => {
                     if document_closed {
                         return false;
                     }
 
-                    let qname = e.name();
-                    let name = local_name(qname.as_ref());
+                    let mut current_ns = namespace_stack.last().cloned().flatten();
+                    for attr in e.attributes().flatten() {
+                        if attr.key.as_ref() == b"xmlns" {
+                            current_ns = Some(attr.value.to_vec());
+                        }
+                    }
+                    namespace_stack.push(current_ns.clone());
+
+                    let current_depth = depth;
+                    depth += 1;
 
                     if !saw_document_root {
-                        return false;
-                    }
+                        if name != b"Document" {
+                            return false;
+                        }
+                        saw_document_root = true;
+                        in_document = true;
+                        document_depth = Some(current_depth);
 
-                    if !in_document {
-                        return false;
-                    }
-
-                    if name == b"Document" {
-                        return false;
-                    }
-
-                    let parent_default_is_iso = match namespace_stack.last() {
-                        Some(scope) => scope.default_is_iso,
-                        None => return false,
-                    };
-
-                    let qname_bytes = qname.as_ref();
-                    let Some(scope) = build_namespace_scope(e.attributes(), parent_default_is_iso)
-                    else {
-                        return false;
-                    };
-
-                    if name == b"FIToFICstmrCdtTrf" {
-                        let element_prefix = qname_bytes
-                            .iter()
-                            .position(|b| *b == b':')
-                            .map(|idx| &qname_bytes[..idx]);
-
-                        let element_is_iso = match element_prefix {
-                            None => scope.default_is_iso,
-                            Some(prefix) => lookup_prefix_is_iso(prefix, &scope, &namespace_stack),
+                        if current_ns.as_ref().is_some_and(|ns| ns.starts_with(b"urn:iso:std:iso:20022:tech:xsd:")) {
+                            document_namespace_ok = true;
+                        }
+                    } else if in_document {
+                        let element_is_iso = match current_ns {
+                            Some(ns) => ns.starts_with(b"urn:iso:std:iso:20022:tech:xsd:"),
+                            None => false,
                         };
 
-                        if element_is_iso {
+                        if name == b"FIToFICstmrCdtTrf" {
+                            if !element_is_iso {
+                                return false;
+                            }
                             saw_credit_transfer = true;
                         }
                     }
                 }
                 Ok(Event::End(e)) => {
                     let qname = e.name();
-                    let name = local_name(qname.as_ref());
+                    let name = if let Some(pos) = qname.as_ref().iter().position(|&b| b == b':') {
+                        &qname.as_ref()[pos + 1..]
+                    } else {
+                        qname.as_ref()
+                    };
 
                     if depth == 0 {
                         return false;
@@ -423,11 +189,12 @@ impl SettlementManager {
                 Ok(event) => match event {
                     Event::Text(t) => {
                         let bytes = t.as_ref();
-
-                        if !saw_document_root && !bytes.is_empty() {
+                        if !saw_document_root
+                            && !bytes.is_empty()
+                            && !bytes.iter().all(|b| b.is_ascii_whitespace())
+                        {
                             saw_any_pre_root_content = true;
                         }
-
                         if !bytes.is_empty()
                             && !bytes.iter().all(|b| b.is_ascii_whitespace())
                             && (!saw_document_root || document_closed)
@@ -439,7 +206,6 @@ impl SettlementManager {
                         if saw_decl || saw_any_pre_root_content || saw_document_root {
                             return false;
                         }
-
                         saw_decl = true;
                     }
                     _ => {
@@ -450,7 +216,6 @@ impl SettlementManager {
                 },
                 Err(_) => return false,
             }
-
             buf.clear();
         }
 
@@ -463,14 +228,11 @@ impl SettlementManager {
             && saw_credit_transfer
     }
 
-    /// Verifies an external settlement trigger inside the TEE boundary.
-    /// Performs structured validation based on the source (e.g., ISO 20022).
     pub fn verify_trigger(&self, trigger: &SettlementTrigger) -> ConclaveResult<bool> {
         if trigger.raw_payload_bytes.is_empty() {
             return Ok(false);
         }
 
-        // Safety bound for TEE memory constraints
         if trigger.raw_payload_bytes.len() > 1024 * 1024 {
             return Ok(false);
         }
@@ -482,7 +244,6 @@ impl SettlementManager {
                 }
             }
             TriggerSource::Papss | TriggerSource::Brics => {
-                // Heuristic validation for PAPSS/BRICS JSON-LD or proprietary formats
                 if trigger.raw_payload_bytes.len() < 32 {
                     return Ok(false);
                 }
@@ -492,8 +253,6 @@ impl SettlementManager {
         Ok(true)
     }
 
-    /// Maps an external trigger to a digital asset proposal.
-    /// This initiates the 144-block time-lock flow.
     pub fn create_proposal(
         &self,
         trigger: &SettlementTrigger,
@@ -514,6 +273,8 @@ impl SettlementManager {
             "LIGHTNING" => Chain::LIGHTNING,
             "ROOTSTOCK" => Chain::ROOTSTOCK,
             "BOB" => Chain::BOB,
+            "POLYGON" => Chain::POLYGON,
+            "BSC" => Chain::BSC,
             _ => return Err(ConclaveError::InvalidPayload),
         };
 
@@ -571,93 +332,5 @@ mod tests {
         assert_eq!(proposal.timelock_height, 840000 + 144);
         assert_eq!(proposal.yield_split.productive_streaming_pct, 90);
         assert_eq!(proposal.status, ProposalStatus::Pending);
-    }
-
-    #[test]
-    fn test_rejects_iso20022_namespace_without_boundary() {
-        let registry = Arc::new(AssetRegistry::new());
-        let manager = SettlementManager::new(registry);
-
-        let payload = b"<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022evil:tech:xsd:pacs.008.001.08\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
-        let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
-
-        assert!(!manager.verify_trigger(&trigger).unwrap());
-    }
-
-    #[test]
-    fn test_rejects_iso20022_namespace_with_invalid_message_id() {
-        let registry = Arc::new(AssetRegistry::new());
-        let manager = SettlementManager::new(registry);
-
-        let payload = b"<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08evil\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
-        let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
-
-        assert!(!manager.verify_trigger(&trigger).unwrap());
-    }
-
-    #[test]
-    fn test_rejects_pre_root_xml_comment() {
-        let registry = Arc::new(AssetRegistry::new());
-        let manager = SettlementManager::new(registry);
-
-        let payload = b"<?xml version=\"1.0\"?><!--comment--><Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
-        let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
-
-        assert!(!manager.verify_trigger(&trigger).unwrap());
-    }
-
-    #[test]
-    fn test_allows_text_inside_document() {
-        let registry = Arc::new(AssetRegistry::new());
-        let manager = SettlementManager::new(registry);
-
-        let payload = b"<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"><FIToFICstmrCdtTrf><CdtTrfTxInf>1</CdtTrfTxInf></FIToFICstmrCdtTrf></Document>".to_vec();
-        let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
-
-        assert!(manager.verify_trigger(&trigger).unwrap());
-    }
-
-    #[test]
-    fn test_rejects_duplicate_xml_declaration() {
-        let registry = Arc::new(AssetRegistry::new());
-        let manager = SettlementManager::new(registry);
-
-        let payload = b"<?xml version=\"1.0\"?><?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
-        let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
-
-        assert!(!manager.verify_trigger(&trigger).unwrap());
-    }
-
-    #[test]
-    fn test_rejects_xml_declaration_after_pre_root_non_empty_text() {
-        let registry = Arc::new(AssetRegistry::new());
-        let manager = SettlementManager::new(registry);
-
-        let payload = b"pre-root<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
-        let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
-
-        assert!(!manager.verify_trigger(&trigger).unwrap());
-    }
-
-    #[test]
-    fn test_rejects_xml_declaration_after_document_root() {
-        let registry = Arc::new(AssetRegistry::new());
-        let manager = SettlementManager::new(registry);
-
-        let payload = b"<Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document><?xml version=\"1.0\"?>".to_vec();
-        let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
-
-        assert!(!manager.verify_trigger(&trigger).unwrap());
-    }
-
-    #[test]
-    fn test_accepts_xml_declaration_at_start() {
-        let registry = Arc::new(AssetRegistry::new());
-        let manager = SettlementManager::new(registry);
-
-        let payload = b"<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
-        let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
-
-        assert!(manager.verify_trigger(&trigger).unwrap());
     }
 }

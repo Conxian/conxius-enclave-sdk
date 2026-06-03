@@ -15,6 +15,8 @@ pub enum Chain {
     LIGHTNING,
     ROOTSTOCK,
     BOB,
+    POLYGON,
+    BSC,
 }
 
 impl Chain {
@@ -30,6 +32,8 @@ impl Chain {
             Chain::LIGHTNING => "LIGHTNING",
             Chain::ROOTSTOCK => "ROOTSTOCK",
             Chain::BOB => "BOB",
+            Chain::POLYGON => "POLYGON",
+            Chain::BSC => "BSC",
         }
     }
 }
@@ -68,7 +72,6 @@ impl AssetRegistry {
     pub fn new() -> Self {
         let mut registry = HashMap::new();
 
-        // Seed with core assets
         registry.insert(
             AssetIdentifier {
                 chain: Chain::BITCOIN,
@@ -110,19 +113,6 @@ impl AssetRegistry {
 
         registry.insert(
             AssetIdentifier {
-                chain: Chain::ETHEREUM,
-                symbol: "USDT".to_string(),
-            },
-            AssetMetadata {
-                name: "Tether USD".to_string(),
-                decimals: 6,
-                contract_address: Some("0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string()),
-                active: true,
-            },
-        );
-
-        registry.insert(
-            AssetIdentifier {
                 chain: Chain::SOLANA,
                 symbol: "SOL".to_string(),
             },
@@ -136,13 +126,26 @@ impl AssetRegistry {
 
         registry.insert(
             AssetIdentifier {
-                chain: Chain::SOLANA,
-                symbol: "USDC".to_string(),
+                chain: Chain::POLYGON,
+                symbol: "POL".to_string(),
             },
             AssetMetadata {
-                name: "USD Coin".to_string(),
-                decimals: 6,
-                contract_address: Some("EPjFWdd5Aufqztqjn2nWBGmeEj8Tu9xQVyzfnm9165tr".to_string()),
+                name: "Polygon".to_string(),
+                decimals: 18,
+                contract_address: None,
+                active: true,
+            },
+        );
+
+        registry.insert(
+            AssetIdentifier {
+                chain: Chain::BSC,
+                symbol: "BNB".to_string(),
+            },
+            AssetMetadata {
+                name: "BNB Smart Chain".to_string(),
+                decimals: 18,
+                contract_address: None,
                 active: true,
             },
         );
