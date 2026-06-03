@@ -3,6 +3,7 @@ pub mod boltz;
 pub mod changelly;
 pub mod ntt;
 pub mod wormhole;
+pub mod x402;
 
 use crate::enclave::attestation::DeviceIntegrityReport;
 use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
@@ -28,6 +29,7 @@ pub use self::boltz::BoltzRail;
 pub use self::changelly::ChangellyRail;
 pub use self::ntt::NTTRail;
 pub use self::wormhole::WormholeRail;
+pub use self::x402::X402Rail;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwapRequest {
@@ -152,6 +154,13 @@ impl RailProxy {
         rails.insert(
             "ntt".to_string(),
             Box::new(NTTRail {
+                gateway_url: endpoint.clone(),
+                http_client: http_client.clone(),
+            }),
+        );
+        rails.insert(
+            "x402".to_string(),
+            Box::new(X402Rail {
                 gateway_url: endpoint.clone(),
                 http_client: http_client.clone(),
             }),
