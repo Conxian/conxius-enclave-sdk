@@ -42,7 +42,9 @@ mod tests {
 
     #[test]
     fn test_create_identity() -> crate::ConclaveResult<()> {
-        let enclave = Arc::new(CloudEnclave::new("https://vault.conxian-labs.com".to_string())?);
+        let enclave = Arc::new(CloudEnclave::new(
+            "https://vault.conxian-labs.com".to_string(),
+        )?);
         let mgr = IdentityManager::new(enclave);
 
         let profile = mgr.create_identity()?;

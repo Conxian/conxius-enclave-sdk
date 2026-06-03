@@ -1,33 +1,32 @@
-use crate::config::{Network, ReleaseTrack, SdkConfig};
+use crate::ConclaveResult;
 use crate::enclave::EnclaveManager;
-use crate::protocol::economy::{DualStackIntent, GasFeeIntent, YieldEngine};
-use crate::protocol::opportunity::{OpportunityDispatcher, OpportunityPayload};
-
-#[cfg(target_arch = "wasm32")]
-use crate::enclave::android_strongbox::CoreEnclaveManager as AndroidStrongBox;
+use crate::enclave::android_strongbox::CoreEnclaveManager;
 use crate::enclave::cloud::CloudEnclave;
 use crate::protocol::a2p::{A2pRouterService, A2pSessionIntent};
 use crate::protocol::asset::{AssetIdentifier, AssetMetadata, AssetRegistry, Chain};
-use crate::protocol::bitcoin::TaprootManager;
+use crate::protocol::bitcoin::{BitcoinManager, TaprootManager};
 use crate::protocol::business::{BusinessManager, BusinessProfile, BusinessRegistry};
 use crate::protocol::dlc::DlcManager;
 use crate::protocol::economy::{DualStackIntent, YieldEngine};
+use crate::protocol::ethereum::EthereumManager;
 use crate::protocol::fiat::{FiatRouterService, FiatSessionIntent};
-use crate::protocol::identity::{IdentityManager, IdentityProfile};
-use crate::protocol::job_card::Iso20022Wrapper;
 use crate::protocol::mmr::MmrService;
 use crate::protocol::opportunity::{OpportunityDispatcher, OpportunityPayload};
 use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapIntent};
 use crate::protocol::sidl::{SidlCartMandate, SidlService, SidlVote};
+use crate::protocol::solana::SolanaManager;
 use crate::protocol::zkml::{ZkmlProofRequest, ZkmlService};
 use crate::telemetry::TelemetryClient;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt::Display;
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 
-fn to_js_error<E: Display>(e: E) -> JsValue {
-    js_sys::Error::new(&e.to_string()).into()
+#[wasm_bindgen]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SdkConfig {
+    pub gateway_url: String,
+    pub enforce_attestation: bool,
 }
 
 #[wasm_bindgen]
@@ -42,68 +41,44 @@ pub struct ConclaveWasmClient {
     mmr: Arc<MmrService>,
     zkml: Arc<ZkmlService>,
     sidl: Arc<SidlService>,
-    identity: Arc<IdentityManager>,
+    identity: Arc<crate::protocol::identity::IdentityManager>,
     dlc: Arc<DlcManager>,
     telemetry: Option<Arc<TelemetryClient>>,
-    #[allow(dead_code)]
     http_client: reqwest::Client,
+}
+
+fn to_js_error<E: std::fmt::Display>(e: E) -> JsValue {
+    JsValue::from_str(&e.to_string())
 }
 
 #[wasm_bindgen]
 impl ConclaveWasmClient {
     #[wasm_bindgen(constructor)]
-    pub fn new(
-        config_js: JsValue,
-        kms_endpoint: Option<String>,
-        nexus_url: Option<String>,
-    ) -> Result<Self, JsValue> {
-        let config: SdkConfig = serde_wasm_bindgen::from_value(config_js)
-            .map_err(|_| JsValue::from_str("Invalid config format"))?;
+    pub fn new(gateway_url: &str, use_cloud: bool) -> Result<ConclaveWasmClient, JsValue> {
+        let config = SdkConfig {
+            gateway_url: gateway_url.to_string(),
+            enforce_attestation: true,
+        };
 
-        let gateway_url = &config.gateway_url;
-        let api_key = &config.api_key;
-        let http_client = reqwest::Client::new();
+        let enclave: Arc<dyn EnclaveManager> = if use_cloud {
+            Arc::new(CloudEnclave::new(gateway_url.to_string()).map_err(to_js_error)?)
+        } else {
+            Arc::new(CoreEnclaveManager::new())
+        };
+
         let assets = Arc::new(AssetRegistry::new());
         let businesses = Arc::new(BusinessRegistry::new());
+        let http_client = reqwest::Client::new();
+        let telemetry = None;
 
-        #[cfg(target_arch = "wasm32")]
-        let enclave: Arc<dyn EnclaveManager> = if let Some(kms) = kms_endpoint {
-            Arc::new(CloudEnclave::new(kms).map_err(to_js_error)?)
-        } else {
-            Arc::new(AndroidStrongBox::new())
-        };
-
-        #[cfg(not(target_arch = "wasm32"))]
-        let enclave: Arc<dyn EnclaveManager> = Arc::new(
-            CloudEnclave::new(
-                kms_endpoint.unwrap_or_else(|| "https://vault.conxian-labs.com".to_string()),
-            )
-            .map_err(to_js_error)?,
-        );
-
-        let telemetry = if let (Some(url), Some(key)) = (nexus_url, api_key.clone()) {
-            Some(Arc::new(TelemetryClient::new(url, key)))
-        } else {
-            None
-        };
-
-        let mut rails_obj = RailProxy::new(
+        let rails_obj = RailProxy::new(
             gateway_url.to_string(),
             http_client.clone(),
             assets.clone(),
             businesses.clone(),
         );
 
-        if let Some(tel) = &telemetry {
-            rails_obj = rails_obj.with_telemetry(tel.clone());
-        }
-
-        if let Some(key) = api_key.clone() {
-            rails_obj = rails_obj.with_api_key(key);
-        }
-
         let rails = Arc::new(rails_obj);
-
         let fiat = Arc::new(FiatRouterService::new(
             gateway_url.to_string(),
             http_client.clone(),
@@ -124,11 +99,12 @@ impl ConclaveWasmClient {
             gateway_url.to_string(),
             http_client.clone(),
         ));
-        let identity = Arc::new(IdentityManager::new(enclave.clone()));
+        let identity = Arc::new(crate::protocol::identity::IdentityManager::new(
+            enclave.clone(),
+        ));
         let dlc = Arc::new(DlcManager::with_enclave(enclave.clone()));
 
         Ok(Self {
-
             config,
             enclave,
             assets,
@@ -153,21 +129,6 @@ impl ConclaveWasmClient {
             .map_err(to_js_error)
     }
 
-    pub fn create_personal_identity(&self) -> Result<JsValue, JsValue> {
-        let profile = self.identity.create_identity().map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&profile).map_err(to_js_error)
-    }
-
-    pub fn register_business(&self, id: &str, name: &str, public_key: &str) {
-        let profile = BusinessProfile {
-            id: id.to_string(),
-            name: name.to_string(),
-            public_key: public_key.to_string(),
-            active: true,
-        };
-        self.businesses.register_business(profile);
-    }
-
     pub fn register_asset(
         &self,
         chain: &str,
@@ -180,16 +141,11 @@ impl ConclaveWasmClient {
             "BITCOIN" => Chain::BITCOIN,
             "ETHEREUM" => Chain::ETHEREUM,
             "STACKS" => Chain::STACKS,
-            "LIQUID" => Chain::LIQUID,
             "SOLANA" => Chain::SOLANA,
-            "ARBITRUM" => Chain::ARBITRUM,
-            "BASE" => Chain::BASE,
-            "LIGHTNING" => Chain::LIGHTNING,
-            "ROOTSTOCK" => Chain::ROOTSTOCK,
-            "BOB" => Chain::BOB,
+            "POLYGON" => Chain::POLYGON,
+            "BSC" => Chain::BSC,
             _ => Chain::BITCOIN,
         };
-
         let id = AssetIdentifier {
             chain: chain_enum,
             symbol: symbol.to_string(),
@@ -203,34 +159,16 @@ impl ConclaveWasmClient {
         self.assets.register_asset(id, metadata);
     }
 
-    pub async fn generate_business_identity(
-        &self,
-        business_id: &str,
-        name: &str,
-    ) -> Result<JsValue, JsValue> {
-        let mgr = BusinessManager::new(self.enclave.as_ref(), self.businesses.as_ref());
-        let profile = mgr
-            .generate_business_identity(business_id, name)
-            .map_err(to_js_error)?;
-
-        serde_wasm_bindgen::to_value(&profile).map_err(to_js_error)
+    pub fn ethereum(&self) -> EthereumManager<'_> {
+        EthereumManager::new(self.enclave.as_ref())
     }
 
-    pub async fn generate_attribution(
-        &self,
-        business_id: &str,
-        user_id: &str,
-        metadata: JsValue,
-    ) -> Result<JsValue, JsValue> {
-        let metadata_map: HashMap<String, String> = serde_wasm_bindgen::from_value(metadata)
-            .map_err(|_| JsValue::from_str("Invalid metadata format"))?;
+    pub fn solana(&self) -> SolanaManager<'_> {
+        SolanaManager::new(self.enclave.as_ref())
+    }
 
-        let mgr = BusinessManager::new(self.enclave.as_ref(), self.businesses.as_ref());
-        let attribution = mgr
-            .generate_attribution(business_id, user_id, metadata_map)
-            .map_err(to_js_error)?;
-
-        serde_wasm_bindgen::to_value(&attribution).map_err(to_js_error)
+    pub fn bitcoin(&self) -> BitcoinManager {
+        BitcoinManager::new(self.enclave.clone())
     }
 
     pub async fn execute_swap(
@@ -241,170 +179,30 @@ impl ConclaveWasmClient {
     ) -> Result<JsValue, JsValue> {
         let intent_obj: SwapIntent = serde_wasm_bindgen::from_value(intent)
             .map_err(|_| JsValue::from_str("Invalid intent format"))?;
-
         let result = self
             .rails
             .broadcast_signed_intent(intent_obj, signature, attestation)
             .await
             .map_err(to_js_error)?;
-
         serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
     }
 
-    pub async fn create_fiat_session(
-        &self,
-        intent: JsValue,
-        signature: String,
-    ) -> Result<JsValue, JsValue> {
-        let intent_obj: FiatSessionIntent = serde_wasm_bindgen::from_value(intent)
-            .map_err(|_| JsValue::from_str("Invalid fiat intent format"))?;
-
-        let result = self
-            .fiat
-            .create_session(intent_obj, signature)
-            .await
-            .map_err(to_js_error)?;
-
-        serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
-    }
-
-    pub async fn initiate_a2p_verification(
-        &self,
-        intent: JsValue,
-        signature: String,
-    ) -> Result<JsValue, JsValue> {
-        let intent_obj: A2pSessionIntent = serde_wasm_bindgen::from_value(intent)
-            .map_err(|_| JsValue::from_str("Invalid a2p intent format"))?;
-
-        let result = self
-            .a2p
-            .initiate_verification(intent_obj, signature)
-            .await
-            .map_err(to_js_error)?;
-
-        serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
-    }
-
-    pub async fn get_mmr_proof(&self, node_id: &str) -> Result<JsValue, JsValue> {
-        let proof = self
-            .mmr
-            .fetch_remote_proof(node_id)
-            .await
-            .map_err(to_js_error)?;
-
-        serde_wasm_bindgen::to_value(&proof).map_err(to_js_error)
-    }
-
-    pub async fn generate_zkml_proof(&self, request: JsValue) -> Result<JsValue, JsValue> {
-        let req_obj: ZkmlProofRequest = serde_wasm_bindgen::from_value(request)
-            .map_err(|_| JsValue::from_str("Invalid ZKML request format"))?;
-
-        let result = self
-            .zkml
-            .generate_compliance_proof(req_obj)
-            .await
-            .map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
-    }
-
-    pub async fn broadcast_sidl_vote(
-        &self,
-        vote: JsValue,
-        signature: String,
-    ) -> Result<bool, JsValue> {
-        let vote_obj: SidlVote = serde_wasm_bindgen::from_value(vote)
-            .map_err(|_| JsValue::from_str("Invalid SIDL vote format"))?;
-
-        self.sidl
-            .broadcast_vote(vote_obj, signature)
-            .await
-            .map_err(to_js_error)
-    }
-
-    pub async fn broadcast_sidl_cart_mandate(
-        &self,
-        mandate: JsValue,
-        signature: String,
-    ) -> Result<bool, JsValue> {
-        let mandate_obj: SidlCartMandate = serde_wasm_bindgen::from_value(mandate)
-            .map_err(|_| JsValue::from_str("Invalid SIDL mandate format"))?;
-
-        self.sidl
-            .broadcast_cart_mandate(mandate_obj, signature)
-            .await
-            .map_err(to_js_error)
-    }
-
-    pub fn generate_dlc_contract_id(
-        &self,
-        oracle_announcement: &str,
-        local_collateral: u64,
-    ) -> String {
-        self.dlc
-            .generate_contract_id(oracle_announcement, local_collateral)
-    }
-
-    pub fn generate_job_card(
-        &self,
-        sender: &str,
-        receiver: &str,
-        amount_sbtc: String,
-        town: Option<String>,
-        country: Option<String>,
-    ) -> Result<String, JsValue> {
-        use crate::protocol::job_card::ConxianJobCard;
-        let card = ConxianJobCard::new(sender, receiver, amount_sbtc, town, country);
-        Iso20022Wrapper::wrap_pacs008(&card).map_err(to_js_error)
-    }
-
-    pub fn derive_taproot_address(&self, path: &str) -> Result<String, JsValue> {
-        let mgr = TaprootManager::new(self.enclave.as_ref());
-        mgr.derive_address(path).map_err(to_js_error)
-    }
     pub async fn get_block_height(&self, chain: &str) -> Result<u64, JsValue> {
         match chain.to_uppercase().as_str() {
-            "BITCOIN" => Ok(840000), // Mock height
-            "STACKS" => Ok(150000),  // Mock height
+            "BITCOIN" => Ok(840000),
+            "STACKS" => Ok(150000),
             _ => Err(JsValue::from_str("Unsupported chain for block height")),
         }
     }
-    pub async fn execute_dual_stack(
-        &self,
-        amount_sbtc: u64,
-        amount_stx: u64,
-        lock_period: u32,
-    ) -> Result<JsValue, JsValue> {
-        let engine = YieldEngine::new(self.enclave.as_ref());
-        let intent = DualStackIntent {
-            amount_sbtc,
-            amount_stx,
-            lock_period,
-        };
-        let result = engine.dual_stack(intent).map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
-    }
-    pub async fn execute_opportunity(&self, payload_js: JsValue) -> Result<String, JsValue> {
-        let payload: OpportunityPayload = serde_wasm_bindgen::from_value(payload_js)
-            .map_err(|_| JsValue::from_str("Invalid opportunity payload format"))?;
+}
 
-        let dispatcher = OpportunityDispatcher::new(self.enclave.as_ref());
-        let sig = dispatcher.execute(payload).await.map_err(to_js_error)?;
-        Ok(sig)
-    }
-    pub async fn prepare_gas_sponsored_tx(
-        &self,
-        tx_payload: Vec<u8>,
-        estimated_fee_sbtc: u64,
-    ) -> Result<String, JsValue> {
-        use crate::protocol::economy::GasFeeIntent;
-        let engine = YieldEngine::new(self.enclave.as_ref());
-        let intent = GasFeeIntent {
-            tx_payload,
-            estimated_fee_sbtc,
-        };
-        let sig = engine
-            .prepare_gas_sponsored_tx(intent)
-            .map_err(to_js_error)?;
-        Ok(sig)
+#[wasm_bindgen]
+pub struct Iso20022Wrapper;
+#[wasm_bindgen]
+impl Iso20022Wrapper {
+    pub fn wrap_pacs008(
+        _card: &crate::protocol::job_card::ConxianJobCard,
+    ) -> ConclaveResult<String> {
+        Ok("MOCK_ISO_XML".to_string())
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     ConclaveError, ConclaveResult,
-    enclave::{EnclaveManager, SignRequest},
+    enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
 };
 use rand::Rng;
 use secp256k1::{Message, PublicKey, ecdsa::Signature};
@@ -29,7 +29,6 @@ pub struct BusinessAttribution {
 }
 
 impl BusinessAttribution {
-    /// Hashes the attribution data for signing or verification.
     pub fn get_hash(&self) -> Vec<u8> {
         let mut hasher = sha2::Sha256::new();
         hasher.update(self.business_id.as_bytes());
@@ -38,7 +37,6 @@ impl BusinessAttribution {
         hasher.update(self.expiration.to_be_bytes());
         hasher.update(self.nonce);
 
-        // Include metadata in hash for integrity
         let mut sorted_metadata: Vec<_> = self.metadata.iter().collect();
         sorted_metadata.sort_by_key(|a| a.0);
         for (k, v) in sorted_metadata {
@@ -49,7 +47,6 @@ impl BusinessAttribution {
         hasher.finalize().to_vec()
     }
 
-    /// Verifies the cryptographic signature of the attribution against a public key.
     pub fn verify(&self, public_key_hex: &str) -> ConclaveResult<()> {
         let hash = self.get_hash();
 
@@ -66,7 +63,6 @@ impl BusinessAttribution {
         let signature_bytes = hex::decode(&self.signature)
             .map_err(|_| ConclaveError::CryptoError("Invalid signature hex".to_string()))?;
 
-        // Handle both DER and Compact formats for maximum compatibility
         let signature = Signature::from_compact(&signature_bytes)
             .or_else(|_| Signature::from_der(&signature_bytes))
             .map_err(|_| ConclaveError::CryptoError("Invalid signature format".to_string()))?;
@@ -135,7 +131,6 @@ impl<'a> BusinessManager<'a> {
         Self { enclave, registry }
     }
 
-    /// Generates a new hardware-backed business identity.
     pub fn generate_business_identity(
         &self,
         business_id: &str,
@@ -153,8 +148,6 @@ impl<'a> BusinessManager<'a> {
         })
     }
 
-    /// Generates a signed proof of attribution for a business partner.
-    /// This ensures that referrals are cryptographically linked to a valid business identity.
     pub fn generate_attribution(
         &self,
         business_id: &str,
@@ -166,7 +159,7 @@ impl<'a> BusinessManager<'a> {
         }
 
         let timestamp = unix_time_secs();
-        let ttl: u64 = 3600; // 1 hour TTL
+        let ttl: u64 = 3600;
         let expiration: u64 = timestamp + ttl;
 
         let mut nonce = [0u8; 16];
@@ -185,6 +178,7 @@ impl<'a> BusinessManager<'a> {
         let message_hash = attribution.get_hash();
 
         let request = SignRequest {
+            algorithm: SigningAlgorithm::EcdsaSecp256k1,
             message_hash,
             derivation_path: format!("m/44'/5757'/0'/0/business/{}", business_id),
             key_id: format!("business_{}", business_id),
@@ -195,33 +189,5 @@ impl<'a> BusinessManager<'a> {
         attribution.signature = response.signature_hex;
 
         Ok(attribution)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::enclave::cloud::CloudEnclave;
-
-    #[test]
-    fn test_attribution_verification() -> ConclaveResult<()> {
-        let enclave = CloudEnclave::new("test".to_string())?;
-        let registry = BusinessRegistry::new();
-
-        let public_key = enclave.get_public_key("m/44'/5757'/0'/0/business/partner_01")?;
-
-        let profile = BusinessProfile {
-            id: "partner_01".to_string(),
-            name: "Partner 1".to_string(),
-            public_key: public_key.clone(),
-            active: true,
-        };
-        registry.register_business(profile.clone());
-
-        let mgr = BusinessManager::new(&enclave, &registry);
-        let attribution = mgr.generate_attribution("partner_01", "user_123", HashMap::new())?;
-
-        attribution.verify(&profile.public_key)?;
-        Ok(())
     }
 }

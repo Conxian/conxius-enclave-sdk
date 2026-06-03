@@ -1,6 +1,6 @@
 use crate::{
     ConclaveError, ConclaveResult,
-    enclave::{EnclaveManager, SignRequest},
+    enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
 };
 use sha2::{Digest, Sha256};
 
@@ -10,7 +10,6 @@ pub struct StacksTransactionIntent {
     pub message_hash: Vec<u8>,
 }
 
-/// Stacks-specific transaction and message handling.
 pub struct StacksManager<'a> {
     enclave: &'a dyn EnclaveManager,
 }
@@ -20,13 +19,11 @@ impl<'a> StacksManager<'a> {
         Self { enclave }
     }
 
-    /// PHASE 1: Prepare the Stacks transaction intent.
     pub fn prepare_transaction(&self, payload: &[u8]) -> Result<StacksTransactionIntent, String> {
         if payload.is_empty() {
             return Err("Payload cannot be empty".to_string());
         }
 
-        // Stacks transactions are double-sha256 hashed usually for the signing part
         let mut hasher = Sha256::new();
         hasher.update(payload);
         let hash1 = hasher.finalize();
@@ -41,13 +38,13 @@ impl<'a> StacksManager<'a> {
         })
     }
 
-    /// PHASE 2: Sign the prepared intent.
     pub fn sign_prepared_transaction(
         &self,
         intent: StacksTransactionIntent,
         key_id: &str,
     ) -> ConclaveResult<String> {
         let request = SignRequest {
+            algorithm: SigningAlgorithm::EcdsaSecp256k1,
             message_hash: intent.message_hash,
             derivation_path: "m/44'/5757'/0'/0/0".to_string(),
             key_id: key_id.to_string(),
@@ -58,7 +55,6 @@ impl<'a> StacksManager<'a> {
         Ok(response.signature_hex)
     }
 
-    /// Formats and signs a Stacks message (SIP-018)
     pub fn sign_message(&self, message: &str, key_id: &str) -> ConclaveResult<String> {
         if message.is_empty() {
             return Err(ConclaveError::InvalidPayload);
@@ -72,6 +68,7 @@ impl<'a> StacksManager<'a> {
         let message_hash = hasher.finalize().to_vec();
 
         let request = SignRequest {
+            algorithm: SigningAlgorithm::EcdsaSecp256k1,
             message_hash,
             derivation_path: "m/44'/5757'/0'/0/0".to_string(),
             key_id: key_id.to_string(),

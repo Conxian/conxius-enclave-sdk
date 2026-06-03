@@ -1,14 +1,12 @@
 use crate::{
     ConclaveError, ConclaveResult,
-    enclave::{EnclaveManager, SignRequest},
+    enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
 };
 use bitcoin::XOnlyPublicKey;
 use bitcoin::hashes::{HashEngine, sha256t};
 use bitcoin::taproot::TapLeafHash;
 use std::sync::Arc;
 
-/// Native Bitcoin Taproot (BIP341) Manager.
-/// Superior implementation handling Tweak logic natively within the Conclave ethos.
 pub struct TaprootManager<'a> {
     enclave: &'a dyn EnclaveManager,
 }
@@ -18,9 +16,6 @@ impl<'a> TaprootManager<'a> {
         Self { enclave }
     }
 
-    /// Sign a Taproot sighash, applying the necessary BIP341 tweak.
-    /// Internal Key is derived from the enclave, and the tweak is calculated
-    /// based on the Merkle root of the script tree (if any).
     pub fn sign_taproot_v1(
         &self,
         sighash: [u8; 32],
@@ -37,6 +32,7 @@ impl<'a> TaprootManager<'a> {
         let tweak = self.calculate_taproot_tweak(derivation_path, merkle_root)?;
 
         let request = SignRequest {
+            algorithm: SigningAlgorithm::SchnorrSecp256k1,
             message_hash: sighash.to_vec(),
             derivation_path: derivation_path.to_string(),
             key_id: key_id.to_string(),
@@ -47,7 +43,6 @@ impl<'a> TaprootManager<'a> {
         Ok(response.signature_hex)
     }
 
-    /// Calculates the BIP341 tweak: hash_TapTweak(internal_key || merkle_root)
     fn calculate_taproot_tweak(
         &self,
         derivation_path: &str,
@@ -78,7 +73,6 @@ impl<'a> TaprootManager<'a> {
         Ok(tweak_hash.to_byte_array().to_vec())
     }
 
-    /// Prepares and signs a Taproot (BIP341) Schnorr signature.
     pub fn sign_taproot_sighash(
         &self,
         sighash: [u8; 32],
@@ -88,7 +82,6 @@ impl<'a> TaprootManager<'a> {
         self.sign_taproot_v1(sighash, derivation_path, key_id, None)
     }
 
-    /// Decoupled Taproot leaf signing for script path spending.
     pub fn sign_tapscript_leaf(
         &self,
         leaf_hash: TapLeafHash,
@@ -98,15 +91,12 @@ impl<'a> TaprootManager<'a> {
         self.sign_taproot_sighash(leaf_hash.to_byte_array(), derivation_path, key_id)
     }
 
-    /// BitVM-style challenge signing helper.
     pub fn sign_bitvm_challenge(
         &self,
         challenge_hash: [u8; 32],
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        // BitVM challenges often require specific sighash flags or tweaks,
-        // but at the base layer they are Taproot signatures.
         self.sign_taproot_sighash(challenge_hash, derivation_path, key_id)
     }
 }
@@ -123,7 +113,6 @@ impl sha256t::Tag for TapTweakTag {
     );
 }
 
-/// BitcoinManager integrates BDK for descriptor-based wallet management.
 pub struct BitcoinManager {
     enclave: Arc<dyn EnclaveManager>,
 }
@@ -133,19 +122,16 @@ impl BitcoinManager {
         Self { enclave }
     }
 
-    /// Generates a SegWit (wpkh) descriptor using a key from the enclave.
     pub fn generate_wpkh_descriptor(&self, derivation_path: &str) -> ConclaveResult<String> {
         let pubkey_hex = self.enclave.get_public_key(derivation_path)?;
         Ok(format!("wpkh({})", pubkey_hex))
     }
 
-    /// Generates a Taproot (tr) descriptor using a key from the enclave.
     pub fn generate_tr_descriptor(&self, derivation_path: &str) -> ConclaveResult<String> {
         let pubkey_hex = self.enclave.get_public_key(derivation_path)?;
         Ok(format!("tr({})", pubkey_hex))
     }
 
-    /// Returns the TaprootManager for advanced signing operations.
     pub fn taproot(&self) -> TaprootManager<'_> {
         TaprootManager::new(self.enclave.as_ref())
     }

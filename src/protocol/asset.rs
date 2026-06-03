@@ -15,6 +15,8 @@ pub enum Chain {
     LIGHTNING,
     ROOTSTOCK,
     BOB,
+    POLYGON,
+    BSC,
 }
 
 impl Chain {
@@ -30,6 +32,8 @@ impl Chain {
             Chain::LIGHTNING => "LIGHTNING",
             Chain::ROOTSTOCK => "ROOTSTOCK",
             Chain::BOB => "BOB",
+            Chain::POLYGON => "POLYGON",
+            Chain::BSC => "BSC",
         }
     }
 }
@@ -68,7 +72,6 @@ impl AssetRegistry {
     pub fn new() -> Self {
         let mut registry = HashMap::new();
 
-        // Seed with core assets
         registry.insert(
             AssetIdentifier {
                 chain: Chain::BITCOIN,
@@ -97,13 +100,13 @@ impl AssetRegistry {
 
         registry.insert(
             AssetIdentifier {
-                chain: Chain::STACKS,
-                symbol: "STX".to_string(),
+                chain: Chain::ETHEREUM,
+                symbol: "USDC".to_string(),
             },
             AssetMetadata {
-                name: "Stacks".to_string(),
+                name: "USD Coin".to_string(),
                 decimals: 6,
-                contract_address: None,
+                contract_address: Some("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eb48".to_string()),
                 active: true,
             },
         );
@@ -117,6 +120,19 @@ impl AssetRegistry {
                 name: "Tether USD".to_string(),
                 decimals: 6,
                 contract_address: Some("0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string()),
+                active: true,
+            },
+        );
+
+        registry.insert(
+            AssetIdentifier {
+                chain: Chain::STACKS,
+                symbol: "STX".to_string(),
+            },
+            AssetMetadata {
+                name: "Stacks".to_string(),
+                decimals: 6,
+                contract_address: None,
                 active: true,
             },
         );
@@ -140,9 +156,35 @@ impl AssetRegistry {
                 symbol: "USDC".to_string(),
             },
             AssetMetadata {
-                name: "USD Coin".to_string(),
+                name: "USD Coin (Solana)".to_string(),
                 decimals: 6,
                 contract_address: Some("EPjFWdd5Aufqztqjn2nWBGmeEj8Tu9xQVyzfnm9165tr".to_string()),
+                active: true,
+            },
+        );
+
+        registry.insert(
+            AssetIdentifier {
+                chain: Chain::POLYGON,
+                symbol: "POL".to_string(),
+            },
+            AssetMetadata {
+                name: "Polygon".to_string(),
+                decimals: 18,
+                contract_address: None,
+                active: true,
+            },
+        );
+
+        registry.insert(
+            AssetIdentifier {
+                chain: Chain::BSC,
+                symbol: "BNB".to_string(),
+            },
+            AssetMetadata {
+                name: "BNB Smart Chain".to_string(),
+                decimals: 18,
+                contract_address: None,
                 active: true,
             },
         );
