@@ -6,13 +6,14 @@ use crate::protocol::a2p::{A2pRouterService, A2pSessionIntent};
 use crate::protocol::asset::{AssetIdentifier, AssetMetadata, AssetRegistry, Chain};
 use crate::protocol::bitcoin::{BitcoinManager, TaprootManager};
 use crate::protocol::business::{BusinessManager, BusinessProfile, BusinessRegistry};
+use crate::protocol::credit::{CreditService, VouchIntent};
 use crate::protocol::dlc::DlcManager;
 use crate::protocol::economy::{DualStackIntent, YieldEngine};
 use crate::protocol::ethereum::EthereumManager;
-use crate::protocol::fiat::{FiatRouterService, FiatSessionIntent};
+use crate::protocol::fiat::{FiatOnRampRequest, FiatProviderType, FiatRouterService, FiatSessionIntent};
 use crate::protocol::mmr::MmrService;
 use crate::protocol::opportunity::{OpportunityDispatcher, OpportunityPayload};
-use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapIntent};
+use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapIntent, SwapRequest};
 use crate::protocol::sidl::{SidlCartMandate, SidlService, SidlVote};
 use crate::protocol::solana::SolanaManager;
 use crate::protocol::zkml::{ZkmlProofRequest, ZkmlService};
@@ -37,6 +38,7 @@ pub struct ConclaveWasmClient {
     businesses: Arc<BusinessRegistry>,
     rails: Arc<RailProxy>,
     fiat: Arc<FiatRouterService>,
+    credit: Arc<CreditService>,
     a2p: Arc<A2pRouterService>,
     mmr: Arc<MmrService>,
     zkml: Arc<ZkmlService>,
@@ -83,6 +85,10 @@ impl ConclaveWasmClient {
             gateway_url.to_string(),
             http_client.clone(),
         ));
+        let credit = Arc::new(CreditService::new(
+            gateway_url.to_string(),
+            http_client.clone(),
+        ));
         let a2p = Arc::new(A2pRouterService::new(
             gateway_url.to_string(),
             http_client.clone(),
@@ -111,6 +117,7 @@ impl ConclaveWasmClient {
             businesses,
             rails,
             fiat,
+            credit,
             a2p,
             mmr,
             zkml,
@@ -185,6 +192,26 @@ impl ConclaveWasmClient {
             .await
             .map_err(to_js_error)?;
         serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
+    }
+
+    pub async fn prepare_fiat_session(
+        &self,
+        request: JsValue,
+    ) -> Result<JsValue, JsValue> {
+        let req: FiatOnRampRequest = serde_wasm_bindgen::from_value(request)
+            .map_err(|_| JsValue::from_str("Invalid request format"))?;
+        let intent = self.fiat.prepare_session(req);
+        serde_wasm_bindgen::to_value(&intent).map_err(to_js_error)
+    }
+
+    pub async fn prepare_vouch(
+        &self,
+        borrower: String,
+        vouchers: Vec<String>,
+        amount: u64,
+    ) -> Result<JsValue, JsValue> {
+        let intent = self.credit.prepare_vouch(borrower, vouchers, amount);
+        serde_wasm_bindgen::to_value(&intent).map_err(to_js_error)
     }
 
     pub async fn get_block_height(&self, chain: &str) -> Result<u64, JsValue> {
