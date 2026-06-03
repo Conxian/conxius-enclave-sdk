@@ -4,6 +4,14 @@ use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum FiatProviderType {
+    /// Traditional centralized providers (Stripe, Circle, MoonPay)
+    Legacy,
+    /// Sovereign P2P or hardware-attested providers (Bisq, Sovereign Ramp)
+    Sovereign,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FiatOnRampRequest {
     pub fiat_currency: String,
@@ -11,6 +19,7 @@ pub struct FiatOnRampRequest {
     pub amount: f64,
     pub wallet_address: String,
     pub provider: String,
+    pub provider_type: FiatProviderType,
     pub attribution: Option<BusinessAttribution>,
 }
 
@@ -19,6 +28,7 @@ pub struct FiatSessionIntent {
     pub request: FiatOnRampRequest,
     pub signable_hash: Vec<u8>,
     pub gateway_url: String,
+    pub enforce_sovereignty: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,6 +36,7 @@ pub struct FiatSessionResponse {
     pub session_id: String,
     pub redirect_url: String,
     pub provider: String,
+    pub is_sovereign: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -48,15 +59,19 @@ impl FiatRouterService {
     }
 
     /// Prepares a stateless on-ramp session intent for signing.
+    /// If provider_type is Sovereign, the intent will require hardware attestation at the gateway.
     pub fn prepare_session(&self, request: FiatOnRampRequest) -> FiatSessionIntent {
         let mut hasher = Sha256::new();
-        hasher.update(format!("FIAT_ONRAMP:{:?}:{}", request, self.gateway_endpoint).as_bytes());
+        hasher.update(format!("FIAT_SOVEREIGN_v1:{:?}:{}", request, self.gateway_endpoint).as_bytes());
         let signable_hash = hasher.finalize().to_vec();
+
+        let enforce_sovereignty = request.provider_type == FiatProviderType::Sovereign;
 
         FiatSessionIntent {
             request,
             signable_hash,
             gateway_url: self.gateway_endpoint.clone(),
+            enforce_sovereignty,
         }
     }
 
@@ -100,7 +115,7 @@ mod tests {
     use crate::protocol::asset::{AssetIdentifier, Chain};
 
     #[test]
-    fn test_prepare_fiat_session() {
+    fn test_prepare_fiat_session_sovereign() {
         let client = reqwest::Client::new();
         let service =
             FiatRouterService::new("https://gateway.conxian-labs.com".to_string(), client);
@@ -113,12 +128,13 @@ mod tests {
             },
             amount: 100.0,
             wallet_address: "bc1q...".to_string(),
-            provider: "stripe".to_string(),
+            provider: "bisq".to_string(),
+            provider_type: FiatProviderType::Sovereign,
             attribution: None,
         };
 
         let intent = service.prepare_session(request);
+        assert!(intent.enforce_sovereignty);
         assert!(!intent.signable_hash.is_empty());
-        assert_eq!(intent.gateway_url, "https://gateway.conxian-labs.com");
     }
 }

@@ -4,6 +4,7 @@ pub mod asset_tests;
 pub mod bitcoin;
 pub mod bitcoin_tests;
 pub mod business;
+pub mod credit;
 pub mod dlc;
 pub mod economy;
 pub mod economy_tests;
