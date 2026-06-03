@@ -143,7 +143,10 @@ impl SettlementManager {
                         in_document = true;
                         document_depth = Some(current_depth);
 
-                        if current_ns.as_ref().is_some_and(|ns| ns.starts_with(b"urn:iso:std:iso:20022:tech:xsd:")) {
+                        if current_ns
+                            .as_ref()
+                            .is_some_and(|ns| ns.starts_with(b"urn:iso:std:iso:20022:tech:xsd:"))
+                        {
                             document_namespace_ok = true;
                         }
                     } else if in_document {

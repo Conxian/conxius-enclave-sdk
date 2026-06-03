@@ -100,6 +100,32 @@ impl AssetRegistry {
 
         registry.insert(
             AssetIdentifier {
+                chain: Chain::ETHEREUM,
+                symbol: "USDC".to_string(),
+            },
+            AssetMetadata {
+                name: "USD Coin".to_string(),
+                decimals: 6,
+                contract_address: Some("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eb48".to_string()),
+                active: true,
+            },
+        );
+
+        registry.insert(
+            AssetIdentifier {
+                chain: Chain::ETHEREUM,
+                symbol: "USDT".to_string(),
+            },
+            AssetMetadata {
+                name: "Tether USD".to_string(),
+                decimals: 6,
+                contract_address: Some("0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string()),
+                active: true,
+            },
+        );
+
+        registry.insert(
+            AssetIdentifier {
                 chain: Chain::STACKS,
                 symbol: "STX".to_string(),
             },
@@ -120,6 +146,19 @@ impl AssetRegistry {
                 name: "Solana".to_string(),
                 decimals: 9,
                 contract_address: None,
+                active: true,
+            },
+        );
+
+        registry.insert(
+            AssetIdentifier {
+                chain: Chain::SOLANA,
+                symbol: "USDC".to_string(),
+            },
+            AssetMetadata {
+                name: "USD Coin (Solana)".to_string(),
+                decimals: 6,
+                contract_address: Some("EPjFWdd5Aufqztqjn2nWBGmeEj8Tu9xQVyzfnm9165tr".to_string()),
                 active: true,
             },
         );
