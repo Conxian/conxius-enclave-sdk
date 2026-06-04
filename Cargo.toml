@@ -7,6 +7,7 @@ edition = "2024"
 [features]
 default = []
 mock-cloud-enclave = []
+dev-attestation-bypass = []
 
 [dependencies]
 zeroize = { version = "1.8.1", features = ["derive", "zeroize_derive"] }

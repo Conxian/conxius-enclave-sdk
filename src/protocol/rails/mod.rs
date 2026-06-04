@@ -6,6 +6,7 @@ pub mod wormhole;
 pub mod x402;
 
 use crate::enclave::attestation::DeviceIntegrityReport;
+use crate::enclave::replay_guard::ReplayGuard;
 use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 use crate::protocol::business::{BusinessAttribution, BusinessRegistry};
 use crate::telemetry::TelemetryClient;
@@ -22,6 +23,13 @@ fn unix_time_secs() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+
+const ATTESTATION_REPLAY_TTL_SECS: u64 = 300;
+const ATTESTATION_REPLAY_MAX_ENTRIES: usize = 4096;
+
+fn attestation_bypass_allowed() -> bool {
+    cfg!(any(test, feature = "dev-attestation-bypass"))
 }
 
 pub use self::bisq::BisqRail;
@@ -111,6 +119,7 @@ pub struct RailProxy {
     pub asset_registry: Arc<AssetRegistry>,
     pub business_registry: Arc<BusinessRegistry>,
     pub telemetry: Option<Arc<TelemetryClient>>,
+    replay_guard: ReplayGuard,
 }
 
 impl RailProxy {
@@ -175,6 +184,10 @@ impl RailProxy {
             asset_registry,
             business_registry,
             telemetry: None,
+            replay_guard: ReplayGuard::new(
+                ATTESTATION_REPLAY_TTL_SECS,
+                ATTESTATION_REPLAY_MAX_ENTRIES,
+            ),
         }
     }
 
@@ -197,8 +210,28 @@ impl RailProxy {
         intent: &SwapIntent,
         attestation_json: &Option<String>,
     ) -> ConclaveResult<()> {
+        self.verify_hardware_integrity_with_policy(
+            intent,
+            attestation_json,
+            attestation_bypass_allowed(),
+        )
+    }
+
+    fn verify_hardware_integrity_with_policy(
+        &self,
+        intent: &SwapIntent,
+        attestation_json: &Option<String>,
+        bypass_allowed: bool,
+    ) -> ConclaveResult<()> {
         if !self.enforce_attestation {
-            return Ok(());
+            if bypass_allowed {
+                return Ok(());
+            }
+
+            return Err(ConclaveError::EnclaveFailure(
+                "Attestation bypass requested, but this build does not allow bypass. Re-enable attestation or build with `dev-attestation-bypass` for dev/test-only use."
+                    .to_string(),
+            ));
         }
 
         let json = attestation_json.as_ref().ok_or_else(|| {
@@ -210,7 +243,21 @@ impl RailProxy {
             serde_json::from_str(json).map_err(|_| ConclaveError::InvalidPayload)?;
 
         if !report.verify(&intent.signable_hash) {
-            return Err(ConclaveError::EnclaveFailure("Hardware attestation verification failed: Device integrity compromised, nonce mismatch, or attempting to use a Software/Simulated enclave for a high-value operation".to_string()));
+            return Err(ConclaveError::EnclaveFailure("Hardware attestation verification failed: Device integrity compromised, nonce mismatch, stale timestamp, or attempting to use a Software/Simulated enclave for a high-value operation".to_string()));
+        }
+
+        let replay_key = format!(
+            "{}:{}",
+            report.get_device_fingerprint(),
+            hex::encode(&intent.signable_hash)
+        );
+        if !self
+            .replay_guard
+            .check_and_record(&replay_key, unix_time_secs())
+        {
+            return Err(ConclaveError::EnclaveFailure(
+                "Hardware attestation replay detected".to_string(),
+            ));
         }
 
         // Verify business attribution if present
@@ -408,10 +455,56 @@ mod tests {
 #[cfg(test)]
 mod rail_proxy_tests {
     use super::*;
-    use crate::protocol::asset::AssetRegistry;
+    use crate::enclave::attestation::{AttestationLevel, DeviceIntegrityReport};
+    use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
     use crate::protocol::business::BusinessRegistry;
     use crate::telemetry::TelemetryClient;
     use std::sync::Arc;
+
+    fn test_proxy() -> RailProxy {
+        RailProxy::new(
+            "https://gateway.conxian-labs.com".to_string(),
+            reqwest::Client::new(),
+            Arc::new(AssetRegistry::new()),
+            Arc::new(BusinessRegistry::new()),
+        )
+    }
+
+    fn test_intent(signable_hash: Vec<u8>) -> SwapIntent {
+        SwapIntent {
+            request: SwapRequest {
+                from_asset: AssetIdentifier {
+                    chain: Chain::BITCOIN,
+                    symbol: "BTC".to_string(),
+                },
+                to_asset: AssetIdentifier {
+                    chain: Chain::ETHEREUM,
+                    symbol: "ETH".to_string(),
+                },
+                amount: 42,
+                recipient_address: "0xabc".to_string(),
+                attribution: None,
+            },
+            signable_hash,
+            rail_type: "x402".to_string(),
+            chain_context: None,
+        }
+    }
+
+    fn test_attestation_json(nonce: Vec<u8>) -> String {
+        serde_json::to_string(&DeviceIntegrityReport {
+            level: AttestationLevel::TEE,
+            challenge_nonce: nonce,
+            signature: vec![7; 64],
+            certificate_chain: vec![
+                "CONCLAVE_ROOT_CA_01".to_string(),
+                "CONCLAVE_HARDWARE_BACKED_DEVICE_0x1".to_string(),
+            ],
+            timestamp: unix_time_secs(),
+            extension_data: "PURPOSE_SIGN|ALGORITHM_EC|OS_VERSION_14".to_string(),
+        })
+        .expect("attestation should serialize")
+    }
 
     #[tokio::test]
     async fn test_rail_proxy_with_telemetry() {
@@ -431,5 +524,53 @@ mod rail_proxy_tests {
         proxy = proxy.with_telemetry(telemetry);
 
         assert!(proxy.telemetry.is_some());
+    }
+
+    #[test]
+    fn test_verify_hardware_integrity_rejects_replay() {
+        let proxy = test_proxy();
+        let intent = test_intent(vec![3; 32]);
+        let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
+
+        assert!(
+            proxy
+                .verify_hardware_integrity(&intent, &attestation)
+                .is_ok()
+        );
+
+        let replay_result = proxy.verify_hardware_integrity(&intent, &attestation);
+        assert!(matches!(
+            replay_result,
+            Err(ConclaveError::EnclaveFailure(message)) if message.contains("replay")
+        ));
+    }
+
+    #[test]
+    fn test_attestation_bypass_allowed_in_test_build() {
+        let mut proxy = test_proxy();
+        proxy.enforce_attestation = false;
+        let intent = test_intent(vec![9; 32]);
+        let no_attestation = None;
+
+        assert!(
+            proxy
+                .verify_hardware_integrity(&intent, &no_attestation)
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn test_attestation_bypass_fails_closed_when_policy_disallows_it() {
+        let mut proxy = test_proxy();
+        proxy.enforce_attestation = false;
+        let intent = test_intent(vec![11; 32]);
+        let no_attestation = None;
+
+        let result = proxy.verify_hardware_integrity_with_policy(&intent, &no_attestation, false);
+
+        assert!(matches!(
+            result,
+            Err(ConclaveError::EnclaveFailure(message)) if message.contains("does not allow bypass")
+        ));
     }
 }
