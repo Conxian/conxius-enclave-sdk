@@ -39,6 +39,10 @@ wasm-bindgen = "0.2.121"
 wasm-bindgen-futures = "0.4.71"
 web-sys = "0.3.98"
 
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom_0_2 = { package = "getrandom", version = "0.2.17", features = ["js"] }
+getrandom_0_3 = { package = "getrandom", version = "0.3.4", features = ["wasm_js"] }
+
 [dev-dependencies]
 tokio = { version = "1.52.3", features = ["full"] }
 

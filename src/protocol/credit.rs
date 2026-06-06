@@ -90,7 +90,9 @@ impl CreditService {
             })
             .send()
             .await
-            .map_err(|e| ConclaveError::EnclaveFailure(format!("Vouch submission failed: {}", e)))?;
+            .map_err(|e| {
+                ConclaveError::EnclaveFailure(format!("Vouch submission failed: {}", e))
+            })?;
 
         if !response.status().is_success() {
             return Err(ConclaveError::EnclaveFailure(format!(
