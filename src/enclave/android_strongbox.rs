@@ -15,6 +15,8 @@ use crate::{
 };
 
 type HmacSha512 = Hmac<Sha512>;
+const SOFTWARE_SIMULATION_EXTENSION: &str =
+    "SIMULATED_SOFTWARE_ONLY|PURPOSE_SIGN|ALGORITHM_EC|OS_VERSION_14";
 
 fn unix_time_secs() -> u64 {
     SystemTime::now()
@@ -23,6 +25,12 @@ fn unix_time_secs() -> u64 {
         .as_secs()
 }
 
+/// CoreEnclaveManager is a software-backed development driver.
+///
+/// It is useful for local integration and interface validation, but it is not a
+/// production hardware-bound StrongBox implementation. Production deployments
+/// must replace this path with a hardware-backed driver that emits hardened
+/// attestation levels such as TEE, StrongBox, or CloudTEE.
 pub struct CoreEnclaveManager {
     session_key: Mutex<Option<Zeroizing<[u8; 64]>>>,
 }
@@ -79,7 +87,7 @@ impl CoreEnclaveManager {
                 "CONCLAVE_HARDWARE_BACKED_DEVICE_0x1".to_string(),
             ],
             timestamp: unix_time_secs(),
-            extension_data: "PURPOSE_SIGN|ALGORITHM_UNIVERSAL|OS_VERSION_14|SIMULATED".to_string(),
+            extension_data: SOFTWARE_SIMULATION_EXTENSION.to_string(),
         }
     }
 
@@ -235,7 +243,6 @@ impl EnclaveManager for CoreEnclaveManager {
                 request.taproot_tweak.as_deref(),
             ),
             SigningAlgorithm::Ed25519 => {
-                // Simulated Ed25519 using derived key
                 let attestation = self.generate_attestation(&request.message_hash);
                 let attestation_json = serde_json::to_string(&attestation).map_err(|e| {
                     ConclaveError::CryptoError(format!("Serialization error: {}", e))
