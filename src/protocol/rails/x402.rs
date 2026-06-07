@@ -1,5 +1,5 @@
 use crate::protocol::asset::AssetIdentifier;
-use crate::protocol::rails::{SovereignRail, SwapIntent, SwapResponse, SwapRequest};
+use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
 use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -32,7 +32,10 @@ impl SovereignRail for X402Rail {
             return Err(ConclaveError::InvalidPayload);
         }
 
-        Ok(Some(format!("X402_INTENT_v1:{}", request.recipient_address)))
+        Ok(Some(format!(
+            "X402_INTENT_v1:{}",
+            request.recipient_address
+        )))
     }
 
     async fn execute_swap(
@@ -85,8 +88,14 @@ mod tests {
         };
 
         let request = SwapRequest {
-            from_asset: AssetIdentifier { chain: Chain::BITCOIN, symbol: "BTC".to_string() },
-            to_asset: AssetIdentifier { chain: Chain::BITCOIN, symbol: "BTC".to_string() },
+            from_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            to_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
             amount: 100,
             recipient_address: "merchant_endpoint".to_string(),
             attribution: None,

@@ -10,7 +10,9 @@ use crate::protocol::credit::{CreditService, VouchIntent};
 use crate::protocol::dlc::DlcManager;
 use crate::protocol::economy::{DualStackIntent, YieldEngine};
 use crate::protocol::ethereum::EthereumManager;
-use crate::protocol::fiat::{FiatOnRampRequest, FiatProviderType, FiatRouterService, FiatSessionIntent};
+use crate::protocol::fiat::{
+    FiatOnRampRequest, FiatProviderType, FiatRouterService, FiatSessionIntent,
+};
 use crate::protocol::mmr::MmrService;
 use crate::protocol::opportunity::{OpportunityDispatcher, OpportunityPayload};
 use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapIntent, SwapRequest};
@@ -194,10 +196,7 @@ impl ConclaveWasmClient {
         serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
     }
 
-    pub async fn prepare_fiat_session(
-        &self,
-        request: JsValue,
-    ) -> Result<JsValue, JsValue> {
+    pub async fn prepare_fiat_session(&self, request: JsValue) -> Result<JsValue, JsValue> {
         let req: FiatOnRampRequest = serde_wasm_bindgen::from_value(request)
             .map_err(|_| JsValue::from_str("Invalid request format"))?;
         let intent = self.fiat.prepare_session(req);
