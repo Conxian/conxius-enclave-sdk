@@ -31,6 +31,13 @@ A two-phase coordination protocol (Prepare -> Sign -> Broadcast) that ensures us
 **Version 0.2.0 (Bleeding Edge)**.
 Utilizing a modern stack: `bitcoin 0.33.0-beta`, `bdk_wallet 3.0.0`, `secp256k1 0.32.0-beta.2`.
 
+### Driver and attestation status
+
+- The repository currently includes software-backed development drivers for local integration and interface validation.
+- Software-backed drivers are **not** production hardware drivers and must not be presented as StrongBox-, Secure Enclave-, or CloudTEE-enforced security.
+- Production deployments must use hardware-bound drivers that emit hardened attestation levels such as `TEE`, `StrongBox`, or `CloudTEE`.
+- High-value flows should treat software attestation as non-production and fail closed unless a hardened driver is in use.
+
 ## Development
 
 ```bash
