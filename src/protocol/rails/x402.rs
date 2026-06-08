@@ -1,4 +1,5 @@
 use crate::protocol::asset::AssetIdentifier;
+use crate::protocol::rails::TrustTier;
 use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
 use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
@@ -24,6 +25,9 @@ pub struct X402Intent {
 impl SovereignRail for X402Rail {
     fn name(&self) -> &'static str {
         "x402_industrial"
+    }
+    fn trust_tier(&self) -> TrustTier {
+        TrustTier::T1
     }
 
     fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {
