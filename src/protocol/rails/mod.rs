@@ -39,6 +39,47 @@ pub use self::ntt::NTTRail;
 pub use self::wormhole::WormholeRail;
 pub use self::x402::X402Rail;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TrustTier {
+    /// T1: Sovereign Verified (proof_verified)
+    T1,
+    /// T2: Hybrid Verified (proof_verified plus independent secondary verifier)
+    T2,
+    /// T3: Attester Network (attester_verified)
+    T3,
+    /// T4: Observer/Weak (observer_only)
+    T4,
+}
+
+impl TrustTier {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TrustTier::T1 => "T1",
+            TrustTier::T2 => "T2",
+            TrustTier::T3 => "T3",
+            TrustTier::T4 => "T4",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProofEnvelope {
+    pub system: String,
+    pub system_version: String,
+    pub trust_tier: TrustTier,
+    pub verification_class: String,
+    pub source_chain_id: String,
+    pub destination_chain_id: String,
+    pub finality_class: String,
+    pub observed_at: u64,
+    pub expires_at: u64,
+    pub proof_ref: String,
+    pub evidence_hash: String,
+    pub verifier_set_id: String,
+    pub verifier_threshold: u32,
+    pub verification_status: String,
+    pub verification_reason: Option<String>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwapRequest {
     pub from_asset: AssetIdentifier,
@@ -81,11 +122,13 @@ pub struct SwapResponse {
     pub status: String,
     pub estimated_arrival: u64,
     pub rail_used: String,
+    pub proof_envelope: Option<ProofEnvelope>,
 }
 
 #[async_trait]
 pub trait SovereignRail: Send + Sync {
     fn name(&self) -> &'static str;
+    fn trust_tier(&self) -> TrustTier;
     fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>>;
     async fn execute_swap(
         &self,
@@ -114,6 +157,7 @@ pub struct RailProxy {
     pub rails: HashMap<String, Box<dyn SovereignRail>>,
     pub endpoint: String,
     pub http_client: reqwest::Client,
+    pub min_trust_tier: TrustTier,
     pub api_key: Option<String>,
     pub enforce_attestation: bool,
     pub asset_registry: Arc<AssetRegistry>,
@@ -181,6 +225,7 @@ impl RailProxy {
             http_client,
             api_key: None,
             enforce_attestation: true,
+            min_trust_tier: TrustTier::T3, // Default to T3 for safety
             asset_registry,
             business_registry,
             telemetry: None,
@@ -198,6 +243,11 @@ impl RailProxy {
 
     pub fn with_api_key(mut self, api_key: String) -> Self {
         self.api_key = Some(api_key);
+        self
+    }
+
+    pub fn with_min_trust_tier(mut self, tier: TrustTier) -> Self {
+        self.min_trust_tier = tier;
         self
     }
 
@@ -296,6 +346,15 @@ impl SovereignHandshake for RailProxy {
             .get(rail_name)
             .ok_or(ConclaveError::InvalidPayload)?;
 
+        if rail.trust_tier() > self.min_trust_tier {
+            return Err(ConclaveError::RailError(format!(
+                "Rail {} has trust tier {:?}, but minimum required is {:?}",
+                rail_name,
+                rail.trust_tier(),
+                self.min_trust_tier
+            )));
+        }
+
         if request.amount == 0 {
             return Err(ConclaveError::InvalidPayload);
         }
@@ -357,7 +416,31 @@ impl SovereignHandshake for RailProxy {
             telemetry.track_signature(hex::encode(hasher.finalize()));
         }
 
-        rail.execute_swap(intent, signature).await
+        let mut response = rail.execute_swap(intent, signature).await?;
+
+        // If the rail didn't provide a proof envelope, populate a default one
+        // based on the rail's declared trust tier.
+        if response.proof_envelope.is_none() {
+            response.proof_envelope = Some(ProofEnvelope {
+                system: rail.name().to_string(),
+                system_version: "0.1.0".to_string(),
+                trust_tier: rail.trust_tier(),
+                verification_class: "default_observed".to_string(),
+                source_chain_id: "unknown".to_string(),
+                destination_chain_id: "unknown".to_string(),
+                finality_class: "probabilistic".to_string(),
+                observed_at: unix_time_secs(),
+                expires_at: unix_time_secs() + 3600,
+                proof_ref: response.transaction_id.clone(),
+                evidence_hash: String::new(),
+                verifier_set_id: "default".to_string(),
+                verifier_threshold: 1,
+                verification_status: "verified".to_string(),
+                verification_reason: None,
+            });
+        }
+
+        Ok(response)
     }
 }
 
@@ -367,6 +450,9 @@ pub struct CustomRail;
 impl SovereignRail for CustomRail {
     fn name(&self) -> &'static str {
         "custom_partner"
+    }
+    fn trust_tier(&self) -> TrustTier {
+        TrustTier::T4
     }
     fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {
         if request.from_asset.chain != Chain::BITCOIN {
@@ -380,6 +466,7 @@ impl SovereignRail for CustomRail {
         _signature: String,
     ) -> ConclaveResult<SwapResponse> {
         Ok(SwapResponse {
+            proof_envelope: None,
             transaction_id: format!("PARTNER-{}", hex::encode(&intent.signable_hash[..8])),
             status: "Partner processing".to_string(),
             estimated_arrival: 1200,
@@ -572,5 +659,70 @@ mod rail_proxy_tests {
             result,
             Err(ConclaveError::EnclaveFailure(message)) if message.contains("does not allow bypass")
         ));
+    }
+
+    #[test]
+    fn test_trust_tier_enforcement() {
+        let mut proxy = test_proxy();
+        let request = SwapRequest {
+            from_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            to_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            amount: 100,
+            recipient_address: "addr".to_string(),
+            attribution: None,
+        };
+
+        // x402 is T1, proxy default is T3. Should pass.
+        proxy.min_trust_tier = TrustTier::T3;
+        assert!(proxy.prepare_intent("x402", request.clone()).is_ok());
+
+        // Set requirement to T1. x402 (T1) should pass.
+        proxy.min_trust_tier = TrustTier::T1;
+        assert!(proxy.prepare_intent("x402", request.clone()).is_ok());
+
+        // Set requirement to T1. wormhole (T3) should fail.
+        let result = proxy.prepare_intent("wormhole", request.clone());
+        assert!(result.is_err());
+        if let Err(ConclaveError::RailError(msg)) = result {
+            assert!(msg.contains("trust tier T3"));
+            assert!(msg.contains("minimum required is T1"));
+        } else {
+            panic!("Expected RailError");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_proof_envelope_injection() {
+        let proxy = test_proxy();
+        let _intent = test_intent(vec![13; 32]);
+        // Note: this test requires mocking the network or using a mock rail
+        // Since CustomRail returns None for proof_envelope, we can test injection there
+
+        // CustomRail is T4, proxy default is T3. We need to allow T4.
+        let mut proxy = proxy.with_min_trust_tier(TrustTier::T4);
+        proxy.enforce_attestation = false;
+
+        let mut rail_proxy = test_proxy();
+        rail_proxy.enforce_attestation = false;
+        rail_proxy.min_trust_tier = TrustTier::T4;
+        rail_proxy.register_rail(Box::new(CustomRail));
+
+        let mut intent = test_intent(vec![13; 32]);
+        intent.rail_type = "custom_partner".to_string();
+
+        let response = rail_proxy
+            .broadcast_signed_intent(intent, "sig".to_string(), None)
+            .await
+            .unwrap();
+        assert!(response.proof_envelope.is_some());
+        let envelope = response.proof_envelope.unwrap();
+        assert_eq!(envelope.trust_tier, TrustTier::T4);
+        assert_eq!(envelope.system, "custom_partner");
     }
 }

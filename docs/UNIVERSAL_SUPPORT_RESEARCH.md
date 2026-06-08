@@ -43,3 +43,6 @@ Conclave SDK is evolving from a "Bitcoin-Native" focus to "Universal Support wit
 *   **Phase 2 (Expansion):** Integrate LayerZero V2 and CCIP as Rails.
 *   **Phase 3 (Universal Accounts):** Implement deterministic multi-chain address derivation from a single hardware seed.
 *   **Phase 4 (Bitcoin-Native Moat):** Launch BitVM2 bridge support and Babylon staking orchestration.
+
+
+See also: [Approved Bridge and Messaging Trust-Tier Policy](architecture/APPROVED_BRIDGE_AND_MESSAGING_SYSTEMS_BY_TRUST_TIER.md)

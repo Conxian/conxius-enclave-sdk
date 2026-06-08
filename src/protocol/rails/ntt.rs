@@ -1,3 +1,4 @@
+use crate::protocol::rails::TrustTier;
 use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
 use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
@@ -12,6 +13,9 @@ pub struct NTTRail {
 impl SovereignRail for NTTRail {
     fn name(&self) -> &'static str {
         "ntt"
+    }
+    fn trust_tier(&self) -> TrustTier {
+        TrustTier::T3
     }
 
     fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {
