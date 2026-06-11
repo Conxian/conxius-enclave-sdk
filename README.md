@@ -1,11 +1,11 @@
-# Conxius Enclave SDK
+# Conclave SDK
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
 
 **Hardware-backed Bitcoin application security primitives for the Conxian ecosystem.**
 
-The Conxius Enclave SDK provides a high-integrity root of trust for security-sensitive wallet, signing, attestation, and policy flows. It is intended to bind hardware security modules such as Android StrongBox, Apple Secure Enclave, and cloud TEEs to Bitcoin L1, L2, and Lightning-aligned systems.
+The Conclave SDK provides a high-integrity root of trust for security-sensitive wallet, signing, attestation, and policy flows. It is intended to bind hardware security modules such as Android StrongBox, Apple Secure Enclave, and cloud TEEs to Bitcoin L1, L2, and Lightning-aligned systems.
 
 ## Purpose
 
