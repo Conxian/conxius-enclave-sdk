@@ -8,6 +8,6 @@ Verification requirements for the final integrated system testnet cycle.
 3. **Shared Services**: Identity Profile generation and MMR proof fetching.
 
 ## Acceptance Criteria
-- All tests in `lib-conclave-sdk` pass.
+- All tests in `conxius-enclave-sdk` pass.
 - Latency for 10k transactions < 50ms (Job Card Benchmark).
 - Successful cross-chain swap simulation on testnet rails.

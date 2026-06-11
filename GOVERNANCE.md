@@ -1,10 +1,10 @@
-# Governance — lib-conclave-sdk
+# Governance — conxius-enclave-sdk
 
 This document defines the business role, ownership, and operational standards for the Conclave SDK.
 
 ## Role
 
-The Conclave SDK (`lib-conclave-sdk`) is the canonical high-integrity integration surface for hardware-backed operations in the Conxian ecosystem.
+The Conclave SDK (`conxius-enclave-sdk`) is the canonical high-integrity integration surface for hardware-backed operations in the Conxian ecosystem.
 
 ## Ownership
 

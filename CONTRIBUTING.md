@@ -1,4 +1,4 @@
-# Contributing to lib-conclave-sdk
+# Contributing to conxius-enclave-sdk
 
 This repository adopts Conxian Labs' parent governance defaults from `Conxian/.github` for policy, templates, and control workflows.
 

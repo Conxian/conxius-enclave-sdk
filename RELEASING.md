@@ -1,6 +1,6 @@
-# Releasing lib-conclave-sdk
+# Releasing conxius-enclave-sdk
 
-This document defines the release process for `lib-conclave-sdk`.
+This document defines the release process for `conxius-enclave-sdk`.
 
 All releases must follow [Governance](GOVERNANCE.md) and [Security](SECURITY.md), and versioning must follow [Semantic Versioning](https://semver.org/).
 

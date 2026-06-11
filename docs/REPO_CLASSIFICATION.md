@@ -5,7 +5,7 @@ In alignment with the "Unified Vault SDK Pivot", the Conxian repository portfoli
 ## 1. Core (SDK-First GTM)
 *Repositories essential to the primary company story: Hardware-secure Bitcoin application infrastructure.*
 
-- **lib-conclave-sdk**: The canonical hardware security interface and signing orchestration core.
+- **conxius-enclave-sdk**: The canonical hardware security interface and signing orchestration core.
 - **lib-conxian-core**: Home for shared protocol primitives, data schemas (ISO 20022), and core business registries.
 - **conxian-labs-site**: The public interface for the "Native Bitcoin App" narrative and documentation.
 
@@ -26,7 +26,7 @@ In alignment with the "Unified Vault SDK Pivot", the Conxian repository portfoli
 
 | Repository | Classification | Rationale |
 | :--- | :--- | :--- |
-| `lib-conclave-sdk` | **CORE** | The "Sellable Primitive" for secure signing. |
+| `conxius-enclave-sdk` | **CORE** | The "Sellable Primitive" for secure signing. |
 | `lib-conxian-core` | **CORE** | Shared standards and protocol schemas. |
 | `conxius-wallet` | **DEMOTE** | UX validator for the SDK; avoid direct competition. |
 | `conxian-gateway` | **DEMOTE** | Backend-for-Frontend (BFF) and settlement logic. |

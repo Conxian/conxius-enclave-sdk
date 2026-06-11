@@ -1,5 +1,5 @@
 [package]
-name = "lib-conclave-sdk"
+name = "conxius-enclave-sdk"
 version = "0.2.0"
 license = "MIT"
 edition = "2024"

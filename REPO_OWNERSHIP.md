@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`lib-conclave-sdk` is the secure signer and device trust layer for the Conxian builder platform.
+`conxius-enclave-sdk` is the secure signer and device trust layer for the Conxian builder platform.
 
 ## This repo owns
 

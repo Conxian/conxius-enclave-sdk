@@ -14,6 +14,6 @@ This checklist tracks the ownership and approval status for fail-closed payment 
 
 ## Approval Gates
 
-- [x] **Technical Validation**: Fail-closed logic verified in `lib-conclave-sdk` and Clarity contracts.
+- [x] **Technical Validation**: Fail-closed logic verified in `conxius-enclave-sdk` and Clarity contracts.
 - [x] **Operational Sign-off**: Managed lane runtime discipline established.
 - [x] **Pricing Alignment**: Pricing framework includes fail-closed ownership as a prerequisite.
