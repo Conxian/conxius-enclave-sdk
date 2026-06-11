@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Trust-tier enforcement in `SettlementService` (CON-801).
+- `/maintenance` directory for operational artifacts (CON-823).
+
+### Changed
+- Normalized default branch from `master` to `main` across all documentation and automation (CON-822).
+- Remediated CI failure by removing blocked dependency-review workflow (CON-794).
+
 ## [0.2.0] - 2026-05-14
 
 ### Added
