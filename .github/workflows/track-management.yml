@@ -3,7 +3,7 @@ name: Dual Release Track Management
 on:
   push:
     branches:
-      - master
+      - main
   schedule:
     - cron: '0 0 * * *'
 

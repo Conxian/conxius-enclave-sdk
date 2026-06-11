@@ -13,7 +13,7 @@ Conxian is committed to providing high-integrity, hardware-secure infrastructure
 - **Public/Private Boundary**: We strictly sanitize all public repositories to ensure no non-public strategic, legal, or operational material is exposed.
 
 ## 3. Release Discipline
-- **Mainnet-Only Standard**: The `master` (or `main`) branch contains only mainnet-ready, production-quality code. All testnet or validation work is isolated to `dev` or `staged` branches.
+- **Mainnet-Only Standard**: The `main` branch contains only mainnet-ready, production-quality code. All testnet or validation work is isolated to `dev` or `staged` branches.
 - **Continuous Hygiene**: We perform regular audits for secret exposure, dependency drift, and simulated/mock residue in production paths.
 - **Versioning**: We follow Semantic Versioning (SemVer) and maintain a consistent `CHANGELOG.md` across all core repositories.
 

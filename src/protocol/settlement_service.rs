@@ -1,6 +1,7 @@
 use crate::ConclaveResult;
 use crate::protocol::asset::AssetRegistry;
-use crate::protocol::settlement::{SettlementManager, SettlementProposal, SettlementTrigger};
+use crate::protocol::settlement::{SettlementManager, SettlementProposal, SettlementTrigger, TriggerSource};
+use crate::protocol::rails::TrustTier;
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -33,6 +34,16 @@ impl ConclaveSettlementService {
             manager: SettlementManager::new(asset_registry),
         }
     }
+
+    /// Resolves the trust tier for a given trigger source.
+    /// This aligns with the approved trust-tier policy in CON-791.
+    pub fn resolve_trust_tier(&self, source: &TriggerSource) -> TrustTier {
+        match source {
+            TriggerSource::Iso20022 => TrustTier::T1, // ISO 20022 is T1 (Sovereign Verified)
+            TriggerSource::Papss => TrustTier::T2,    // PAPSS is T2 (Hybrid Verified)
+            TriggerSource::Brics => TrustTier::T3,    // BRICS is T3 (Attester Network)
+        }
+    }
 }
 
 #[async_trait]
@@ -53,7 +64,15 @@ impl SettlementService for ConclaveSettlementService {
             return Err(crate::ConclaveError::InvalidPayload);
         }
 
-        // 2. Map trigger to proposal with 144-block timelock enforcement
+        // 2. Enforce Trust-Tier Policy (CON-801)
+        let tier = self.resolve_trust_tier(&trigger.source);
+        if tier == TrustTier::T4 {
+            return Err(crate::ConclaveError::RailError(
+                "Route trust tier T4 is forbidden in production".to_string(),
+            ));
+        }
+
+        // 3. Map trigger to proposal with 144-block timelock enforcement
         let proposal = self.manager.create_proposal(
             &trigger,
             asset_chain,
@@ -63,7 +82,7 @@ impl SettlementService for ConclaveSettlementService {
             current_height,
         )?;
 
-        // 3. Automated Policy Enforcement: Ensure timelock is exactly 144 blocks
+        // 4. Automated Policy Enforcement: Ensure timelock is exactly 144 blocks
         if proposal.timelock_height != current_height + 144 {
             return Err(crate::ConclaveError::CryptoError(
                 "Mandatory 144-block timelock violation".to_string(),
@@ -88,7 +107,7 @@ impl SettlementService for ConclaveSettlementService {
         }
 
         // Structural check for ISO 20022 pacs.008 payloads
-        if trigger.source == crate::protocol::settlement::TriggerSource::Iso20022 {
+        if trigger.source == TriggerSource::Iso20022 {
             let payload = String::from_utf8_lossy(&trigger.raw_payload_bytes);
             if !payload.contains("pacs.008.001.08") {
                 return Ok(false);
@@ -163,5 +182,15 @@ mod tests {
             .await
             .unwrap();
         assert!(!reconciled);
+    }
+
+    #[test]
+    fn test_trust_tier_resolution() {
+        let registry = Arc::new(AssetRegistry::new());
+        let svc = ConclaveSettlementService::new(registry);
+
+        assert_eq!(svc.resolve_trust_tier(&TriggerSource::Iso20022), TrustTier::T1);
+        assert_eq!(svc.resolve_trust_tier(&TriggerSource::Papss), TrustTier::T2);
+        assert_eq!(svc.resolve_trust_tier(&TriggerSource::Brics), TrustTier::T3);
     }
 }
