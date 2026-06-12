@@ -1,6 +1,6 @@
 # Remediation Report: SDK Core Architecture Alignment
 
-The SDK has been successfully refactored and aligned with the `sdk-core-architecture` proposal and v1.9.2 standards.
+The SDK has been successfully refactored and aligned with the `sdk-core-architecture` proposal and v0.2.0 standards.
 
 ## 1. Business Management
 - **Status**: COMPLETED.
@@ -9,7 +9,7 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 
 ## 2. Asset Registry
 - **Status**: COMPLETED.
-- **Implementation**: `AssetRegistry` manages cross-chain asset metadata and validation. Supports dynamic registration via `register_asset`. Defaults include BTC, ETH, STX, USDT, SOL, USDC, LIQUID, and LIGHTNING.
+- **Implementation**: `AssetRegistry` manages cross-chain asset metadata and validation. Supports dynamic registration via `register_asset`. Defaults include BTC, ETH, STX, USDT, SOL, USDC, LIQUID, LIGHTNING, MEZO, BABYLON, BOTANIX, and CITREA.
 
 ## 3. Modular Architecture
 - **Status**: COMPLETED.
@@ -63,7 +63,7 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
     - `oracle-aggregator.clar` now includes explicit quorum counting (`AssetQuorumCount`) and resets on update to ensure each epoch meets the required validator threshold.
 - **Verification**: Verified via manual inspection and local unit tests for the Rust SDK layer.
 
-## 13. Shared Services (v1.9.2 Alignment)
+## 13. Shared Services (v0.2.0 Alignment)
 - **Personal Identity (PSI)**: `IdentityManager` implemented for hardware-backed DIDs.
 - **ZKML**: `ZkmlService` for privacy-preserving compliance proofs.
 - **DLC**: `DlcManager` for non-custodial financial agreements.
@@ -76,3 +76,18 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
     - Established SAB Migration Readiness Gates and Deployment Verification Matrix.
     - Implemented functional DlcManager in `src/protocol/dlc.rs` for hardware-backed financial agreements.
 - **Verification**: Verified with `cargo test` (31 tests passing).
+
+## 15. Bitcoin L2 & Scaling Support (CON-789/CON-810)
+- **Status**: COMPLETED.
+- **Implementation**: Added MEZO, BABYLON, BOTANIX, and CITREA to Chain enum and AssetRegistry.
+- **Verification**: Verified with automated unit tests.
+
+## 16. Lightning Resilience (CON-1174)
+- **Status**: COMPLETED.
+- **Implementation**: Implemented LightningPaymentIntent state machine and failure taxonomy in src/protocol/lightning.rs.
+- **Verification**: Verified with automated unit tests.
+
+## 17. Bitcoin Mempool Orchestration (CON-687)
+- **Status**: COMPLETED.
+- **Implementation**: Added MempoolPolicy, FeeBumpStrategy, and BitcoinTransactionIntent state machine to src/protocol/bitcoin.rs.
+- **Verification**: Verified with automated unit tests.

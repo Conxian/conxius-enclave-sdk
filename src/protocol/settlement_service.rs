@@ -1,7 +1,9 @@
 use crate::ConclaveResult;
 use crate::protocol::asset::AssetRegistry;
-use crate::protocol::settlement::{SettlementManager, SettlementProposal, SettlementTrigger, TriggerSource};
 use crate::protocol::rails::TrustTier;
+use crate::protocol::settlement::{
+    SettlementManager, SettlementProposal, SettlementTrigger, TriggerSource,
+};
 use async_trait::async_trait;
 use std::sync::Arc;
 
@@ -189,7 +191,10 @@ mod tests {
         let registry = Arc::new(AssetRegistry::new());
         let svc = ConclaveSettlementService::new(registry);
 
-        assert_eq!(svc.resolve_trust_tier(&TriggerSource::Iso20022), TrustTier::T1);
+        assert_eq!(
+            svc.resolve_trust_tier(&TriggerSource::Iso20022),
+            TrustTier::T1
+        );
         assert_eq!(svc.resolve_trust_tier(&TriggerSource::Papss), TrustTier::T2);
         assert_eq!(svc.resolve_trust_tier(&TriggerSource::Brics), TrustTier::T3);
     }
