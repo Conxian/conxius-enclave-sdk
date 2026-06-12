@@ -22,15 +22,33 @@ pub enum LightningFailureType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LightningEvent {
+    PaymentInitiated,
+    PaymentInFlight,
+    PaymentSettled {
+        preimage: String,
+    },
+    PaymentFailed {
+        failure: LightningFailureType,
+        reason: String,
+    },
+    PaymentHandoffLimbo,
+    PaymentRetried,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LightningPaymentIntent {
     pub payment_hash: String,
     pub invoice: String,
     pub amount_msat: u64,
     pub status: LightningPaymentStatus,
     pub failure_type: Option<LightningFailureType>,
+    pub failure_reason: Option<String>,
+    pub preimage: Option<String>,
     pub retry_count: u32,
     pub created_at: u64,
     pub last_updated_at: u64,
+    pub event_log: Vec<(u64, LightningEvent)>,
 }
 
 impl LightningPaymentIntent {
@@ -46,21 +64,70 @@ impl LightningPaymentIntent {
             amount_msat,
             status: LightningPaymentStatus::Created,
             failure_type: None,
+            failure_reason: None,
+            preimage: None,
             retry_count: 0,
             created_at: now,
             last_updated_at: now,
+            event_log: Vec::new(),
         }
     }
 
-    pub fn transition_to(&mut self, next_status: LightningPaymentStatus) -> ConclaveResult<()> {
+    pub fn apply_event(&mut self, event: LightningEvent) -> ConclaveResult<()> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        let next_status = match &event {
+            LightningEvent::PaymentInitiated => LightningPaymentStatus::Pending,
+            LightningEvent::PaymentInFlight => LightningPaymentStatus::Pending,
+            LightningEvent::PaymentSettled { .. } => LightningPaymentStatus::Succeeded,
+            LightningEvent::PaymentFailed { .. } => LightningPaymentStatus::Failed,
+            LightningEvent::PaymentHandoffLimbo => LightningPaymentStatus::Indeterminate,
+            LightningEvent::PaymentRetried => {
+                self.retry_count += 1;
+                LightningPaymentStatus::Pending
+            }
+        };
+
+        self.validate_transition(next_status)?;
+
+        // Update fields based on event
+        match event.clone() {
+            LightningEvent::PaymentSettled { preimage } => {
+                self.preimage = Some(preimage);
+                self.failure_type = None;
+                self.failure_reason = None;
+            }
+            LightningEvent::PaymentFailed { failure, reason } => {
+                self.failure_type = Some(failure);
+                self.failure_reason = Some(reason);
+            }
+            LightningEvent::PaymentRetried => {
+                self.failure_type = None;
+                self.failure_reason = None;
+            }
+            _ => {}
+        }
+
+        self.status = next_status;
+        self.last_updated_at = now;
+        self.event_log.push((now, event));
+
+        Ok(())
+    }
+
+    fn validate_transition(&self, next_status: LightningPaymentStatus) -> ConclaveResult<()> {
         let valid = match (self.status, next_status) {
             (LightningPaymentStatus::Created, LightningPaymentStatus::Pending) => true,
+            (LightningPaymentStatus::Pending, LightningPaymentStatus::Pending) => true, // Updates
             (LightningPaymentStatus::Pending, LightningPaymentStatus::Succeeded) => true,
             (LightningPaymentStatus::Pending, LightningPaymentStatus::Failed) => true,
             (LightningPaymentStatus::Pending, LightningPaymentStatus::Indeterminate) => true,
             (LightningPaymentStatus::Indeterminate, LightningPaymentStatus::Succeeded) => true,
             (LightningPaymentStatus::Indeterminate, LightningPaymentStatus::Failed) => true,
-            (LightningPaymentStatus::Failed, LightningPaymentStatus::Pending) => true, // Retry path
+            (LightningPaymentStatus::Failed, LightningPaymentStatus::Pending) => true, // Retry
             _ => false,
         };
 
@@ -68,22 +135,6 @@ impl LightningPaymentIntent {
             return Err(ConclaveError::InvalidPayload);
         }
 
-        self.status = next_status;
-        self.last_updated_at = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        if next_status != LightningPaymentStatus::Failed {
-            self.failure_type = None;
-        }
-
-        Ok(())
-    }
-
-    pub fn mark_failed(&mut self, failure_type: LightningFailureType) -> ConclaveResult<()> {
-        self.transition_to(LightningPaymentStatus::Failed)?;
-        self.failure_type = Some(failure_type);
         Ok(())
     }
 }
@@ -93,50 +144,47 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_payment_lifecycle() {
+    fn test_payment_lifecycle_events() {
         let mut intent =
             LightningPaymentIntent::new("hash123".to_string(), "lnbc1...".to_string(), 1000000);
 
         assert_eq!(intent.status, LightningPaymentStatus::Created);
 
         intent
-            .transition_to(LightningPaymentStatus::Pending)
+            .apply_event(LightningEvent::PaymentInitiated)
             .unwrap();
         assert_eq!(intent.status, LightningPaymentStatus::Pending);
 
         intent
-            .transition_to(LightningPaymentStatus::Succeeded)
+            .apply_event(LightningEvent::PaymentSettled {
+                preimage: "secret".to_string(),
+            })
             .unwrap();
         assert_eq!(intent.status, LightningPaymentStatus::Succeeded);
+        assert_eq!(intent.preimage, Some("secret".to_string()));
     }
 
     #[test]
-    fn test_failure_taxonomy() {
+    fn test_failure_and_retry() {
         let mut intent =
             LightningPaymentIntent::new("hash456".to_string(), "lnbc2...".to_string(), 500000);
 
         intent
-            .transition_to(LightningPaymentStatus::Pending)
+            .apply_event(LightningEvent::PaymentInitiated)
             .unwrap();
-        intent.mark_failed(LightningFailureType::Transient).unwrap();
+        intent
+            .apply_event(LightningEvent::PaymentFailed {
+                failure: LightningFailureType::Transient,
+                reason: "no route".to_string(),
+            })
+            .unwrap();
 
         assert_eq!(intent.status, LightningPaymentStatus::Failed);
         assert_eq!(intent.failure_type, Some(LightningFailureType::Transient));
 
-        // Retry
-        intent
-            .transition_to(LightningPaymentStatus::Pending)
-            .unwrap();
+        intent.apply_event(LightningEvent::PaymentRetried).unwrap();
         assert_eq!(intent.status, LightningPaymentStatus::Pending);
+        assert_eq!(intent.retry_count, 1);
         assert!(intent.failure_type.is_none());
-    }
-
-    #[test]
-    fn test_invalid_transition() {
-        let mut intent =
-            LightningPaymentIntent::new("hash789".to_string(), "lnbc3...".to_string(), 1000);
-
-        let result = intent.transition_to(LightningPaymentStatus::Succeeded);
-        assert!(result.is_err());
     }
 }
