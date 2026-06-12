@@ -191,15 +191,15 @@ impl SettlementManager {
                 }
                 Ok(event) => match event {
                     Event::Text(t) => {
-                        let bytes = t.as_ref();
+                        let bytes: &[u8] = t.as_ref();
                         if !saw_document_root
                             && !bytes.is_empty()
-                            && !bytes.iter().all(|b| b.is_ascii_whitespace())
+                            && !bytes.iter().all(|b: &u8| b.is_ascii_whitespace())
                         {
                             saw_any_pre_root_content = true;
                         }
                         if !bytes.is_empty()
-                            && !bytes.iter().all(|b| b.is_ascii_whitespace())
+                            && !bytes.iter().all(|b: &u8| b.is_ascii_whitespace())
                             && (!saw_document_root || document_closed)
                         {
                             return false;
