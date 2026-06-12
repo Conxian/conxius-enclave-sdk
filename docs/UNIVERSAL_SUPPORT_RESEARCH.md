@@ -1,24 +1,31 @@
 # Universal Blockchain Support Research & Roadmap
 
 ## 1. Executive Summary
-Conclave SDK is evolving from a "Bitcoin-Native" focus to "Universal Support with a Bitcoin Moat." We will serve all major chains (Ethereum, Solana, Cosmos, etc.) by integrating leading interoperability standards and chain abstraction protocols, while leveraging our unique hardware-backed signing and Bitcoin-native primitives (MuSig2, DLC, Taproot) as the primary differentiator.
+Conclave SDK is evolving from a "Bitcoin-Native" focus to "Universal Support with a Bitcoin Moat." We will serve all major chains (Ethereum, Solana, Cosmos, etc.) by integrating leading interoperability standards and chain abstraction protocols, while leveraging our unique hardware-backed signing and Bitcoin-native primitives (MuSig2, DLC, BTC-as-Gas) as the primary differentiator.
 
 ## 2. Landscape Analysis
-### A. Chain Abstraction & Universal Accounts
-*   **NEAR Chain Signatures:** Enables a single NEAR account (or smart contract) to control accounts on any chain via MPC.
-*   **Particle Network:** Focuses on Universal Accounts and Universal Liquidity to abstract chain boundaries for the end-user.
-*   **Conclave Opportunity:** Integrate "Hardware-Backed Multi-Chain Accounts" where the Conclave Enclave (StrongBox/TEE) serves as the Root of Trust for all derived chain addresses.
 
-### B. Interoperability Protocols
-*   **LayerZero V2:** Immutable messaging and OFT (Omnichain Fungible Token) standards.
-*   **Chainlink CCIP:** High-security messaging with a dedicated Risk Management Network.
-*   **Axelar:** Cross-chain messaging and token transfers with a decentralized validator set.
-*   **Conclave Strategy:** Support these protocols as "Sovereign Rails" within the `RailProxy` architecture.
+### A. LayerZero V2 (Omnichain Messaging)
+*   **OApp & OFT:** LayerZero V2 provides standardized interfaces for "Omnichain Applications" and "Omnichain Fungible Tokens." OFTs allow tokens to be moved across chains without wrapping, by burning on the source and minting on the destination (or using a lock/unlock mechanism).
+*   **DVN (Decentralized Verifier Network):** Unlike V1, V2 allows applications to select a specific set of DVNs to verify messages. This enables a "Sovereign Configuration" where Conclave can require high-integrity verifiers for its routes.
+*   **Dynamic Call:** The IOTA/Move implementation of LayerZero V2 introduces dynamic cross-contract coordination using a secure "hot-potato" pattern, emulating dynamic dispatch in a static environment.
+*   **Conclave Strategy:** Support LayerZero V2 as a Tier 2/T3 "Sovereign Rail," allowing universal asset movement while enforcing DVN diversity via the `RailProxy`.
 
-### C. Bitcoin-Native Advancements
-*   **BitVM2:** Trust-minimized computation and bridging on Bitcoin using SNARK verifiers.
-*   **Babylon:** Bitcoin staking to secure PoS chains.
-*   **Conclave Moat:** Deep integration with MuSig2 for MPC-style security without the complexity of a full MPC network, and DLCs for non-custodial finance.
+### B. Chainlink CCIP (Programmable Transfers)
+*   **Risk Management Network:** CCIP features a dedicated network that monitors for anomalous activity, providing a "defense-in-depth" layer beyond the primary oracle network.
+*   **Programmable Messaging:** CCIP allows sending tokens and arbitrary data in a single atomic transaction (`EVM2AnyMessage`). This is critical for complex intents like "swap on destination."
+*   **Fee Abstraction:** Fees can be paid in LINK or the native gas token of the source chain, simplifying the user experience.
+*   **Conclave Strategy:** Utilize CCIP for high-value enterprise routes, leveraging its Risk Management Network as an additional "Attester" signal for T2/T3 trust tiers.
+
+### C. Axelar (General Message Passing)
+*   **GMP (General Message Passing):** Axelar enables cross-chain function calls and state synchronization. It uses a decentralized PoS validator set to verify messages.
+*   **Gas Service:** Axelar provides a gas receiver on the source chain (`payNativeGasForContractCall`) to handle relayer execution on the destination, abstracting gas management from the user.
+*   **Conclave Strategy:** Support Axelar GMP as a modular rail for "Capped Corridors" and non-canonical asset routes (T3).
+
+### D. NEAR Chain Signatures (MPC-Based Abstraction)
+*   **Universal MPC Signing:** NEAR uses a distributed MPC network to enable a single NEAR account (or smart contract) to sign transactions for Bitcoin, Ethereum, and other chains without traditional bridges.
+*   **Derivation Paths:** Addresses are derived deterministically using the NEAR account ID and a path (e.g., `ethereum-1`), allowing for "Universal Accounts."
+*   **Conclave Strategy:** Integrate "Hardware-Backed Multi-Chain Accounts" where the Conclave Enclave (StrongBox/TEE) serves as the Root of Trust for all derived chain addresses, potentially using NEAR as a decentralized relayer for the signed payloads.
 
 ## 3. Proposed Architectural Enhancements
 
@@ -43,6 +50,5 @@ Conclave SDK is evolving from a "Bitcoin-Native" focus to "Universal Support wit
 *   **Phase 2 (Expansion):** Integrate LayerZero V2 and CCIP as Rails.
 *   **Phase 3 (Universal Accounts):** Implement deterministic multi-chain address derivation from a single hardware seed.
 *   **Phase 4 (Bitcoin-Native Moat):** Launch BitVM2 bridge support and Babylon staking orchestration.
-
 
 See also: [Approved Bridge and Messaging Trust-Tier Policy](architecture/APPROVED_BRIDGE_AND_MESSAGING_SYSTEMS_BY_TRUST_TIER.md)
