@@ -12,6 +12,7 @@ pub mod ethereum;
 pub mod fiat;
 pub mod identity;
 pub mod job_card;
+pub mod lightning;
 pub mod mmr;
 pub mod musig2;
 pub mod opportunity;

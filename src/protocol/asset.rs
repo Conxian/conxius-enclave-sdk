@@ -17,6 +17,10 @@ pub enum Chain {
     BOB,
     POLYGON,
     BSC,
+    MEZO,
+    BABYLON,
+    BOTANIX,
+    CITREA,
 }
 
 impl Chain {
@@ -34,6 +38,10 @@ impl Chain {
             Chain::BOB => "BOB",
             Chain::POLYGON => "POLYGON",
             Chain::BSC => "BSC",
+            Chain::MEZO => "MEZO",
+            Chain::BABYLON => "BABYLON",
+            Chain::BOTANIX => "BOTANIX",
+            Chain::CITREA => "CITREA",
         }
     }
 }
@@ -235,6 +243,58 @@ impl AssetRegistry {
             },
             AssetMetadata {
                 name: "BOB Bitcoin".to_string(),
+                decimals: 18,
+                contract_address: None,
+                active: true,
+            },
+        );
+
+        registry.insert(
+            AssetIdentifier {
+                chain: Chain::MEZO,
+                symbol: "BTC".to_string(),
+            },
+            AssetMetadata {
+                name: "Mezo Bitcoin".to_string(),
+                decimals: 18,
+                contract_address: None,
+                active: true,
+            },
+        );
+
+        registry.insert(
+            AssetIdentifier {
+                chain: Chain::BABYLON,
+                symbol: "BTC".to_string(),
+            },
+            AssetMetadata {
+                name: "Babylon Staked Bitcoin".to_string(),
+                decimals: 8,
+                contract_address: None,
+                active: true,
+            },
+        );
+
+        registry.insert(
+            AssetIdentifier {
+                chain: Chain::BOTANIX,
+                symbol: "BTC".to_string(),
+            },
+            AssetMetadata {
+                name: "Botanix Bitcoin".to_string(),
+                decimals: 18,
+                contract_address: None,
+                active: true,
+            },
+        );
+
+        registry.insert(
+            AssetIdentifier {
+                chain: Chain::CITREA,
+                symbol: "BTC".to_string(),
+            },
+            AssetMetadata {
+                name: "Citrea Bitcoin".to_string(),
                 decimals: 18,
                 contract_address: None,
                 active: true,

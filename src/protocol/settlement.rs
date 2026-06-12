@@ -278,6 +278,10 @@ impl SettlementManager {
             "BOB" => Chain::BOB,
             "POLYGON" => Chain::POLYGON,
             "BSC" => Chain::BSC,
+            "MEZO" => Chain::MEZO,
+            "BABYLON" => Chain::BABYLON,
+            "BOTANIX" => Chain::BOTANIX,
+            "CITREA" => Chain::CITREA,
             _ => return Err(ConclaveError::InvalidPayload),
         };
 
@@ -335,5 +339,28 @@ mod tests {
         assert_eq!(proposal.timelock_height, 840000 + 144);
         assert_eq!(proposal.yield_split.productive_streaming_pct, 90);
         assert_eq!(proposal.status, ProposalStatus::Pending);
+    }
+}
+
+#[cfg(test)]
+mod settlement_expanded_tests {
+    use super::*;
+    use crate::protocol::asset::AssetRegistry;
+    use std::sync::Arc;
+
+    #[test]
+    fn test_create_proposal_expanded_chains() {
+        let registry = Arc::new(AssetRegistry::new());
+        let manager = SettlementManager::new(registry);
+        let payload = b"<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
+        let trigger = SettlementTrigger::new(TriggerSource::Iso20022, payload);
+
+        let chains = vec!["MEZO", "BABYLON", "BOTANIX", "CITREA"];
+        for chain in chains {
+            let proposal = manager
+                .create_proposal(&trigger, chain, "BTC", 1000, "recipient".to_string(), 100)
+                .unwrap();
+            assert_eq!(proposal.asset.chain.as_str(), chain);
+        }
     }
 }

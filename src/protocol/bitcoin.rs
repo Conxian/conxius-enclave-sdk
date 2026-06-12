@@ -5,6 +5,7 @@ use crate::{
 use bitcoin::XOnlyPublicKey;
 use bitcoin::hashes::{HashEngine, sha256t};
 use bitcoin::taproot::TapLeafHash;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 pub struct TaprootManager<'a> {
@@ -134,5 +135,61 @@ impl BitcoinManager {
 
     pub fn taproot(&self) -> TaprootManager<'_> {
         TaprootManager::new(self.enclave.as_ref())
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum TransactionState {
+    Unconfirmed,
+    Confirmed { height: u32, timestamp: u64 },
+    Reorged,
+    Dead,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum FeeBumpStrategy {
+    None,
+    RBF,
+    CPFP,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MempoolPolicy {
+    pub min_relay_fee: u64,
+    pub target_blocks: u32,
+    pub fee_bump_strategy: FeeBumpStrategy,
+}
+
+impl MempoolPolicy {
+    pub fn default_sovereign() -> Self {
+        Self {
+            min_relay_fee: 1000,
+            target_blocks: 3,
+            fee_bump_strategy: FeeBumpStrategy::RBF,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BitcoinTransactionIntent {
+    pub txid: String,
+    pub raw_tx: Vec<u8>,
+    pub state: TransactionState,
+    pub policy: MempoolPolicy,
+}
+
+impl BitcoinTransactionIntent {
+    pub fn new(txid: String, raw_tx: Vec<u8>, policy: MempoolPolicy) -> Self {
+        Self {
+            txid,
+            raw_tx,
+            state: TransactionState::Unconfirmed,
+            policy,
+        }
+    }
+
+    pub fn update_state(&mut self, next_state: TransactionState) {
+        // Simple state machine validation could be added here
+        self.state = next_state;
     }
 }
