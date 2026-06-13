@@ -229,6 +229,6 @@ impl Iso20022Wrapper {
     pub fn wrap_pacs008(
         _card: &crate::protocol::job_card::ConxianJobCard,
     ) -> ConclaveResult<String> {
-        Ok("MOCK_ISO_XML".to_string())
+        Err(crate::ConclaveError::RailError("ISO 20022 pacs.008 wrapper not yet implemented in production path".to_string()))
     }
 }

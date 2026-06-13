@@ -78,6 +78,8 @@ pub struct ProofEnvelope {
     pub verifier_set_id: String,
     pub verifier_threshold: u32,
     pub verification_status: String,
+    pub config_hash: String,
+    pub degrade_status: String,
     pub verification_reason: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -436,6 +438,8 @@ impl SovereignHandshake for RailProxy {
                 verifier_set_id: "default".to_string(),
                 verifier_threshold: 1,
                 verification_status: "verified".to_string(),
+                config_hash: String::new(),
+                degrade_status: "none".to_string(),
                 verification_reason: None,
             });
         }
