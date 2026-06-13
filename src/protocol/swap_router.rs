@@ -26,11 +26,11 @@ impl SwapRouter {
         match swap.input_asset.chain {
             Chain::SOLANA => {
                 // Query Jupiter API for exact-out SOL -> USDC/ZARP
-                Ok(0) // Placeholder for Jupiter quote
+                Err("Jupiter quote engine not yet implemented in production path".to_string())
             }
             Chain::ETHEREUM | Chain::BASE | Chain::ARBITRUM | Chain::POLYGON => {
                 // Query 0x or Uniswap for exact-out ETH -> Stablecoin
-                Ok(0) // Placeholder for EVM quote
+                Err("EVM 0x/Uniswap quote engine not yet implemented in production path".to_string())
             }
             _ => Err("Swap routing not supported for this chain".to_string()),
         }
