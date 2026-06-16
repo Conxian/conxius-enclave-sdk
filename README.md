@@ -3,9 +3,9 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
 
-**Hardware-backed Bitcoin application security primitives for the Conxian ecosystem.**
+**Hardware-backed security primitives for the broader Conxian ecosystem.**
 
-The Conxius Enclave SDK provides a high-integrity root of trust for security-sensitive wallet, signing, attestation, and policy flows. It is intended to bind hardware security modules such as Android StrongBox, Apple Secure Enclave, and cloud TEEs to Bitcoin L1, L2, and Lightning-aligned systems.
+The Conxius Enclave SDK provides a high-integrity root of trust for security-sensitive wallet, signing, attestation, and policy flows.
 
 ## Purpose
 
@@ -24,42 +24,16 @@ This repository focuses on:
 - enclave and keystore abstractions
 - attestation and trust reporting interfaces
 - signing primitives and key lifecycle controls
-- reusable SDK surfaces for higher-level Conxian components
+- reusable SDK surfaces for higher-level ecosystem components
 
-This repository does **not** act as a complete wallet, protocol governance surface, or public operations system.
+This repository does **not** act as a complete wallet, DAO-facing governance surface, or business operating system.
 
 ## Relationship to the Conxian stack
 
-- `Conxian` is the protocol and public ecosystem layer.
+- `Conxian` is the protocol and DAO-facing layer.
 - `conxius-wallet` is the sovereign wallet and reference client.
 - `conxian-gateway` and `conxian-nexus` provide middleware and service-side integration surfaces.
 - `lib-conxian-core` provides broader shared primitives across the stack.
-
-## Our vision: the sovereign bridge
-
-The long-term goal is to support a transition from legacy rails to sovereign rails by making hardware-backed intent verification and protected signing reusable across higher-level products and integrations.
-
-## Key primitives
-
-### 1. Hardware-isolated signing and attestation
-- Native ECDSA and Schnorr signing within hardware enclaves.
-- Mandatory **DeviceIntegrityReport** for high-value operations.
-- **Zero Secret Egress**: private keys never leave the hardware boundary.
-
-### 2. The sovereign handshake
-A two-phase coordination protocol (Prepare -> Sign -> Broadcast) intended to ensure user intent is verified by hardware before a transaction is committed to any rail.
-
-### 3. Aligned financial primitives
-- **Sovereign Fiat**: privacy-preserving and hardware-attested fiat-to-bitcoin on-ramps.
-- **Industrial Intent (x402)**: autonomous machine-to-machine payments for B2B and ERP systems.
-- **Ubuntu Credit**: hardware-attested social trust and group vouching, positioned as an alternative to legacy credit scoring models.
-
-## Driver and attestation status
-
-- The repository currently includes software-backed development drivers for local integration and interface validation.
-- Software-backed drivers are **not** production hardware drivers and must not be presented as StrongBox-, Secure Enclave-, or CloudTEE-enforced security.
-- Production deployments must use hardware-bound drivers that emit hardened attestation levels such as `TEE`, `StrongBox`, or `CloudTEE`.
-- High-value flows should treat software attestation as non-production and fail closed unless a hardened driver is in use.
 
 ## Release discipline
 
