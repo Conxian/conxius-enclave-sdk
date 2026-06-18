@@ -1,7 +1,7 @@
 # CON-625: Mainnet Readiness Audit (Fail-Open & Simulated Behavior)
 
 ## Overview
-Audit of `conxius-enclave-sdk` for fail-open logic, placeholder persistence, and simulated behavior that could compromise mainnet safety.
+Audit of `lib-conclave-sdk` for fail-open logic, placeholder persistence, and simulated behavior that could compromise mainnet safety.
 
 ## Findings
 
