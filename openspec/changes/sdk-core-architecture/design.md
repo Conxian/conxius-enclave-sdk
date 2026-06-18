@@ -1,5 +1,5 @@
 ## Context
-Currently, the conxius-enclave-sdk is a monolith with hardcoded logic for Changelly, Bisq, and Wormhole. Affiliates are just strings, and assets are unstructured.
+Currently, the lib-conclave-sdk is a monolith with hardcoded logic for Changelly, Bisq, and Wormhole. Affiliates are just strings, and assets are unstructured.
 
 ## Goals / Non-Goals
 - **Goals**: Create a modular architecture that separates Enclave hardware logic from Protocol swap logic. Define structured registries for Businesses and Assets.

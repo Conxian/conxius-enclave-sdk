@@ -1,11 +1,11 @@
-# Conxius Enclave SDK
+# Conclave SDK
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
 
 **Hardware-backed security primitives for the broader Conxian ecosystem.**
 
-The Conxius Enclave SDK provides a high-integrity root of trust for security-sensitive wallet, signing, attestation, and policy flows.
+The Conclave SDK provides a high-integrity root of trust for security-sensitive wallet, signing, attestation, and policy flows.
 
 ## Purpose
 

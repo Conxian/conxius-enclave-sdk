@@ -42,7 +42,9 @@ impl<'a> OpportunityDispatcher<'a> {
                 })?;
                 Ok(sig)
             }
-            OpportunityPayload::Swap { .. } => Err(crate::ConclaveError::RailError("Swap opportunity execution not yet implemented in production path".to_string())),
+            OpportunityPayload::Swap { .. } => Err(crate::ConclaveError::RailError(
+                "Swap opportunity execution not yet implemented in production path".to_string(),
+            )),
         }
     }
 }

@@ -30,7 +30,10 @@ impl SwapRouter {
             }
             Chain::ETHEREUM | Chain::BASE | Chain::ARBITRUM | Chain::POLYGON => {
                 // Query 0x or Uniswap for exact-out ETH -> Stablecoin
-                Err("EVM 0x/Uniswap quote engine not yet implemented in production path".to_string())
+                Err(
+                    "EVM 0x/Uniswap quote engine not yet implemented in production path"
+                        .to_string(),
+                )
             }
             _ => Err("Swap routing not supported for this chain".to_string()),
         }
