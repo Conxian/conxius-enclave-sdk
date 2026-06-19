@@ -8,6 +8,9 @@ use bitcoin::taproot::TapLeafHash;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
 pub struct TaprootManager<'a> {
     enclave: &'a dyn EnclaveManager,
 }
@@ -114,6 +117,7 @@ impl sha256t::Tag for TapTweakTag {
     );
 }
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub struct BitcoinManager {
     enclave: Arc<dyn EnclaveManager>,
 }
@@ -122,7 +126,10 @@ impl BitcoinManager {
     pub fn new(enclave: Arc<dyn EnclaveManager>) -> Self {
         Self { enclave }
     }
+}
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+impl BitcoinManager {
     pub fn generate_wpkh_descriptor(&self, derivation_path: &str) -> ConclaveResult<String> {
         let pubkey_hex = self.enclave.get_public_key(derivation_path)?;
         Ok(format!("wpkh({})", pubkey_hex))
@@ -132,7 +139,9 @@ impl BitcoinManager {
         let pubkey_hex = self.enclave.get_public_key(derivation_path)?;
         Ok(format!("tr({})", pubkey_hex))
     }
+}
 
+impl BitcoinManager {
     pub fn taproot(&self) -> TaprootManager<'_> {
         TaprootManager::new(self.enclave.as_ref())
     }
@@ -146,6 +155,7 @@ pub enum TransactionState {
     Dead,
 }
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum FeeBumpStrategy {
     None,
@@ -153,6 +163,7 @@ pub enum FeeBumpStrategy {
     CPFP,
 }
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MempoolPolicy {
     pub min_relay_fee: u64,
@@ -189,7 +200,6 @@ impl BitcoinTransactionIntent {
     }
 
     pub fn update_state(&mut self, next_state: TransactionState) {
-        // Simple state machine validation could be added here
         self.state = next_state;
     }
 }

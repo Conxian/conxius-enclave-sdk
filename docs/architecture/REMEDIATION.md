@@ -50,7 +50,7 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 
 ## 10. Circuit Breaker & Emergency Control (CON-500)
 - **Status**: COMPLETED.
-- **Implementation**: `contracts/core/emergency-control.clar` provides a centralized pause mechanism to block sensitive operations during market volatility or incidents.
+- `contracts/core/emergency-control.clar` provides a centralized pause mechanism to block sensitive operations during market volatility or incidents.
 
 ## 11. Lending Solvency Checks (CON-497)
 - **Status**: COMPLETED.
@@ -91,3 +91,23 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 - **Status**: COMPLETED.
 - **Implementation**: Added MempoolPolicy, FeeBumpStrategy, and BitcoinTransactionIntent state machine to src/protocol/bitcoin.rs.
 - **Verification**: Verified with automated unit tests.
+
+## 18. Universal Chain Support Expansion (CON-810)
+- **Status**: COMPLETED.
+- **Implementation**: Added Cosmos Hub (ATOM) support to `Chain` enum and `AssetRegistry`. Formalized Tier 1 (Native), Tier 2 (Hybrid), and Tier 3 (Extended) support criteria.
+- **Verification**: Verified with automated unit tests for registry registration.
+
+## 19. Universal Hardware Signing (CON-789/CON-810)
+- **Status**: COMPLETED.
+- **Implementation**: Integrated `ed25519-dalek` and implemented native Ed25519 signing in `CloudEnclave`.
+- **Verification**: Verified with new unit test `test_cloud_enclave_ed25519_signing`.
+
+## 20. Lightning Production Resilience (CON-688)
+- **Status**: COMPLETED.
+- **Implementation**: Refactored `LightningPaymentIntent` to include mandatory retry limits (MAX_RETRIES=5), expiration handling, and strict finality state checks.
+- **Verification**: Verified with expanded test suite in `src/protocol/lightning.rs`.
+
+## 21. WASM CI Remediation (CON-202)
+- **Status**: COMPLETED.
+- **Implementation**: Optimized build configuration for `wasm32-unknown-unknown` targets. Implemented intrinsic-based C library shims (`__builtin_memmove`) to bypass missing header requirements in restricted runtimes. Refactored telemetry for WASM thread-safety using `spawn_local`.
+- **Verification**: Verified via `cargo build --target wasm32-unknown-unknown`.

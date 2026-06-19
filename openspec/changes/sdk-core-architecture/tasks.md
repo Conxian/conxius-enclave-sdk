@@ -22,11 +22,11 @@
 - [x] 4.5 Verify SIP-018 Stacks message signing
 
 ## 5. Universal Support & Roadmap (Phase 1)
-- [ ] 5.1 Expand `Chain` enum in `src/protocol/asset.rs` to include NEAR, Aptos, and Cosmos (CON-810)
-- [ ] 5.2 Implement Ed25519 signing support in `CloudEnclave` for testing (CON-810)
-- [ ] 5.3 Finalize Tier 1 family set selection: EVM, Solana, Bitcoin (CON-789)
-- [ ] 5.4 Document universal chain support boundaries and criteria (CON-810)
+- [x] 5.1 Expand `Chain` enum in `src/protocol/asset.rs` to include NEAR, Aptos, and Cosmos (CON-810)
+- [x] 5.2 Implement Ed25519 signing support in `CloudEnclave` for testing (CON-810)
+- [x] 5.3 Finalize Tier 1 family set selection: EVM, Solana, Bitcoin (CON-789)
+- [x] 5.4 Document universal chain support boundaries and criteria (CON-810)
 
 ## 6. Lightning Resilience (SRL-1)
-- [/] 6.1 Implement Lightning resilience and recovery models (CON-1174)
-- [ ] 6.2 Define payment lifecycle semantics and retry behavior (CON-688)
+- [x] 6.1 Implement Lightning resilience and recovery models (CON-1174)
+- [x] 6.2 Define payment lifecycle semantics and retry behavior (CON-688)

@@ -153,6 +153,7 @@ impl ConclaveWasmClient {
             "SOLANA" => Chain::SOLANA,
             "POLYGON" => Chain::POLYGON,
             "BSC" => Chain::BSC,
+            "COSMOS" => Chain::COSMOS,
             _ => Chain::BITCOIN,
         };
         let id = AssetIdentifier {
