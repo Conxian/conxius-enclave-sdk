@@ -3,6 +3,7 @@ use crate::{
     ConclaveError, ConclaveResult,
     enclave::{EnclaveManager, SignRequest, SignResponse, SigningAlgorithm},
 };
+use ed25519_dalek::{Signer, SigningKey};
 use rand::Rng;
 use secp256k1::{Message, SecretKey};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -117,10 +118,13 @@ impl EnclaveManager for CloudEnclave {
 
     fn sign(&self, request: SignRequest) -> ConclaveResult<SignResponse> {
         let secret_key = self.get_active_key()?;
-        let public_key = secret_key.public_key();
+        let public_key_hex: String;
+        let signature_hex: String;
 
-        let signature_hex = match request.algorithm {
+        match request.algorithm {
             SigningAlgorithm::EcdsaSecp256k1 => {
+                let public_key = secret_key.public_key();
+                public_key_hex = hex::encode(public_key.serialize());
                 let message_bytes: [u8; 32] = request
                     .message_hash
                     .clone()
@@ -128,15 +132,23 @@ impl EnclaveManager for CloudEnclave {
                     .map_err(|_| ConclaveError::InvalidPayload)?;
                 let message = Message::from_digest(message_bytes);
                 let sig = secp256k1::ecdsa::sign(message, &secret_key);
-                hex::encode(sig.serialize_compact())
+                signature_hex = hex::encode(sig.serialize_compact());
             }
             SigningAlgorithm::SchnorrSecp256k1 => {
+                let public_key = secret_key.public_key();
+                public_key_hex = hex::encode(public_key.serialize());
                 // Simulated Schnorr for CloudEnclave
-                hex::encode(vec![0u8; 64])
+                signature_hex = hex::encode(vec![0u8; 64]);
             }
             SigningAlgorithm::Ed25519 => {
-                // Simulated Ed25519 for CloudEnclave
-                hex::encode(vec![0u8; 64])
+                let key_bytes: &[u8; 32] = match self.local_dev_key_bytes.as_ref() {
+                    Some(key_bytes) => key_bytes,
+                    None => &self.simulated_kms_key_bytes,
+                };
+                let signing_key = SigningKey::from_bytes(key_bytes);
+                public_key_hex = hex::encode(signing_key.verifying_key().to_bytes());
+                let sig = signing_key.sign(&request.message_hash);
+                signature_hex = hex::encode(sig.to_bytes());
             }
         };
 
@@ -146,7 +158,7 @@ impl EnclaveManager for CloudEnclave {
 
         Ok(SignResponse {
             signature_hex,
-            public_key_hex: hex::encode(public_key.serialize()),
+            public_key_hex,
             device_attestation: Some(attestation_json),
         })
     }

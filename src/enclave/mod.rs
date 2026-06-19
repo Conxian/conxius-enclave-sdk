@@ -38,3 +38,27 @@ pub trait EnclaveManager: Send + Sync {
     fn get_public_key(&self, derivation_path: &str) -> ConclaveResult<String>;
     fn sign(&self, request: SignRequest) -> ConclaveResult<SignResponse>;
 }
+
+#[cfg(test)]
+mod enclave_tests {
+    use super::*;
+    use crate::enclave::cloud::CloudEnclave;
+
+    #[test]
+    fn test_cloud_enclave_ed25519_signing() {
+        let enclave = CloudEnclave::new("https://kms.test".to_string()).unwrap();
+        let message = b"hello world";
+        let request = SignRequest {
+            algorithm: SigningAlgorithm::Ed25519,
+            message_hash: message.to_vec(),
+            derivation_path: "m/44'/501'/0'/0'".to_string(),
+            key_id: "test-key".to_string(),
+            taproot_tweak: None,
+        };
+
+        let response = enclave.sign(request).unwrap();
+        assert!(!response.signature_hex.is_empty());
+        assert_eq!(response.public_key_hex.len(), 64); // 32 bytes hex
+        assert!(response.device_attestation.is_some());
+    }
+}
