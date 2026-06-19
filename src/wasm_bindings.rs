@@ -4,7 +4,7 @@ use crate::enclave::android_strongbox::CoreEnclaveManager;
 use crate::enclave::cloud::CloudEnclave;
 use crate::protocol::a2p::{A2pRouterService, A2pSessionIntent};
 use crate::protocol::asset::{AssetIdentifier, AssetMetadata, AssetRegistry, Chain};
-use crate::protocol::bitcoin::{BitcoinManager, TaprootManager};
+use crate::protocol::bitcoin::BitcoinManager;
 use crate::protocol::business::{BusinessManager, BusinessProfile, BusinessRegistry};
 use crate::protocol::credit::{CreditService, VouchIntent};
 use crate::protocol::dlc::DlcManager;
@@ -25,7 +25,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SdkConfig {
     pub gateway_url: String,
@@ -51,10 +51,6 @@ pub struct ConclaveWasmClient {
     http_client: reqwest::Client,
 }
 
-fn to_js_error<E: std::fmt::Display>(e: E) -> JsValue {
-    JsValue::from_str(&e.to_string())
-}
-
 #[wasm_bindgen]
 impl ConclaveWasmClient {
     #[wasm_bindgen(constructor)]
@@ -65,7 +61,7 @@ impl ConclaveWasmClient {
         };
 
         let enclave: Arc<dyn EnclaveManager> = if use_cloud {
-            Arc::new(CloudEnclave::new(gateway_url.to_string()).map_err(to_js_error)?)
+            Arc::new(CloudEnclave::new(gateway_url.to_string()).map_err(|e| JsValue::from_str(&e.to_string()))?)
         } else {
             Arc::new(CoreEnclaveManager::new())
         };
@@ -135,7 +131,7 @@ impl ConclaveWasmClient {
         let salt_bytes = hex::decode(salt).map_err(|_| JsValue::from_str("Invalid salt hex"))?;
         self.enclave
             .unlock(secret, &salt_bytes)
-            .map_err(to_js_error)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     pub fn register_asset(
@@ -169,12 +165,12 @@ impl ConclaveWasmClient {
         self.assets.register_asset(id, metadata);
     }
 
-    pub fn ethereum(&self) -> EthereumManager<'_> {
-        EthereumManager::new(self.enclave.as_ref())
+    pub fn ethereum(&self) -> EthereumManager {
+        EthereumManager::new(self.enclave.clone())
     }
 
-    pub fn solana(&self) -> SolanaManager<'_> {
-        SolanaManager::new(self.enclave.as_ref())
+    pub fn solana(&self) -> SolanaManager {
+        SolanaManager::new(self.enclave.clone())
     }
 
     pub fn bitcoin(&self) -> BitcoinManager {
@@ -193,15 +189,15 @@ impl ConclaveWasmClient {
             .rails
             .broadcast_signed_intent(intent_obj, signature, attestation)
             .await
-            .map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+        serde_wasm_bindgen::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     pub async fn prepare_fiat_session(&self, request: JsValue) -> Result<JsValue, JsValue> {
         let req: FiatOnRampRequest = serde_wasm_bindgen::from_value(request)
             .map_err(|_| JsValue::from_str("Invalid request format"))?;
         let intent = self.fiat.prepare_session(req);
-        serde_wasm_bindgen::to_value(&intent).map_err(to_js_error)
+        serde_wasm_bindgen::to_value(&intent).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     pub async fn prepare_vouch(
@@ -211,7 +207,7 @@ impl ConclaveWasmClient {
         amount: u64,
     ) -> Result<JsValue, JsValue> {
         let intent = self.credit.prepare_vouch(borrower, vouchers, amount);
-        serde_wasm_bindgen::to_value(&intent).map_err(to_js_error)
+        serde_wasm_bindgen::to_value(&intent).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     pub async fn get_block_height(&self, chain: &str) -> Result<u64, JsValue> {
@@ -225,13 +221,13 @@ impl ConclaveWasmClient {
 
 #[wasm_bindgen]
 pub struct Iso20022Wrapper;
+
 #[wasm_bindgen]
 impl Iso20022Wrapper {
     pub fn wrap_pacs008(
-        _card: &crate::protocol::job_card::ConxianJobCard,
-    ) -> ConclaveResult<String> {
-        Err(crate::ConclaveError::RailError(
-            "ISO 20022 pacs.008 wrapper not yet implemented in production path".to_string(),
-        ))
+        card: &crate::protocol::job_card::ConxianJobCard,
+    ) -> Result<String, JsValue> {
+        crate::protocol::job_card::Iso20022Wrapper::wrap_pacs008(card)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 }

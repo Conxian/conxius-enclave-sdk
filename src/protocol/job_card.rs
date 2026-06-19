@@ -1,6 +1,10 @@
 use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkIntent {
     pub sender_address: String,
@@ -11,6 +15,7 @@ pub struct WorkIntent {
     pub country_code: Option<String>,
 }
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConxianJobCard {
     #[serde(rename = "@context")]
@@ -20,11 +25,13 @@ pub struct ConxianJobCard {
     pub work_intent: WorkIntent,
 }
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl ConxianJobCard {
+    #[cfg_attr(target_arch = "wasm32", wasm_bindgen(constructor))]
     pub fn new(
         sender: &str,
         receiver: &str,
-        amount_sbtc: impl Into<String>,
+        amount_sbtc: String,
         town: Option<String>,
         country: Option<String>,
     ) -> Self {
@@ -34,7 +41,7 @@ impl ConxianJobCard {
             work_intent: WorkIntent {
                 sender_address: sender.to_string(),
                 receiver_address: receiver.to_string(),
-                amount_sbtc: amount_sbtc.into(),
+                amount_sbtc: amount_sbtc,
                 town_name: town,
                 country_code: country,
             },

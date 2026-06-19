@@ -36,8 +36,4 @@
 - **Universal Chain Support (CON-810)**: Expanded `Chain` enum and `AssetRegistry` to include Cosmos Hub (ATOM). Formalized Tier 1 chain family selection and support boundaries in architectural documentation.
 - **Hardware-Backed Universal Signing**: Implemented Ed25519 signing support in `CloudEnclave` using `ed25519-dalek`, enabling hardware-attested transaction orchestration for Solana and NEAR.
 - **Enhanced Lightning Resilience (CON-688)**: Refined `LightningPaymentIntent` with explicit retry limits, status finality checks, and expiration handling to improve production payment reliability.
-
-### v0.2.3 Updates
-- **Universal Chain Support (CON-810)**: Expanded `Chain` enum and `AssetRegistry` to include Cosmos Hub (ATOM). Formalized Tier 1 chain family selection and support boundaries in architectural documentation.
-- **Hardware-Backed Universal Signing**: Implemented Ed25519 signing support in `CloudEnclave` using `ed25519-dalek`, enabling hardware-attested transaction orchestration for Solana and NEAR.
-- **Enhanced Lightning Resilience (CON-688)**: Refined `LightningPaymentIntent` with explicit retry limits, status finality checks, and expiration handling to improve production payment reliability.
+- **WASM CI Remediation**: Optimized build configuration for `wasm32-unknown-unknown` targets, implementing intrinsic-based C library shims and async thread-safety for web environments.

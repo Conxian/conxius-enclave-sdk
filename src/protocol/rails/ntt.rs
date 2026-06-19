@@ -9,7 +9,7 @@ pub struct NTTRail {
     pub http_client: reqwest::Client,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl SovereignRail for NTTRail {
     fn name(&self) -> &'static str {
         "ntt"

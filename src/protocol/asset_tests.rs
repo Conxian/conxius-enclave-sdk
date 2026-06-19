@@ -42,6 +42,10 @@ mod tests {
             chain: Chain::CITREA,
             symbol: "BTC".to_string(),
         };
+        let cosmos_atom = AssetIdentifier {
+            chain: Chain::COSMOS,
+            symbol: "ATOM".to_string(),
+        };
 
         assert_eq!(registry.get_asset(&mezo_btc).unwrap().name, "Mezo Bitcoin");
         assert_eq!(
@@ -55,6 +59,10 @@ mod tests {
         assert_eq!(
             registry.get_asset(&citrea_btc).unwrap().name,
             "Citrea Bitcoin"
+        );
+        assert_eq!(
+            registry.get_asset(&cosmos_atom).unwrap().name,
+            "Cosmos Hub"
         );
     }
 }

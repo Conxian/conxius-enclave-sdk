@@ -50,7 +50,7 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 
 ## 10. Circuit Breaker & Emergency Control (CON-500)
 - **Status**: COMPLETED.
-- `contracts/core/emergency-control.clar` provides a centralized pause mechanism to block sensitive operations during market volatility or incidents.
+- **Implementation**: `contracts/core/emergency-control.clar` provides a centralized pause mechanism to block sensitive operations during market volatility or incidents.
 
 ## 11. Lending Solvency Checks (CON-497)
 - **Status**: COMPLETED.

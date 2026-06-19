@@ -4,15 +4,22 @@ use crate::{
 };
 use sha2::Digest;
 
-pub struct EthereumManager<'a> {
-    enclave: &'a dyn EnclaveManager,
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+pub struct EthereumManager {
+    enclave: std::sync::Arc<dyn EnclaveManager>,
 }
 
-impl<'a> EthereumManager<'a> {
-    pub fn new(enclave: &'a dyn EnclaveManager) -> Self {
+impl EthereumManager {
+    pub fn new(enclave: std::sync::Arc<dyn EnclaveManager>) -> Self {
         Self { enclave }
     }
+}
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
+impl EthereumManager {
     pub fn get_address(&self, derivation_path: &str) -> ConclaveResult<String> {
         let pubkey_hex = self.enclave.get_public_key(derivation_path)?;
         let pubkey_bytes = hex::decode(pubkey_hex).map_err(|_| ConclaveError::InvalidPayload)?;
@@ -25,13 +32,13 @@ impl<'a> EthereumManager<'a> {
 
     pub fn sign_transaction_hash(
         &self,
-        sighash: [u8; 32],
+        sighash: Vec<u8>,
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
         let request = SignRequest {
             algorithm: SigningAlgorithm::EcdsaSecp256k1,
-            message_hash: sighash.to_vec(),
+            message_hash: sighash,
             derivation_path: derivation_path.to_string(),
             key_id: key_id.to_string(),
             taproot_tweak: None,

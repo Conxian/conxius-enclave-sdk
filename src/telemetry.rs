@@ -1,6 +1,5 @@
 use reqwest::Client;
 use serde::Serialize;
-use tokio;
 
 #[derive(Serialize)]
 struct TelemetryPayload {
@@ -30,26 +29,26 @@ impl TelemetryClient {
         let api_key = self.api_key.clone();
         let client = self.http_client.clone();
 
-        // Spawn as a detached tokio task so it never blocks the critical signing path
-        tokio::spawn(async move {
+        let future = async move {
             let payload = TelemetryPayload {
                 api_key,
                 signature_hash,
             };
 
-            match client.post(&url).json(&payload).send().await {
-                Ok(res) => {
-                    if !res.status().is_success() {
-                        // In production, we'd log this locally or queue for retry
-                        // We intentionally ignore errors here to prevent SDK crashing
-                        // from backend downtime (preserving user sovereignty).
-                        let _ = res.text().await;
-                    }
-                }
-                Err(_) => {
-                    // Network failure, ignore to maintain 300ms SLA
+            if let Ok(res) = client.post(&url).json(&payload).send().await {
+                if !res.status().is_success() {
+                    let _ = res.text().await;
                 }
             }
-        });
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            tokio::spawn(future);
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            wasm_bindgen_futures::spawn_local(future);
+        }
     }
 }
