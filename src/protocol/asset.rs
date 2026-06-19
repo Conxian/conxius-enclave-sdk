@@ -140,6 +140,7 @@ impl AssetRegistry {
             (Chain::BSC, "BNB", "BNB Smart Chain", 18),
             (Chain::AVALANCHE, "AVAX", "Avalanche", 18),
             (Chain::NEAR, "NEAR", "Near", 24),
+            (Chain::COSMOS, "ATOM", "Cosmos Hub", 6),
             (Chain::XrpLedger, "XRP", "XRP", 6),
             (Chain::TRON, "TRX", "Tron", 6),
             (Chain::CELO, "CELO", "Celo", 18),

@@ -31,3 +31,8 @@
 - **Expanded Bitcoin Network Support**: Added MEZO, BABYLON, BOTANIX, and CITREA identifiers to ensure future-proof L2/scaling support.
 - **Lightning Resilience Model**: Implemented the SRL-1 resilience and recovery layer for Lightning payments.
 - **Mempool Orchestration**: Added Bitcoin L1 mempool policy and transaction state tracking for RBF/CPFP handling.
+
+### v0.2.3 Updates
+- **Universal Chain Support (CON-810)**: Expanded `Chain` enum and `AssetRegistry` to include Cosmos Hub (ATOM). Formalized Tier 1 chain family selection and support boundaries in architectural documentation.
+- **Hardware-Backed Universal Signing**: Implemented Ed25519 signing support in `CloudEnclave` using `ed25519-dalek`, enabling hardware-attested transaction orchestration for Solana and NEAR.
+- **Enhanced Lightning Resilience (CON-688)**: Refined `LightningPaymentIntent` with explicit retry limits, status finality checks, and expiration handling to improve production payment reliability.
