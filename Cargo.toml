@@ -11,18 +11,18 @@ dev-attestation-bypass = []
 
 [dependencies]
 zeroize = { version = "1.8.1", features = ["derive", "zeroize_derive"] }
-async-trait = "0.1.86"
+async-trait = "0.1.89"
 aes = "0.9.1"
 aes-gcm = "0.10.3"
-bdk_wallet = { version = "3.0.0", default-features = false, features = ["std"] }
+bdk_wallet = { version = "3.1.0", default-features = false, features = ["std"] }
 bitcoin = { version = "0.33.0-beta", features = ["std", "rand"] }
 getrandom = { version = "0.4.2", features = ["wasm_js"] }
 hex = "0.4.3"
 hmac = "0.13.0"
-js-sys = "0.3.98"
+js-sys = "0.3.102"
 k256 = "0.14.0-rc.9"
-ed25519-dalek = "2.1.0"
-musig2 = "0.4.0"
+ed25519-dalek = "2.2.0"
+musig2 = "0.4.1"
 pbkdf2 = "0.13.0"
 quick-xml = "0.40.1"
 rand = "0.10.0"
@@ -37,9 +37,9 @@ subtle = "2.6.1"
 thiserror = "2.0.18"
 tokio = { version = "1.52.3", features = ["rt", "macros"] }
 alloy = { version = "2.1.0", features = ["rpc-types", "rpc-client", "network", "signer-local", "provider-http", "pubsub"] }
-wasm-bindgen = "0.2.121"
+wasm-bindgen = "0.2.125"
 wasm-bindgen-futures = "0.4.71"
-web-sys = "0.3.98"
+web-sys = "0.3.102"
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 getrandom_0_2 = { package = "getrandom", version = "0.2.17", features = ["js"] }

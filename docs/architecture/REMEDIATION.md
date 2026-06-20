@@ -106,3 +106,28 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 - **Status**: COMPLETED.
 - **Implementation**: Refactored `LightningPaymentIntent` to include mandatory retry limits (MAX_RETRIES=5), expiration handling, and strict finality state checks.
 - **Verification**: Verified with expanded test suite in `src/protocol/lightning.rs`.
+
+## 21. Bleeding-Edge Dependency Modernization (CON-1244)
+- **Status**: COMPLETED.
+- **Implementation**: Upgraded core dependencies including `bdk_wallet` (v3.1.0), `musig2` (v0.4.1), `ed25519-dalek` (v2.2.0), and `wasm-bindgen` (v0.2.125) to maintain architectural alignment with v2.0.0 standards.
+- **Verification**: Verified with `cargo test` and `cargo clippy`.
+
+## 22. Universal Asset Expansion: PayPal USD (CON-810)
+- **Status**: COMPLETED.
+- **Implementation**: Added PayPal USD (PYUSD) support to `AssetRegistry` on both Ethereum and Solana to support broad fintech integration paths.
+- **Verification**: Verified via manual inspection and registry registration.
+
+## 23. Modular Smart Account (ERC-7579) Hardening (CON-1217)
+- **Status**: COMPLETED.
+- **Implementation**: Hardened `ModularAccountManager` in `src/protocol/account_abstraction.rs` with formal `ModuleType` and `ModuleConfig` structures aligned with the ERC-7579 standard for pluggable smart account modules.
+- **Verification**: Verified with `cargo clippy`.
+
+## 24. Intent-Based Settlement (ERC-7683) Alignment (CON-1217)
+- **Status**: COMPLETED.
+- **Implementation**: Updated `src/protocol/intent.rs` with `ResolvedCrossChainOrder` and `AssetAmount` primitives to align with ERC-7683 cross-chain intent standards.
+- **Verification**: Verified with `cargo clippy`.
+
+## 25. CI/CD Hardening & Action Pinning (CON-1243)
+- **Status**: COMPLETED.
+- **Implementation**: Pinned `actions/checkout` to a verified immutable commit SHA (`11bd71901bbe5b1630ceea73d27597364c9af683`) across CI and Release workflows to prevent supply-chain attacks.
+- **Verification**: Verified via workflow file inspection.
