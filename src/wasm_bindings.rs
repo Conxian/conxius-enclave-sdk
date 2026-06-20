@@ -1,53 +1,58 @@
-use crate::ConclaveResult;
-use crate::enclave::EnclaveManager;
 use crate::enclave::android_strongbox::CoreEnclaveManager;
 use crate::enclave::cloud::CloudEnclave;
-use crate::protocol::a2p::{A2pRouterService, A2pSessionIntent};
+use crate::enclave::EnclaveManager;
+use crate::protocol::a2p::A2pRouterService;
 use crate::protocol::asset::{AssetIdentifier, AssetMetadata, AssetRegistry, Chain};
-use crate::protocol::bitcoin::{BitcoinManager, TaprootManager};
-use crate::protocol::business::{BusinessManager, BusinessProfile, BusinessRegistry};
-use crate::protocol::credit::{CreditService, VouchIntent};
+use crate::protocol::bitcoin::BitcoinManager;
+use crate::protocol::business::BusinessRegistry;
+use crate::protocol::credit::CreditService;
 use crate::protocol::dlc::DlcManager;
-use crate::protocol::economy::{DualStackIntent, YieldEngine};
 use crate::protocol::ethereum::EthereumManager;
-use crate::protocol::fiat::{
-    FiatOnRampRequest, FiatProviderType, FiatRouterService, FiatSessionIntent,
-};
+use crate::protocol::fiat::{FiatOnRampRequest, FiatRouterService};
 use crate::protocol::mmr::MmrService;
-use crate::protocol::opportunity::{OpportunityDispatcher, OpportunityPayload};
-use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapIntent, SwapRequest};
-use crate::protocol::sidl::{SidlCartMandate, SidlService, SidlVote};
+use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapIntent};
+use crate::protocol::sidl::SidlService;
 use crate::protocol::solana::SolanaManager;
-use crate::protocol::zkml::{ZkmlProofRequest, ZkmlService};
+use crate::protocol::zkml::ZkmlService;
 use crate::telemetry::TelemetryClient;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SdkConfig {
+    #[wasm_bindgen(getter_with_clone)]
     pub gateway_url: String,
     pub enforce_attestation: bool,
 }
 
 #[wasm_bindgen]
 pub struct ConclaveWasmClient {
+    #[allow(dead_code)]
     config: SdkConfig,
     enclave: Arc<dyn EnclaveManager>,
     assets: Arc<AssetRegistry>,
+    #[allow(dead_code)]
     businesses: Arc<BusinessRegistry>,
     rails: Arc<RailProxy>,
     fiat: Arc<FiatRouterService>,
     credit: Arc<CreditService>,
+    #[allow(dead_code)]
     a2p: Arc<A2pRouterService>,
+    #[allow(dead_code)]
     mmr: Arc<MmrService>,
+    #[allow(dead_code)]
     zkml: Arc<ZkmlService>,
+    #[allow(dead_code)]
     sidl: Arc<SidlService>,
+    #[allow(dead_code)]
     identity: Arc<crate::protocol::identity::IdentityManager>,
+    #[allow(dead_code)]
     dlc: Arc<DlcManager>,
+    #[allow(dead_code)]
     telemetry: Option<Arc<TelemetryClient>>,
+    #[allow(dead_code)]
     http_client: reqwest::Client,
 }
 
@@ -151,8 +156,13 @@ impl ConclaveWasmClient {
             "ETHEREUM" => Chain::ETHEREUM,
             "STACKS" => Chain::STACKS,
             "SOLANA" => Chain::SOLANA,
-            "POLYGON" => Chain::POLYGON,
-            "BSC" => Chain::BSC,
+            "ROOTSTOCK" => Chain::ROOTSTOCK,
+            "BOB" => Chain::BOB,
+            "MEZO" => Chain::MEZO,
+            "BABYLON" => Chain::BABYLON,
+            "BOTANIX" => Chain::BOTANIX,
+            "CITREA" => Chain::CITREA,
+            "COSMOS" => Chain::COSMOS,
             _ => Chain::BITCOIN,
         };
         let id = AssetIdentifier {
@@ -168,16 +178,22 @@ impl ConclaveWasmClient {
         self.assets.register_asset(id, metadata);
     }
 
-    pub fn ethereum(&self) -> EthereumManager<'_> {
-        EthereumManager::new(self.enclave.as_ref())
+    pub fn ethereum(&self) -> WasmEthereumManager {
+        WasmEthereumManager {
+            enclave: self.enclave.clone(),
+        }
     }
 
-    pub fn solana(&self) -> SolanaManager<'_> {
-        SolanaManager::new(self.enclave.as_ref())
+    pub fn solana(&self) -> WasmSolanaManager {
+        WasmSolanaManager {
+            enclave: self.enclave.clone(),
+        }
     }
 
-    pub fn bitcoin(&self) -> BitcoinManager {
-        BitcoinManager::new(self.enclave.clone())
+    pub fn bitcoin(&self) -> WasmBitcoinManager {
+        WasmBitcoinManager {
+            inner: BitcoinManager::new(self.enclave.clone()),
+        }
     }
 
     pub async fn execute_swap(
@@ -223,14 +239,64 @@ impl ConclaveWasmClient {
 }
 
 #[wasm_bindgen]
+pub struct WasmBitcoinManager {
+    #[wasm_bindgen(skip)]
+    pub inner: BitcoinManager,
+}
+
+#[wasm_bindgen]
+impl WasmBitcoinManager {
+    pub fn generate_wpkh_descriptor(&self, derivation_path: &str) -> Result<String, JsValue> {
+        self.inner
+            .generate_wpkh_descriptor(derivation_path)
+            .map_err(to_js_error)
+    }
+
+    pub fn generate_tr_descriptor(&self, derivation_path: &str) -> Result<String, JsValue> {
+        self.inner
+            .generate_tr_descriptor(derivation_path)
+            .map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmEthereumManager {
+    #[wasm_bindgen(skip)]
+    pub enclave: Arc<dyn EnclaveManager>,
+}
+
+#[wasm_bindgen]
+impl WasmEthereumManager {
+    pub fn get_address(&self, derivation_path: &str) -> Result<String, JsValue> {
+        EthereumManager::new(self.enclave.as_ref())
+            .get_address(derivation_path)
+            .map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmSolanaManager {
+    #[wasm_bindgen(skip)]
+    pub enclave: Arc<dyn EnclaveManager>,
+}
+
+#[wasm_bindgen]
+impl WasmSolanaManager {
+    pub fn get_address(&self, derivation_path: &str) -> Result<String, JsValue> {
+        SolanaManager::new(self.enclave.as_ref())
+            .get_address(derivation_path)
+            .map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
 pub struct Iso20022Wrapper;
+
 #[wasm_bindgen]
 impl Iso20022Wrapper {
-    pub fn wrap_pacs008(
-        _card: &crate::protocol::job_card::ConxianJobCard,
-    ) -> ConclaveResult<String> {
-        Err(crate::ConclaveError::RailError(
-            "ISO 20022 pacs.008 wrapper not yet implemented in production path".to_string(),
-        ))
+    pub fn wrap_pacs008(card: JsValue) -> Result<String, JsValue> {
+        let card: crate::protocol::job_card::ConxianJobCard =
+            serde_wasm_bindgen::from_value(card).map_err(to_js_error)?;
+        crate::protocol::job_card::Iso20022Wrapper::wrap_pacs008(&card).map_err(to_js_error)
     }
 }
