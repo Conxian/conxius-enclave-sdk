@@ -6,7 +6,9 @@ pub mod telemetry;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm_bindings;
+
 pub type ConclaveResult<T> = Result<T, ConclaveError>;
+
 #[derive(Debug, serde::Serialize, serde::Deserialize, thiserror::Error)]
 pub enum ConclaveError {
     #[error("Hardware Enclave Error: {0}")]
@@ -21,4 +23,11 @@ pub enum ConclaveError {
     NetworkError(String),
     #[error("Rail Error: {0}")]
     RailError(String),
+}
+
+#[cfg(target_arch = "wasm32")]
+impl From<ConclaveError> for wasm_bindgen::JsValue {
+    fn from(err: ConclaveError) -> Self {
+        wasm_bindgen::JsValue::from_str(&err.to_string())
+    }
 }
