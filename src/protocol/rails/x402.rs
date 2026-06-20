@@ -21,7 +21,7 @@ pub struct X402Intent {
     pub fallback_url: Option<String>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl SovereignRail for X402Rail {
     fn name(&self) -> &'static str {
         "x402_industrial"

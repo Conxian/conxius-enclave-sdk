@@ -7,7 +7,7 @@ use crate::protocol::settlement::{
 use async_trait::async_trait;
 use std::sync::Arc;
 
-#[async_trait]
+#[async_trait(?Send)]
 pub trait SettlementService: Send + Sync {
     async fn process_external_trigger(
         &self,
@@ -48,7 +48,7 @@ impl ConclaveSettlementService {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl SettlementService for ConclaveSettlementService {
     /// Orchestrates the end-to-end flow of converting an external settlement trigger
     /// (ISO 20022, PAPSS, etc.) into a digital asset proposal with a mandatory 144-block timelock.

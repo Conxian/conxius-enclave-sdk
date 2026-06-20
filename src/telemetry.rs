@@ -1,6 +1,10 @@
 use reqwest::Client;
 use serde::Serialize;
-use tokio;
+
+#[cfg(not(target_arch = "wasm32"))]
+use tokio::spawn;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_futures::spawn_local as spawn;
 
 #[derive(Serialize)]
 struct TelemetryPayload {
@@ -30,8 +34,9 @@ impl TelemetryClient {
         let api_key = self.api_key.clone();
         let client = self.http_client.clone();
 
-        // Spawn as a detached tokio task so it never blocks the critical signing path
-        tokio::spawn(async move {
+        // Spawn as a detached task so it never blocks the critical signing path.
+        // On WASM, this uses spawn_local.
+        spawn(async move {
             let payload = TelemetryPayload {
                 api_key,
                 signature_hash,

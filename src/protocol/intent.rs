@@ -14,6 +14,24 @@ pub struct GaslessCrossChainOrder {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedCrossChainOrder {
+    pub user: String,
+    pub origin_chain_id: u32,
+    pub open_deadline: u32,
+    pub fill_deadline: u32,
+    pub swapper: String,
+    pub nonce: u64,
+    pub input_assets: Vec<AssetAmount>,
+    pub output_assets: Vec<AssetAmount>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssetAmount {
+    pub asset: AssetIdentifier,
+    pub amount: u128,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CrossChainIntent {
     pub input_asset: AssetIdentifier,
     pub output_asset: AssetIdentifier,

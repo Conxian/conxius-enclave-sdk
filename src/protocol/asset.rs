@@ -300,6 +300,20 @@ impl AssetRegistry {
                 6,
                 Some("SP3Y2ZQC8GVSD8B9S87H66EHAH0M8G5J9V3W0HA8.usdcx"),
             ),
+            (
+                Chain::ETHEREUM,
+                "PYUSD",
+                "PayPal USD",
+                6,
+                Some("0x6c3ea9036406852006290770bedfc29a99200431"),
+            ),
+            (
+                Chain::SOLANA,
+                "PYUSD",
+                "PayPal USD (Solana)",
+                6,
+                Some("2b1kvv8isUN6RQZbiu9uJmZ2k3D57F7TqN8R9A2y55"),
+            ),
         ];
 
         for (chain, symbol, name, decimals, addr) in usd_stables {

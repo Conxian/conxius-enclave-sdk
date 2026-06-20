@@ -13,6 +13,21 @@ pub struct ERC7579Execution {
     pub actions: Vec<SmartAccountAction>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ModuleType {
+    Validator = 1,
+    Executor = 2,
+    Fallback = 3,
+    Hook = 4,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModuleConfig {
+    pub module_type: ModuleType,
+    pub module_address: String,
+    pub init_data: Vec<u8>,
+}
+
 pub struct ModularAccountManager {
     // Management of ERC-7579 modules and plugins
 }
@@ -37,5 +52,11 @@ impl ModularAccountManager {
             execution_mode,
             actions,
         }
+    }
+
+    pub fn validate_module_setup(&self, config: &ModuleConfig) -> bool {
+        // In a real implementation, this would verify the module's
+        // compatibility with the ERC-7579 interface.
+        !config.module_address.is_empty()
     }
 }

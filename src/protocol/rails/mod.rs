@@ -127,7 +127,7 @@ pub struct SwapResponse {
     pub proof_envelope: Option<ProofEnvelope>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 pub trait SovereignRail: Send + Sync {
     fn name(&self) -> &'static str;
     fn trust_tier(&self) -> TrustTier;
@@ -141,7 +141,7 @@ pub trait SovereignRail: Send + Sync {
 
 /// The Sovereign Handshake: A non-custodial protocol where the Gateway
 /// pushes requests to the mobile Enclave for signing before execution.
-#[async_trait]
+#[async_trait(?Send)]
 pub trait SovereignHandshake {
     /// Prepare a signable intent from a request.
     fn prepare_intent(&self, rail_name: &str, request: SwapRequest) -> ConclaveResult<SwapIntent>;
@@ -340,7 +340,7 @@ impl RailProxy {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl SovereignHandshake for RailProxy {
     fn prepare_intent(&self, rail_name: &str, request: SwapRequest) -> ConclaveResult<SwapIntent> {
         let rail = self
@@ -450,7 +450,7 @@ impl SovereignHandshake for RailProxy {
 
 /// A custom rail extension example for partner-specific liquidity.
 pub struct CustomRail;
-#[async_trait]
+#[async_trait(?Send)]
 impl SovereignRail for CustomRail {
     fn name(&self) -> &'static str {
         "custom_partner"

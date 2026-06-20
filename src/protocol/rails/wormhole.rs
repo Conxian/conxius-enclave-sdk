@@ -15,7 +15,7 @@ struct BroadcastSwapRequest {
     pub signature: String,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl SovereignRail for WormholeRail {
     fn name(&self) -> &'static str {
         "wormhole"
