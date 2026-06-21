@@ -1,9 +1,11 @@
 pub mod a2p;
 pub mod account_abstraction;
+pub mod ark;
 pub mod asset;
 pub mod asset_tests;
 pub mod bitcoin;
 pub mod bitcoin_tests;
+pub mod bitvm;
 pub mod business;
 pub mod cctp;
 pub mod credit;

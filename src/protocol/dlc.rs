@@ -1,5 +1,5 @@
-use crate::ConclaveResult;
 use crate::enclave::EnclaveManager;
+use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
@@ -59,17 +59,17 @@ impl DlcManager {
         &self,
         contract: &mut DlcContract,
         new_state: DlcState,
-    ) -> Result<(), String> {
+    ) -> ConclaveResult<()> {
         match (&contract.state, &new_state) {
             (DlcState::Offered, DlcState::Accepted) => contract.state = new_state,
             (DlcState::Accepted, DlcState::Signed) => contract.state = new_state,
             (DlcState::Signed, DlcState::Broadcast) => contract.state = new_state,
             (DlcState::Broadcast, DlcState::Closed) => contract.state = new_state,
             _ => {
-                return Err(format!(
+                return Err(ConclaveError::EnclaveFailure(format!(
                     "Invalid state transition from {:?} to {:?}",
                     contract.state, new_state
-                ));
+                )));
             }
         }
         Ok(())
@@ -106,9 +106,11 @@ impl DlcManager {
         &self,
         mut contract: DlcContract,
         remote_pubkey: String,
-    ) -> Result<DlcContract, String> {
+    ) -> ConclaveResult<DlcContract> {
         if contract.state != DlcState::Offered {
-            return Err("Contract must be in Offered state to be accepted".to_string());
+            return Err(ConclaveError::EnclaveFailure(
+                "Contract must be in Offered state to be accepted".to_string(),
+            ));
         }
 
         contract.remote_pubkey = Some(remote_pubkey);
@@ -144,17 +146,14 @@ mod tests {
         assert_eq!(contract.state, DlcState::Offered);
         assert!(contract.local_pubkey.is_some());
 
-        contract = mgr
-            .accept_contract(contract, "remote_pubkey_hex".to_string())
-            .map_err(crate::ConclaveError::EnclaveFailure)?;
+        contract = mgr.accept_contract(contract, "remote_pubkey_hex".to_string())?;
         assert_eq!(contract.state, DlcState::Accepted);
         assert_eq!(
             contract.remote_pubkey,
             Some("remote_pubkey_hex".to_string())
         );
 
-        mgr.transition_state(&mut contract, DlcState::Signed)
-            .map_err(crate::ConclaveError::EnclaveFailure)?;
+        mgr.transition_state(&mut contract, DlcState::Signed)?;
         assert_eq!(contract.state, DlcState::Signed);
 
         Ok(())

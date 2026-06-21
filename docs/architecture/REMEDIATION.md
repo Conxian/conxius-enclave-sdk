@@ -131,3 +131,22 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 - **Status**: COMPLETED.
 - **Implementation**: Pinned `actions/checkout` to a verified immutable commit SHA (`11bd71901bbe5b1630ceea73d27597364c9af683`) across CI and Release workflows to prevent supply-chain attacks.
 - **Verification**: Verified via workflow file inspection.
+
+## 26. BitVM2 Verification Floor (CON-1264)
+- **Status**: COMPLETED.
+- **Implementation**: Added `BitVmManager` in `src/protocol/bitvm.rs` with 364-tap verification floor orchestration and fail-closed tap boundary checks.
+- **Verification**: Verified with automated unit tests.
+
+## 27. Ark V-UTXO Protocol Primitives (CON-1264)
+- **Status**: COMPLETED.
+- **Implementation**: Added `ArkManager` in `src/protocol/ark.rs` providing Blake2s PRF-based V-UTXO derivation for stateless recovery.
+- **Verification**: Verified with automated unit tests.
+
+## 28. FDC3 Native Resolver Alignment (CON-1264)
+- **Status**: COMPLETED.
+- **Implementation**: Added `Fdc3Context` and `Fdc3IntentResult` in `src/protocol/intent.rs` to support corporate treasury handshake standards.
+- **Verification**: Verified with automated unit tests.
+
+## 29. Protocol Error Path Normalization
+- **Status**: COMPLETED.
+- **Implementation**: Refactored `DlcManager` to use canonical `ConclaveResult` types, ensuring consistent error handling and preventing raw string error egress.
