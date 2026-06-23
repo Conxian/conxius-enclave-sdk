@@ -1,13 +1,13 @@
 #[allow(unused_imports)]
 use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 use crate::protocol::intent::{AssetAmount, CrossChainIntent, ResolvedCrossChainOrder};
-use crate::{ConclaveResult, enclave::EnclaveManager, ConclaveError};
+use crate::{ConclaveError, ConclaveResult, enclave::EnclaveManager};
+use alloy::primitives::{Address as EthAddress, Keccak256};
+use bitcoin::Network;
+use bitcoin::address::Address;
+use bitcoin::key::PublicKey;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use bitcoin::key::PublicKey;
-use bitcoin::address::Address;
-use bitcoin::Network;
-use alloy::primitives::{Address as EthAddress, Keccak256};
 
 /// Chain Abstraction Service (v1.9.2)
 /// Orchestrates NEAR-style chain signatures and universal intent settlement.
@@ -91,8 +91,9 @@ impl ChainAbstractionService {
 
         let target_address = match request.target_chain {
             Chain::BITCOIN => {
-                let pk = PublicKey::from_slice(&public_key_bytes)
-                    .map_err(|e| ConclaveError::CryptoError(format!("Invalid Bitcoin PK: {}", e)))?;
+                let pk = PublicKey::from_slice(&public_key_bytes).map_err(|e| {
+                    ConclaveError::CryptoError(format!("Invalid Bitcoin PK: {}", e))
+                })?;
 
                 // For SegWit, we need a compressed public key
                 let compressed = pk.to_bytes();
@@ -108,12 +109,15 @@ impl ChainAbstractionService {
                     hasher.update(&public_key_bytes[1..]);
                 } else if public_key_bytes.len() == 33 {
                     // Need to uncompress first if it's compressed
-                    let pk = secp256k1::PublicKey::from_slice(&public_key_bytes)
-                        .map_err(|e| ConclaveError::CryptoError(format!("Invalid compressed PK: {}", e)))?;
+                    let pk = secp256k1::PublicKey::from_slice(&public_key_bytes).map_err(|e| {
+                        ConclaveError::CryptoError(format!("Invalid compressed PK: {}", e))
+                    })?;
                     let uncompressed = pk.serialize_uncompressed();
                     hasher.update(&uncompressed[1..]);
                 } else {
-                    return Err(ConclaveError::CryptoError("Invalid public key length for EVM".to_string()));
+                    return Err(ConclaveError::CryptoError(
+                        "Invalid public key length for EVM".to_string(),
+                    ));
                 }
                 let hash = hasher.finalize();
                 EthAddress::from_slice(&hash[12..]).to_string()
@@ -123,7 +127,9 @@ impl ChainAbstractionService {
                 if public_key_bytes.len() == 32 {
                     bs58::encode(&public_key_bytes).into_string()
                 } else {
-                    return Err(ConclaveError::CryptoError("Invalid public key length for Solana".to_string()));
+                    return Err(ConclaveError::CryptoError(
+                        "Invalid public key length for Solana".to_string(),
+                    ));
                 }
             }
             _ => "0x_fallback_address".to_string(),
