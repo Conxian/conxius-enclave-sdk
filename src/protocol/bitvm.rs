@@ -16,6 +16,13 @@ pub struct BitVmChallenge {
     pub total_taps: u32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BitVmTapLeaf {
+    pub leaf_hash: [u8; 32],
+    pub script_type: String,
+    pub parity: u8,
+}
+
 impl BitVmManager {
     pub fn new(enclave: Arc<dyn EnclaveManager>) -> Self {
         Self { enclave }
@@ -42,6 +49,17 @@ impl BitVmManager {
         let taproot = TaprootManager::new(self.enclave.as_ref());
         taproot.sign_bitvm_challenge(challenge.challenge_hash, derivation_path, key_id)
     }
+
+    /// Validates a specific BitVM2 tap leaf against the verification floor policy.
+    pub fn validate_tap_leaf(&self, leaf: &BitVmTapLeaf, tap_index: u32) -> bool {
+        if tap_index == 0 && leaf.script_type != "VALIDATING" {
+            return false;
+        }
+        if tap_index > 0 && leaf.script_type != "HASHING" {
+            return false;
+        }
+        true
+    }
 }
 
 #[cfg(test)]
@@ -62,5 +80,27 @@ mod tests {
 
         let result = mgr.sign_challenge(challenge, "m/86'/0'/0'/0/0", "key1");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_bitvm_tap_leaf_validation() {
+        let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
+        let mgr = BitVmManager::new(enclave);
+
+        let leaf0 = BitVmTapLeaf {
+            leaf_hash: [0u8; 32],
+            script_type: "VALIDATING".to_string(),
+            parity: 0,
+        };
+        assert!(mgr.validate_tap_leaf(&leaf0, 0));
+        assert!(!mgr.validate_tap_leaf(&leaf0, 1));
+
+        let leaf1 = BitVmTapLeaf {
+            leaf_hash: [0u8; 32],
+            script_type: "HASHING".to_string(),
+            parity: 1,
+        };
+        assert!(mgr.validate_tap_leaf(&leaf1, 1));
+        assert!(!mgr.validate_tap_leaf(&leaf1, 0));
     }
 }

@@ -16,6 +16,13 @@ pub struct VUtxoDescriptor {
     pub derivation_index: u32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArkAspConfig {
+    pub asp_pubkey: String,
+    pub round_interval: u32,
+    pub min_forfeit_fee: u64,
+}
+
 impl ArkManager {
     pub fn new(enclave: Arc<dyn EnclaveManager>) -> Self {
         Self { enclave }
@@ -33,18 +40,33 @@ impl ArkManager {
         key
     }
 
+    /// Prepares a forfeit transaction for signing.
+    /// Forfeit transactions allow users to exit the Ark ASP by "forfeiting" their
+    /// V-UTXOs to the ASP in exchange for an on-chain output in the next round.
+    pub fn prepare_forfeit_intent(
+        &self,
+        vutxo: VUtxoDescriptor,
+        asp_config: ArkAspConfig,
+    ) -> ConclaveResult<[u8; 32]> {
+        let mut hasher = Blake2s256::new();
+        hasher.update(b"ARK_FORFEIT_v1:");
+        hasher.update(vutxo.vutxo_id.as_bytes());
+        hasher.update(asp_config.asp_pubkey.as_bytes());
+        hasher.update(vutxo.amount.to_be_bytes());
+        let result = hasher.finalize();
+        let mut hash = [0u8; 32];
+        hash.copy_from_slice(&result);
+        Ok(hash)
+    }
+
     /// Signs a forfeit transaction to enable exiting an Ark ASP.
     pub fn sign_forfeit_transaction(
         &self,
         tx_hash: [u8; 32],
         derivation_path: &str,
     ) -> ConclaveResult<String> {
-        // In a real Ark implementation, this would involve specific forfeit
-        // logic and potentially MuSig2 for multi-party signatures.
-        // Here we provide the core signing hook.
         let pubkey = self.enclave.get_public_key(derivation_path)?;
 
-        // Mocking the forfeit signing flow using the enclave's default signing
         let request = crate::enclave::SignRequest {
             algorithm: crate::enclave::SigningAlgorithm::EcdsaSecp256k1,
             message_hash: tx_hash.to_vec(),
@@ -75,5 +97,25 @@ mod tests {
 
         assert_eq!(key1, key2);
         assert_ne!(key1, key3);
+    }
+
+    #[test]
+    fn test_prepare_forfeit_intent() {
+        let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
+        let mgr = ArkManager::new(enclave);
+
+        let vutxo = VUtxoDescriptor {
+            vutxo_id: "vutxo_1".to_string(),
+            amount: 1000000,
+            derivation_index: 0,
+        };
+        let asp_config = ArkAspConfig {
+            asp_pubkey: "asp_pk".to_string(),
+            round_interval: 10,
+            min_forfeit_fee: 500,
+        };
+
+        let hash = mgr.prepare_forfeit_intent(vutxo, asp_config).unwrap();
+        assert!(!hash.iter().all(|&b| b == 0));
     }
 }
