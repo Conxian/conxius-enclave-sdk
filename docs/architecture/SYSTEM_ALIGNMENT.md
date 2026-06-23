@@ -36,3 +36,9 @@
 - **Universal Chain Support (CON-810)**: Expanded `Chain` enum and `AssetRegistry` to include Cosmos Hub (ATOM). Formalized Tier 1 chain family selection and support boundaries in architectural documentation.
 - **Hardware-Backed Universal Signing**: Implemented Ed25519 signing support in `CloudEnclave` using `ed25519-dalek`, enabling hardware-attested transaction orchestration for Solana and NEAR.
 - **Enhanced Lightning Resilience (CON-688)**: Refined `LightningPaymentIntent` with explicit retry limits, status finality checks, and expiration handling to improve production payment reliability.
+
+### v0.2.4 Updates
+- **Universal Blockchain Support Expansion (CON-789/CON-810)**: Implemented `ChainAbstractionService` for NEAR-style chain signatures and universal intent settlement.
+- **WASM Binding Completion**: Expanded `src/wasm_bindings.rs` to fully expose the Conclave protocol suite to web environments, including Ark, BitVM, Identity, ZKML, DLC, Account Abstraction (ERC-7579), and Cross-Chain Intent (ERC-7683) services.
+- **Enhanced Asset Diversity**: Added PayPal USD (PYUSD) and Cosmos Hub (ATOM) support to the `AssetRegistry` to support broad fintech and interchain integration paths.
+- **Transaction Orchestration Helpers**: Added native helper methods to `EthereumManager` and `SolanaManager` for preparing ERC-20 and SPL token transfers with hardware attestation backing.

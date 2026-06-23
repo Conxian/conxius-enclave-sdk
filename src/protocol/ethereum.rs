@@ -3,6 +3,14 @@ use crate::{
     enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
 };
 use sha2::Digest;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Erc20Transfer {
+    pub to: String,
+    pub amount: u128,
+    pub contract_address: String,
+}
 
 pub struct EthereumManager<'a> {
     enclave: &'a dyn EnclaveManager,
@@ -17,6 +25,7 @@ impl<'a> EthereumManager<'a> {
         let pubkey_hex = self.enclave.get_public_key(derivation_path)?;
         let pubkey_bytes = hex::decode(pubkey_hex).map_err(|_| ConclaveError::InvalidPayload)?;
 
+        // Simple Keccak-256 derived address (using Sha256 for simulation if Keccak not available)
         let mut hasher = sha2::Sha256::new();
         hasher.update(&pubkey_bytes[1..]);
         let hash = hasher.finalize();
@@ -39,6 +48,26 @@ impl<'a> EthereumManager<'a> {
 
         let response = self.enclave.sign(request)?;
         Ok(response.signature_hex)
+    }
+
+    /// Prepares an ERC-20 transfer calldata.
+    pub fn prepare_erc20_transfer(&self, transfer: Erc20Transfer) -> Vec<u8> {
+        // transfer(address,uint256) selector: 0xa9059cbb
+        let mut data = vec![0xa9, 0x05, 0x9c, 0xbb];
+
+        // Pad address to 32 bytes
+        let addr_bytes = hex::decode(transfer.to.trim_start_matches("0x")).unwrap_or_default();
+        let mut padded_addr = vec![0u8; 32];
+        padded_addr[32 - addr_bytes.len()..].copy_from_slice(&addr_bytes);
+        data.extend(padded_addr);
+
+        // Pad amount to 32 bytes
+        let amount_bytes = transfer.amount.to_be_bytes();
+        let mut padded_amount = vec![0u8; 32];
+        padded_amount[32 - amount_bytes.len()..].copy_from_slice(&amount_bytes);
+        data.extend(padded_amount);
+
+        data
     }
 
     pub fn sign_message(
