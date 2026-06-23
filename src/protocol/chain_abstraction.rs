@@ -39,9 +39,15 @@ impl ChainAbstractionService {
         let pubkey = self.enclave.get_public_key(&request.derivation_path)?;
 
         let algo = match request.target_chain {
-            Chain::BITCOIN | Chain::ETHEREUM | Chain::STACKS | Chain::ROOTSTOCK | Chain::BOB | Chain::MEZO | Chain::BABYLON | Chain::BOTANIX | Chain::CITREA => {
-                crate::enclave::SigningAlgorithm::EcdsaSecp256k1
-            }
+            Chain::BITCOIN
+            | Chain::ETHEREUM
+            | Chain::STACKS
+            | Chain::ROOTSTOCK
+            | Chain::BOB
+            | Chain::MEZO
+            | Chain::BABYLON
+            | Chain::BOTANIX
+            | Chain::CITREA => crate::enclave::SigningAlgorithm::EcdsaSecp256k1,
             Chain::SOLANA | Chain::NEAR | Chain::COSMOS => {
                 crate::enclave::SigningAlgorithm::Ed25519
             }

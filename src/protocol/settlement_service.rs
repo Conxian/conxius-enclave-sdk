@@ -1,7 +1,7 @@
 use crate::ConclaveResult;
 use crate::protocol::asset::AssetRegistry;
-use crate::protocol::rails::TrustTier;
 use crate::protocol::mmr::MmrService;
+use crate::protocol::rails::TrustTier;
 use crate::protocol::settlement::{
     SettlementManager, SettlementProposal, SettlementTrigger, TriggerSource,
 };
@@ -152,7 +152,10 @@ mod tests {
     #[tokio::test]
     async fn test_settlement_service_trigger_to_proposal() {
         let registry = Arc::new(AssetRegistry::new());
-        let mmr = Arc::new(MmrService::new("http://localhost".to_string(), reqwest::Client::new()));
+        let mmr = Arc::new(MmrService::new(
+            "http://localhost".to_string(),
+            reqwest::Client::new(),
+        ));
         let svc = ConclaveSettlementService::new(registry, mmr);
 
         let payload = b"<?xml version=\"1.0\"?><Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"><FIToFICstmrCdtTrf></FIToFICstmrCdtTrf></Document>".to_vec();
@@ -178,7 +181,10 @@ mod tests {
     #[test]
     fn test_trust_tier_resolution() {
         let registry = Arc::new(AssetRegistry::new());
-        let mmr = Arc::new(MmrService::new("http://localhost".to_string(), reqwest::Client::new()));
+        let mmr = Arc::new(MmrService::new(
+            "http://localhost".to_string(),
+            reqwest::Client::new(),
+        ));
         let svc = ConclaveSettlementService::new(registry, mmr);
 
         assert_eq!(

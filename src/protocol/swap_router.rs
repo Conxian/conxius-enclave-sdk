@@ -40,7 +40,10 @@ impl SwapRouter {
     }
 
     /// Orchestrates Exact-Out routing across Jupiter (Solana) and 0x (EVM) via Conxian Gateway.
-    pub async fn get_exact_out_quote(&self, swap: ExactOutSwap) -> ConclaveResult<SwapQuoteResponse> {
+    pub async fn get_exact_out_quote(
+        &self,
+        swap: ExactOutSwap,
+    ) -> ConclaveResult<SwapQuoteResponse> {
         let url = format!("{}/v1/quotes/exact-out", self.gateway_endpoint);
 
         let request = SwapQuoteRequest {

@@ -5,16 +5,16 @@ use crate::protocol::a2p::A2pRouterService;
 use crate::protocol::asset::{AssetIdentifier, AssetMetadata, AssetRegistry, Chain};
 use crate::protocol::bitcoin::BitcoinManager;
 use crate::protocol::business::BusinessRegistry;
+use crate::protocol::chain_abstraction::ChainAbstractionService;
 use crate::protocol::credit::CreditService;
 use crate::protocol::dlc::DlcManager;
 use crate::protocol::ethereum::EthereumManager;
 use crate::protocol::fiat::{FiatOnRampRequest, FiatRouterService};
 use crate::protocol::mmr::MmrService;
-use crate::protocol::rails::{RailProxy, SwapIntent};
+use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapIntent};
 use crate::protocol::sidl::SidlService;
 use crate::protocol::solana::SolanaManager;
 use crate::protocol::zkml::ZkmlService;
-use crate::protocol::chain_abstraction::ChainAbstractionService;
 use crate::telemetry::TelemetryClient;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -164,7 +164,9 @@ impl ConclaveWasmClient {
     pub fn bitcoin_l2(&self) -> WasmBitcoinL2Client {
         WasmBitcoinL2Client {
             ark: Arc::new(crate::protocol::ark::ArkManager::new(self.enclave.clone())),
-            bitvm: Arc::new(crate::protocol::bitvm::BitVmManager::new(self.enclave.clone())),
+            bitvm: Arc::new(crate::protocol::bitvm::BitVmManager::new(
+                self.enclave.clone(),
+            )),
         }
     }
 
@@ -259,7 +261,9 @@ impl WasmSigningClient {
     }
 
     pub fn get_public_key(&self, derivation_path: &str) -> Result<String, JsValue> {
-        self.enclave.get_public_key(derivation_path).map_err(to_js_error)
+        self.enclave
+            .get_public_key(derivation_path)
+            .map_err(to_js_error)
     }
 }
 
@@ -357,7 +361,9 @@ impl WasmBitcoinL2Client {
             total_taps: 364,
         };
 
-        self.bitvm.sign_challenge(challenge, derivation_path, key_id).map_err(to_js_error)
+        self.bitvm
+            .sign_challenge(challenge, derivation_path, key_id)
+            .map_err(to_js_error)
     }
 }
 
@@ -391,7 +397,11 @@ impl WasmUniversalClient {
             derivation_path: derivation_path.to_string(),
         };
 
-        let resp = self.inner.sign_chain_transaction(req).await.map_err(to_js_error)?;
+        let resp = self
+            .inner
+            .sign_chain_transaction(req)
+            .await
+            .map_err(to_js_error)?;
         serde_wasm_bindgen::to_value(&resp).map_err(to_js_error)
     }
 }

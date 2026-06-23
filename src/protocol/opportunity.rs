@@ -1,9 +1,9 @@
-use crate::{ConclaveResult, ConclaveError};
 use crate::enclave::EnclaveManager;
-use crate::protocol::economy::{DualStackIntent, YieldEngine};
-use crate::protocol::rails::{SwapRequest, RailProxy, SovereignHandshake};
 use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 use crate::protocol::business::BusinessRegistry;
+use crate::protocol::economy::{DualStackIntent, YieldEngine};
+use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapRequest};
+use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -109,7 +109,9 @@ impl OpportunityDispatcher {
 
                 let sign_resp = self.enclave.sign(sign_req)?;
 
-                let response = proxy.broadcast_signed_intent(intent, sign_resp.signature_hex, None).await?;
+                let response = proxy
+                    .broadcast_signed_intent(intent, sign_resp.signature_hex, None)
+                    .await?;
                 Ok(response.transaction_id)
             }
         }
