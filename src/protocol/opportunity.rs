@@ -1,7 +1,8 @@
-use crate::{ConclaveError, ConclaveResult};
-use crate::enclave::EnclaveManager;
+use crate::enclave::{EnclaveManager, SignRequest, SigningAlgorithm};
+use crate::protocol::asset::Chain;
 use crate::protocol::economy::{DualStackIntent, YieldEngine};
-use crate::protocol::rails::{RailProxy, SwapRequest, SovereignHandshake};
+use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapRequest};
+use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -14,8 +15,10 @@ pub enum OpportunityPayload {
         lock_period: u32,
     },
     Swap {
-        from: String,
-        to: String,
+        from_chain: Chain,
+        from_symbol: String,
+        to_chain: Chain,
+        to_symbol: String,
         amount: u64,
         recipient: String,
         rail: String,
@@ -51,8 +54,10 @@ impl<'a> OpportunityDispatcher<'a> {
                 Ok(sig)
             }
             OpportunityPayload::Swap {
-                from,
-                to,
+                from_chain,
+                from_symbol,
+                to_chain,
+                to_symbol,
                 amount,
                 recipient,
                 rail,
@@ -61,13 +66,13 @@ impl<'a> OpportunityDispatcher<'a> {
                 let from_asset = asset_registry
                     .list_assets()
                     .into_iter()
-                    .find(|(id, _)| id.symbol == from)
+                    .find(|(id, _)| id.chain == from_chain && id.symbol == from_symbol)
                     .ok_or(ConclaveError::InvalidPayload)?
                     .0;
                 let to_asset = asset_registry
                     .list_assets()
                     .into_iter()
-                    .find(|(id, _)| id.symbol == to)
+                    .find(|(id, _)| id.chain == to_chain && id.symbol == to_symbol)
                     .ok_or(ConclaveError::InvalidPayload)?
                     .0;
 
@@ -80,17 +85,40 @@ impl<'a> OpportunityDispatcher<'a> {
                 };
 
                 let intent = self.rail_proxy.prepare_intent(&rail, request)?;
-                let sign_resp = self.enclave.sign(crate::enclave::SignRequest {
-                    algorithm: crate::enclave::SigningAlgorithm::EcdsaSecp256k1,
+
+                let (algo, derivation_path) = match from_chain {
+                    Chain::SOLANA | Chain::NEAR | Chain::STELLAR | Chain::SUI | Chain::APTOS => {
+                        (SigningAlgorithm::Ed25519, "m/44'/501'/0'/0/0".to_string())
+                    }
+                    Chain::ETHEREUM | Chain::BASE | Chain::ARBITRUM | Chain::POLYGON => (
+                        SigningAlgorithm::EcdsaSecp256k1,
+                        "m/44'/60'/0'/0/0".to_string(),
+                    ),
+                    Chain::STACKS => (
+                        SigningAlgorithm::EcdsaSecp256k1,
+                        "m/44'/5757'/0'/0/0".to_string(),
+                    ),
+                    _ => (
+                        SigningAlgorithm::EcdsaSecp256k1,
+                        "m/44'/0'/0'/0/0".to_string(),
+                    ),
+                };
+
+                let sign_resp = self.enclave.sign(SignRequest {
+                    algorithm: algo,
                     message_hash: intent.signable_hash.clone(),
-                    derivation_path: "m/44'/0'/0'/0/0".to_string(),
+                    derivation_path,
                     key_id: "opportunity_key".to_string(),
                     taproot_tweak: None,
                 })?;
 
                 let resp = self
                     .rail_proxy
-                    .broadcast_signed_intent(intent, sign_resp.signature_hex, sign_resp.device_attestation)
+                    .broadcast_signed_intent(
+                        intent,
+                        sign_resp.signature_hex,
+                        sign_resp.device_attestation,
+                    )
                     .await?;
 
                 Ok(resp.transaction_id)
