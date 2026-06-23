@@ -2,6 +2,15 @@ use crate::{
     ConclaveResult,
     enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
 };
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SplTransfer {
+    pub source_token_account: String,
+    pub destination_token_account: String,
+    pub amount: u64,
+    pub owner: String,
+}
 
 pub struct SolanaManager<'a> {
     enclave: &'a dyn EnclaveManager,
@@ -33,5 +42,13 @@ impl<'a> SolanaManager<'a> {
 
         let response = self.enclave.sign(request)?;
         Ok(response.signature_hex)
+    }
+
+    /// Prepares a simple SPL token transfer instruction data.
+    pub fn prepare_spl_transfer(&self, transfer: SplTransfer) -> Vec<u8> {
+        // Token Program Transfer instruction: [3, amount]
+        let mut data = vec![3]; // Instruction index for Transfer
+        data.extend(transfer.amount.to_le_bytes());
+        data
     }
 }

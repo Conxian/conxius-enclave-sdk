@@ -2,11 +2,14 @@ use crate::enclave::EnclaveManager;
 use crate::enclave::android_strongbox::CoreEnclaveManager;
 use crate::enclave::cloud::CloudEnclave;
 use crate::protocol::a2p::A2pRouterService;
+use crate::protocol::ark::ArkManager;
 use crate::protocol::asset::{AssetIdentifier, AssetMetadata, AssetRegistry, Chain};
 use crate::protocol::bitcoin::BitcoinManager;
+use crate::protocol::bitvm::BitVmManager;
 use crate::protocol::business::BusinessRegistry;
+use crate::protocol::chain_abstraction::ChainAbstractionService;
 use crate::protocol::credit::CreditService;
-use crate::protocol::dlc::DlcManager;
+use crate::protocol::dlc::{DlcManager, DlcState};
 use crate::protocol::ethereum::EthereumManager;
 use crate::protocol::fiat::{FiatOnRampRequest, FiatRouterService};
 use crate::protocol::mmr::MmrService;
@@ -50,6 +53,12 @@ pub struct ConclaveWasmClient {
     identity: Arc<crate::protocol::identity::IdentityManager>,
     #[allow(dead_code)]
     dlc: Arc<DlcManager>,
+    #[allow(dead_code)]
+    universal: Arc<ChainAbstractionService>,
+    #[allow(dead_code)]
+    ark: Arc<ArkManager>,
+    #[allow(dead_code)]
+    bitvm: Arc<BitVmManager>,
     #[allow(dead_code)]
     telemetry: Option<Arc<TelemetryClient>>,
     #[allow(dead_code)]
@@ -116,6 +125,12 @@ impl ConclaveWasmClient {
             enclave.clone(),
         ));
         let dlc = Arc::new(DlcManager::with_enclave(enclave.clone()));
+        let universal = Arc::new(ChainAbstractionService::new(
+            enclave.clone(),
+            assets.clone(),
+        ));
+        let ark = Arc::new(ArkManager::new(enclave.clone()));
+        let bitvm = Arc::new(BitVmManager::new(enclave.clone()));
 
         Ok(Self {
             config,
@@ -131,6 +146,9 @@ impl ConclaveWasmClient {
             sidl,
             identity,
             dlc,
+            universal,
+            ark,
+            bitvm,
             telemetry,
             http_client,
         })
@@ -193,6 +211,42 @@ impl ConclaveWasmClient {
     pub fn bitcoin(&self) -> WasmBitcoinManager {
         WasmBitcoinManager {
             inner: BitcoinManager::new(self.enclave.clone()),
+        }
+    }
+
+    pub fn identity(&self) -> WasmIdentityClient {
+        WasmIdentityClient {
+            inner: self.identity.clone(),
+        }
+    }
+
+    pub fn universal(&self) -> WasmUniversalClient {
+        WasmUniversalClient {
+            inner: self.universal.clone(),
+        }
+    }
+
+    pub fn dlc(&self) -> WasmDlcClient {
+        WasmDlcClient {
+            inner: self.dlc.clone(),
+        }
+    }
+
+    pub fn zkml(&self) -> WasmZkmlClient {
+        WasmZkmlClient {
+            inner: self.zkml.clone(),
+        }
+    }
+
+    pub fn ark(&self) -> WasmArkClient {
+        WasmArkClient {
+            inner: self.ark.clone(),
+        }
+    }
+
+    pub fn bitvm(&self) -> WasmBitVmClient {
+        WasmBitVmClient {
+            inner: self.bitvm.clone(),
         }
     }
 
@@ -290,6 +344,131 @@ impl WasmSolanaManager {
 }
 
 #[wasm_bindgen]
+pub struct WasmIdentityClient {
+    #[wasm_bindgen(skip)]
+    pub inner: Arc<crate::protocol::identity::IdentityManager>,
+}
+
+#[wasm_bindgen]
+impl WasmIdentityClient {
+    pub fn create_identity(&self) -> Result<JsValue, JsValue> {
+        let profile = self.inner.create_identity().map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&profile).map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmUniversalClient {
+    #[wasm_bindgen(skip)]
+    pub inner: Arc<ChainAbstractionService>,
+}
+
+#[wasm_bindgen]
+impl WasmUniversalClient {
+    pub fn resolve_intent(&self, intent: JsValue) -> Result<JsValue, JsValue> {
+        let intent_obj = serde_wasm_bindgen::from_value(intent).map_err(to_js_error)?;
+        let resolved = self.inner.resolve_intent(intent_obj).map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&resolved).map_err(to_js_error)
+    }
+
+    pub fn sign_for_chain(&self, request: JsValue) -> Result<JsValue, JsValue> {
+        let req = serde_wasm_bindgen::from_value(request).map_err(to_js_error)?;
+        let response = self.inner.sign_for_chain(req).map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&response).map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmDlcClient {
+    #[wasm_bindgen(skip)]
+    pub inner: Arc<DlcManager>,
+}
+
+#[wasm_bindgen]
+impl WasmDlcClient {
+    pub fn offer_contract(
+        &self,
+        oracle: &str,
+        local: u64,
+        remote: u64,
+    ) -> Result<JsValue, JsValue> {
+        let contract = self
+            .inner
+            .offer_contract(oracle, local, remote)
+            .map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&contract).map_err(to_js_error)
+    }
+
+    pub fn accept_contract(
+        &self,
+        contract: JsValue,
+        remote_pubkey: &str,
+    ) -> Result<JsValue, JsValue> {
+        let contract_obj = serde_wasm_bindgen::from_value(contract).map_err(to_js_error)?;
+        let accepted = self
+            .inner
+            .accept_contract(contract_obj, remote_pubkey.to_string())
+            .map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&accepted).map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmZkmlClient {
+    #[wasm_bindgen(skip)]
+    pub inner: Arc<ZkmlService>,
+}
+
+#[wasm_bindgen]
+impl WasmZkmlClient {
+    pub async fn generate_compliance_proof(&self, request: JsValue) -> Result<JsValue, JsValue> {
+        let req = serde_wasm_bindgen::from_value(request).map_err(to_js_error)?;
+        let proof = self
+            .inner
+            .generate_compliance_proof(req)
+            .await
+            .map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&proof).map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmArkClient {
+    #[wasm_bindgen(skip)]
+    pub inner: Arc<ArkManager>,
+}
+
+#[wasm_bindgen]
+impl WasmArkClient {
+    pub fn derive_vutxo_key(&self, seed_hex: &str, index: u32) -> Result<String, JsValue> {
+        let seed = hex::decode(seed_hex).map_err(to_js_error)?;
+        let key = self.inner.derive_vutxo_key(&seed, index);
+        Ok(hex::encode(key))
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmBitVmClient {
+    #[wasm_bindgen(skip)]
+    pub inner: Arc<BitVmManager>,
+}
+
+#[wasm_bindgen]
+impl WasmBitVmClient {
+    pub fn sign_challenge(
+        &self,
+        challenge: JsValue,
+        path: &str,
+        key_id: &str,
+    ) -> Result<String, JsValue> {
+        let chal = serde_wasm_bindgen::from_value(challenge).map_err(to_js_error)?;
+        self.inner
+            .sign_challenge(chal, path, key_id)
+            .map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
 pub struct Iso20022Wrapper;
 
 #[wasm_bindgen]
@@ -298,5 +477,114 @@ impl Iso20022Wrapper {
         let card: crate::protocol::job_card::ConxianJobCard =
             serde_wasm_bindgen::from_value(card).map_err(to_js_error)?;
         crate::protocol::job_card::Iso20022Wrapper::wrap_pacs008(&card).map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
+impl WasmEthereumManager {
+    pub fn prepare_erc20_transfer(
+        &self,
+        to: &str,
+        amount: &str,
+        contract: &str,
+    ) -> Result<Vec<u8>, JsValue> {
+        let amt = amount.parse::<u128>().map_err(to_js_error)?;
+        let transfer = crate::protocol::ethereum::Erc20Transfer {
+            to: to.to_string(),
+            amount: amt,
+            contract_address: contract.to_string(),
+        };
+        Ok(EthereumManager::new(self.enclave.as_ref()).prepare_erc20_transfer(transfer))
+    }
+}
+
+#[wasm_bindgen]
+impl WasmSolanaManager {
+    pub fn prepare_spl_transfer(
+        &self,
+        source: &str,
+        dest: &str,
+        amount: u64,
+        owner: &str,
+    ) -> Result<Vec<u8>, JsValue> {
+        let transfer = crate::protocol::solana::SplTransfer {
+            source_token_account: source.to_string(),
+            destination_token_account: dest.to_string(),
+            amount,
+            owner: owner.to_string(),
+        };
+        Ok(SolanaManager::new(self.enclave.as_ref()).prepare_spl_transfer(transfer))
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmAccountClient {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::account_abstraction::ModularAccountManager,
+}
+
+#[wasm_bindgen]
+impl WasmAccountClient {
+    pub fn prepare_execution(&self, actions: JsValue) -> Result<JsValue, JsValue> {
+        let acts = serde_wasm_bindgen::from_value(actions).map_err(to_js_error)?;
+        let execution = self.inner.prepare_execution(acts);
+        serde_wasm_bindgen::to_value(&execution).map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmCctpClient {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::cctp::CctpManager,
+}
+
+#[wasm_bindgen]
+impl WasmCctpClient {
+    pub fn prepare_burn_payload(&self, intent: JsValue) -> Result<Vec<u8>, JsValue> {
+        let intent_obj = serde_wasm_bindgen::from_value(intent).map_err(to_js_error)?;
+        Ok(self.inner.prepare_burn_payload(intent_obj))
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn accounts(&self) -> WasmAccountClient {
+        WasmAccountClient {
+            inner: crate::protocol::account_abstraction::ModularAccountManager::new(),
+        }
+    }
+
+    pub fn cctp(&self) -> WasmCctpClient {
+        WasmCctpClient {
+            inner: crate::protocol::cctp::CctpManager::new(),
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmIntentClient;
+
+#[wasm_bindgen]
+impl WasmIntentClient {
+    pub fn instrument_context(symbol: &str, chain: &str) -> Result<JsValue, JsValue> {
+        let ctx = crate::protocol::intent::Fdc3Context::instrument(symbol, chain);
+        serde_wasm_bindgen::to_value(&ctx).map_err(to_js_error)
+    }
+
+    pub fn settlement_context(
+        amount: &str,
+        asset: &str,
+        recipient: &str,
+    ) -> Result<JsValue, JsValue> {
+        let amt = amount.parse::<u128>().map_err(to_js_error)?;
+        let ctx = crate::protocol::intent::Fdc3Context::settlement(amt, asset, recipient);
+        serde_wasm_bindgen::to_value(&ctx).map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn intent(&self) -> WasmIntentClient {
+        WasmIntentClient
     }
 }
