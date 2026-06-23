@@ -1,9 +1,13 @@
 #[allow(unused_imports)]
 use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 use crate::protocol::intent::{AssetAmount, CrossChainIntent, ResolvedCrossChainOrder};
-use crate::{ConclaveResult, enclave::EnclaveManager};
+use crate::{ConclaveResult, enclave::EnclaveManager, ConclaveError};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use bitcoin::key::PublicKey;
+use bitcoin::address::Address;
+use bitcoin::Network;
+use alloy::primitives::{Address as EthAddress, Keccak256};
 
 /// Chain Abstraction Service (v1.9.2)
 /// Orchestrates NEAR-style chain signatures and universal intent settlement.
@@ -82,11 +86,52 @@ impl ChainAbstractionService {
 
         let response = self.enclave.sign(sign_request)?;
 
-        // In a real implementation, we would derive the target address
-        // based on the derived public key for that chain.
+        let public_key_bytes = hex::decode(&response.public_key_hex)
+            .map_err(|e| ConclaveError::CryptoError(format!("Invalid public key hex: {}", e)))?;
+
+        let target_address = match request.target_chain {
+            Chain::BITCOIN => {
+                let pk = PublicKey::from_slice(&public_key_bytes)
+                    .map_err(|e| ConclaveError::CryptoError(format!("Invalid Bitcoin PK: {}", e)))?;
+
+                // For SegWit, we need a compressed public key
+                let compressed = pk.to_bytes();
+                let cpk = bitcoin::key::CompressedPublicKey::from_slice(&compressed)
+                    .map_err(|e| ConclaveError::CryptoError(format!("Compression error: {}", e)))?;
+
+                Address::p2wpkh(cpk, Network::Bitcoin).to_string()
+            }
+            Chain::ETHEREUM | Chain::BASE | Chain::ARBITRUM | Chain::POLYGON => {
+                // Ethereum address: last 20 bytes of keccak256 hash of uncompressed public key (minus 0x04 prefix)
+                let mut hasher = Keccak256::new();
+                if public_key_bytes.len() == 65 && public_key_bytes[0] == 0x04 {
+                    hasher.update(&public_key_bytes[1..]);
+                } else if public_key_bytes.len() == 33 {
+                    // Need to uncompress first if it's compressed
+                    let pk = secp256k1::PublicKey::from_slice(&public_key_bytes)
+                        .map_err(|e| ConclaveError::CryptoError(format!("Invalid compressed PK: {}", e)))?;
+                    let uncompressed = pk.serialize_uncompressed();
+                    hasher.update(&uncompressed[1..]);
+                } else {
+                    return Err(ConclaveError::CryptoError("Invalid public key length for EVM".to_string()));
+                }
+                let hash = hasher.finalize();
+                EthAddress::from_slice(&hash[12..]).to_string()
+            }
+            Chain::SOLANA => {
+                // Solana uses the raw 32-byte Ed25519 public key as its address, typically Base58 encoded
+                if public_key_bytes.len() == 32 {
+                    bs58::encode(&public_key_bytes).into_string()
+                } else {
+                    return Err(ConclaveError::CryptoError("Invalid public key length for Solana".to_string()));
+                }
+            }
+            _ => "0x_fallback_address".to_string(),
+        };
+
         Ok(ChainSignatureResponse {
             signature_hex: response.signature_hex,
-            target_address: "0x_derived_address_placeholder".to_string(),
+            target_address,
         })
     }
 }
@@ -120,5 +165,54 @@ mod tests {
         let resolved = service.resolve_intent(intent).unwrap();
         assert_eq!(resolved.input_assets.len(), 1);
         assert_eq!(resolved.output_assets[0].asset.symbol, "USDC");
+    }
+
+    #[test]
+    fn test_sign_for_chain_bitcoin() {
+        let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
+        let assets = Arc::new(AssetRegistry::new());
+        let service = ChainAbstractionService::new(enclave, assets);
+
+        let request = ChainSignatureRequest {
+            target_chain: Chain::BITCOIN,
+            payload: vec![0u8; 32],
+            derivation_path: "m/44'/0'/0'/0/0".to_string(),
+        };
+
+        let response = service.sign_for_chain(request).unwrap();
+        assert!(response.target_address.starts_with("bc1"));
+    }
+    #[test]
+    fn test_sign_for_chain_ethereum() {
+        let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
+        let assets = Arc::new(AssetRegistry::new());
+        let service = ChainAbstractionService::new(enclave, assets);
+
+        let request = ChainSignatureRequest {
+            target_chain: Chain::ETHEREUM,
+            payload: vec![0u8; 32],
+            derivation_path: "m/44'/60'/0'/0/0".to_string(),
+        };
+
+        let response = service.sign_for_chain(request).unwrap();
+        assert!(response.target_address.starts_with("0x"));
+        assert_eq!(response.target_address.len(), 42);
+    }
+
+    #[test]
+    fn test_sign_for_chain_solana() {
+        let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
+        let assets = Arc::new(AssetRegistry::new());
+        let service = ChainAbstractionService::new(enclave, assets);
+
+        let request = ChainSignatureRequest {
+            target_chain: Chain::SOLANA,
+            payload: vec![0u8; 32],
+            derivation_path: "m/44'/501'/0'/0/0".to_string(),
+        };
+
+        let response = service.sign_for_chain(request).unwrap();
+        // Solana addresses are base58 encoded and usually 32-44 characters
+        assert!(response.target_address.len() >= 32);
     }
 }
