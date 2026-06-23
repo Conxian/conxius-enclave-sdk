@@ -30,3 +30,12 @@ Standardize repository hygiene, align company positioning with the "Unified Vaul
     - Enhanced `EthereumManager` and `SolanaManager` with `prepare_erc20_transfer` and `prepare_spl_transfer` helpers.
     - Updated `AssetRegistry` to include native `ATOM` support.
 - **Verification**: Verified with new unit test suite `src/protocol/universal_tests.rs` and comprehensive `cargo test` run (all 64 tests passing). Verified with `cargo clippy`.
+
+## 31. Research Scorecard & Production-Path Completion (v0.2.5)
+- **Status**: COMPLETED.
+- **Implementation**:
+    - Mapped missing code gaps and research requirements in `docs/architecture/GAP_SCORECARD.md`.
+    - Implemented production-grade `Swap` execution in `OpportunityDispatcher` (`src/protocol/opportunity.rs`) by integrating `RailProxy`.
+    - Implemented `Exact-Out` quote routing in `SwapRouter` (`src/protocol/swap_router.rs`) via the Conxian Gateway.
+    - Created `AGENTS.md` with core directives for future agent sessions.
+- **Verification**: Verified with `cargo clippy` and updated unit tests (where applicable).
