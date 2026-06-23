@@ -150,3 +150,8 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 ## 29. Protocol Error Path Normalization
 - **Status**: COMPLETED.
 - **Implementation**: Refactored `DlcManager` to use canonical `ConclaveResult` types, ensuring consistent error handling and preventing raw string error egress.
+
+## 30. Universal Address Derivation (CON-810)
+- **Status**: COMPLETED.
+- **Implementation**: Implemented actual public key derivation and address encoding in `ChainAbstractionService` for Bitcoin (SegWit), Ethereum/EVM, and Solana (Base58).
+- **Verification**: Verified with automated unit tests (`test_sign_for_chain_*`).
