@@ -2,8 +2,8 @@ use crate::{
     ConclaveError, ConclaveResult,
     enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
 };
-use sha2::Digest;
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Erc20Transfer {

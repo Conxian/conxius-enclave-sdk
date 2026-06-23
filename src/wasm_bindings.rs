@@ -2,9 +2,12 @@ use crate::enclave::EnclaveManager;
 use crate::enclave::android_strongbox::CoreEnclaveManager;
 use crate::enclave::cloud::CloudEnclave;
 use crate::protocol::a2p::A2pRouterService;
+use crate::protocol::ark::ArkManager;
 use crate::protocol::asset::{AssetIdentifier, AssetMetadata, AssetRegistry, Chain};
 use crate::protocol::bitcoin::BitcoinManager;
+use crate::protocol::bitvm::BitVmManager;
 use crate::protocol::business::BusinessRegistry;
+use crate::protocol::chain_abstraction::ChainAbstractionService;
 use crate::protocol::credit::CreditService;
 use crate::protocol::dlc::{DlcManager, DlcState};
 use crate::protocol::ethereum::EthereumManager;
@@ -14,9 +17,6 @@ use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapIntent};
 use crate::protocol::sidl::SidlService;
 use crate::protocol::solana::SolanaManager;
 use crate::protocol::zkml::ZkmlService;
-use crate::protocol::chain_abstraction::ChainAbstractionService;
-use crate::protocol::ark::ArkManager;
-use crate::protocol::bitvm::BitVmManager;
 use crate::telemetry::TelemetryClient;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -125,7 +125,10 @@ impl ConclaveWasmClient {
             enclave.clone(),
         ));
         let dlc = Arc::new(DlcManager::with_enclave(enclave.clone()));
-        let universal = Arc::new(ChainAbstractionService::new(enclave.clone(), assets.clone()));
+        let universal = Arc::new(ChainAbstractionService::new(
+            enclave.clone(),
+            assets.clone(),
+        ));
         let ark = Arc::new(ArkManager::new(enclave.clone()));
         let bitvm = Arc::new(BitVmManager::new(enclave.clone()));
 
@@ -383,14 +386,29 @@ pub struct WasmDlcClient {
 
 #[wasm_bindgen]
 impl WasmDlcClient {
-    pub fn offer_contract(&self, oracle: &str, local: u64, remote: u64) -> Result<JsValue, JsValue> {
-        let contract = self.inner.offer_contract(oracle, local, remote).map_err(to_js_error)?;
+    pub fn offer_contract(
+        &self,
+        oracle: &str,
+        local: u64,
+        remote: u64,
+    ) -> Result<JsValue, JsValue> {
+        let contract = self
+            .inner
+            .offer_contract(oracle, local, remote)
+            .map_err(to_js_error)?;
         serde_wasm_bindgen::to_value(&contract).map_err(to_js_error)
     }
 
-    pub fn accept_contract(&self, contract: JsValue, remote_pubkey: &str) -> Result<JsValue, JsValue> {
+    pub fn accept_contract(
+        &self,
+        contract: JsValue,
+        remote_pubkey: &str,
+    ) -> Result<JsValue, JsValue> {
         let contract_obj = serde_wasm_bindgen::from_value(contract).map_err(to_js_error)?;
-        let accepted = self.inner.accept_contract(contract_obj, remote_pubkey.to_string()).map_err(to_js_error)?;
+        let accepted = self
+            .inner
+            .accept_contract(contract_obj, remote_pubkey.to_string())
+            .map_err(to_js_error)?;
         serde_wasm_bindgen::to_value(&accepted).map_err(to_js_error)
     }
 }
@@ -405,7 +423,11 @@ pub struct WasmZkmlClient {
 impl WasmZkmlClient {
     pub async fn generate_compliance_proof(&self, request: JsValue) -> Result<JsValue, JsValue> {
         let req = serde_wasm_bindgen::from_value(request).map_err(to_js_error)?;
-        let proof = self.inner.generate_compliance_proof(req).await.map_err(to_js_error)?;
+        let proof = self
+            .inner
+            .generate_compliance_proof(req)
+            .await
+            .map_err(to_js_error)?;
         serde_wasm_bindgen::to_value(&proof).map_err(to_js_error)
     }
 }
@@ -433,9 +455,16 @@ pub struct WasmBitVmClient {
 
 #[wasm_bindgen]
 impl WasmBitVmClient {
-    pub fn sign_challenge(&self, challenge: JsValue, path: &str, key_id: &str) -> Result<String, JsValue> {
+    pub fn sign_challenge(
+        &self,
+        challenge: JsValue,
+        path: &str,
+        key_id: &str,
+    ) -> Result<String, JsValue> {
         let chal = serde_wasm_bindgen::from_value(challenge).map_err(to_js_error)?;
-        self.inner.sign_challenge(chal, path, key_id).map_err(to_js_error)
+        self.inner
+            .sign_challenge(chal, path, key_id)
+            .map_err(to_js_error)
     }
 }
 
@@ -453,7 +482,12 @@ impl Iso20022Wrapper {
 
 #[wasm_bindgen]
 impl WasmEthereumManager {
-    pub fn prepare_erc20_transfer(&self, to: &str, amount: &str, contract: &str) -> Result<Vec<u8>, JsValue> {
+    pub fn prepare_erc20_transfer(
+        &self,
+        to: &str,
+        amount: &str,
+        contract: &str,
+    ) -> Result<Vec<u8>, JsValue> {
         let amt = amount.parse::<u128>().map_err(to_js_error)?;
         let transfer = crate::protocol::ethereum::Erc20Transfer {
             to: to.to_string(),
@@ -466,7 +500,13 @@ impl WasmEthereumManager {
 
 #[wasm_bindgen]
 impl WasmSolanaManager {
-    pub fn prepare_spl_transfer(&self, source: &str, dest: &str, amount: u64, owner: &str) -> Result<Vec<u8>, JsValue> {
+    pub fn prepare_spl_transfer(
+        &self,
+        source: &str,
+        dest: &str,
+        amount: u64,
+        owner: &str,
+    ) -> Result<Vec<u8>, JsValue> {
         let transfer = crate::protocol::solana::SplTransfer {
             source_token_account: source.to_string(),
             destination_token_account: dest.to_string(),
@@ -531,7 +571,11 @@ impl WasmIntentClient {
         serde_wasm_bindgen::to_value(&ctx).map_err(to_js_error)
     }
 
-    pub fn settlement_context(amount: &str, asset: &str, recipient: &str) -> Result<JsValue, JsValue> {
+    pub fn settlement_context(
+        amount: &str,
+        asset: &str,
+        recipient: &str,
+    ) -> Result<JsValue, JsValue> {
         let amt = amount.parse::<u128>().map_err(to_js_error)?;
         let ctx = crate::protocol::intent::Fdc3Context::settlement(amt, asset, recipient);
         serde_wasm_bindgen::to_value(&ctx).map_err(to_js_error)

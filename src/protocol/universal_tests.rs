@@ -2,9 +2,9 @@
 mod tests {
     use crate::enclave::cloud::CloudEnclave;
     use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
+    use crate::protocol::chain_abstraction::{ChainAbstractionService, ChainSignatureRequest};
     use crate::protocol::ethereum::EthereumManager;
     use crate::protocol::solana::SolanaManager;
-    use crate::protocol::chain_abstraction::{ChainAbstractionService, ChainSignatureRequest};
     use std::sync::Arc;
 
     #[test]

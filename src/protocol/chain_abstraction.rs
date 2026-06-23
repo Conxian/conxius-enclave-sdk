@@ -1,7 +1,7 @@
-use crate::{ConclaveResult, enclave::EnclaveManager};
-use crate::protocol::intent::{CrossChainIntent, ResolvedCrossChainOrder, AssetAmount};
 #[allow(unused_imports)]
-use crate::protocol::asset::{AssetRegistry, AssetIdentifier, Chain};
+use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
+use crate::protocol::intent::{AssetAmount, CrossChainIntent, ResolvedCrossChainOrder};
+use crate::{ConclaveResult, enclave::EnclaveManager};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -31,7 +31,10 @@ impl ChainAbstractionService {
     }
 
     /// Resolves a cross-chain intent into a canonical order format (ERC-7683).
-    pub fn resolve_intent(&self, intent: CrossChainIntent) -> ConclaveResult<ResolvedCrossChainOrder> {
+    pub fn resolve_intent(
+        &self,
+        intent: CrossChainIntent,
+    ) -> ConclaveResult<ResolvedCrossChainOrder> {
         let input_assets = vec![AssetAmount {
             asset: intent.input_asset,
             amount: intent.input_amount,
@@ -57,12 +60,15 @@ impl ChainAbstractionService {
     /// Generates a chain-specific signature for a universal account.
     /// This follows the NEAR chain signature model where one master key
     /// in the TEE generates signatures for multiple destination chains.
-    pub fn sign_for_chain(&self, request: ChainSignatureRequest) -> ConclaveResult<ChainSignatureResponse> {
+    pub fn sign_for_chain(
+        &self,
+        request: ChainSignatureRequest,
+    ) -> ConclaveResult<ChainSignatureResponse> {
         let algorithm = match request.target_chain {
-            Chain::BITCOIN | Chain::ETHEREUM | Chain::STACKS =>
-                crate::enclave::SigningAlgorithm::EcdsaSecp256k1,
-            Chain::SOLANA =>
-                crate::enclave::SigningAlgorithm::Ed25519,
+            Chain::BITCOIN | Chain::ETHEREUM | Chain::STACKS => {
+                crate::enclave::SigningAlgorithm::EcdsaSecp256k1
+            }
+            Chain::SOLANA => crate::enclave::SigningAlgorithm::Ed25519,
             _ => crate::enclave::SigningAlgorithm::EcdsaSecp256k1,
         };
 
@@ -97,8 +103,14 @@ mod tests {
         let service = ChainAbstractionService::new(enclave, assets);
 
         let intent = CrossChainIntent {
-            input_asset: AssetIdentifier { chain: Chain::BITCOIN, symbol: "BTC".to_string() },
-            output_asset: AssetIdentifier { chain: Chain::ETHEREUM, symbol: "USDC".to_string() },
+            input_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            output_asset: AssetIdentifier {
+                chain: Chain::ETHEREUM,
+                symbol: "USDC".to_string(),
+            },
             input_amount: 1000000,
             output_amount: 65000000000,
             destination_chain: Chain::ETHEREUM,
