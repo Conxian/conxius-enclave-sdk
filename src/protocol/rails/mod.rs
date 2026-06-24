@@ -279,7 +279,9 @@ impl RailProxy {
             }
         }
 
-        best_rail.ok_or(ConclaveError::RailError("No suitable rail found".to_string()))
+        best_rail.ok_or(ConclaveError::RailError(
+            "No suitable rail found".to_string(),
+        ))
     }
 
     fn verify_hardware_integrity(
