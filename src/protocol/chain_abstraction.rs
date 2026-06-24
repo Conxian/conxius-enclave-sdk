@@ -132,6 +132,12 @@ impl ChainAbstractionService {
                     ));
                 }
             }
+            Chain::STACKS => {
+                format!("SP{}", hex::encode(&public_key_bytes[..20]))
+            }
+            Chain::COSMOS => {
+                format!("cosmos1{}", hex::encode(&public_key_bytes[..20]))
+            }
             _ => "0x_fallback_address".to_string(),
         };
 
@@ -218,7 +224,22 @@ mod tests {
         };
 
         let response = service.sign_for_chain(request).unwrap();
-        // Solana addresses are base58 encoded and usually 32-44 characters
         assert!(response.target_address.len() >= 32);
+    }
+
+    #[test]
+    fn test_sign_for_chain_stacks() {
+        let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
+        let assets = Arc::new(AssetRegistry::new());
+        let service = ChainAbstractionService::new(enclave, assets);
+
+        let request = ChainSignatureRequest {
+            target_chain: Chain::STACKS,
+            payload: vec![0u8; 32],
+            derivation_path: "m/44'/5757'/0'/0/0".to_string(),
+        };
+
+        let response = service.sign_for_chain(request).unwrap();
+        assert!(response.target_address.starts_with("SP"));
     }
 }

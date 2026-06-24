@@ -1,7 +1,7 @@
-# Conclave SDK: Research & Implementation Gap Scorecard (v0.2.5)
+# Conclave SDK: Research & Implementation Gap Scorecard (v0.2.6)
 
 ## Overview
-This document tracks missing production-path logic, architectural gaps, and research requirements for the Conclave SDK v0.2.5 "Universal Settlement" release.
+This document tracks missing production-path logic, architectural gaps, and research requirements for the Conclave SDK v0.2.6 "Universal Settlement" release.
 
 ## Scorecard Criteria
 - **Criticality**: [High, Medium, Low]
@@ -10,46 +10,37 @@ This document tracks missing production-path logic, architectural gaps, and rese
 
 ## Technical Gaps
 
-### 1. Swap Opportunity Execution
+### 1. Swap Opportunity Execution (Dynamic Rail Selection)
 - **File**: `src/protocol/opportunity.rs`
-- **Gap**: `OpportunityPayload::Swap` is functional but requires hardening for multi-rail selection.
-- **Requirement**: Implement dynamic rail selection based on liquidity and fees.
+- **Gap**: `OpportunityPayload::Swap` requires a hardcoded rail.
+- **Requirement**: Implement dynamic rail selection based on trust tier, fees, and liquidity discovery.
 - **Criticality**: High
 - **Complexity**: Medium
-- **Status**: Implementation
+- **Status**: Completed
 - **Owner**: Jules
 
-### 2. Exact-Out Quote Routing
-- **File**: `src/protocol/swap_router.rs`
-- **Gap**: Initial implementation complete.
-- **Requirement**: Add caching and retry logic for volatile quote endpoints.
-- **Criticality**: High
+### 2. FDC3 Corporate Treasury Handshake Integration
+- **File**: `src/protocol/rails/mod.rs`, `src/protocol/intent.rs`
+- **Gap**: `Fdc3Context` exists but is not consumed by `RailProxy`.
+- **Requirement**: Integrate `Fdc3Context` into the intent preparation flow to support corporate treasury workflows.
+- **Criticality**: Medium
 - **Complexity**: Low
 - **Status**: Completed
 - **Owner**: Jules
 
-### 3. FDC3 Corporate Treasury Handshake
-- **File**: `src/protocol/intent.rs`, `src/protocol/rails/mod.rs`
-- **Gap**: Native FDC3 context resolver is present but not yet integrated into the `RailProxy` intent flow.
-- **Requirement**: Allow `RailProxy` to accept `Fdc3Context` for automated treasury mapping.
-- **Criticality**: Medium
-- **Complexity**: Low
-- **Status**: Researching
-- **Owner**: Jules
-
-### 4. Hardware Attestation for Non-EVM Chains
-- **File**: `src/enclave/android_strongbox.rs`, `src/enclave/cloud.rs`
-- **Gap**: Ed25519 signing is implemented, but specific attestation certificate chain verification for Solana/NEAR is missing.
-- **Requirement**: Implement TEE-backed Ed25519 attestation proof generation and verification.
+### 3. Solana/NEAR Hardware Attestation Verification
+- **File**: `src/enclave/attestation.rs`
+- **Gap**: Certificate chain verification is simulated for Ed25519-based chains.
+- **Requirement**: Implement actual Ed25519 attestation proof verification for Solana and NEAR.
 - **Criticality**: High
 - **Complexity**: High
 - **Status**: Researching
 - **Owner**: Enclave Team
 
-### 5. Universal Address Derivation
+### 4. Stacks & Cosmos Address Derivation
 - **File**: `src/protocol/chain_abstraction.rs`
-- **Gap**: Initial implementation complete for BTC, EVM, and SOL.
-- **Requirement**: Add support for Cosmos Hub (ATOM) and Stacks address derivation.
+- **Gap**: Derivation logic for Stacks and Cosmos Hub (ATOM) falls back to placeholder addresses.
+- **Requirement**: Implement canonical address derivation for Stacks (c32) and Cosmos (bech32).
 - **Criticality**: Medium
 - **Complexity**: Medium
 - **Status**: Completed
@@ -62,4 +53,5 @@ This document tracks missing production-path logic, architectural gaps, and rese
 | **BitVM2 Aggregation** | Multi-party taproot tree aggregation for recursive SNARK verification. | High | 85 |
 | **Ark Stateless Recovery** | Blake2s-based V-UTXO derivation for recovery without local state. | High | 90 |
 | **ERC-7683 Solver Selection** | Competitive bidding algorithms for atomic solver fulfillment. | Medium | 70 |
-| **FDC3 Treasury Mapping** | Standardizing corporate intents for cross-chain settlement. | Medium | 75 |
+| **FDC3 Treasury Mapping** | Standardizing corporate intents for cross-chain settlement. | High | 80 |
+| **P2P Settlement Hooks** | Integrating Bisq/Boltz hooks for direct P2P liquidity paths. | Medium | 65 |

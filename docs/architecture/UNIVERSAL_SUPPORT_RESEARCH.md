@@ -24,5 +24,21 @@ The `AssetRegistry` (`src/protocol/asset.rs`) has been expanded to support a vas
 3. **Account Abstraction (ERC-7579)**: Provides gasless, passkey-secured modular smart accounts for a consumer-grade experience.
 4. **Native Interoperability (Circle CCTP)**: Permissionless burn-and-mint for institutional USDC liquidity.
 
-## Strategic Global Reach
-By supporting such a wide array of chains (Ethereum, Solana, Stacks, Arbitrum, Base, Optimism, Linea, Polygon, BSC, Tron, XRP Ledger, etc.), Conxian Nexus ensures that no geographic region is left behind in the transition from Legacy Rails to Sovereign Rails.
+## FDC3 Corporate Treasury Handshake (v1.9.2 Alignment)
+Research into FDC3 (Financial Desktop Connectivity and Collaboration Standard) integration reveals a major opportunity for Conclave to serve as the "Universal Settlement Resolver" for institutional desktops.
+
+### Key Contexts
+- **fdc3.instrument**: Standardized representation of financial assets.
+- **conxian.settlement**: Proprietary extension for hardware-attested cross-chain settlement intents.
+
+### Implementation Path
+1. **Context Mapping**: Bridge FDC3 Instrument identifiers to `AssetIdentifier` in the `AssetRegistry`.
+2. **Intent Orchestration**: Allow `RailProxy` to accept FDC3 payloads and resolve them into signed `SwapIntent` objects.
+3. **Hardware Backing**: Ensure every FDC3-triggered settlement carries a `DeviceIntegrityReport`.
+
+## Universal Hardware Attestation (Solana/NEAR)
+For Ed25519-based chains, the attestation model must be hardened beyond the current simulation.
+
+### Requirements
+- **Certificate Chain**: Must verify against hardware-specific roots (e.g., Google StrongBox or AWS Nitro).
+- **Algorithm Alignment**: Native Ed25519 signing in the enclave must produce a verifiable proof bound to the transaction hash.
