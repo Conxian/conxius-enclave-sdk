@@ -269,13 +269,12 @@ impl RailProxy {
         let mut highest_tier = TrustTier::T4;
 
         for rail in self.rails.values() {
-            if let Ok(Some(_)) = rail.validate_request(request) {
-                if rail.trust_tier() <= self.min_trust_tier
-                    && (best_rail.is_none() || rail.trust_tier() < highest_tier)
-                {
-                    highest_tier = rail.trust_tier();
-                    best_rail = Some(rail.name().to_string());
-                }
+            if let Ok(Some(_)) = rail.validate_request(request)
+                && rail.trust_tier() <= self.min_trust_tier
+                && (best_rail.is_none() || rail.trust_tier() < highest_tier)
+            {
+                highest_tier = rail.trust_tier();
+                best_rail = Some(rail.name().to_string());
             }
         }
 
