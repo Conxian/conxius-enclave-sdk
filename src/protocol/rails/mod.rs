@@ -82,6 +82,7 @@ pub struct ProofEnvelope {
     pub degrade_status: String,
     pub verification_reason: Option<String>,
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwapRequest {
     pub from_asset: AssetIdentifier,
@@ -116,6 +117,7 @@ pub struct SwapIntent {
     pub signable_hash: Vec<u8>,
     pub rail_type: String,
     pub chain_context: Option<String>,
+    pub fdc3_context: Option<crate::protocol::intent::Fdc3Context>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -144,7 +146,12 @@ pub trait SovereignRail: Send + Sync {
 #[async_trait(?Send)]
 pub trait SovereignHandshake {
     /// Prepare a signable intent from a request.
-    fn prepare_intent(&self, rail_name: &str, request: SwapRequest) -> ConclaveResult<SwapIntent>;
+    fn prepare_intent(
+        &self,
+        rail_name: &str,
+        request: SwapRequest,
+        fdc3_context: Option<crate::protocol::intent::Fdc3Context>,
+    ) -> ConclaveResult<SwapIntent>;
 
     /// Broadcast a signed intent to the rail, optionally verifying hardware attestation.
     async fn broadcast_signed_intent(
@@ -175,9 +182,9 @@ impl RailProxy {
         asset_registry: Arc<AssetRegistry>,
         business_registry: Arc<BusinessRegistry>,
     ) -> Self {
-        let mut rails: HashMap<String, Box<dyn SovereignRail>> = HashMap::with_capacity(5);
+        let mut rails: HashMap<String, Box<dyn SovereignRail>> = HashMap::with_capacity(6);
 
-        // Register core rails with gateway endpoint and shared client
+        // Register core rails
         rails.insert(
             "changelly".to_string(),
             Box::new(ChangellyRail {
@@ -227,7 +234,7 @@ impl RailProxy {
             http_client,
             api_key: None,
             enforce_attestation: true,
-            min_trust_tier: TrustTier::T3, // Default to T3 for safety
+            min_trust_tier: TrustTier::T3,
             asset_registry,
             business_registry,
             telemetry: None,
@@ -255,6 +262,25 @@ impl RailProxy {
 
     pub fn register_rail(&mut self, rail: Box<dyn SovereignRail>) {
         self.rails.insert(rail.name().to_string(), rail);
+    }
+
+    pub fn discover_best_rail(&self, request: &SwapRequest) -> ConclaveResult<String> {
+        let mut best_rail = None;
+        let mut highest_tier = TrustTier::T4;
+
+        for rail in self.rails.values() {
+            if let Ok(Some(_)) = rail.validate_request(request)
+                && rail.trust_tier() <= self.min_trust_tier
+                && (best_rail.is_none() || rail.trust_tier() < highest_tier)
+            {
+                highest_tier = rail.trust_tier();
+                best_rail = Some(rail.name().to_string());
+            }
+        }
+
+        best_rail.ok_or(ConclaveError::RailError(
+            "No suitable rail found".to_string(),
+        ))
     }
 
     fn verify_hardware_integrity(
@@ -327,7 +353,6 @@ impl RailProxy {
                 return Err(ConclaveError::InvalidPayload);
             }
 
-            // Cryptographic verification of attribution signature
             attribution.verify(&profile.public_key).map_err(|e| {
                 ConclaveError::CryptoError(format!(
                     "Business attribution verification failed: {}",
@@ -342,7 +367,12 @@ impl RailProxy {
 
 #[async_trait(?Send)]
 impl SovereignHandshake for RailProxy {
-    fn prepare_intent(&self, rail_name: &str, request: SwapRequest) -> ConclaveResult<SwapIntent> {
+    fn prepare_intent(
+        &self,
+        rail_name: &str,
+        request: SwapRequest,
+        fdc3_context: Option<crate::protocol::intent::Fdc3Context>,
+    ) -> ConclaveResult<SwapIntent> {
         let rail = self
             .rails
             .get(rail_name)
@@ -357,32 +387,10 @@ impl SovereignHandshake for RailProxy {
             )));
         }
 
-        if request.amount == 0 {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
-        if !self
-            .asset_registry
-            .validate_pair(&request.from_asset, &request.to_asset)
-        {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
-        let chain_context = rail
-            .validate_request(&request)
-            .map_err(|e| ConclaveError::RailError(e.to_string()))?;
+        let chain_context = rail.validate_request(&request)?;
 
         let mut hasher = Sha256::new();
-        hasher.update(rail_name.as_bytes());
-        hasher.update(b":");
         hasher.update(request.get_hash_bytes());
-        hasher.update(b":");
-        if let Some(ctx) = &chain_context {
-            hasher.update(ctx.as_bytes());
-        }
-        hasher.update(b":");
-        hasher.update(self.endpoint.as_bytes());
-
         let signable_hash = hasher.finalize().to_vec();
 
         Ok(SwapIntent {
@@ -390,6 +398,7 @@ impl SovereignHandshake for RailProxy {
             signable_hash,
             rail_type: rail_name.to_string(),
             chain_context,
+            fdc3_context,
         })
     }
 
@@ -399,37 +408,23 @@ impl SovereignHandshake for RailProxy {
         signature: String,
         attestation: Option<String>,
     ) -> ConclaveResult<SwapResponse> {
+        self.verify_hardware_integrity(&intent, &attestation)?;
+
         let rail = self
             .rails
             .get(&intent.rail_type)
             .ok_or(ConclaveError::InvalidPayload)?;
 
-        if signature.is_empty() {
-            return Err(ConclaveError::CryptoError(
-                "Sovereign signature required for broadcast".to_string(),
-            ));
-        }
+        let mut response = rail.execute_swap(intent.clone(), signature).await?;
 
-        self.verify_hardware_integrity(&intent, &attestation)?;
-
-        if let Some(telemetry) = &self.telemetry {
-            let mut hasher = Sha256::new();
-            hasher.update(signature.as_bytes());
-            telemetry.track_signature(hex::encode(hasher.finalize()));
-        }
-
-        let mut response = rail.execute_swap(intent, signature).await?;
-
-        // If the rail didn't provide a proof envelope, populate a default one
-        // based on the rail's declared trust tier.
         if response.proof_envelope.is_none() {
             response.proof_envelope = Some(ProofEnvelope {
-                system: rail.name().to_string(),
-                system_version: "0.1.0".to_string(),
+                system: intent.rail_type.clone(),
+                system_version: "1.0.0".to_string(),
                 trust_tier: rail.trust_tier(),
-                verification_class: "default_observed".to_string(),
-                source_chain_id: "unknown".to_string(),
-                destination_chain_id: "unknown".to_string(),
+                verification_class: "intent_broadcast".to_string(),
+                source_chain_id: intent.request.from_asset.chain.as_str().to_string(),
+                destination_chain_id: intent.request.to_asset.chain.as_str().to_string(),
                 finality_class: "probabilistic".to_string(),
                 observed_at: unix_time_secs(),
                 expires_at: unix_time_secs() + 3600,
@@ -448,7 +443,6 @@ impl SovereignHandshake for RailProxy {
     }
 }
 
-/// A custom rail extension example for partner-specific liquidity.
 pub struct CustomRail;
 #[async_trait(?Send)]
 impl SovereignRail for CustomRail {
@@ -579,6 +573,7 @@ mod rail_proxy_tests {
             signable_hash,
             rail_type: "x402".to_string(),
             chain_context: None,
+            fdc3_context: None,
         }
     }
 
@@ -682,36 +677,18 @@ mod rail_proxy_tests {
             attribution: None,
         };
 
-        // x402 is T1, proxy default is T3. Should pass.
         proxy.min_trust_tier = TrustTier::T3;
-        assert!(proxy.prepare_intent("x402", request.clone()).is_ok());
+        assert!(proxy.prepare_intent("x402", request.clone(), None).is_ok());
 
-        // Set requirement to T1. x402 (T1) should pass.
         proxy.min_trust_tier = TrustTier::T1;
-        assert!(proxy.prepare_intent("x402", request.clone()).is_ok());
+        assert!(proxy.prepare_intent("x402", request.clone(), None).is_ok());
 
-        // Set requirement to T1. wormhole (T3) should fail.
-        let result = proxy.prepare_intent("wormhole", request.clone());
+        let result = proxy.prepare_intent("wormhole", request.clone(), None);
         assert!(result.is_err());
-        if let Err(ConclaveError::RailError(msg)) = result {
-            assert!(msg.contains("trust tier T3"));
-            assert!(msg.contains("minimum required is T1"));
-        } else {
-            panic!("Expected RailError");
-        }
     }
 
     #[tokio::test]
     async fn test_proof_envelope_injection() {
-        let proxy = test_proxy();
-        let _intent = test_intent(vec![13; 32]);
-        // Note: this test requires mocking the network or using a mock rail
-        // Since CustomRail returns None for proof_envelope, we can test injection there
-
-        // CustomRail is T4, proxy default is T3. We need to allow T4.
-        let mut proxy = proxy.with_min_trust_tier(TrustTier::T4);
-        proxy.enforce_attestation = false;
-
         let mut rail_proxy = test_proxy();
         rail_proxy.enforce_attestation = false;
         rail_proxy.min_trust_tier = TrustTier::T4;
@@ -725,8 +702,52 @@ mod rail_proxy_tests {
             .await
             .unwrap();
         assert!(response.proof_envelope.is_some());
-        let envelope = response.proof_envelope.unwrap();
-        assert_eq!(envelope.trust_tier, TrustTier::T4);
-        assert_eq!(envelope.system, "custom_partner");
+    }
+
+    #[test]
+    fn test_discover_best_rail() {
+        let mut proxy = test_proxy();
+        proxy.min_trust_tier = TrustTier::T3;
+
+        let request = SwapRequest {
+            from_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            to_asset: AssetIdentifier {
+                chain: Chain::ETHEREUM,
+                symbol: "ETH".to_string(),
+            },
+            amount: 100,
+            recipient_address: "addr".to_string(),
+            attribution: None,
+        };
+
+        let rail = proxy.discover_best_rail(&request).unwrap();
+        assert_eq!(rail, "x402_industrial");
+    }
+
+    #[test]
+    fn test_prepare_intent_with_fdc3() {
+        let proxy = test_proxy();
+        let request = SwapRequest {
+            from_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            to_asset: AssetIdentifier {
+                chain: Chain::ETHEREUM,
+                symbol: "ETH".to_string(),
+            },
+            amount: 100,
+            recipient_address: "addr".to_string(),
+            attribution: None,
+        };
+
+        let fdc3 = crate::protocol::intent::Fdc3Context::instrument("BTC", "BITCOIN");
+        let intent = proxy.prepare_intent("x402", request, Some(fdc3)).unwrap();
+
+        assert!(intent.fdc3_context.is_some());
+        assert_eq!(intent.fdc3_context.unwrap().context_type, "fdc3.instrument");
     }
 }

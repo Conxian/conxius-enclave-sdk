@@ -21,7 +21,7 @@ pub enum OpportunityPayload {
         to_symbol: String,
         amount: u64,
         recipient: String,
-        rail: String,
+        rail: Option<String>,
     },
 }
 
@@ -84,7 +84,12 @@ impl<'a> OpportunityDispatcher<'a> {
                     attribution: None,
                 };
 
-                let intent = self.rail_proxy.prepare_intent(&rail, request)?;
+                let rail_name = match rail {
+                    Some(r) => r,
+                    None => self.rail_proxy.discover_best_rail(&request)?,
+                };
+
+                let intent = self.rail_proxy.prepare_intent(&rail_name, request, None)?;
 
                 let (algo, derivation_path) = match from_chain {
                     Chain::SOLANA | Chain::NEAR | Chain::STELLAR | Chain::SUI | Chain::APTOS => {
@@ -136,7 +141,7 @@ mod tests {
     use std::sync::Arc;
 
     #[tokio::test]
-    async fn test_opportunity_dispatcher_instantiation() {
+    async fn test_opportunity_dispatcher_dynamic_rail() {
         let enclave = CloudEnclave::new("http://localhost".to_string()).unwrap();
         let registry = Arc::new(AssetRegistry::new());
         let business = Arc::new(BusinessRegistry::new());
@@ -148,6 +153,18 @@ mod tests {
         ));
 
         let dispatcher = OpportunityDispatcher::new(&enclave, rail_proxy);
-        assert!(dispatcher.rail_proxy.asset_registry.list_assets().len() > 0);
+
+        let payload = OpportunityPayload::Swap {
+            from_chain: Chain::BITCOIN,
+            from_symbol: "BTC".to_string(),
+            to_chain: Chain::ETHEREUM,
+            to_symbol: "ETH".to_string(),
+            amount: 100,
+            recipient: "0x123".to_string(),
+            rail: None, // Test dynamic selection
+        };
+
+        let result = dispatcher.execute(payload).await;
+        assert!(result.is_err());
     }
 }
