@@ -544,6 +544,8 @@ mod rail_proxy_tests {
     use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
     use crate::protocol::business::BusinessRegistry;
     use crate::telemetry::TelemetryClient;
+    use ed25519_dalek::{Signer, SigningKey};
+    use rand_core::Rng;
     use std::sync::Arc;
 
     fn test_proxy() -> RailProxy {
@@ -578,16 +580,28 @@ mod rail_proxy_tests {
     }
 
     fn test_attestation_json(nonce: Vec<u8>) -> String {
+        let mut seed = [0u8; 32];
+        rand::rng().fill_bytes(&mut seed);
+        let signing_key = SigningKey::from_bytes(&seed);
+        let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
+
+        let timestamp = unix_time_secs();
+        let extension_data = "PURPOSE_SIGN|ALGORITHM_EC|OS_VERSION_14".to_string();
+
+        let mut data_to_verify = Vec::new();
+        data_to_verify.extend_from_slice(&nonce);
+        data_to_verify.extend_from_slice(extension_data.as_bytes());
+        data_to_verify.extend_from_slice(&timestamp.to_le_bytes());
+
+        let signature = signing_key.sign(&data_to_verify).to_bytes().to_vec();
+
         serde_json::to_string(&DeviceIntegrityReport {
             level: AttestationLevel::TEE,
             challenge_nonce: nonce,
-            signature: vec![7; 64],
-            certificate_chain: vec![
-                "CONCLAVE_ROOT_CA_01".to_string(),
-                "CONCLAVE_HARDWARE_BACKED_DEVICE_0x1".to_string(),
-            ],
-            timestamp: unix_time_secs(),
-            extension_data: "PURPOSE_SIGN|ALGORITHM_EC|OS_VERSION_14".to_string(),
+            signature,
+            certificate_chain: vec![pubkey_hex, "CONCLAVE_ROOT_CA_01".to_string()],
+            timestamp,
+            extension_data,
         })
         .expect("attestation should serialize")
     }
@@ -618,11 +632,9 @@ mod rail_proxy_tests {
         let intent = test_intent(vec![3; 32]);
         let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
 
-        assert!(
-            proxy
-                .verify_hardware_integrity(&intent, &attestation)
-                .is_ok()
-        );
+        assert!(proxy
+            .verify_hardware_integrity(&intent, &attestation)
+            .is_ok());
 
         let replay_result = proxy.verify_hardware_integrity(&intent, &attestation);
         assert!(matches!(
@@ -638,11 +650,9 @@ mod rail_proxy_tests {
         let intent = test_intent(vec![9; 32]);
         let no_attestation = None;
 
-        assert!(
-            proxy
-                .verify_hardware_integrity(&intent, &no_attestation)
-                .is_ok()
-        );
+        assert!(proxy
+            .verify_hardware_integrity(&intent, &no_attestation)
+            .is_ok());
     }
 
     #[test]
