@@ -1,7 +1,7 @@
-# Conclave SDK: Research & Implementation Gap Scorecard (v0.2.6)
+# Conclave SDK: Research & Implementation Gap Scorecard (v0.2.7)
 
 ## Overview
-This document tracks missing production-path logic, architectural gaps, and research requirements for the Conclave SDK v0.2.6 "Universal Settlement" release.
+This document tracks missing production-path logic, architectural gaps, and research requirements for the Conclave SDK v0.2.7 "Universal Settlement" release.
 
 ## Scorecard Criteria
 - **Criticality**: [High, Medium, Low]
@@ -10,48 +10,57 @@ This document tracks missing production-path logic, architectural gaps, and rese
 
 ## Technical Gaps
 
-### 1. Swap Opportunity Execution (Dynamic Rail Selection)
-- **File**: `src/protocol/opportunity.rs`
-- **Gap**: `OpportunityPayload::Swap` requires a hardcoded rail.
-- **Requirement**: Implement dynamic rail selection based on trust tier, fees, and liquidity discovery.
+### 1. Solana/NEAR Hardware Attestation Verification
+- **File**: `src/enclave/attestation.rs`
+- **Gap**: Certificate chain verification was simulated for Ed25519-based chains.
+- **Requirement**: Implement actual Ed25519 attestation proof verification for Solana and NEAR using hardware-specific roots.
+- **Criticality**: High
+- **Complexity**: High
+- **Status**: Completed
+- **Owner**: Jules
+
+### 2. Universal Chain Support: XRP & Stellar
+- **File**: `src/protocol/chain_abstraction.rs`
+- **Gap**: Address derivation and signing logic for XRP (XRP Ledger) and Stellar (XLM) were missing.
+- **Requirement**: Implement canonical address derivation for XRP (Base58Check) and Stellar (StrKey/ED25519).
 - **Criticality**: High
 - **Complexity**: Medium
 - **Status**: Completed
 - **Owner**: Jules
 
-### 2. FDC3 Corporate Treasury Handshake Integration
-- **File**: `src/protocol/rails/mod.rs`, `src/protocol/intent.rs`
-- **Gap**: `Fdc3Context` exists but is not consumed by `RailProxy`.
-- **Requirement**: Integrate `Fdc3Context` into the intent preparation flow to support corporate treasury workflows.
-- **Criticality**: Medium
-- **Complexity**: Low
-- **Status**: Completed
-- **Owner**: Jules
-
-### 3. Solana/NEAR Hardware Attestation Verification
-- **File**: `src/enclave/attestation.rs`
-- **Gap**: Certificate chain verification is simulated for Ed25519-based chains.
-- **Requirement**: Implement actual Ed25519 attestation proof verification for Solana and NEAR.
+### 3. BitVM2 Multi-Party Aggregation
+- **File**: `src/protocol/bitvm.rs`
+- **Gap**: Current BitVM manager only handles individual challenge signing.
+- **Requirement**: Implement MuSig2-based Taproot tree aggregation for multi-party verification.
 - **Criticality**: High
 - **Complexity**: High
 - **Status**: Researching
-- **Owner**: Enclave Team
+- **Owner**: Jules
 
-### 4. Stacks & Cosmos Address Derivation
-- **File**: `src/protocol/chain_abstraction.rs`
-- **Gap**: Derivation logic for Stacks and Cosmos Hub (ATOM) falls back to placeholder addresses.
-- **Requirement**: Implement canonical address derivation for Stacks (c32) and Cosmos (bech32).
+### 4. Ark Stateless Recovery Scan
+- **File**: `src/protocol/ark.rs`
+- **Gap**: V-UTXO derivation exists, but the recovery scan logic is missing.
+- **Requirement**: Implement a multi-threaded recovery scanner that re-derives keys and checks with the Ark ASP.
+- **Criticality**: High
+- **Complexity**: Medium
+- **Status**: Pending
+- **Owner**: Jules
+
+### 5. ERC-7683 Solver Selection Algorithm
+- **File**: `src/protocol/rails/mod.rs`
+- **Gap**: `discover_best_rail` uses simple trust tier filtering.
+- **Requirement**: Implement a competitive bidding/ranking algorithm for solver selection based on speed and yield.
 - **Criticality**: Medium
 - **Complexity**: Medium
-- **Status**: Completed
+- **Status**: Pending
 - **Owner**: Jules
 
 ## Research Backlog
 
 | Topic | Description | Priority | Score |
 |-------|-------------|----------|-------|
-| **BitVM2 Aggregation** | Multi-party taproot tree aggregation for recursive SNARK verification. | High | 85 |
-| **Ark Stateless Recovery** | Blake2s-based V-UTXO derivation for recovery without local state. | High | 90 |
-| **ERC-7683 Solver Selection** | Competitive bidding algorithms for atomic solver fulfillment. | Medium | 70 |
-| **FDC3 Treasury Mapping** | Standardizing corporate intents for cross-chain settlement. | High | 80 |
-| **P2P Settlement Hooks** | Integrating Bisq/Boltz hooks for direct P2P liquidity paths. | Medium | 65 |
+| **BitVM2 Aggregation** | Multi-party taproot tree aggregation for recursive SNARK verification. | High | 90 |
+| **Ark Stateless Recovery** | Blake2s-based V-UTXO derivation for recovery without local state. | High | 95 |
+| **ERC-7683 Solver Selection** | Competitive bidding algorithms for atomic solver fulfillment. | Medium | 75 |
+| **OP_CAT Covenants** | Researching recursive covenants for L2 vault logic (CON-1303). | High | 85 |
+| **FROST Threshold** | Implement research-backed threshold signatures (CON-1302). | High | 80 |

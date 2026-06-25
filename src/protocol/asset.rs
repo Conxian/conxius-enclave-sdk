@@ -151,6 +151,8 @@ impl AssetRegistry {
             (Chain::SUI, "SUI", "Sui", 9),
             (Chain::APTOS, "APT", "Aptos", 8),
             (Chain::SEI, "SEI", "Sei", 6),
+            (Chain::XrpLedger, "XRP", "XRP", 6),
+            (Chain::STELLAR, "XLM", "Stellar Lumens", 7),
         ];
 
         for (chain, symbol, name, decimals) in natives {
