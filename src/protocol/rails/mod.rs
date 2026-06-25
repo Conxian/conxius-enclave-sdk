@@ -632,9 +632,11 @@ mod rail_proxy_tests {
         let intent = test_intent(vec![3; 32]);
         let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
 
-        assert!(proxy
-            .verify_hardware_integrity(&intent, &attestation)
-            .is_ok());
+        assert!(
+            proxy
+                .verify_hardware_integrity(&intent, &attestation)
+                .is_ok()
+        );
 
         let replay_result = proxy.verify_hardware_integrity(&intent, &attestation);
         assert!(matches!(
@@ -650,9 +652,11 @@ mod rail_proxy_tests {
         let intent = test_intent(vec![9; 32]);
         let no_attestation = None;
 
-        assert!(proxy
-            .verify_hardware_integrity(&intent, &no_attestation)
-            .is_ok());
+        assert!(
+            proxy
+                .verify_hardware_integrity(&intent, &no_attestation)
+                .is_ok()
+        );
     }
 
     #[test]
