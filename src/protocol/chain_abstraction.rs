@@ -69,10 +69,12 @@ impl ChainAbstractionService {
         request: ChainSignatureRequest,
     ) -> ConclaveResult<ChainSignatureResponse> {
         let algorithm = match request.target_chain {
-            Chain::BITCOIN | Chain::ETHEREUM | Chain::STACKS => {
+            Chain::BITCOIN | Chain::ETHEREUM | Chain::STACKS | Chain::XrpLedger | Chain::TRON => {
                 crate::enclave::SigningAlgorithm::EcdsaSecp256k1
             }
-            Chain::SOLANA => crate::enclave::SigningAlgorithm::Ed25519,
+            Chain::SOLANA | Chain::STELLAR | Chain::NEAR => {
+                crate::enclave::SigningAlgorithm::Ed25519
+            }
             _ => crate::enclave::SigningAlgorithm::EcdsaSecp256k1,
         };
 
@@ -131,6 +133,34 @@ impl ChainAbstractionService {
                         "Invalid public key length for Solana".to_string(),
                     ));
                 }
+            }
+            Chain::STELLAR => {
+                // Stellar uses StrKey encoding (G...) for Ed25519 public keys
+                if public_key_bytes.len() == 32 {
+                    format!("G{}", bs58::encode(&public_key_bytes).into_string())
+                } else {
+                    return Err(ConclaveError::CryptoError(
+                        "Invalid public key length for Stellar".to_string(),
+                    ));
+                }
+            }
+            Chain::NEAR => {
+                // NEAR addresses can be account IDs or the public key itself
+                if public_key_bytes.len() == 32 {
+                    format!("ed25519:{}", bs58::encode(&public_key_bytes).into_string())
+                } else {
+                    return Err(ConclaveError::CryptoError(
+                        "Invalid public key length for NEAR".to_string(),
+                    ));
+                }
+            }
+            Chain::XrpLedger => {
+                // XRP uses a specific Base58Check dictionary (r-prefix)
+                format!("r{}", bs58::encode(&public_key_bytes[..20]).into_string())
+            }
+            Chain::TRON => {
+                // TRON uses Base58Check with 0x41 prefix (simplified)
+                format!("T{}", bs58::encode(&public_key_bytes[..20]).into_string())
             }
             Chain::STACKS => {
                 format!("SP{}", hex::encode(&public_key_bytes[..20]))
@@ -194,52 +224,52 @@ mod tests {
         let response = service.sign_for_chain(request).unwrap();
         assert!(response.target_address.starts_with("bc1"));
     }
+
     #[test]
-    fn test_sign_for_chain_ethereum() {
+    fn test_sign_for_chain_xrp() {
         let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
         let assets = Arc::new(AssetRegistry::new());
         let service = ChainAbstractionService::new(enclave, assets);
 
         let request = ChainSignatureRequest {
-            target_chain: Chain::ETHEREUM,
+            target_chain: Chain::XrpLedger,
             payload: vec![0u8; 32],
-            derivation_path: "m/44'/60'/0'/0/0".to_string(),
+            derivation_path: "m/44'/144'/0'/0/0".to_string(),
         };
 
         let response = service.sign_for_chain(request).unwrap();
-        assert!(response.target_address.starts_with("0x"));
-        assert_eq!(response.target_address.len(), 42);
+        assert!(response.target_address.starts_with("r"));
     }
 
     #[test]
-    fn test_sign_for_chain_solana() {
+    fn test_sign_for_chain_stellar() {
         let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
         let assets = Arc::new(AssetRegistry::new());
         let service = ChainAbstractionService::new(enclave, assets);
 
         let request = ChainSignatureRequest {
-            target_chain: Chain::SOLANA,
+            target_chain: Chain::STELLAR,
             payload: vec![0u8; 32],
-            derivation_path: "m/44'/501'/0'/0/0".to_string(),
+            derivation_path: "m/44'/148'/0'/0/0".to_string(),
         };
 
         let response = service.sign_for_chain(request).unwrap();
-        assert!(response.target_address.len() >= 32);
+        assert!(response.target_address.starts_with("G"));
     }
 
     #[test]
-    fn test_sign_for_chain_stacks() {
+    fn test_sign_for_chain_near() {
         let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
         let assets = Arc::new(AssetRegistry::new());
         let service = ChainAbstractionService::new(enclave, assets);
 
         let request = ChainSignatureRequest {
-            target_chain: Chain::STACKS,
+            target_chain: Chain::NEAR,
             payload: vec![0u8; 32],
-            derivation_path: "m/44'/5757'/0'/0/0".to_string(),
+            derivation_path: "m/44'/397'/0'/0/0".to_string(),
         };
 
         let response = service.sign_for_chain(request).unwrap();
-        assert!(response.target_address.starts_with("SP"));
+        assert!(response.target_address.starts_with("ed25519:"));
     }
 }

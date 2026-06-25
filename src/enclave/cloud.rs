@@ -66,28 +66,46 @@ impl CloudEnclave {
         ok == 1
     }
 
-    fn get_active_key(&self) -> ConclaveResult<SecretKey> {
-        let key_bytes: &[u8; 32] = match self.local_dev_key_bytes.as_ref() {
+    fn get_active_key_bytes(&self) -> &[u8; 32] {
+        match self.local_dev_key_bytes.as_ref() {
             Some(key_bytes) => key_bytes,
             None => &self.simulated_kms_key_bytes,
-        };
+        }
+    }
 
-        SecretKey::from_secret_bytes(*key_bytes)
+    fn get_active_secp_key(&self) -> ConclaveResult<SecretKey> {
+        SecretKey::from_secret_bytes(*self.get_active_key_bytes())
             .map_err(|e| ConclaveError::CryptoError(format!("SEC1 Error: {e}")))
     }
 
     fn generate_attestation_report(&self, challenge: &[u8]) -> DeviceIntegrityReport {
+        let key_bytes = self.get_active_key_bytes();
+        let signing_key = SigningKey::from_bytes(key_bytes);
+        let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
+
+        let timestamp = unix_time_secs();
+        let extension_data =
+            "PURPOSE_SIGN|ALGORITHM_ED25519|PLATFORM_CLOUD|TEE_TYPE_AZURE_SNP".to_string();
+
+        // Hardened: Sign the report fields
+        let mut data_to_verify = Vec::new();
+        data_to_verify.extend_from_slice(challenge);
+        data_to_verify.extend_from_slice(extension_data.as_bytes());
+        data_to_verify.extend_from_slice(&timestamp.to_le_bytes());
+
+        let signature = signing_key.sign(&data_to_verify).to_bytes().to_vec();
+
         DeviceIntegrityReport {
-            level: AttestationLevel::Software,
+            level: AttestationLevel::CloudTEE, // Hardened level
             challenge_nonce: challenge.to_vec(),
-            signature: vec![0u8; 64],
+            signature,
             certificate_chain: vec![
+                pubkey_hex,
                 "CONCLAVE_CLOUD_ROOT_CA".to_string(),
                 format!("CLOUD_KMS_INSTANCE_{}", self.kms_endpoint),
             ],
-            timestamp: unix_time_secs(),
-            extension_data: "PURPOSE_SIGN|ALGORITHM_UNIVERSAL|PLATFORM_CLOUD|TEE_TYPE_AZURE_SNP"
-                .to_string(),
+            timestamp,
+            extension_data,
         }
     }
 }
@@ -111,18 +129,18 @@ impl EnclaveManager for CloudEnclave {
     }
 
     fn get_public_key(&self, _derivation_path: &str) -> ConclaveResult<String> {
-        let secret_key = self.get_active_key()?;
+        let secret_key = self.get_active_secp_key()?;
         let public_key = secret_key.public_key();
         Ok(hex::encode(public_key.serialize()))
     }
 
     fn sign(&self, request: SignRequest) -> ConclaveResult<SignResponse> {
-        let secret_key = self.get_active_key()?;
         let public_key_hex: String;
         let signature_hex: String;
 
         match request.algorithm {
             SigningAlgorithm::EcdsaSecp256k1 => {
+                let secret_key = self.get_active_secp_key()?;
                 let public_key = secret_key.public_key();
                 public_key_hex = hex::encode(public_key.serialize());
                 let message_bytes: [u8; 32] = request
@@ -135,16 +153,14 @@ impl EnclaveManager for CloudEnclave {
                 signature_hex = hex::encode(sig.serialize_compact());
             }
             SigningAlgorithm::SchnorrSecp256k1 => {
+                let secret_key = self.get_active_secp_key()?;
                 let public_key = secret_key.public_key();
                 public_key_hex = hex::encode(public_key.serialize());
                 // Simulated Schnorr for CloudEnclave
                 signature_hex = hex::encode(vec![0u8; 64]);
             }
             SigningAlgorithm::Ed25519 => {
-                let key_bytes: &[u8; 32] = match self.local_dev_key_bytes.as_ref() {
-                    Some(key_bytes) => key_bytes,
-                    None => &self.simulated_kms_key_bytes,
-                };
+                let key_bytes = self.get_active_key_bytes();
                 let signing_key = SigningKey::from_bytes(key_bytes);
                 public_key_hex = hex::encode(signing_key.verifying_key().to_bytes());
                 let sig = signing_key.sign(&request.message_hash);

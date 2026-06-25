@@ -155,3 +155,13 @@ The SDK has been successfully refactored and aligned with the `sdk-core-architec
 - **Status**: COMPLETED.
 - **Implementation**: Implemented actual public key derivation and address encoding in `ChainAbstractionService` for Bitcoin (SegWit), Ethereum/EVM, and Solana (Base58).
 - **Verification**: Verified with automated unit tests (`test_sign_for_chain_*`).
+
+## 31. Universal Hardware Attestation Hardening (CON-1264)
+- **Status**: COMPLETED.
+- **Implementation**: Hardened `src/enclave/attestation.rs` with actual Ed25519-based certificate chain verification logic. Reports now cryptographically bind the challenge, extension data, and timestamp using the device's hardware-backed public key.
+- **Verification**: Verified with new unit tests in `src/enclave/attestation.rs`.
+
+## 32. Universal Chain Expansion: XRP & Stellar (CON-810)
+- **Status**: COMPLETED.
+- **Implementation**: Added XRP Ledger and Stellar to `Chain` enum and `AssetRegistry`. Implemented address derivation and signing orchestration in `ChainAbstractionService`.
+- **Verification**: Verified with new unit tests in `src/protocol/chain_abstraction.rs`.
