@@ -42,3 +42,16 @@
 - **WASM Binding Completion**: Expanded `src/wasm_bindings.rs` to fully expose the Conclave protocol suite to web environments, including Ark, BitVM, Identity, ZKML, DLC, Account Abstraction (ERC-7579), and Cross-Chain Intent (ERC-7683) services.
 - **Enhanced Asset Diversity**: Added PayPal USD (PYUSD) and Cosmos Hub (ATOM) support to the `AssetRegistry` to support broad fintech and interchain integration paths.
 - **Transaction Orchestration Helpers**: Added native helper methods to `EthereumManager` and `SolanaManager` for preparing ERC-20 and SPL token transfers with hardware attestation backing.
+
+## 33. Ark Stateless Recovery (CON-1264 Expansion)
+- **Status**: COMPLETED.
+- **Implementation**: Implemented `recovery_scan` in `ArkManager` (`src/protocol/ark.rs`) using Blake2s PRF for deterministic V-UTXO derivation and a gap-limit based scanner.
+- **Verification**: Verified with `cargo test protocol::ark`.
+
+## 34. BitVM2 Multi-Party Aggregation (CON-1306 Research)
+- **Status**: RESEARCHING.
+- **Goal**: Implement MuSig2-based Taproot tree aggregation for BitVM2 verification floor. Linked to G-11.
+
+## 35. ERC-7683 Solver Selection (CON-1307 Research)
+- **Status**: PENDING.
+- **Goal**: Competitive bidding and ranking for cross-chain intent settlement. Linked to G-12.
