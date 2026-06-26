@@ -246,8 +246,8 @@ mod tests {
         let hash = [2u8; 32];
         let script = OpCatHelper::build_recursive_covenant_script(&pubkey, hash);
 
-        assert!(script.iter().any(|&b| b == 0x7e)); // OP_CAT
-        assert!(script.iter().any(|&b| b == 0xac)); // OP_CHECKSIG
+        assert!(script.contains(&0x7e)); // OP_CAT
+        assert!(script.contains(&0xac)); // OP_CHECKSIG
     }
 
     #[test]
