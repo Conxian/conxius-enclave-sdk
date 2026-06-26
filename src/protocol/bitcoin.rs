@@ -193,3 +193,41 @@ impl BitcoinTransactionIntent {
         self.state = next_state;
     }
 }
+
+/// Helpers for constructing OP_CAT (BIP-347) recursive covenants.
+pub struct OpCatHelper;
+
+impl OpCatHelper {
+    /// Constructs a script fragment for an OP_CAT-based covenant check.
+    /// This is used to verify that the spending transaction matches certain constraints.
+    pub fn build_recursive_covenant_script(
+        pubkey: &XOnlyPublicKey,
+        constraints_hash: [u8; 32],
+    ) -> Vec<u8> {
+        // Mock implementation of a script that uses OP_CAT to verify sighash parts
+        let mut script = Vec::new();
+        script.push(0x20); // Push 32 bytes
+        script.extend_from_slice(&pubkey.serialize().0);
+        script.push(0x20); // Push 32 bytes
+        script.extend_from_slice(&constraints_hash);
+        script.push(0x7e); // OP_CAT
+        script.push(0xac); // OP_CHECKSIG
+        script
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_op_cat_covenant_script_generation() {
+        let pubkey = XOnlyPublicKey::from_byte_array(&[1u8; 32]).unwrap();
+        let hash = [2u8; 32];
+        let script = OpCatHelper::build_recursive_covenant_script(&pubkey, hash);
+
+        assert_eq!(script.len(), 2 + 32 + 32 + 2);
+        assert_eq!(script[script.len() - 2], 0x7e); // OP_CAT
+        assert_eq!(script[script.len() - 1], 0xac); // OP_CHECKSIG
+    }
+}

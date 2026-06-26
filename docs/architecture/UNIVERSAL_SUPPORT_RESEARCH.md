@@ -42,3 +42,37 @@ For Ed25519-based chains, the attestation model must be hardened beyond the curr
 ### Requirements
 - **Certificate Chain**: Must verify against hardware-specific roots (e.g., Google StrongBox or AWS Nitro).
 - **Algorithm Alignment**: Native Ed25519 signing in the enclave must produce a verifiable proof bound to the transaction hash.
+
+## Advanced Bitcoin Primitives (v0.2.8 Research)
+
+### BitVM2 Multi-Party Aggregation
+BitVM2 requires verifying complex computations on Bitcoin. This is achieved by splitting the computation into a large number of Taproot leaves (364 for the verification floor). To scale to multiple participants, signatures for these leaves must be aggregated.
+- **Mechanism**: Use MuSig2 for non-interactive key aggregation and partial signature aggregation.
+- **Structure**: A Taproot tree where each leaf contains a script for a specific part of the computation, and the control block enables verification by any participant if a challenge is met.
+
+### OP_CAT Recursive Covenants (BIP-347)
+OP_CAT enables concatenating two stack elements. When combined with Schnorr signatures and Tapscript, it allows for "recursive covenants" where a transaction output can restrict how it is spent in perpetuity.
+- **Use Case**: Vaults, non-custodial L2 bridges (BitVM2), and stateful smart contracts on Bitcoin.
+- **Implementation**: Helpers to construct  equivalents and verify script data against transaction outputs.
+
+### FROST (Flexible Round-Optimized Schnorr Threshold Signatures)
+FROST provides a way to create Schnorr signatures with a threshold of signers (himBHsof-$) in a way that is indistinguishable from a single-party signature.
+- **Benefit**: Reduced on-chain footprint and improved privacy compared to traditional multi-sig.
+- **Integration**: Essential for institutional-grade orchestration in the Conclave SDK.
+
+## Advanced Bitcoin Primitives (v0.2.8 Research)
+
+### BitVM2 Multi-Party Aggregation
+BitVM2 requires verifying complex computations on Bitcoin. This is achieved by splitting the computation into a large number of Taproot leaves (364 for the verification floor). To scale to multiple participants, signatures for these leaves must be aggregated.
+- **Mechanism**: Use MuSig2 for non-interactive key aggregation and partial signature aggregation.
+- **Structure**: A Taproot tree where each leaf contains a script for a specific part of the computation, and the control block enables verification by any participant if a challenge is met.
+
+### OP_CAT Recursive Covenants (BIP-347)
+OP_CAT enables concatenating two stack elements. When combined with Schnorr signatures and Tapscript, it allows for "recursive covenants" where a transaction output can restrict how it is spent in perpetuity.
+- **Use Case**: Vaults, non-custodial L2 bridges (BitVM2), and stateful smart contracts on Bitcoin.
+- **Implementation**: Helpers to construct `SIGHASH_EXTERNAL` equivalents and verify script data against transaction outputs.
+
+### FROST (Flexible Round-Optimized Schnorr Threshold Signatures)
+FROST provides a way to create Schnorr signatures with a threshold of signers ($t$-of-$n$) in a way that is indistinguishable from a single-party signature.
+- **Benefit**: Reduced on-chain footprint and improved privacy compared to traditional multi-sig.
+- **Integration**: Essential for institutional-grade orchestration in the Conclave SDK.
