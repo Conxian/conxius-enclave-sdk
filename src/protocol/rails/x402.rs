@@ -24,7 +24,7 @@ pub struct X402Intent {
 #[async_trait(?Send)]
 impl SovereignRail for X402Rail {
     fn name(&self) -> &'static str {
-        "x402_industrial"
+        "x402"
     }
     fn trust_tier(&self) -> TrustTier {
         TrustTier::T1

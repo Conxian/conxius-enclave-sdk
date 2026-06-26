@@ -588,3 +588,69 @@ impl ConclaveWasmClient {
         WasmIntentClient
     }
 }
+
+#[wasm_bindgen]
+pub struct WasmFrostClient {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::frost::FrostManager,
+}
+
+#[wasm_bindgen]
+impl WasmFrostClient {
+    pub fn generate_key_package(
+        &self,
+        min_signers: u32,
+        total_signers: u32,
+        identifier: &str,
+    ) -> Result<JsValue, JsValue> {
+        let package = crate::protocol::frost::FrostManager::generate_key_package(
+            min_signers,
+            total_signers,
+            identifier,
+        )
+        .map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&package).map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmCovenantClient {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::covenant::CovenantManager,
+}
+
+#[wasm_bindgen]
+impl WasmCovenantClient {
+    pub fn generate_cat_vault_script(
+        &self,
+        internal_key_hex: &str,
+        template_hash_hex: &str,
+    ) -> Result<JsValue, JsValue> {
+        let pk_bytes = hex::decode(internal_key_hex).map_err(to_js_error)?;
+        let pk = bitcoin::XOnlyPublicKey::from_slice(&pk_bytes).map_err(to_js_error)?;
+        let hash_bytes = hex::decode(template_hash_hex).map_err(to_js_error)?;
+        let hash: [u8; 32] = hash_bytes
+            .try_into()
+            .map_err(|_| JsValue::from_str("Invalid hash length"))?;
+
+        let script =
+            crate::protocol::covenant::CovenantManager::generate_cat_vault_script(&pk, hash)
+                .map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&script).map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn frost(&self) -> WasmFrostClient {
+        WasmFrostClient {
+            inner: crate::protocol::frost::FrostManager,
+        }
+    }
+
+    pub fn covenants(&self) -> WasmCovenantClient {
+        WasmCovenantClient {
+            inner: crate::protocol::covenant::CovenantManager,
+        }
+    }
+}

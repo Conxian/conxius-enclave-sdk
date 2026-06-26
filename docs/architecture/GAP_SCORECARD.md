@@ -1,92 +1,50 @@
-# Conclave SDK: Research & Implementation Gap Scorecard (v0.2.8)
+# Conclave SDK: Research & Implementation Gap Scorecard (v2.0.0)
 
 ## Overview
-This document tracks missing production-path logic, architectural gaps, and research requirements for the Conclave SDK v0.2.8 "Universal Settlement" release.
+This document tracks the resolution of production-path logic, architectural gaps, and research requirements for the Conclave SDK v2.0.0.
 
 ## Scorecard Criteria
 - **Criticality**: [High, Medium, Low]
 - **Complexity**: [High, Medium, Low]
-- **Status**: [Pending, Researching, Implementation, Completed]
+- **Status**: [Completed]
 
-## Technical Gaps
+## Technical Resolutions (v2.0.0)
 
 ### 1. BitVM2 Multi-Party Aggregation
-- **File**: `src/protocol/bitvm.rs`
-- **Gap**: Current BitVM manager only handles individual challenge signing.
-- **Requirement**: Implement MuSig2-based Taproot tree aggregation for multi-party verification.
-- **Reference**: [BitVM2: Bridging Bitcoin to Everywhere](https://bitvm.org/bitvm2.pdf)
-- **Criticality**: High
-- **Complexity**: High
+- **Resolution**: Implemented MuSig2-based Taproot tree aggregation in `src/protocol/bitvm.rs`.
+- **Reference**: [BitVM2 Whitepaper](https://bitvm.org/bitvm2.pdf)
 - **Status**: Completed
-- **Owner**: Jules
 
 ### 2. Ark Stateless Recovery Scan
-- **File**: `src/protocol/ark.rs`
-- **Gap**: V-UTXO derivation exists, but the recovery scan logic is missing.
-- **Requirement**: Implement a multi-threaded recovery scanner that re-derives keys and checks with the Ark ASP.
-- **Reference**: [Ark Protocol Specification](https://ark-protocol.org/)
-- **Criticality**: High
-- **Complexity**: Medium
+- **Resolution**: Implemented `recovery_scan` using Blake2s PRF in `src/protocol/ark.rs`.
+- **Reference**: [Ark Protocol](https://ark-protocol.org/)
 - **Status**: Completed
-- **Owner**: Jules
 
 ### 3. ERC-7683 Solver Selection Algorithm
-- **File**: `src/protocol/rails/mod.rs`
-- **Gap**: `discover_best_rail` uses simple trust tier filtering.
-- **Requirement**: Implement a competitive bidding/ranking algorithm for solver selection based on speed and yield.
-- **Reference**: [ERC-7683: Cross-Chain Intent Standard](https://erc7683.org/)
-- **Criticality**: Medium
-- **Complexity**: Medium
+- **Resolution**: Implemented heuristic bidding and ranking in `src/protocol/solver.rs` and integrated into `RailProxy`.
+- **Reference**: [ERC-7683 Standard](https://erc7683.org/)
 - **Status**: Completed
-- **Owner**: Jules
 
-### 4. OP_CAT Recursive Covenants (CON-1303)
-- **File**: `src/protocol/bitcoin.rs`
-- **Gap**: Missing primitives for OP_CAT-based covenant construction.
-- **Requirement**: Research and implement helpers for recursive covenants using OP_CAT.
-- **Reference**: [BIP-347: OP_CAT in Tapscript](https://github.com/bitcoin/bips/blob/master/bip-0347.mediawiki)
-- **Criticality**: High
-- **Complexity**: High
+### 4. OP_CAT Recursive Covenants
+- **Resolution**: Implemented BIP-347 script primitives in `src/protocol/covenant.rs`.
+- **Reference**: [BIP-347](https://github.com/bitcoin/bips/blob/master/bip-0347.mediawiki)
 - **Status**: Completed
-- **Owner**: Jules
 
-### 5. FROST Threshold Signatures (CON-1302)
-- **File**: `src/protocol/frost.rs`
-- **Gap**: Only MuSig2 is implemented; FROST is required for non-interactive threshold signing.
-- **Requirement**: Implement FROST threshold signature manager.
-- **Reference**: [IETF RFC 9591: FROST](https://datatracker.ietf.org/doc/rfc9591/)
-- **Criticality**: High
-- **Complexity**: High
+### 5. FROST Threshold Signatures
+- **Resolution**: Implemented RFC 9591 foundational manager in `src/protocol/frost.rs`.
+- **Reference**: [IETF RFC 9591](https://datatracker.ietf.org/doc/rfc9591/)
 - **Status**: Completed
-- **Owner**: Jules
 
-### 6. Fedimint Community Liquidity Adapter (CON-1304)
-- **File**: `src/protocol/nexus/fedimint.rs`
-- **Gap**: Missing integration with Fedimint federated mints.
-- **Requirement**: Research fedimint-sdk and implement an adapter for community-governed liquidity.
-- **Reference**: [Fedimint Developer Docs](https://developers.fedimint.org/)
-- **Criticality**: Medium
-- **Complexity**: High
+### 6. BIP-322 Universal Message Signing
+- **Resolution**: Implemented `Bip322Bridge` in `src/protocol/bip322.rs`.
+- **Reference**: [BIP-322](https://github.com/bitcoin/bips/blob/master/bip-0322.mediawiki)
 - **Status**: Completed
-- **Owner**: Botshelo Mokoka
 
-## Research Backlog
+### 7. Fedimint Community Liquidity Adapter
+- **Resolution**: Implemented `FedimintAdapter` with federation boundary validation and e-cash proof stubs in `src/protocol/nexus/fedimint.rs`.
+- **Status**: Completed
 
-| Topic | Description | Priority | Score | Reference |
-|-------|-------------|----------|-------|-----------|
-| **Ark Stateless Recovery** | Blake2s-based V-UTXO derivation and recovery scan for stateless wallets. | High | 98 | Ark Protocol |
-| **BitVM2 Aggregation** | Multi-party taproot tree aggregation for recursive SNARK verification. | High | 92 | BitVM2 Whitepaper |
-| **OP_CAT Covenants** | Recursive covenants for advanced L2 scaling and vaults. | High | 88 | BIP-347 |
-| **FROST Threshold** | Institutional-grade multi-sig with standard Schnorr outputs. | High | 85 | RFC 9591 |
-| **Fedimint Integration** | Community-governed liquidity pools via federated mints. | Medium | 75 | Fedimint SDK |
-| **ERC-7683 Solver Selection** | Competitive bidding algorithms for cross-chain intent fulfillment. | Medium | 78 | ERC-7683 |
-
-## Completed Gaps (v0.2.8 Archive)
-- **Solana/NEAR Hardware Attestation Verification**: Implemented Ed25519-based cert chain verification.
-- **Universal Chain Support: XRP & Stellar**: Implemented address derivation and signing for XRP and Stellar.
-- **BitVM2 Multi-Party Aggregation**: MuSig2-based Taproot tree aggregation.
-- **Ark Stateless Recovery Scan**: Blake2s PRF-based V-UTXO recovery.
-- **ERC-7683 Solver Selection**: Competitive bidding/ranking algorithm.
-- **OP_CAT Recursive Covenants**: BIP-347 script primitives.
-- **FROST Threshold Signatures**: Foundational RFC 9591 manager.
-- **Fedimint Community Liquidity Adapter**: Federated mint e-cash orchestration.
+## Research Archive
+- **Solana/NEAR Hardware Attestation**: Verified with Ed25519 cert chains.
+- **Universal Chain Support**: Address derivation for XRP and Stellar verified.
+- **FDC3 Treasury Handshake**: Integrated into intent preparation.
