@@ -271,7 +271,8 @@ impl RailProxy {
 
         for rail in self.rails.values() {
             if let Ok(Some(_)) = rail.validate_request(request)
-                && rail.trust_tier() <= self.min_trust_tier {
+                && rail.trust_tier() <= self.min_trust_tier
+            {
                 candidates.push(rail);
             }
         }
