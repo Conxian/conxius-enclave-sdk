@@ -210,8 +210,8 @@ impl WasmSwapClient {
     }
 
     pub async fn prepare_fiat_session(&self, request: JsValue) -> Result<JsValue, JsValue> {
-        let req: crate::protocol::fiat::FiatOnRampRequest =
-            serde_wasm_bindgen::from_value(request).map_err(|_| JsValue::from_str("Invalid request format"))?;
+        let req: crate::protocol::fiat::FiatOnRampRequest = serde_wasm_bindgen::from_value(request)
+            .map_err(|_| JsValue::from_str("Invalid request format"))?;
         let intent = self.fiat.prepare_session(req);
         serde_wasm_bindgen::to_value(&intent).map_err(to_js_error)
     }
