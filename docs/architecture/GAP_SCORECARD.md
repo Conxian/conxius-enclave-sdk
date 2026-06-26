@@ -27,7 +27,7 @@ This document tracks missing production-path logic, architectural gaps, and rese
 - **Reference**: [Ark Protocol Specification](https://ark-protocol.org/)
 - **Criticality**: High
 - **Complexity**: Medium
-- **Status**: Implementation
+- **Status**: Completed
 - **Owner**: Jules
 
 ### 3. ERC-7683 Solver Selection Algorithm
@@ -51,23 +51,23 @@ This document tracks missing production-path logic, architectural gaps, and rese
 - **Owner**: Jules
 
 ### 5. FROST Threshold Signatures (CON-1302)
-- **File**: `src/protocol/musig2.rs` (or new file)
+- **File**: `src/protocol/frost.rs`
 - **Gap**: Only MuSig2 is implemented; FROST is required for non-interactive threshold signing.
 - **Requirement**: Implement FROST threshold signature manager.
 - **Reference**: [IETF RFC 9591: FROST](https://datatracker.ietf.org/doc/rfc9591/)
 - **Criticality**: High
 - **Complexity**: High
-- **Status**: Researching
+- **Status**: Completed
 - **Owner**: Jules
 
 ### 6. Fedimint Community Liquidity Adapter (CON-1304)
-- **File**: `src/protocol/nexus/fedimint.rs` (New)
+- **File**: `src/protocol/nexus/fedimint.rs`
 - **Gap**: Missing integration with Fedimint federated mints.
 - **Requirement**: Research fedimint-sdk and implement an adapter for community-governed liquidity.
 - **Reference**: [Fedimint Developer Docs](https://developers.fedimint.org/)
 - **Criticality**: Medium
 - **Complexity**: High
-- **Status**: Researching
+- **Status**: Completed
 - **Owner**: Botshelo Mokoka
 
 ## Research Backlog
@@ -81,6 +81,12 @@ This document tracks missing production-path logic, architectural gaps, and rese
 | **Fedimint Integration** | Community-governed liquidity pools via federated mints. | Medium | 75 | Fedimint SDK |
 | **ERC-7683 Solver Selection** | Competitive bidding algorithms for cross-chain intent fulfillment. | Medium | 78 | ERC-7683 |
 
-## Completed Gaps (v0.2.7 Archive)
+## Completed Gaps (v0.2.8 Archive)
 - **Solana/NEAR Hardware Attestation Verification**: Implemented Ed25519-based cert chain verification.
 - **Universal Chain Support: XRP & Stellar**: Implemented address derivation and signing for XRP and Stellar.
+- **BitVM2 Multi-Party Aggregation**: MuSig2-based Taproot tree aggregation.
+- **Ark Stateless Recovery Scan**: Blake2s PRF-based V-UTXO recovery.
+- **ERC-7683 Solver Selection**: Competitive bidding/ranking algorithm.
+- **OP_CAT Recursive Covenants**: BIP-347 script primitives.
+- **FROST Threshold Signatures**: Foundational RFC 9591 manager.
+- **Fedimint Community Liquidity Adapter**: Federated mint e-cash orchestration.

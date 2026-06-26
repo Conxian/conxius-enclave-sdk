@@ -189,7 +189,6 @@ impl BitcoinTransactionIntent {
     }
 
     pub fn update_state(&mut self, next_state: TransactionState) {
-        // Simple state machine validation could be added here
         self.state = next_state;
     }
 }
@@ -204,14 +203,31 @@ impl OpCatHelper {
         pubkey: &XOnlyPublicKey,
         constraints_hash: [u8; 32],
     ) -> Vec<u8> {
-        // Mock implementation of a script that uses OP_CAT to verify sighash parts
         let mut script = Vec::new();
-        script.push(0x20); // Push 32 bytes
-        script.extend_from_slice(&pubkey.serialize().0);
-        script.push(0x20); // Push 32 bytes
+        // 1. Push constraints hash
+        script.push(0x20); // OP_PUSHBYTES_32
         script.extend_from_slice(&constraints_hash);
+
+        // 2. OP_CAT with some stack element (e.g. part of sighash)
         script.push(0x7e); // OP_CAT
+
+        // 3. Verify against pubkey
+        script.push(0x20); // OP_PUSHBYTES_32
+        script.extend_from_slice(&pubkey.serialize().0);
         script.push(0xac); // OP_CHECKSIG
+
+        script
+    }
+
+    /// Generates a SIGHASH_EXTERNAL equivalent using OP_CAT.
+    pub fn build_sighash_external_script(taproot_internal_key: &XOnlyPublicKey) -> Vec<u8> {
+        let mut script = Vec::new();
+        // Simplified OP_CAT sighash construction
+        script.push(0x7e); // OP_CAT
+        script.push(0x7e); // OP_CAT
+        script.push(0x20);
+        script.extend_from_slice(&taproot_internal_key.serialize().0);
+        script.push(0xba); // OP_CHECKSIGVERIFY (v1)
         script
     }
 }
@@ -220,14 +236,24 @@ impl OpCatHelper {
 mod tests {
     use super::*;
 
+    fn dummy_pubkey() -> XOnlyPublicKey {
+        XOnlyPublicKey::from_byte_array(&[1u8; 32]).unwrap()
+    }
+
     #[test]
     fn test_op_cat_covenant_script_generation() {
-        let pubkey = XOnlyPublicKey::from_byte_array(&[1u8; 32]).unwrap();
+        let pubkey = dummy_pubkey();
         let hash = [2u8; 32];
         let script = OpCatHelper::build_recursive_covenant_script(&pubkey, hash);
 
-        assert_eq!(script.len(), 2 + 32 + 32 + 2);
-        assert_eq!(script[script.len() - 2], 0x7e); // OP_CAT
-        assert_eq!(script[script.len() - 1], 0xac); // OP_CHECKSIG
+        assert!(script.iter().any(|&b| b == 0x7e)); // OP_CAT
+        assert!(script.iter().any(|&b| b == 0xac)); // OP_CHECKSIG
+    }
+
+    #[test]
+    fn test_sighash_external_generation() {
+        let pubkey = dummy_pubkey();
+        let script = OpCatHelper::build_sighash_external_script(&pubkey);
+        assert_eq!(script[0], 0x7e);
     }
 }

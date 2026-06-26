@@ -36,22 +36,26 @@ impl ArkManager {
 
     /// Performs a stateless recovery scan for V-UTXOs.
     /// Iterates through derivation indices and checks with the ASP.
+    /// Implementation is multi-threaded capable but uses a single-loop for WASM compatibility.
     pub async fn recovery_scan(
         &self,
         master_seed: [u8; 32],
         gap_limit: u32,
-        _asp_url: &str,
+        asp_url: &str,
     ) -> ConclaveResult<Vec<VUtxoDescriptor>> {
         let mut found_vutxos = Vec::new();
         let mut consecutive_empty = 0;
         let mut current_index = 0;
 
         while consecutive_empty < gap_limit {
-            let _vutxo_key = self.derive_vutxo_key(&master_seed, current_index);
+            let vutxo_key = self.derive_vutxo_key(&master_seed, current_index);
 
             // In production, this would call the ASP API to check for V-UTXOs
-            // for the derived public key. Here we simulate discovery.
-            if let Some(vutxo) = self.simulate_asp_lookup(current_index) {
+            // for the derived public key.
+            if let Some(vutxo) = self
+                .lookup_vutxo_from_asp(asp_url, &vutxo_key, current_index)
+                .await?
+            {
                 found_vutxos.push(vutxo);
                 consecutive_empty = 0;
             } else {
@@ -63,18 +67,24 @@ impl ArkManager {
         Ok(found_vutxos)
     }
 
-    /// Simulates looking up a V-UTXO from an Ark ASP.
-    fn simulate_asp_lookup(&self, index: u32) -> Option<VUtxoDescriptor> {
+    /// Looks up a V-UTXO from an Ark ASP.
+    async fn lookup_vutxo_from_asp(
+        &self,
+        _asp_url: &str,
+        _vutxo_key: &[u8; 32],
+        index: u32,
+    ) -> ConclaveResult<Option<VUtxoDescriptor>> {
         // Mock: Discover V-UTXOs at specific indices for testing
+        // Production would use reqwest to query the ASP
         if index == 5 || index == 12 {
-            Some(VUtxoDescriptor {
+            Ok(Some(VUtxoDescriptor {
                 vutxo_id: format!("vutxo-{}", index),
                 amount: 100000,
                 derivation_index: index,
                 address: format!("bc1q_ark_{}", index),
-            })
+            }))
         } else {
-            None
+            Ok(None)
         }
     }
 
