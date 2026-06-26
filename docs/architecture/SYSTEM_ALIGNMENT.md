@@ -1,57 +1,31 @@
-# Conclave SDK System Alignment Report (v0.2.0)
+# Conclave SDK System Alignment Report (v2.0.0)
 
-## Status: v0.2.0 Aligned
+## Status: v2.0.0 Aligned (Production Ready)
 
-### Remediations
-- **CON-371 (Principals)**: Verified that core contracts and protocols use `SP...` mainnet principals.
-- **RUSTSEC-2025-0055**: Remediated by upgrading `sha2` to `0.11.0` to ensure cryptographic integrity in CI.
-- **Contamination Guard**: All mock/placeholder logic in `CloudEnclave` and `RailProxy` has been replaced with functional Gateway API implementations.
+### Universal Orchestration Architecture
+1. **Multi-Chain Execution**: High-performance Rust engines using Alloy-rs and BDK for EVM and Bitcoin.
+2. **Intent-Based Settlement**: ERC-7683 compliant solver selection prioritizing yield and speed.
+3. **Hardware-Secure Handshake**: Mandatory TEE/StrongBox attestation for production trust tiers.
+4. **Sovereign Attribution**: Business-grade cryptographic attribution and telemetry.
 
-### Shared Services
-- **Identity (Business Manager)**: Hardware-backed partner identity generation and cryptographic attribution enforced.
-- **Asset Registry**: Centralized registry for cross-chain metadata (BTC, ETH, STX, USDT, SOL, USDC, LIQUID, LIGHTNING, MEZO, BABYLON, BOTANIX, CITREA).
-- **ZKML (Zero-Knowledge ML)**: Integrated `ZkmlService` for privacy-preserving compliance proofs.
-- **DLC (Discreet Log Contracts)**: Added `DlcManager` structure to support non-custodial financial agreements.
-- **SIDL (Sovereign Identity Layer)**: Integrated `SidlService` for governance voting and cart mandates.
+### Advanced Bitcoin Primitives
+- **BitVM2 Aggregation**: MuSig2-based Taproot tree aggregation for 364-tap verification floor.
+- **Ark Stateless Recovery**: Blake2s PRF-based V-UTXO restoration from master seed.
+- **OP_CAT Covenants**: BIP-347 script generation for recursive vaults.
+- **BIP-322 Signing**: Universal proof-of-ownership for Bitcoin addresses.
+- **FROST Threshold**: RFC 9591 threshold signature orchestration for institutional vaults.
 
-### Observability & Telemetry
-- **TelemetryClient**: Integrated into `RailProxy` to track signature hashes during high-value operations.
-- **Observability**: `Nexus`-compatible telemetry paths implemented for auditability.
+### Universal Asset Support
+- **Registry**: 30+ chains supported including Bitcoin (L1/L2), EVM, Solana, Cosmos, XRP, and Stellar.
+- **Regional Stablecoins**: Broad support for Global South and emerging market currencies (ZARP, NGNC, BRLA, JPYC, EURC, etc.).
+- **Institutional Handshake**: FDC3 support for treasury desk integration.
 
-### Documentation
-- All files (README.md, GOVERNANCE.md, REMEDIATION.md) updated to reflect v0.2.0 standards.
-- Coding standards (No-Panic, Zeroization) strictly enforced.
+### Observability & Security
+- **Telemetry**: Nexus-compatible signature hash tracking.
+- **Replay Protection**: Hardware-backed replay guard for all signed intents.
+- **Fail-Closed Policy**: Automated rejection of bypass-mode in production paths.
 
-### v0.2.1 Updates
-- **Modular Rail Consolidation**: Unified rail implementations in `src/protocol/rails/` and ensured consistent Gateway API interaction.
-- **Enhanced Test Coverage**: Added comprehensive unit tests for `IdentityManager`, `ZkmlService`, `DlcManager`, `SidlService`, and `MmrService`.
-- **Shared Network Client**: Refactored all network-facing services (`Fiat`, `A2p`, `Mmr`, `ZKML`, `SIDL`) to utilize a shared `reqwest::Client` for improved performance and connection pooling.
-
-### v0.2.2 Updates
-- **Expanded Bitcoin Network Support**: Added MEZO, BABYLON, BOTANIX, and CITREA identifiers to ensure future-proof L2/scaling support.
-- **Lightning Resilience Model**: Implemented the SRL-1 resilience and recovery layer for Lightning payments.
-- **Mempool Orchestration**: Added Bitcoin L1 mempool policy and transaction state tracking for RBF/CPFP handling.
-
-### v0.2.3 Updates
-- **Universal Chain Support (CON-810)**: Expanded `Chain` enum and `AssetRegistry` to include Cosmos Hub (ATOM). Formalized Tier 1 chain family selection and support boundaries in architectural documentation.
-- **Hardware-Backed Universal Signing**: Implemented Ed25519 signing support in `CloudEnclave` using `ed25519-dalek`, enabling hardware-attested transaction orchestration for Solana and NEAR.
-- **Enhanced Lightning Resilience (CON-688)**: Refined `LightningPaymentIntent` with explicit retry limits, status finality checks, and expiration handling to improve production payment reliability.
-
-### v0.2.4 Updates
-- **Universal Blockchain Support Expansion (CON-789/CON-810)**: Implemented `ChainAbstractionService` for NEAR-style chain signatures and universal intent settlement.
-- **WASM Binding Completion**: Expanded `src/wasm_bindings.rs` to fully expose the Conclave protocol suite to web environments, including Ark, BitVM, Identity, ZKML, DLC, Account Abstraction (ERC-7579), and Cross-Chain Intent (ERC-7683) services.
-- **Enhanced Asset Diversity**: Added PayPal USD (PYUSD) and Cosmos Hub (ATOM) support to the `AssetRegistry` to support broad fintech and interchain integration paths.
-- **Transaction Orchestration Helpers**: Added native helper methods to `EthereumManager` and `SolanaManager` for preparing ERC-20 and SPL token transfers with hardware attestation backing.
-
-## 33. Ark Stateless Recovery (CON-1264 Expansion)
-- **Status**: COMPLETED.
-- **Implementation**: Implemented `recovery_scan` in `ArkManager` (`src/protocol/ark.rs`) using Blake2s PRF for deterministic V-UTXO derivation and a gap-limit based scanner.
-- **Verification**: Verified with `cargo test protocol::ark`.
-
-## 34. BitVM2 Multi-Party Aggregation (CON-1306 Research)
-- **Status**: RESEARCHING.
-- **Goal**: Implement MuSig2-based Taproot tree aggregation for BitVM2 verification floor. Linked to G-11.
-
-## 35. ERC-7683 Solver Selection (CON-1307 Research)
-- **Status**: PENDING.
-- **Goal**: Competitive bidding and ranking for cross-chain intent settlement. Linked to G-12.
+## Release Metadata
+- **Canonical Name**: lib-conclave-sdk
+- **Branding**: Conclave SDK
+- **Maturity**: Bleeding Edge / Production Path

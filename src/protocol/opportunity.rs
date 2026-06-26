@@ -1,7 +1,8 @@
 use crate::enclave::{EnclaveManager, SignRequest, SigningAlgorithm};
 use crate::protocol::asset::Chain;
 use crate::protocol::economy::{DualStackIntent, YieldEngine};
-use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapRequest};
+use crate::protocol::intent::SwapRequest;
+use crate::protocol::rails::{RailProxy, SovereignHandshake};
 use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -62,14 +63,14 @@ impl<'a> OpportunityDispatcher<'a> {
                 recipient,
                 rail,
             } => {
-                let asset_registry = &self.rail_proxy.asset_registry;
-                let from_asset = asset_registry
+                let registry = &self.rail_proxy.registry;
+                let from_asset = registry
                     .list_assets()
                     .into_iter()
                     .find(|(id, _)| id.chain == from_chain && id.symbol == from_symbol)
                     .ok_or(ConclaveError::InvalidPayload)?
                     .0;
-                let to_asset = asset_registry
+                let to_asset = registry
                     .list_assets()
                     .into_iter()
                     .find(|(id, _)| id.chain == to_chain && id.symbol == to_symbol)
@@ -161,10 +162,11 @@ mod tests {
             to_symbol: "ETH".to_string(),
             amount: 100,
             recipient: "0x123".to_string(),
-            rail: None, // Test dynamic selection
+            rail: None,
         };
 
         let result = dispatcher.execute(payload).await;
+        // In CI/local, this fails because localhost:80 is not a real gateway
         assert!(result.is_err());
     }
 }

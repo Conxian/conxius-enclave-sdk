@@ -1,5 +1,7 @@
 use crate::protocol::asset::{AssetIdentifier, Chain};
+use crate::protocol::business::BusinessAttribution;
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GaslessCrossChainOrder {
@@ -46,6 +48,45 @@ impl CrossChainIntent {
         // Serialization logic for ERC-7683 orderData
         serde_json::to_vec(self).unwrap_or_default()
     }
+}
+
+/// A request to perform a cross-chain swap.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwapRequest {
+    pub from_asset: AssetIdentifier,
+    pub to_asset: AssetIdentifier,
+    pub amount: u64,
+    pub recipient_address: String,
+    pub attribution: Option<BusinessAttribution>,
+}
+
+impl SwapRequest {
+    pub fn get_hash_bytes(&self) -> Vec<u8> {
+        let json = serde_json::to_string(self).unwrap_or_default();
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(json.as_bytes());
+        hasher.finalize().to_vec()
+    }
+}
+
+/// The result of a signable intent preparation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwapIntent {
+    pub request: SwapRequest,
+    pub signable_hash: Vec<u8>,
+    pub rail_type: String,
+    pub chain_context: Option<String>,
+    pub fdc3_context: Option<Fdc3Context>,
+}
+
+/// The response from a swap execution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SwapResponse {
+    pub proof_envelope: Option<String>,
+    pub transaction_id: String,
+    pub status: String,
+    pub estimated_arrival: u32,
+    pub rail_used: String,
 }
 
 /// FDC3-compatible context exchange model (v1.9.2)

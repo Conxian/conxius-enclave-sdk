@@ -1,167 +1,44 @@
-# Remediation Report: SDK Core Architecture Alignment
+# Conclave SDK Remediation & Alignment Report (v2.0.0)
 
-The SDK has been successfully refactored and aligned with the `sdk-core-architecture` proposal and v0.2.0 standards.
+## Status: v2.0.0 Bleeding Edge Aligned
 
-## 1. Business Management
+### 1. Business Attribution & Verification
 - **Status**: COMPLETED.
 - **Implementation**: `BusinessManager` handles identity generation (`generate_business_identity`) and cryptographic attribution (`generate_attribution`). `BusinessRegistry` tracks partner profiles.
 - **Verification**: Cryptographic signature verification is now enforced in `RailProxy` using `secp256k1`.
 
-## 2. Asset Registry
+### 2. Asset Registry
 - **Status**: COMPLETED.
-- **Implementation**: `AssetRegistry` manages cross-chain asset metadata and validation. Supports dynamic registration via `register_asset`. Defaults include BTC, ETH, STX, USDT, SOL, USDC, LIQUID, LIGHTNING, MEZO, BABYLON, BOTANIX, and CITREA.
+- **Implementation**: `AssetRegistry` manages cross-chain asset metadata and validation. Supports dynamic registration via `register_asset`. Defaults include BTC, ETH, STX, USDT, SOL, USDC, LIQUID, LIGHTNING, MEZO, BABYLON, BOTANIX, and CITREA. Expanded to XRP and Stellar.
 
-## 3. Modular Architecture
+### 3. Modular Architecture
 - **Status**: COMPLETED.
 - **Implementation**:
     - `EnclaveManager` trait formalizes hardware abstraction.
     - `CloudEnclave` implemented for cloud-hosted security.
-    - `SovereignRail` implementations (Changelly, Bisq, Wormhole, Boltz, NTT) modularized into `src/protocol/rails/`.
+    - `SovereignRail` implementations (Changelly, Bisq, Wormhole, Boltz, NTT, x402) modularized into `src/protocol/rails/`.
     - `RailProxy` updated to consume `AssetRegistry` and `BusinessRegistry`.
 
-## 4. Sovereign Handshake
+### 4. Sovereign Handshake (ERC-7683 & FDC3)
 - **Status**: COMPLETED.
-- **Implementation**: Handshake enforces hardware attestation and business attribution verification in `RailProxy`. Wasm bindings provide `execute_swap` as a high-level orchestration helper.
+- **Implementation**: Handshake enforces hardware attestation and business attribution verification in `RailProxy`. Integrated `SolverManager` for ERC-7683 solver selection. Supports FDC3 corporate treasury handshakes.
 
-## 5. Mainnet Readiness (CON-145)
+### 5. Mainnet Readiness (CON-145)
 - **Governance**: `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, and `GOVERNANCE.md` added.
 - **Robustness**: Eliminated unsafe panics across all core modules.
 - **Security**: Telemetry and attestation verified across core rails. Remediated RUSTSEC-2025-0055 by upgrading `sha2` to `0.11.0`.
 
-## 6. Zero Secret Egress (Remediation)
+### 6. Zero Secret Egress (Remediation)
 - **Status**: COMPLETED.
 - **Implementation**: Fixed a critical security vulnerability in `src/enclave/android_strongbox.rs` where `generate_key` was returning raw secret seeds. The implementation now derives the public key, zeroizes the seed, and returns only the public hex.
-- **Verification**: Verified with `cargo test`.
 
-## 7. Oracle Fail-Closed Logic (CON-496)
+### 7. Bitcoin L2 & Scaling (v0.2.8 Implementation)
+- **BitVM2**: Implemented `BitVmManager` with 364-tap verification floor and MuSig2-based multi-party aggregation (CON-1306).
+- **Ark**: Implemented `ArkManager` with Blake2s-based V-UTXO derivation and stateless recovery scan (CON-1282).
+- **OP_CAT**: Implemented `CovenantManager` (src/protocol/covenant.rs) for BIP-347 recursive covenants (CON-1303).
+- **BIP-322**: Implemented `Bip322Bridge` (src/protocol/bip322.rs) for universal message signing (CON-1266).
+- **FROST**: Implemented foundational `FrostManager` (src/protocol/frost.rs) for RFC 9591 threshold signatures (CON-1302).
+
+### 8. Fail-Closed Admin & Pipeline Hardening
 - **Status**: COMPLETED.
-- **Implementation**:
-    - `contracts/oracle/oracle-aggregator.clar` implemented with quorum-based aggregation, stale price rejection, and emergency override.
-    - `contracts/oracle/dimensional-oracle.clar` implemented with fail-closed confidence and staleness checks.
-- **Verification**: Verified via manual inspection of Clarity logic.
-
-## 8. Risk Management & Health Factor (CON-499)
-- **Status**: COMPLETED.
-- **Implementation**: `contracts/core/risk-manager.clar` defines canonical LTV thresholds and health-factor calculations for fail-closed solvency enforcement.
-
-## 9. RBAC & Admin Facade (CON-498)
-- **Status**: COMPLETED.
-- **Implementation**: `contracts/core/admin-facade.clar` replaces tautological checks with explicit role-based access control (RBAC).
-
-## 10. Circuit Breaker & Emergency Control (CON-500)
-- **Status**: COMPLETED.
-- **Implementation**: `contracts/core/emergency-control.clar` provides a centralized pause mechanism to block sensitive operations during market volatility or incidents.
-
-## 11. Lending Solvency Checks (CON-497)
-- **Status**: COMPLETED.
-- **Implementation**: `contracts/lending/lending-manager.clar` integrates with `risk-manager.clar` to enforce health-factor checks on borrow and withdraw flows.
-
-## 12. Fail-Closed Integration (Final Phase)
-- **Status**: COMPLETED.
-- **Implementation**:
-    - Fully enabled cross-contract calls between `lending-manager.clar`, `emergency-control.clar`, and `risk-manager.clar`.
-    - `oracle-aggregator.clar` now includes explicit quorum counting (`AssetQuorumCount`) and resets on update to ensure each epoch meets the required validator threshold.
-- **Verification**: Verified via manual inspection and local unit tests for the Rust SDK layer.
-
-## 13. Shared Services (v0.2.0 Alignment)
-- **Personal Identity (PSI)**: `IdentityManager` implemented for hardware-backed DIDs.
-- **ZKML**: `ZkmlService` for privacy-preserving compliance proofs.
-- **DLC**: `DlcManager` for non-custodial financial agreements.
-- **SIDL**: `SidlService` for decentralized identity layer governance.
-
-## 14. Pilot Readiness Framework (CON-462)
-- **Status**: COMPLETED.
-- **Implementation**:
-    - Created canonical documentation for Three-Lane Runtime Architecture and Enterprise Custody Baseline.
-    - Established SAB Migration Readiness Gates and Deployment Verification Matrix.
-    - Implemented functional DlcManager in `src/protocol/dlc.rs` for hardware-backed financial agreements.
-- **Verification**: Verified with `cargo test` (31 tests passing).
-
-## 15. Bitcoin L2 & Scaling Support (CON-789/CON-810)
-- **Status**: COMPLETED.
-- **Implementation**: Added MEZO, BABYLON, BOTANIX, and CITREA to Chain enum and AssetRegistry.
-- **Verification**: Verified with automated unit tests.
-
-## 16. Lightning Resilience (CON-1174)
-- **Status**: COMPLETED.
-- **Implementation**: Implemented LightningPaymentIntent state machine and failure taxonomy in src/protocol/lightning.rs.
-- **Verification**: Verified with automated unit tests.
-
-## 17. Bitcoin Mempool Orchestration (CON-687)
-- **Status**: COMPLETED.
-- **Implementation**: Added MempoolPolicy, FeeBumpStrategy, and BitcoinTransactionIntent state machine to src/protocol/bitcoin.rs.
-- **Verification**: Verified with automated unit tests.
-
-## 18. Universal Chain Support Expansion (CON-810)
-- **Status**: COMPLETED.
-- **Implementation**: Added Cosmos Hub (ATOM) support to `Chain` enum and `AssetRegistry`. Formalized Tier 1 (Native), Tier 2 (Hybrid), and Tier 3 (Extended) support criteria.
-- **Verification**: Verified with automated unit tests for registry registration.
-
-## 19. Universal Hardware Signing (CON-789/CON-810)
-- **Status**: COMPLETED.
-- **Implementation**: Integrated `ed25519-dalek` and implemented native Ed25519 signing in `CloudEnclave`.
-- **Verification**: Verified with new unit test `test_cloud_enclave_ed25519_signing`.
-
-## 20. Lightning Production Resilience (CON-688)
-- **Status**: COMPLETED.
-- **Implementation**: Refactored `LightningPaymentIntent` to include mandatory retry limits (MAX_RETRIES=5), expiration handling, and strict finality state checks.
-- **Verification**: Verified with expanded test suite in `src/protocol/lightning.rs`.
-
-## 21. Bleeding-Edge Dependency Modernization (CON-1244)
-- **Status**: COMPLETED.
-- **Implementation**: Upgraded core dependencies including `bdk_wallet` (v3.1.0), `musig2` (v0.4.1), `ed25519-dalek` (v2.2.0), and `wasm-bindgen` (v0.2.125) to maintain architectural alignment with v2.0.0 standards.
-- **Verification**: Verified with `cargo test` and `cargo clippy`.
-
-## 22. Universal Asset Expansion: PayPal USD (CON-810)
-- **Status**: COMPLETED.
-- **Implementation**: Added PayPal USD (PYUSD) support to `AssetRegistry` on both Ethereum and Solana to support broad fintech integration paths.
-- **Verification**: Verified via manual inspection and registry registration.
-
-## 23. Modular Smart Account (ERC-7579) Hardening (CON-1217)
-- **Status**: COMPLETED.
-- **Implementation**: Hardened `ModularAccountManager` in `src/protocol/account_abstraction.rs` with formal `ModuleType` and `ModuleConfig` structures aligned with the ERC-7579 standard for pluggable smart account modules.
-- **Verification**: Verified with `cargo clippy`.
-
-## 24. Intent-Based Settlement (ERC-7683) Alignment (CON-1217)
-- **Status**: COMPLETED.
-- **Implementation**: Updated `src/protocol/intent.rs` with `ResolvedCrossChainOrder` and `AssetAmount` primitives to align with ERC-7683 cross-chain intent standards.
-- **Verification**: Verified with `cargo clippy`.
-
-## 25. CI/CD Hardening & Action Pinning (CON-1243)
-- **Status**: COMPLETED.
-- **Implementation**: Pinned `actions/checkout` to a verified immutable commit SHA (`11bd71901bbe5b1630ceea73d27597364c9af683`) across CI and Release workflows to prevent supply-chain attacks.
-- **Verification**: Verified via workflow file inspection.
-
-## 26. BitVM2 Verification Floor (CON-1264)
-- **Status**: COMPLETED.
-- **Implementation**: Added `BitVmManager` in `src/protocol/bitvm.rs` with 364-tap verification floor orchestration and fail-closed tap boundary checks.
-- **Verification**: Verified with automated unit tests.
-
-## 27. Ark V-UTXO Protocol Primitives (CON-1264)
-- **Status**: COMPLETED.
-- **Implementation**: Added `ArkManager` in `src/protocol/ark.rs` providing Blake2s PRF-based V-UTXO derivation for stateless recovery.
-- **Verification**: Verified with automated unit tests.
-
-## 28. FDC3 Native Resolver Alignment (CON-1264)
-- **Status**: COMPLETED.
-- **Implementation**: Added `Fdc3Context` and `Fdc3IntentResult` in `src/protocol/intent.rs` to support corporate treasury handshake standards.
-- **Verification**: Verified with automated unit tests.
-
-## 29. Protocol Error Path Normalization
-- **Status**: COMPLETED.
-- **Implementation**: Refactored `DlcManager` to use canonical `ConclaveResult` types, ensuring consistent error handling and preventing raw string error egress.
-
-## 30. Universal Address Derivation (CON-810)
-- **Status**: COMPLETED.
-- **Implementation**: Implemented actual public key derivation and address encoding in `ChainAbstractionService` for Bitcoin (SegWit), Ethereum/EVM, and Solana (Base58).
-- **Verification**: Verified with automated unit tests (`test_sign_for_chain_*`).
-
-## 31. Universal Hardware Attestation Hardening (CON-1264)
-- **Status**: COMPLETED.
-- **Implementation**: Hardened `src/enclave/attestation.rs` with actual Ed25519-based certificate chain verification logic. Reports now cryptographically bind the challenge, extension data, and timestamp using the device's hardware-backed public key.
-- **Verification**: Verified with new unit tests in `src/enclave/attestation.rs`.
-
-## 32. Universal Chain Expansion: XRP & Stellar (CON-810)
-- **Status**: COMPLETED.
-- **Implementation**: Added XRP Ledger and Stellar to `Chain` enum and `AssetRegistry`. Implemented address derivation and signing orchestration in `ChainAbstractionService`.
-- **Verification**: Verified with new unit tests in `src/protocol/chain_abstraction.rs`.
+- **Implementation**: Pinned GitHub Actions to immutable SHAs. Hardened `RailProxy` to fail closed on attestation or replay-guard compromise. Verified `lib-conclave-sdk` package naming and submodule integrity.
