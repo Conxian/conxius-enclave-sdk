@@ -3,7 +3,7 @@ use crate::enclave::android_strongbox::CoreEnclaveManager;
 use crate::enclave::cloud::CloudEnclave;
 use crate::protocol::a2p::A2pRouterService;
 use crate::protocol::ark::ArkManager;
-use crate::protocol::asset::{AssetIdentifier, AssetMetadata, AssetRegistry, Chain};
+use crate::protocol::asset::AssetRegistry;
 use crate::protocol::bitcoin::BitcoinManager;
 use crate::protocol::bitvm::BitVmManager;
 use crate::protocol::business::BusinessRegistry;
@@ -11,14 +11,12 @@ use crate::protocol::chain_abstraction::ChainAbstractionService;
 use crate::protocol::credit::CreditService;
 use crate::protocol::dlc::DlcManager;
 use crate::protocol::ethereum::EthereumManager;
-use crate::protocol::fiat::{FiatOnRampRequest, FiatRouterService};
-use crate::protocol::intent::{SwapIntent, SwapRequest, SwapResponse};
+use crate::protocol::fiat::FiatRouterService;
+use crate::protocol::intent::{SwapIntent, SwapRequest};
 use crate::protocol::mmr::MmrService;
 use crate::protocol::rails::{RailProxy, SovereignHandshake};
-use crate::protocol::sidl::SidlService;
 use crate::protocol::solana::SolanaManager;
 use crate::protocol::zkml::ZkmlService;
-use crate::telemetry::TelemetryClient;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
@@ -64,7 +62,7 @@ impl ConclaveWasmClient {
         let rails = Arc::new(RailProxy::new(
             config.gateway_url.clone(),
             client.clone(),
-            asset_registry,
+            asset_registry.clone(),
             business_registry,
         ));
 
@@ -117,19 +115,25 @@ impl ConclaveWasmClient {
 
     pub fn universal(&self) -> WasmUniversalClient {
         WasmUniversalClient {
-            inner: Arc::new(ChainAbstractionService::new(self.enclave.clone())),
+            inner: Arc::new(ChainAbstractionService::new(
+                self.enclave.clone(),
+                self.rails.registry.clone(),
+            )),
         }
     }
 
     pub fn dlc(&self) -> WasmDlcClient {
         WasmDlcClient {
-            inner: Arc::new(crate::protocol::dlc::DlcManager::new(self.enclave.clone())),
+            inner: Arc::new(crate::protocol::dlc::DlcManager::new()),
         }
     }
 
     pub fn zkml(&self) -> WasmZkmlClient {
         WasmZkmlClient {
-            inner: Arc::new(ZkmlService::new(self.config.gateway_url.clone())),
+            inner: Arc::new(ZkmlService::new(
+                self.config.gateway_url.clone(),
+                reqwest::Client::new(),
+            )),
         }
     }
 
@@ -206,8 +210,8 @@ impl WasmSwapClient {
     }
 
     pub async fn prepare_fiat_session(&self, request: JsValue) -> Result<JsValue, JsValue> {
-        let req: crate::protocol::fiat::FiatOnRampRequest = serde_wasm_bindgen::from_value(request)
-            .map_err(|_| JsValue::from_str("Invalid request format"))?;
+        let req: crate::protocol::fiat::FiatOnRampRequest =
+            serde_wasm_bindgen::from_value(request).map_err(|_| JsValue::from_str("Invalid request format"))?;
         let intent = self.fiat.prepare_session(req);
         serde_wasm_bindgen::to_value(&intent).map_err(to_js_error)
     }
