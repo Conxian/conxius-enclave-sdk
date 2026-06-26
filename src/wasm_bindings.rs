@@ -9,11 +9,12 @@ use crate::protocol::bitvm::BitVmManager;
 use crate::protocol::business::BusinessRegistry;
 use crate::protocol::chain_abstraction::ChainAbstractionService;
 use crate::protocol::credit::CreditService;
-use crate::protocol::dlc::{DlcManager, DlcState};
+use crate::protocol::dlc::DlcManager;
 use crate::protocol::ethereum::EthereumManager;
 use crate::protocol::fiat::{FiatOnRampRequest, FiatRouterService};
+use crate::protocol::intent::{SwapIntent, SwapRequest, SwapResponse};
 use crate::protocol::mmr::MmrService;
-use crate::protocol::rails::{RailProxy, SovereignHandshake, SwapIntent};
+use crate::protocol::rails::{RailProxy, SovereignHandshake};
 use crate::protocol::sidl::SidlService;
 use crate::protocol::solana::SolanaManager;
 use crate::protocol::zkml::ZkmlService;
@@ -32,222 +33,160 @@ pub struct SdkConfig {
 
 #[wasm_bindgen]
 pub struct ConclaveWasmClient {
-    #[allow(dead_code)]
-    config: SdkConfig,
-    enclave: Arc<dyn EnclaveManager>,
-    assets: Arc<AssetRegistry>,
-    #[allow(dead_code)]
-    businesses: Arc<BusinessRegistry>,
-    rails: Arc<RailProxy>,
-    fiat: Arc<FiatRouterService>,
-    credit: Arc<CreditService>,
-    #[allow(dead_code)]
-    a2p: Arc<A2pRouterService>,
-    #[allow(dead_code)]
-    mmr: Arc<MmrService>,
-    #[allow(dead_code)]
-    zkml: Arc<ZkmlService>,
-    #[allow(dead_code)]
-    sidl: Arc<SidlService>,
-    #[allow(dead_code)]
-    identity: Arc<crate::protocol::identity::IdentityManager>,
-    #[allow(dead_code)]
-    dlc: Arc<DlcManager>,
-    #[allow(dead_code)]
-    universal: Arc<ChainAbstractionService>,
-    #[allow(dead_code)]
-    ark: Arc<ArkManager>,
-    #[allow(dead_code)]
-    bitvm: Arc<BitVmManager>,
-    #[allow(dead_code)]
-    telemetry: Option<Arc<TelemetryClient>>,
-    #[allow(dead_code)]
-    http_client: reqwest::Client,
-}
-
-fn to_js_error<E: std::fmt::Display>(e: E) -> JsValue {
-    JsValue::from_str(&e.to_string())
+    pub(crate) config: SdkConfig,
+    pub(crate) enclave: Arc<dyn EnclaveManager>,
+    pub(crate) rails: Arc<RailProxy>,
+    pub(crate) fiat: Arc<FiatRouterService>,
+    pub(crate) a2p: Arc<A2pRouterService>,
+    pub(crate) mmr: Arc<MmrService>,
+    pub(crate) credit: Arc<CreditService>,
 }
 
 #[wasm_bindgen]
 impl ConclaveWasmClient {
     #[wasm_bindgen(constructor)]
-    pub fn new(gateway_url: &str, use_cloud: bool) -> Result<ConclaveWasmClient, JsValue> {
-        let config = SdkConfig {
-            gateway_url: gateway_url.to_string(),
-            enforce_attestation: true,
+    pub fn new(config_json: JsValue, enclave_type: &str) -> Result<ConclaveWasmClient, JsValue> {
+        let config: SdkConfig = serde_wasm_bindgen::from_value(config_json)
+            .map_err(|_| JsValue::from_str("Invalid config JSON"))?;
+
+        let enclave: Arc<dyn EnclaveManager> = match enclave_type {
+            "cloud" => {
+                Arc::new(CloudEnclave::new(config.gateway_url.clone()).map_err(|e| e.to_string())?)
+            }
+            "android" => Arc::new(CoreEnclaveManager::new()),
+            _ => return Err(JsValue::from_str("Unsupported enclave type")),
         };
 
-        let enclave: Arc<dyn EnclaveManager> = if use_cloud {
-            Arc::new(CloudEnclave::new(gateway_url.to_string()).map_err(to_js_error)?)
-        } else {
-            Arc::new(CoreEnclaveManager::new())
-        };
+        let asset_registry = Arc::new(AssetRegistry::new());
+        let business_registry = Arc::new(BusinessRegistry::new());
+        let client = reqwest::Client::new();
 
-        let assets = Arc::new(AssetRegistry::new());
-        let businesses = Arc::new(BusinessRegistry::new());
-        let http_client = reqwest::Client::new();
-        let telemetry = None;
-
-        let rails_obj = RailProxy::new(
-            gateway_url.to_string(),
-            http_client.clone(),
-            assets.clone(),
-            businesses.clone(),
-        );
-
-        let rails = Arc::new(rails_obj);
-        let fiat = Arc::new(FiatRouterService::new(
-            gateway_url.to_string(),
-            http_client.clone(),
+        let rails = Arc::new(RailProxy::new(
+            config.gateway_url.clone(),
+            client.clone(),
+            asset_registry,
+            business_registry,
         ));
-        let credit = Arc::new(CreditService::new(
-            gateway_url.to_string(),
-            http_client.clone(),
+
+        let fiat = Arc::new(FiatRouterService::new(
+            config.gateway_url.clone(),
+            client.clone(),
         ));
         let a2p = Arc::new(A2pRouterService::new(
-            gateway_url.to_string(),
-            http_client.clone(),
+            config.gateway_url.clone(),
+            client.clone(),
         ));
-        let mmr = Arc::new(MmrService::new(
-            gateway_url.to_string(),
-            http_client.clone(),
+        let mmr = Arc::new(MmrService::new(config.gateway_url.clone(), client.clone()));
+        let credit = Arc::new(CreditService::new(
+            config.gateway_url.clone(),
+            client.clone(),
         ));
-        let zkml = Arc::new(ZkmlService::new(
-            gateway_url.to_string(),
-            http_client.clone(),
-        ));
-        let sidl = Arc::new(SidlService::new(
-            gateway_url.to_string(),
-            http_client.clone(),
-        ));
-        let identity = Arc::new(crate::protocol::identity::IdentityManager::new(
-            enclave.clone(),
-        ));
-        let dlc = Arc::new(DlcManager::with_enclave(enclave.clone()));
-        let universal = Arc::new(ChainAbstractionService::new(
-            enclave.clone(),
-            assets.clone(),
-        ));
-        let ark = Arc::new(ArkManager::new(enclave.clone()));
-        let bitvm = Arc::new(BitVmManager::new(enclave.clone()));
 
-        Ok(Self {
+        Ok(ConclaveWasmClient {
             config,
             enclave,
-            assets,
-            businesses,
             rails,
             fiat,
-            credit,
             a2p,
             mmr,
-            zkml,
-            sidl,
-            identity,
-            dlc,
-            universal,
-            ark,
-            bitvm,
-            telemetry,
-            http_client,
+            credit,
         })
     }
 
-    pub async fn unlock_enclave(&self, secret: &str, salt: &str) -> Result<(), JsValue> {
-        let salt_bytes = hex::decode(salt).map_err(|_| JsValue::from_str("Invalid salt hex"))?;
-        self.enclave
-            .unlock(secret, &salt_bytes)
-            .map_err(to_js_error)
-    }
-
-    pub fn register_asset(
-        &self,
-        chain: &str,
-        symbol: &str,
-        name: &str,
-        decimals: u8,
-        contract: Option<String>,
-    ) {
-        let chain_enum = match chain.to_uppercase().as_str() {
-            "BITCOIN" => Chain::BITCOIN,
-            "ETHEREUM" => Chain::ETHEREUM,
-            "STACKS" => Chain::STACKS,
-            "SOLANA" => Chain::SOLANA,
-            "ROOTSTOCK" => Chain::ROOTSTOCK,
-            "BOB" => Chain::BOB,
-            "MEZO" => Chain::MEZO,
-            "BABYLON" => Chain::BABYLON,
-            "BOTANIX" => Chain::BOTANIX,
-            "CITREA" => Chain::CITREA,
-            "COSMOS" => Chain::COSMOS,
-            _ => Chain::BITCOIN,
-        };
-        let id = AssetIdentifier {
-            chain: chain_enum,
-            symbol: symbol.to_string(),
-        };
-        let metadata = AssetMetadata {
-            name: name.to_string(),
-            decimals,
-            contract_address: contract,
-            active: true,
-        };
-        self.assets.register_asset(id, metadata);
-    }
-
-    pub fn ethereum(&self) -> WasmEthereumManager {
-        WasmEthereumManager {
+    pub fn signing(&self) -> WasmSigningClient {
+        WasmSigningClient {
             enclave: self.enclave.clone(),
         }
     }
 
-    pub fn solana(&self) -> WasmSolanaManager {
-        WasmSolanaManager {
-            enclave: self.enclave.clone(),
-        }
-    }
-
-    pub fn bitcoin(&self) -> WasmBitcoinManager {
-        WasmBitcoinManager {
-            inner: BitcoinManager::new(self.enclave.clone()),
+    pub fn swaps(&self) -> WasmSwapClient {
+        WasmSwapClient {
+            rails: self.rails.clone(),
+            fiat: self.fiat.clone(),
+            credit: self.credit.clone(),
         }
     }
 
     pub fn identity(&self) -> WasmIdentityClient {
         WasmIdentityClient {
-            inner: self.identity.clone(),
+            inner: Arc::new(crate::protocol::identity::IdentityManager::new(
+                self.enclave.clone(),
+            )),
         }
     }
 
     pub fn universal(&self) -> WasmUniversalClient {
         WasmUniversalClient {
-            inner: self.universal.clone(),
+            inner: Arc::new(ChainAbstractionService::new(self.enclave.clone())),
         }
     }
 
     pub fn dlc(&self) -> WasmDlcClient {
         WasmDlcClient {
-            inner: self.dlc.clone(),
+            inner: Arc::new(crate::protocol::dlc::DlcManager::new(self.enclave.clone())),
         }
     }
 
     pub fn zkml(&self) -> WasmZkmlClient {
         WasmZkmlClient {
-            inner: self.zkml.clone(),
+            inner: Arc::new(ZkmlService::new(self.config.gateway_url.clone())),
         }
     }
 
     pub fn ark(&self) -> WasmArkClient {
         WasmArkClient {
-            inner: self.ark.clone(),
+            inner: Arc::new(ArkManager::new(self.enclave.clone())),
         }
     }
 
     pub fn bitvm(&self) -> WasmBitVmClient {
         WasmBitVmClient {
-            inner: self.bitvm.clone(),
+            inner: Arc::new(BitVmManager::new(self.enclave.clone())),
         }
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmSigningClient {
+    #[wasm_bindgen(skip)]
+    pub enclave: Arc<dyn EnclaveManager>,
+}
+
+#[wasm_bindgen]
+impl WasmSigningClient {
+    pub fn get_public_key(&self, derivation_path: &str) -> Result<String, JsValue> {
+        self.enclave
+            .get_public_key(derivation_path)
+            .map_err(to_js_error)
+    }
+
+    pub fn sign(&self, request: JsValue) -> Result<JsValue, JsValue> {
+        let req = serde_wasm_bindgen::from_value(request).map_err(to_js_error)?;
+        let response = self.enclave.sign(req).map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&response).map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmSwapClient {
+    #[wasm_bindgen(skip)]
+    pub rails: Arc<RailProxy>,
+    #[wasm_bindgen(skip)]
+    pub fiat: Arc<FiatRouterService>,
+    #[wasm_bindgen(skip)]
+    pub credit: Arc<CreditService>,
+}
+
+#[wasm_bindgen]
+impl WasmSwapClient {
+    pub fn prepare_intent(&self, rail_name: &str, request: JsValue) -> Result<JsValue, JsValue> {
+        let req: SwapRequest = serde_wasm_bindgen::from_value(request)
+            .map_err(|_| JsValue::from_str("Invalid request format"))?;
+        let intent = self
+            .rails
+            .prepare_intent(rail_name, req, None)
+            .map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&intent).map_err(to_js_error)
     }
 
     pub async fn execute_swap(
@@ -267,7 +206,7 @@ impl ConclaveWasmClient {
     }
 
     pub async fn prepare_fiat_session(&self, request: JsValue) -> Result<JsValue, JsValue> {
-        let req: FiatOnRampRequest = serde_wasm_bindgen::from_value(request)
+        let req: crate::protocol::fiat::FiatOnRampRequest = serde_wasm_bindgen::from_value(request)
             .map_err(|_| JsValue::from_str("Invalid request format"))?;
         let intent = self.fiat.prepare_session(req);
         serde_wasm_bindgen::to_value(&intent).map_err(to_js_error)
@@ -627,7 +566,10 @@ impl WasmCovenantClient {
         template_hash_hex: &str,
     ) -> Result<JsValue, JsValue> {
         let pk_bytes = hex::decode(internal_key_hex).map_err(to_js_error)?;
-        let pk = bitcoin::XOnlyPublicKey::from_slice(&pk_bytes).map_err(to_js_error)?;
+        let pk_arr: [u8; 32] = pk_bytes
+            .try_into()
+            .map_err(|_| JsValue::from_str("Invalid key length"))?;
+        let pk = bitcoin::XOnlyPublicKey::from_byte_array(&pk_arr).map_err(to_js_error)?;
         let hash_bytes = hex::decode(template_hash_hex).map_err(to_js_error)?;
         let hash: [u8; 32] = hash_bytes
             .try_into()
@@ -653,4 +595,8 @@ impl ConclaveWasmClient {
             inner: crate::protocol::covenant::CovenantManager,
         }
     }
+}
+
+fn to_js_error<E: std::fmt::Display>(e: E) -> JsValue {
+    JsValue::from_str(&e.to_string())
 }
