@@ -69,3 +69,16 @@ wasm-pack build
 ## License
 
 MIT
+
+## Integration Testing & Feature Flags
+
+The SDK provides several feature flags to support different execution environments:
+
+- **default**: Standard production path with mandatory hardware attestation.
+- **mock_enclave**: Enables a software-backed mock enclave for local integration testing. **Strictly prohibited in production.**
+- **wasm**: Enables WebAssembly bindings and optimized targets for browser environments.
+
+To run tests with the mock enclave:
+\`\`\`bash
+cargo test --features mock_enclave
+\`\`\`
