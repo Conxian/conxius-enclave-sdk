@@ -17,7 +17,7 @@ This document tracks missing production-path logic, architectural gaps, and rese
 - **Reference**: [BitVM2: Bridging Bitcoin to Everywhere](https://bitvm.org/bitvm2.pdf)
 - **Criticality**: High
 - **Complexity**: High
-- **Status**: Researching
+- **Status**: Completed
 - **Owner**: Jules
 
 ### 2. Ark Stateless Recovery Scan
@@ -37,7 +37,7 @@ This document tracks missing production-path logic, architectural gaps, and rese
 - **Reference**: [ERC-7683: Cross-Chain Intent Standard](https://erc7683.org/)
 - **Criticality**: Medium
 - **Complexity**: Medium
-- **Status**: Pending
+- **Status**: Completed
 - **Owner**: Jules
 
 ### 4. OP_CAT Recursive Covenants (CON-1303)
@@ -47,7 +47,7 @@ This document tracks missing production-path logic, architectural gaps, and rese
 - **Reference**: [BIP-347: OP_CAT in Tapscript](https://github.com/bitcoin/bips/blob/master/bip-0347.mediawiki)
 - **Criticality**: High
 - **Complexity**: High
-- **Status**: Researching
+- **Status**: Completed
 - **Owner**: Jules
 
 ### 5. FROST Threshold Signatures (CON-1302)
@@ -57,7 +57,7 @@ This document tracks missing production-path logic, architectural gaps, and rese
 - **Reference**: [IETF RFC 9591: FROST](https://datatracker.ietf.org/doc/rfc9591/)
 - **Criticality**: High
 - **Complexity**: High
-- **Status**: Pending
+- **Status**: Researching
 - **Owner**: Jules
 
 ### 6. Fedimint Community Liquidity Adapter (CON-1304)
