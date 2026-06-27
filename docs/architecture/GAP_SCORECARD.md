@@ -1,50 +1,44 @@
-# Conclave SDK: Research & Implementation Gap Scorecard (v2.0.0)
+# Conclave SDK: Research & Implementation Gap Scorecard (v2.0.2)
 
 ## Overview
-This document tracks the resolution of production-path logic, architectural gaps, and research requirements for the Conclave SDK v2.0.0.
+This document tracks the resolution of production-path logic, architectural gaps, and research requirements for the Conclave SDK v2.0.2.
 
 ## Scorecard Criteria
 - **Criticality**: [High, Medium, Low]
 - **Complexity**: [High, Medium, Low]
 - **Status**: [Completed]
 
-## Technical Resolutions (v2.0.0)
+## Technical Resolutions (v2.0.2)
 
-### 1. BitVM2 Multi-Party Aggregation
+### 1. Hardened BIP-322 Verification
+- **Resolution**: Replaced virtual transaction stubs with functional `rust-bitcoin` construction for SegWit proof-of-ownership.
+- **Status**: Completed (v2.0.2)
+
+### 2. FROST DKG Round 1 Implementation
+- **Resolution**: Implemented RFC 9591 Round 1 commitment and proof-of-knowledge generation.
+- **Status**: Completed (v2.0.2)
+
+### 3. Hardened Fedimint OPR
+- **Resolution**: Implemented local blinding and structural Oblivious Proof of Reserve (OPR) verification.
+- **Status**: Completed (v2.0.2)
+
+### 4. Hardened Hardware Attestation
+- **Resolution**: Enforced root-of-trust verification and hardware-backed signaling for TEE/StrongBox reports.
+- **Status**: Completed (v2.0.2)
+
+### 5. BitVM2 Multi-Party Aggregation
 - **Resolution**: Implemented MuSig2-based Taproot tree aggregation in `src/protocol/bitvm.rs`.
-- **Reference**: [BitVM2 Whitepaper](https://bitvm.org/bitvm2.pdf)
-- **Status**: Completed
+- **Status**: Completed (v2.0.0)
 
-### 2. Ark Stateless Recovery Scan
+### 6. Ark Stateless Recovery Scan
 - **Resolution**: Implemented `recovery_scan` using Blake2s PRF in `src/protocol/ark.rs`.
-- **Reference**: [Ark Protocol](https://ark-protocol.org/)
-- **Status**: Completed
+- **Status**: Completed (v2.0.0)
 
-### 3. ERC-7683 Solver Selection Algorithm
-- **Resolution**: Implemented heuristic bidding and ranking in `src/protocol/solver.rs` and integrated into `RailProxy`.
-- **Reference**: [ERC-7683 Standard](https://erc7683.org/)
-- **Status**: Completed
-
-### 4. OP_CAT Recursive Covenants
-- **Resolution**: Implemented BIP-347 script primitives in `src/protocol/covenant.rs`.
-- **Reference**: [BIP-347](https://github.com/bitcoin/bips/blob/master/bip-0347.mediawiki)
-- **Status**: Completed
-
-### 5. FROST Threshold Signatures
-- **Resolution**: Implemented RFC 9591 foundational manager in `src/protocol/frost.rs`.
-- **Reference**: [IETF RFC 9591](https://datatracker.ietf.org/doc/rfc9591/)
-- **Status**: Completed
-
-### 6. BIP-322 Universal Message Signing
-- **Resolution**: Implemented `Bip322Bridge` in `src/protocol/bip322.rs`.
-- **Reference**: [BIP-322](https://github.com/bitcoin/bips/blob/master/bip-0322.mediawiki)
-- **Status**: Completed
-
-### 7. Fedimint Community Liquidity Adapter
-- **Resolution**: Implemented `FedimintAdapter` with federation boundary validation and e-cash proof stubs in `src/protocol/nexus/fedimint.rs`.
-- **Status**: Completed
+### 7. ERC-7683 Solver Selection Algorithm
+- **Resolution**: Implemented heuristic bidding and ranking in `src/protocol/solver.rs`.
+- **Status**: Completed (v2.0.0)
 
 ## Research Archive
-- **Solana/NEAR Hardware Attestation**: Verified with Ed25519 cert chains.
-- **Universal Chain Support**: Address derivation for XRP and Stellar verified.
-- **FDC3 Treasury Handshake**: Integrated into intent preparation.
+- **BIP-347 OP_CAT**: Script primitives verified in `src/protocol/covenant.rs`.
+- **Universal Chain Support**: Address derivation for XRP, Stellar, and NEAR verified.
+- **FDC3 Treasury Handshake**: Context-aware intent resolution implemented.

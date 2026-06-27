@@ -1,6 +1,6 @@
-# Conclave SDK System Alignment Report (v2.0.0)
+# Conclave SDK System Alignment Report (v2.0.2)
 
-## Status: v2.0.0 Aligned (Production Ready)
+## Status: v2.0.2 Aligned (Hardened)
 
 ### Universal Orchestration Architecture
 1. **Multi-Chain Execution**: High-performance Rust engines using Alloy-rs and BDK for EVM and Bitcoin.
@@ -9,15 +9,16 @@
 4. **Sovereign Attribution**: Business-grade cryptographic attribution and telemetry.
 
 ### Advanced Bitcoin Primitives
+- **Hardened BIP-322 Verification**: Universal proof-of-ownership with virtual transaction construction.
+- **FROST DKG Round 1**: RFC 9591 Round 1 commitment orchestration for institutional vaults.
+- **Hardened Fedimint OPR**: local blinding and structural OPR (Oblivious Proof of Reserve) for community mints.
 - **BitVM2 Aggregation**: MuSig2-based Taproot tree aggregation for 364-tap verification floor.
 - **Ark Stateless Recovery**: Blake2s PRF-based V-UTXO restoration from master seed.
 - **OP_CAT Covenants**: BIP-347 script generation for recursive vaults.
-- **BIP-322 Signing**: Universal proof-of-ownership for Bitcoin addresses.
-- **FROST Threshold**: RFC 9591 threshold signature orchestration for institutional vaults.
 
 ### Universal Asset Support
 - **Registry**: 30+ chains supported including Bitcoin (L1/L2), EVM, Solana, Cosmos, XRP, and Stellar.
-- **Regional Stablecoins**: Broad support for Global South and emerging market currencies (ZARP, NGNC, BRLA, JPYC, EURC, etc.).
+- **Hardened Attestation**: Root-of-trust verification and mandatory hardware signaling for Solana/NEAR.
 - **Institutional Handshake**: FDC3 support for treasury desk integration.
 
 ### Observability & Security
@@ -28,4 +29,4 @@
 ## Release Metadata
 - **Canonical Name**: lib-conclave-sdk
 - **Branding**: Conclave SDK
-- **Maturity**: Bleeding Edge / Production Path
+- **Maturity**: Bleeding Edge / Production Path (Hardened)
