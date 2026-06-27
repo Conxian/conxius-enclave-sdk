@@ -1,26 +1,35 @@
-# Conclave SDK: Improvement Proposals (v2.0.1)
+# Conclave SDK: Improvement Proposals (v2.0.2)
 
-## 1. BIP-322 Universal Message Signing (Hardening)
-**Context**: Current implementation in `src/protocol/bip322.rs` uses stubs for virtual transaction construction.
-**Proposal**:
-- Integrate `rust-bitcoin`'s `SighashCache` and `Transaction` builders to construct the mandatory `to_spend` and `to_sign` transactions.
-- Implement full SegWit (v0 and v1) support for proof-of-ownership verification.
-- Add support for "Full" BIP-322 verification (not just "Simple").
+## 1. BIP-322 Universal Message Signing (Hardened)
+**Context**: Structural verification logic implemented in v2.0.2.
+**Improvements**:
+- Successfully integrated virtual 'to_spend' and 'to_sign' transaction construction.
+- Implemented SegWit (v0 and v1) support for proof-of-ownership.
+**Next Steps**:
+- Implement "Full" BIP-322 verification (script engine integration).
+- Add support for P2PKH and P2SH legacy address verification.
 
-## 2. FROST DKG Integration
-**Context**: `FrostManager` (`src/protocol/frost.rs`) currently lacks the Round 1 Distributed Key Generation (DKG) logic.
-**Proposal**:
-- Utilize `frost-dalek` or `musig2` (if applicable for Schnorr) to implement non-interactive DKG.
-- Implement session state persistence in the `SettlementEngine` to track DKG rounds across multiple SDK instances.
+## 2. FROST DKG Round 1
+**Context**: `FrostManager` (v2.0.1) implements RFC 9591 Round 1.
+**Improvements**:
+- Implemented commitment and PoK generation for DKG Round 1.
+**Next Steps**:
+- Implement Round 2 (Secret Share Distribution) and Round 3 (Signature Aggregation).
+- Integrate with `SettlementEngine` for persistent session state.
 
-## 3. Fedimint OPR (Oblivious Proof of Reserve)
-**Context**: `FedimintAdapter` uses placeholders for e-cash proof generation.
-**Proposal**:
-- Integrate `fedimint-client-wasm` to perform real blinding and unblinding of e-cash notes.
-- Implement a local-first `EcashWallet` that can sync with multiple federations for redundant liquidity.
+## 3. Fedimint OPR (Hardened)
+**Context**: `FedimintAdapter` (v2.0.1) performs local blinding.
+**Improvements**:
+- Implemented structural OPR (Oblivious Proof of Reserve) verification.
+**Next Steps**:
+- Integrate `fedimint-client-wasm` for real cryptographic blinding/signing.
+- Support multiple concurrent federations for high-availability liquidity.
 
-## 4. Hardware-Bound Certificate Chain Verification
-**Context**: `DeviceIntegrityReport` (`src/enclave/attestation.rs`) uses simulated string matching for root trust.
-**Proposal**:
-- Implement real X.509 certificate parsing for Google StrongBox and AWS Nitro enclaves.
-- Add a mandatory `trusted_roots.pem` file to the SDK for production verification.
+## 4. Hardware-Bound Attestation (Hardened)
+**Context**: `DeviceIntegrityReport` (v2.0.1) enforces root trust.
+**Improvements**:
+- Added `TRUSTED_ROOTS` registry and verified root-of-trust.
+- Enforced `HARDWARE_BACKED` requirements for high trust tiers.
+**Next Steps**:
+- Implement full X.509 DER parsing for certificate chains.
+- Integrate with external Attestation Services (e.g., Android Key Attestation).

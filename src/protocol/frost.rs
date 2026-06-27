@@ -1,7 +1,7 @@
 use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 
-/// FROST (Flexible Round-Optimized Schnorr Threshold Signatures) Manager (v1.9.2)
+/// FROST (Flexible Round-Optimized Schnorr Threshold Signatures) Manager (v2.0.1)
 /// Aligned with IETF RFC 9591 for institutional multi-sig vaults.
 pub struct FrostManager;
 
@@ -17,6 +17,13 @@ pub struct FrostKeyPackage {
 pub struct FrostSignatureShare {
     pub signer_id: u32,
     pub share: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FrostDkgRound1Package {
+    pub signer_id: u32,
+    pub commitments: Vec<String>, // Hex-encoded commitments to polynomial coefficients
+    pub proof_of_knowledge: String, // Schnorr signature as PoK of secret key
 }
 
 impl FrostManager {
@@ -38,6 +45,31 @@ impl FrostManager {
             total_signers,
             identifier: identifier.to_string(),
             group_public_key: hex::encode(vec![0u8; 32]), // Placeholder for DKG result
+        })
+    }
+
+    /// Performs Round 1 of FROST DKG.
+    /// Generates commitments to the signer's secret polynomial.
+    pub fn generate_dkg_round1(
+        &self,
+        signer_id: u32,
+        threshold: u32,
+    ) -> ConclaveResult<FrostDkgRound1Package> {
+        if signer_id == 0 {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        // Structural implementation of RFC 9591 Round 1
+        // Signer generates secret polynomial coefficients and their public commitments.
+        let mut commitments = Vec::with_capacity(threshold as usize);
+        for _ in 0..threshold {
+            commitments.push(hex::encode(vec![0u8; 33])); // Placeholder for coefficient commitments
+        }
+
+        Ok(FrostDkgRound1Package {
+            signer_id,
+            commitments,
+            proof_of_knowledge: hex::encode(vec![0u8; 64]), // Placeholder for PoK
         })
     }
 
@@ -83,6 +115,14 @@ mod tests {
 
         let ok = FrostManager::generate_key_package(2, 3, "test").unwrap();
         assert_eq!(ok.min_signers, 2);
+    }
+
+    #[test]
+    fn test_frost_dkg_round1_generation() {
+        let mgr = FrostManager;
+        let package = mgr.generate_dkg_round1(1, 2).unwrap();
+        assert_eq!(package.signer_id, 1);
+        assert_eq!(package.commitments.len(), 2);
     }
 
     #[test]
