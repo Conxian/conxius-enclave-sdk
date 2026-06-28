@@ -2,6 +2,7 @@
 name = "lib-conclave-sdk"
 version = "0.2.0"
 license = "MIT"
+rust-version = "1.85"
 edition = "2024"
 
 [features]
