@@ -1,6 +1,6 @@
-# Conclave SDK System Alignment Report (v2.0.2)
+# Conclave SDK System Alignment Report (v2.0.3)
 
-## Status: v2.0.2 Aligned (Hardened)
+## Status: v2.0.3 Aligned (Hardened)
 
 ### Universal Orchestration Architecture
 1. **Multi-Chain Execution**: High-performance Rust engines using Alloy-rs and BDK for EVM and Bitcoin.
@@ -9,7 +9,7 @@
 4. **Sovereign Attribution**: Business-grade cryptographic attribution and telemetry.
 
 ### Advanced Bitcoin Primitives
-- **Hardened BIP-322 Verification**: Universal proof-of-ownership with virtual transaction construction.
+- **Hardened BIP-322 Verification**: Full proof-of-ownership support for P2PKH, P2SH, SegWit, and Taproot.
 - **FROST DKG Round 1**: RFC 9591 Round 1 commitment orchestration for institutional vaults.
 - **Hardened Fedimint OPR**: local blinding and structural OPR (Oblivious Proof of Reserve) for community mints.
 - **BitVM2 Aggregation**: MuSig2-based Taproot tree aggregation for 364-tap verification floor.

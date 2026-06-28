@@ -23,6 +23,8 @@ pub enum ConclaveError {
     NetworkError(String),
     #[error("Rail Error: {0}")]
     RailError(String),
+    #[error("Unsupported Chain or Feature: {0}")]
+    Unsupported(String),
 }
 
 #[cfg(target_arch = "wasm32")]
