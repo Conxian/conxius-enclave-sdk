@@ -8,12 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Trust-tier enforcement in `SettlementService` (CON-801).
-- `/maintenance` directory for operational artifacts (CON-823).
+- Hardened BIP-322 Verification: Full proof-of-ownership support for Legacy (P2PKH, P2SH), SegWit, and Taproot addresses.
+- `Unsupported` variant to `ConclaveError` for explicit 'Fail-Closed' feature gating.
+- `base64` dependency for secure signature witness decoding in Bitcoin protocols.
 
 ### Changed
-- Normalized default branch from `master` to `main` across all documentation and automation (CON-822).
-- Remediated CI failure by removing blocked dependency-review workflow (CON-794).
+- Updated `GAP_SCORECARD.md` and `SYSTEM_ALIGNMENT.md` to v2.0.3 status.
+- Expanded BIP-322 test suite to include mainnet legacy address validation.
 
 ## [0.2.0] - 2026-05-14
 
