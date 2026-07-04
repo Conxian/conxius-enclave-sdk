@@ -1,15 +1,33 @@
-# Conclave SDK: Improvement Proposals (v2.0.4)
+# Conclave SDK: Improvement Proposals (v2.0.5)
 
-## 1. FROST Round 2 (Secret Share Distribution)
-**Context**: `FrostManager` (v2.0.4) implements RFC 9591 Round 2.
+## 1. FROST Round 3 (Signature Aggregation)
+**Context**: `FrostManager` (v2.0.5) implements hardened structural implementation of RFC 9591.
 **Improvements**:
-- Implemented encrypted secret share generation for participants.
-- Added structural verification for received shares.
+- Implemented signature share aggregation with bound message/group public key commitment.
+- Hardened Round 1/2 key generation with participant-bound commitments.
 **Next Steps**:
-- Implement Round 3 (Signature Aggregation).
+- Fully integrate `frost-dalek` or `roast` for production-grade finite field arithmetic.
 - Integrate with `SettlementEngine` for persistent session state.
 
-## 2. Hardware Attestation (X.509 Hardened)
+## 2. Hardened Fedimint Blinding
+**Context**: `FedimintAdapter` (v2.0.5) performs real cryptographic blinding on Secp256k1.
+**Improvements**:
+- Transitioned to real Chaumian blinding factors (Scalar/PublicKey tweaks).
+- Implemented unblinding verification against simulated federation secret keys.
+**Next Steps**:
+- Integrate `fedimint-client-wasm` for real-world federation interaction.
+- Support multiple concurrent federations.
+
+## 3. Ark Protocol Stateless Recovery (Hardened)
+**Context**: `ArkManager` (v2.0.5) supports hardened V-UTXO discovery.
+**Improvements**:
+- Implemented bound discovery hashes for V-UTXO lookup.
+- Hardened gap-limit logic for stateless scans.
+**Next Steps**:
+- Implement real `reqwest` integration for production ASP APIs.
+- Support Ark Round 2 (vTXO tree construction).
+
+## 4. Hardware Attestation (X.509 Hardened)
 **Context**: `DeviceIntegrityReport` (v2.0.4) enforces structural X.509 verification.
 **Improvements**:
 - Integrated `x509-cert` crate for DER parsing.
@@ -18,16 +36,7 @@
 - Implement full certificate path validation (signatures).
 - Integrate with external Attestation Services (e.g., Android Key Attestation).
 
-## 3. Hardened Fedimint Blinding
-**Context**: `FedimintAdapter` (v2.0.4) performs bound blinding.
-**Improvements**:
-- Replaced string-based stubs with SHA-256 bound blinding factors.
-- Expanded note model to include unblinded signatures.
-**Next Steps**:
-- Integrate `fedimint-client-wasm` for real cryptographic blinding/signing.
-- Support multiple concurrent federations.
-
-## 4. FDC3 Treasury Handshake
+## 5. FDC3 Treasury Handshake
 **Context**: `RailProxy` (v2.0.4) supports FDC3 intent resolution.
 **Improvements**:
 - Deep integration of `fdc3.instrument` into the intent preparation path.
