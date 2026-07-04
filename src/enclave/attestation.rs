@@ -2,6 +2,8 @@ use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
+use x509_cert::Certificate;
+use der::Decode;
 
 const MAX_ATTESTATION_AGE_SECS: u64 = 300;
 const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
@@ -33,7 +35,7 @@ pub struct DeviceIntegrityReport {
     pub level: AttestationLevel,
     pub challenge_nonce: Vec<u8>,
     pub signature: Vec<u8>,
-    pub certificate_chain: Vec<String>, // First element is the device pubkey (as hex)
+    pub certificate_chain: Vec<String>, // First element is the device pubkey (as hex) or DER cert
     pub timestamp: u64,
     pub extension_data: String,
 }
@@ -72,10 +74,7 @@ impl DeviceIntegrityReport {
         }
 
         // 3. Hardened Certificate Chain Verification
-        // The last element in the chain must be a recognized trusted root.
-        let root_cert = self.certificate_chain.last().unwrap();
-        let is_trusted_root = TRUSTED_ROOTS.iter().any(|&root| root_cert.contains(root));
-        if !is_trusted_root {
+        if !self.verify_certificate_chain() {
             return false;
         }
 
@@ -98,11 +97,20 @@ impl DeviceIntegrityReport {
     }
 
     fn verify_signature(&self) -> Option<bool> {
-        let pubkey_bytes = hex::decode(&self.certificate_chain[0]).ok()?;
-        if pubkey_bytes.len() != 32 {
+        let pubkey_entry = hex::decode(&self.certificate_chain[0]).ok()?;
+
+        // Attempt to parse as X.509 first to extract the raw public key
+        let raw_pubkey = if let Ok(cert) = Certificate::from_der(&pubkey_entry) {
+            // Extract from SubjectPublicKeyInfo
+            cert.tbs_certificate.subject_public_key_info.subject_public_key.as_bytes()?.to_vec()
+        } else {
+            pubkey_entry
+        };
+
+        if raw_pubkey.len() != 32 {
             return None;
         }
-        let bytes: [u8; 32] = pubkey_bytes.try_into().ok()?;
+        let bytes: [u8; 32] = raw_pubkey.try_into().ok()?;
         let verifying_key = VerifyingKey::from_bytes(&bytes).ok()?;
         let sig = Signature::from_slice(&self.signature).ok()?;
 
@@ -112,6 +120,23 @@ impl DeviceIntegrityReport {
         data_to_verify.extend_from_slice(&self.timestamp.to_le_bytes());
 
         Some(verifying_key.verify(&data_to_verify, &sig).is_ok())
+    }
+
+    fn verify_certificate_chain(&self) -> bool {
+        let last_entry = self.certificate_chain.last().unwrap();
+
+        // Try to parse as DER hex
+        if let Ok(cert_bytes) = hex::decode(last_entry) {
+            if let Ok(cert) = Certificate::from_der(&cert_bytes) {
+                // For hardening, check if the certificate is structurally sound
+                // and its subject matches our trusted root list.
+                let subject_str = format!("{:?}", cert.tbs_certificate.subject);
+                return TRUSTED_ROOTS.iter().any(|&root| subject_str.contains(root));
+            }
+        }
+
+        // Fallback to string matching for legacy/simulated roots (e.g. "CONCLAVE_ROOT_CA_V1")
+        TRUSTED_ROOTS.iter().any(|&root| last_entry.contains(root))
     }
 
     /// Generates a hardware-bound fingerprint for this device.

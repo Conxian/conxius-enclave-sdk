@@ -588,3 +588,44 @@ mod rail_proxy_tests {
         assert_eq!(intent.fdc3_context.unwrap().context_type, "fdc3.instrument");
     }
 }
+
+#[cfg(test)]
+mod fdc3_integration_tests {
+    use super::*;
+    use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
+    use crate::protocol::business::BusinessRegistry;
+    use crate::protocol::intent::Fdc3Context;
+    use std::sync::Arc;
+
+    fn setup_proxy() -> RailProxy {
+        RailProxy::new(
+            "https://gateway.conxian.com".to_string(),
+            reqwest::Client::new(),
+            Arc::new(AssetRegistry::new()),
+            Arc::new(BusinessRegistry::new()),
+        )
+    }
+
+    #[test]
+    fn test_resolve_fdc3_instrument_to_intent() {
+        let proxy = setup_proxy();
+        let fdc3 = Fdc3Context::instrument("USDC", "ETHEREUM");
+
+        // Use proxy to resolve FDC3 context into a request
+        // In a real flow, this might be a dedicated method like 'resolve_fdc3_context'
+        let request = SwapRequest {
+            from_asset: AssetIdentifier { chain: Chain::BITCOIN, symbol: "BTC".to_string() },
+            to_asset: AssetIdentifier { chain: Chain::ETHEREUM, symbol: "USDC".to_string() },
+            amount: 1000,
+            recipient_address: "0x123".to_string(),
+            attribution: None,
+        };
+
+        let intent = proxy.prepare_intent("x402", request, Some(fdc3.clone())).unwrap();
+
+        assert!(intent.fdc3_context.is_some());
+        let ctx = intent.fdc3_context.unwrap();
+        assert_eq!(ctx.context_type, "fdc3.instrument");
+        assert_eq!(ctx.id.get("ticker").unwrap(), "USDC");
+    }
+}

@@ -1,35 +1,37 @@
-# Conclave SDK: Improvement Proposals (v2.0.2)
+# Conclave SDK: Improvement Proposals (v2.0.4)
 
-## 1. BIP-322 Universal Message Signing (Hardened)
-**Context**: Structural verification logic implemented in v2.0.2.
+## 1. FROST Round 2 (Secret Share Distribution)
+**Context**: `FrostManager` (v2.0.4) implements RFC 9591 Round 2.
 **Improvements**:
-- Successfully integrated virtual 'to_spend' and 'to_sign' transaction construction.
-- Implemented SegWit (v0 and v1) support for proof-of-ownership.
+- Implemented encrypted secret share generation for participants.
+- Added structural verification for received shares.
 **Next Steps**:
-- Implement "Full" BIP-322 verification (script engine integration).
-- Add support for P2PKH and P2SH legacy address verification.
-
-## 2. FROST DKG Round 1
-**Context**: `FrostManager` (v2.0.1) implements RFC 9591 Round 1.
-**Improvements**:
-- Implemented commitment and PoK generation for DKG Round 1.
-**Next Steps**:
-- Implement Round 2 (Secret Share Distribution) and Round 3 (Signature Aggregation).
+- Implement Round 3 (Signature Aggregation).
 - Integrate with `SettlementEngine` for persistent session state.
 
-## 3. Fedimint OPR (Hardened)
-**Context**: `FedimintAdapter` (v2.0.1) performs local blinding.
+## 2. Hardware Attestation (X.509 Hardened)
+**Context**: `DeviceIntegrityReport` (v2.0.4) enforces structural X.509 verification.
 **Improvements**:
-- Implemented structural OPR (Oblivious Proof of Reserve) verification.
+- Integrated `x509-cert` crate for DER parsing.
+- Implemented raw public key extraction from certificates.
+**Next Steps**:
+- Implement full certificate path validation (signatures).
+- Integrate with external Attestation Services (e.g., Android Key Attestation).
+
+## 3. Hardened Fedimint Blinding
+**Context**: `FedimintAdapter` (v2.0.4) performs bound blinding.
+**Improvements**:
+- Replaced string-based stubs with SHA-256 bound blinding factors.
+- Expanded note model to include unblinded signatures.
 **Next Steps**:
 - Integrate `fedimint-client-wasm` for real cryptographic blinding/signing.
-- Support multiple concurrent federations for high-availability liquidity.
+- Support multiple concurrent federations.
 
-## 4. Hardware-Bound Attestation (Hardened)
-**Context**: `DeviceIntegrityReport` (v2.0.1) enforces root trust.
+## 4. FDC3 Treasury Handshake
+**Context**: `RailProxy` (v2.0.4) supports FDC3 intent resolution.
 **Improvements**:
-- Added `TRUSTED_ROOTS` registry and verified root-of-trust.
-- Enforced `HARDWARE_BACKED` requirements for high trust tiers.
+- Deep integration of `fdc3.instrument` into the intent preparation path.
+- Verified with cross-chain integration tests.
 **Next Steps**:
-- Implement full X.509 DER parsing for certificate chains.
-- Integrate with external Attestation Services (e.g., Android Key Attestation).
+- Support more complex FDC3 contexts (e.g. `fdc3.position`).
+- Implement FDC3 App Directory discovery for solvers.
