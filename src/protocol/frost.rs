@@ -190,8 +190,8 @@ impl FrostManager {
             if share.share.len() != 32 {
                 return Err(ConclaveError::InvalidPayload);
             }
-            for i in 0..32 {
-                aggregate_s[i] ^= share.share[i];
+            for (s_byte, share_byte) in aggregate_s.iter_mut().zip(share.share.iter()) {
+                *s_byte ^= *share_byte;
             }
         }
 
