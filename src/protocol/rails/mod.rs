@@ -614,14 +614,22 @@ mod fdc3_integration_tests {
         // Use proxy to resolve FDC3 context into a request
         // In a real flow, this might be a dedicated method like 'resolve_fdc3_context'
         let request = SwapRequest {
-            from_asset: AssetIdentifier { chain: Chain::BITCOIN, symbol: "BTC".to_string() },
-            to_asset: AssetIdentifier { chain: Chain::ETHEREUM, symbol: "USDC".to_string() },
+            from_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            to_asset: AssetIdentifier {
+                chain: Chain::ETHEREUM,
+                symbol: "USDC".to_string(),
+            },
             amount: 1000,
             recipient_address: "0x123".to_string(),
             attribution: None,
         };
 
-        let intent = proxy.prepare_intent("x402", request, Some(fdc3.clone())).unwrap();
+        let intent = proxy
+            .prepare_intent("x402", request, Some(fdc3.clone()))
+            .unwrap();
 
         assert!(intent.fdc3_context.is_some());
         let ctx = intent.fdc3_context.unwrap();

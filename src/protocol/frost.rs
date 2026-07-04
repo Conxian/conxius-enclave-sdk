@@ -122,7 +122,9 @@ impl FrostManager {
         package: &FrostDkgRound2Package,
     ) -> ConclaveResult<bool> {
         // Find the share intended for this signer
-        let share = package.encrypted_shares.iter()
+        let share = package
+            .encrypted_shares
+            .iter()
             .find(|s| s.receiver_id == signer_id);
 
         if share.is_none() {

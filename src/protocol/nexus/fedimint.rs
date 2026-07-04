@@ -1,7 +1,7 @@
 use crate::{ConclaveError, ConclaveResult};
+use secp256k1::Secp256k1;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use secp256k1::Secp256k1;
 
 /// Fedimint Community Liquidity Adapter (v2.0.4)
 /// Hardened structural implementation of Chaumian Blinding for e-cash.
@@ -27,7 +27,7 @@ pub struct FedimintEcash {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EcashNote {
     pub amount: u64,
-    pub secret: String, // Note secret (r)
+    pub secret: String,    // Note secret (r)
     pub signature: String, // Unblinded signature (s)
 }
 

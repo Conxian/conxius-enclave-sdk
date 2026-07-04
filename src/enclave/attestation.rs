@@ -1,9 +1,9 @@
+use der::Decode;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
 use x509_cert::Certificate;
-use der::Decode;
 
 const MAX_ATTESTATION_AGE_SECS: u64 = 300;
 const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
@@ -102,7 +102,11 @@ impl DeviceIntegrityReport {
         // Attempt to parse as X.509 first to extract the raw public key
         let raw_pubkey = if let Ok(cert) = Certificate::from_der(&pubkey_entry) {
             // Extract from SubjectPublicKeyInfo
-            cert.tbs_certificate.subject_public_key_info.subject_public_key.as_bytes()?.to_vec()
+            cert.tbs_certificate
+                .subject_public_key_info
+                .subject_public_key
+                .as_bytes()?
+                .to_vec()
         } else {
             pubkey_entry
         };
