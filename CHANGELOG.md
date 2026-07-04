@@ -8,13 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Hardened BIP-322 Verification: Full proof-of-ownership support for Legacy (P2PKH, P2SH), SegWit, and Taproot addresses.
-- `Unsupported` variant to `ConclaveError` for explicit 'Fail-Closed' feature gating.
-- `base64` dependency for secure signature witness decoding in Bitcoin protocols.
+- **FROST Round 2**: Encrypted secret share generation and distribution logic in `FrostManager`.
+- **X.509 DER Parsing**: Structural certificate chain verification in `DeviceIntegrityReport` using the `x509-cert` crate.
+- **Hardened Fedimint Blinding**: SHA-256 bound blinding factors and expanded `EcashNote` model for unblinded signatures.
+- **FDC3 Treasury Handshake**: Deep integration of `fdc3.instrument` context into `RailProxy` intent resolution.
+- `x509-cert` and `der` dependencies for secure hardware attestation.
 
 ### Changed
-- Updated `GAP_SCORECARD.md` and `SYSTEM_ALIGNMENT.md` to v2.0.3 status.
-- Expanded BIP-322 test suite to include mainnet legacy address validation.
+- Updated `GAP_SCORECARD.md` to v2.0.4 status.
+- Refactored `FedimintAdapter` to use a hardened structural model for Chaumian blinding.
 
 ## [0.2.0] - 2026-05-14
 
