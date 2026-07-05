@@ -3,7 +3,7 @@ use blake2::{Blake2s256, Digest};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-/// Ark V-UTXO Protocol Implementation (v2.0.5)
+/// Ark V-UTXO Protocol Implementation (v2.0.6)
 /// Native derivation and forfeit signing for stateless Bitcoin L2 scalability.
 pub struct ArkManager {
     enclave: Arc<dyn EnclaveManager>,
@@ -42,6 +42,11 @@ impl ArkManager {
         gap_limit: u32,
         asp_url: &str,
     ) -> ConclaveResult<Vec<VUtxoDescriptor>> {
+        // Fail-Closed: Validate gap limit
+        if gap_limit == 0 || gap_limit > 1000 {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
         let mut found_vutxos = Vec::new();
         let mut consecutive_empty = 0;
         let mut current_index = 0;
@@ -50,23 +55,37 @@ impl ArkManager {
             let vutxo_key = self.derive_vutxo_key(&master_seed, current_index);
 
             // Implementation follows the stateless recovery model (BIP-Ark-01)
-            if let Some(vutxo) = self
+            match self
                 .lookup_vutxo_from_asp(asp_url, &vutxo_key, current_index)
-                .await?
+                .await
             {
-                found_vutxos.push(vutxo);
-                consecutive_empty = 0;
-            } else {
-                consecutive_empty += 1;
+                Ok(Some(vutxo)) => {
+                    found_vutxos.push(vutxo);
+                    consecutive_empty = 0;
+                }
+                Ok(None) => {
+                    consecutive_empty += 1;
+                }
+                Err(e) => {
+                    // Fail-Closed: Any connection error during scan aborts for security
+                    return Err(e);
+                }
             }
             current_index += 1;
+
+            // Safety break for extremely long scans
+            if current_index > 100_000 {
+                return Err(ConclaveError::RailError(
+                    "Recovery scan exceeded safety limit".to_string(),
+                ));
+            }
         }
 
         Ok(found_vutxos)
     }
 
     /// Looks up a V-UTXO from an Ark ASP.
-    /// Hardened for v2.0.5: Validates ASP connectivity and structural response.
+    /// Hardened for v2.0.6: Improved error paths and validation.
     async fn lookup_vutxo_from_asp(
         &self,
         asp_url: &str,
@@ -79,14 +98,15 @@ impl ArkManager {
         }
 
         // Hardened structural discovery: In a production SDK, this calls the ASP /v1/vutxo endpoint.
-        // For current v2.0.5 verification, we use a bound hash of the key to simulate discovery.
+        // For current v2.0.6 verification, we use a bound hash of the key to simulate discovery.
         let mut hasher = Blake2s256::new();
         hasher.update(vutxo_key);
-        hasher.update(b"ARK_ASP_VUTXO_LOOKUP");
+        hasher.update(b"ARK_ASP_VUTXO_LOOKUP_v2");
         let discovery_hash = hasher.finalize();
 
         // Simulate discovery if the hash meets a threshold (e.g. at specific test indices)
-        if index == 5 || index == 12 {
+        // In this version we use index-based simulation for testing the scan logic.
+        if index == 5 || index == 12 || index == 25 {
             Ok(Some(VUtxoDescriptor {
                 vutxo_id: hex::encode(&discovery_hash[0..16]),
                 amount: 100000,
@@ -144,13 +164,25 @@ mod tests {
         let mgr = ArkManager::new(enclave);
         let seed = [1u8; 32];
 
+        // Use a larger gap limit to ensure we find all simulated indices
         let vutxos = mgr
-            .recovery_scan(seed, 10, "http://mock-asp")
+            .recovery_scan(seed, 20, "http://mock-asp")
             .await
             .unwrap();
 
-        assert_eq!(vutxos.len(), 2);
+        assert_eq!(vutxos.len(), 3);
         assert_eq!(vutxos[0].derivation_index, 5);
         assert_eq!(vutxos[1].derivation_index, 12);
+        assert_eq!(vutxos[2].derivation_index, 25);
+    }
+
+    #[tokio::test]
+    async fn test_recovery_scan_invalid_params() {
+        let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
+        let mgr = ArkManager::new(enclave);
+        let seed = [1u8; 32];
+
+        assert!(mgr.recovery_scan(seed, 0, "http://mock").await.is_err());
+        assert!(mgr.recovery_scan(seed, 10, "invalid-url").await.is_err());
     }
 }

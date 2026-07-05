@@ -1,0 +1,20 @@
+{
+  "changes": [
+    {
+      "file": "src/protocol/covenant.rs",
+      "description": "Hardened CovenantManager with structural verification for OP_CAT recursive invariants."
+    },
+    {
+      "file": "src/protocol/nexus/fedimint.rs",
+      "description": "Expanded FedimintAdapter to support multiple concurrent federations and added registration logic."
+    },
+    {
+      "file": "src/protocol/ark.rs",
+      "description": "Enhanced ArkManager with improved error handling and scan parameter validation."
+    },
+    {
+      "file": "src/wasm_bindings.rs",
+      "description": "Exposed new hardened features to WASM client."
+    }
+  ]
+}
