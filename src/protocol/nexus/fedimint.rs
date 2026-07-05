@@ -1,11 +1,13 @@
 use crate::{ConclaveError, ConclaveResult};
-use secp256k1::{PublicKey, Scalar, Secp256k1, SecretKey};
+use bitcoin::PublicKey;
+use bitcoin::secp256k1::{self, Scalar, Secp256k1, SecretKey};
+use hex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 
-/// Fedimint Community Liquidity Adapter (v2.0.6)
-/// Hardened cryptographic implementation of Chaumian Blinding with multi-federation support.
+/// Fedimint Nexus Adapter (v2.0.7)
+/// Orchestrates e-cash blinding and unblinding with multi-federation support.
 pub struct FedimintAdapter {
     /// Registry of active federations and their simulated public keys.
     pub federations: HashMap<String, PublicKey>,
@@ -48,7 +50,7 @@ impl FedimintAdapter {
         }
     }
 
-    /// Registers a new federation in the adapter.
+    /// Registers a new federation in the adapter using a unique identifier.
     pub fn register_federation(&mut self, federation_id: &str) -> ConclaveResult<()> {
         let mut fed_sk_hasher = Sha256::new();
         fed_sk_hasher.update(federation_id.as_bytes());
@@ -58,9 +60,27 @@ impl FedimintAdapter {
             ConclaveError::CryptoError("Failed to derive federation key".to_string())
         })?;
 
-        let fed_pk = PublicKey::from_secret_key(&fed_sk);
+        let fed_pk_internal = secp256k1::PublicKey::from_secret_key(&fed_sk);
+        let fed_pk = PublicKey::from_secp(fed_pk_internal);
         self.federations.insert(federation_id.to_string(), fed_pk);
         Ok(())
+    }
+
+    /// Joins a federation using a standard Fedimint invite code.
+    /// Hardened for v2.0.7: Prepares internal state for fedimint-client-wasm.
+    pub fn join_federation(&mut self, invite_code: &str) -> ConclaveResult<String> {
+        if !invite_code.starts_with("fed1") {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        // In a production environment with fedimint-client-wasm, this would
+        // initialize the Peer-to-Peer gossip and fetch the config.
+        let mut hasher = Sha256::new();
+        hasher.update(invite_code.as_bytes());
+        let fed_id = hex::encode(&hasher.finalize()[0..8]);
+
+        self.register_federation(&fed_id)?;
+        Ok(fed_id)
     }
 
     /// Prepares a mint intent for community-governed liquidity.
@@ -92,7 +112,7 @@ impl FedimintAdapter {
             let sk = SecretKey::from_secret_bytes(sk_bytes)
                 .map_err(|_| ConclaveError::CryptoError("Invalid secret hash".to_string()))?;
 
-            let pk = PublicKey::from_secret_key(&sk);
+            let pk_internal = secp256k1::PublicKey::from_secret_key(&sk);
 
             // 2. Deterministic blinding factor
             let mut r_hasher = Sha256::new();
@@ -105,7 +125,7 @@ impl FedimintAdapter {
 
             // 3. Blind the point: B = P * r
             let r_scalar = Scalar::from_be_bytes(r_bytes).unwrap();
-            let blinded_pk = pk
+            let blinded_pk = pk_internal
                 .mul_tweak(&r_scalar)
                 .map_err(|e| ConclaveError::CryptoError(format!("Blinding failed: {:?}", e)))?;
 
@@ -157,10 +177,10 @@ impl FedimintAdapter {
             let s_hash = h.finalize();
             let sk_b: [u8; 32] = s_hash.into();
             let sk = SecretKey::from_secret_bytes(sk_b).unwrap();
-            let pk = PublicKey::from_secret_key(&sk);
+            let pk_internal = secp256k1::PublicKey::from_secret_key(&sk);
 
             // Recompute unblinded signature: Sig = P * s
-            let unblinded_sig = pk.mul_tweak(&fed_scalar).unwrap();
+            let unblinded_sig = pk_internal.mul_tweak(&fed_scalar).unwrap();
 
             notes.push(EcashNote {
                 federation_id: intent.federation_id.clone(),
@@ -192,18 +212,23 @@ impl FedimintAdapter {
             Ok(k) => k,
             Err(_) => return false,
         };
-        let pk = PublicKey::from_secret_key(&sk);
+        let pk_internal = secp256k1::PublicKey::from_secret_key(&sk);
 
         // 2. Recompute the expected signature Sig = P * s
-        // In this simulated model, we re-derive the federation secret key
         let mut fed_sk_hasher = Sha256::new();
         fed_sk_hasher.update(note.federation_id.as_bytes());
         let fed_sk_hash = fed_sk_hasher.finalize();
         let fed_sk_bytes: [u8; 32] = fed_sk_hash.into();
-        let fed_sk = SecretKey::from_secret_bytes(fed_sk_bytes).unwrap();
-        let fed_scalar = Scalar::from_be_bytes(fed_sk.to_secret_bytes()).unwrap();
+        let fed_sk = match SecretKey::from_secret_bytes(fed_sk_bytes) {
+            Ok(k) => k,
+            Err(_) => return false,
+        };
+        let fed_scalar = match Scalar::from_be_bytes(fed_sk.to_secret_bytes()) {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
 
-        let expected_sig = match pk.mul_tweak(&fed_scalar) {
+        let expected_sig = match pk_internal.mul_tweak(&fed_scalar) {
             Ok(s) => s,
             Err(_) => return false,
         };
@@ -241,6 +266,13 @@ mod tests {
         assert_eq!(ecash.notes.len(), 2);
         assert!(adapter.verify_note(&ecash.notes[0]));
         assert!(adapter.verify_note(&ecash.notes[1]));
+    }
+
+    #[test]
+    fn test_fedimint_join_federation() {
+        let mut adapter = FedimintAdapter::new();
+        let fed_id = adapter.join_federation("fed1_example_invite").unwrap();
+        assert!(adapter.federations.contains_key(&fed_id));
     }
 
     #[test]

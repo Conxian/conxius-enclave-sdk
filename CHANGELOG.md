@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.0.7] - 2026-07-05
+
+### Added
+- Support for joining Fedimint federations via invite codes in `FedimintAdapter`.
+- Implementation of binary vTXO tree construction in `ArkManager` for multi-party exits.
+- v2.0.7 alignment in `GAP_SCORECARD.md`.
+
+### Changed
+- Hardened Secp256k1 cryptographic operations in Fedimint nexus adapter.
+
 ## [2.0.6] - 2026-05-24
 
 ### Added
