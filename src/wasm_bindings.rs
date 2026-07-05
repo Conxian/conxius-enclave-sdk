@@ -2,7 +2,6 @@ use crate::enclave::EnclaveManager;
 use crate::protocol::ark::ArkManager;
 use crate::protocol::bitvm::BitVmManager;
 use crate::protocol::ethereum::EthereumManager;
-use crate::protocol::nexus::fedimint::FedimintAdapter;
 use crate::protocol::solana::SolanaManager;
 use hex;
 use serde_wasm_bindgen;
@@ -19,7 +18,8 @@ impl ConclaveWasmClient {
     #[wasm_bindgen(constructor)]
     pub fn new(enclave_url: &str) -> Result<ConclaveWasmClient, JsValue> {
         let enclave = Arc::new(
-            crate::enclave::cloud::CloudEnclave::new(enclave_url.to_string()).map_err(to_js_error)?,
+            crate::enclave::cloud::CloudEnclave::new(enclave_url.to_string())
+                .map_err(to_js_error)?,
         );
         Ok(ConclaveWasmClient { enclave })
     }
@@ -122,14 +122,12 @@ impl WasmBitVmClient {
 
         let mut nonces_decoded = Vec::new();
         for n in nonces {
-            let bytes = hex::decode(n).map_err(to_js_error)?;
-            nonces_decoded.push(musig2::PubNonce::from_bytes(&bytes).map_err(to_js_error)?);
+            nonces_decoded.push(musig2::PubNonce::from_hex(&n).map_err(to_js_error)?);
         }
 
         let mut sigs_decoded = Vec::new();
         for s in sigs {
-            let bytes = hex::decode(s).map_err(to_js_error)?;
-            sigs_decoded.push(musig2::PartialSignature::from_bytes(&bytes).map_err(to_js_error)?);
+            sigs_decoded.push(musig2::PartialSignature::from_hex(&s).map_err(to_js_error)?);
         }
 
         let aggregate = self
@@ -378,7 +376,7 @@ fn to_js_error<E: std::fmt::Display>(e: E) -> JsValue {
 #[wasm_bindgen]
 pub struct WasmFedimintClient {
     #[wasm_bindgen(skip)]
-    pub inner: FedimintAdapter,
+    pub inner: crate::protocol::nexus::fedimint::FedimintAdapter,
 }
 
 #[wasm_bindgen]
@@ -441,7 +439,7 @@ impl WasmFedimintClient {
 impl ConclaveWasmClient {
     pub fn fedimint(&self) -> WasmFedimintClient {
         WasmFedimintClient {
-            inner: FedimintAdapter::new(),
+            inner: crate::protocol::nexus::fedimint::FedimintAdapter::new(),
         }
     }
 }
