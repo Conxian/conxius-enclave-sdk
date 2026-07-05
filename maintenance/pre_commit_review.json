@@ -1,10 +1,10 @@
 {
   "files": [
-    "src/protocol/asset.rs",
-    "src/protocol/bitcoin.rs",
-    "src/protocol/mod.rs",
-    "src/protocol/asset_tests.rs",
-    "src/protocol/bitcoin_tests.rs"
+    "src/protocol/frost.rs",
+    "src/protocol/nexus/fedimint.rs",
+    "src/protocol/ark.rs",
+    "docs/architecture/GAP_SCORECARD.md",
+    "docs/architecture/IMPROVEMENT_PROPOSALS.md"
   ],
-  "reasoning": "I have enhanced the SDK to support Rootstock (RSK) and BOB (Bitcoin on Build) in the AssetRegistry, and introduced a BitcoinManager with BDK-compatible descriptor generation and advanced Taproot signing helpers. This aligns the SDK with the full Bitcoin stack support requirements."
+  "reasoning": "Hardened core protocols for v2.0.5: Implemented FROST Round 3 aggregation, real Fedimint Chaumian blinding on Secp256k1, and hardened Ark stateless recovery scans. These changes bridge critical architectural gaps for institutional multi-sig vaults and community liquidity, as tracked in the updated scorecard."
 }

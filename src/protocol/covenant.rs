@@ -1,6 +1,7 @@
 use crate::{ConclaveError, ConclaveResult};
 use bitcoin::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 /// OP_CAT Recursive Covenant Manager (BIP-347)
 /// Orchestrates script construction for Bitcoin vaults and L2 scaling.
@@ -26,6 +27,7 @@ impl CovenantManager {
         script.extend_from_slice(&template_hash);
 
         // 2. OP_CAT the spend constraints
+        // In a real script, we would be CAT-ing parts of the transaction data
         script.push(0x7e); // OP_CAT
 
         // 3. Verify against the vault authority key
@@ -40,17 +42,29 @@ impl CovenantManager {
     }
 
     /// Verifies if a spending script matches the recursive invariant.
+    /// Hardened for v2.0.6: Validates witness elements against the expected template hash.
     pub fn verify_recursive_invariant(
         &self,
         script_witness: &[Vec<u8>],
-        _expected_hash: [u8; 32],
+        expected_template_hash: [u8; 32],
     ) -> ConclaveResult<bool> {
-        // Fail-Closed: Ensure witness is not empty
-        if script_witness.is_empty() {
+        // Fail-Closed: Ensure witness has required elements for OP_CAT verification
+        // Expecting [part1, part2, signature] as a simplified example
+        if script_witness.len() < 2 {
             return Err(ConclaveError::InvalidPayload);
         }
 
-        // Logic to simulate BIP-347 execution trace
+        // 1. Reconstruct the concatenated state
+        let mut hasher = Sha256::new();
+        hasher.update(&script_witness[0]);
+        hasher.update(&script_witness[1]);
+        let result_hash = hasher.finalize();
+
+        // 2. Verify against the recursive invariant (template hash)
+        if result_hash.as_slice() != expected_template_hash {
+            return Ok(false);
+        }
+
         Ok(true)
     }
 }
@@ -68,5 +82,35 @@ mod tests {
 
         assert!(res.script_hex.contains("7e")); // OP_CAT
         assert!(res.script_hex.contains("ac")); // OP_CHECKSIG
+    }
+
+    #[test]
+    fn test_verify_recursive_invariant_harden() {
+        let mgr = CovenantManager;
+        let part1 = b"template_prefix".to_vec();
+        let part2 = b"template_suffix".to_vec();
+
+        let mut hasher = Sha256::new();
+        hasher.update(&part1);
+        hasher.update(&part2);
+        let expected_hash: [u8; 32] = hasher.finalize().into();
+
+        let witness = vec![part1.clone(), part2.clone()];
+
+        // Valid invariant
+        assert!(
+            mgr.verify_recursive_invariant(&witness, expected_hash)
+                .unwrap()
+        );
+
+        // Invalid invariant
+        let wrong_hash = [0u8; 32];
+        assert!(
+            !mgr.verify_recursive_invariant(&witness, wrong_hash)
+                .unwrap()
+        );
+
+        // Empty witness fails closed
+        assert!(mgr.verify_recursive_invariant(&[], expected_hash).is_err());
     }
 }
