@@ -604,3 +604,112 @@ impl ConclaveWasmClient {
 fn to_js_error<E: std::fmt::Display>(e: E) -> JsValue {
     JsValue::from_str(&e.to_string())
 }
+
+#[wasm_bindgen]
+pub struct WasmFedimintClient {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::nexus::fedimint::FedimintAdapter,
+}
+
+#[wasm_bindgen]
+impl WasmFedimintClient {
+    pub fn register_federation(&mut self, federation_id: &str) -> Result<(), JsValue> {
+        self.inner
+            .register_federation(federation_id)
+            .map_err(to_js_error)
+    }
+
+    pub fn prepare_mint_intent(
+        &self,
+        federation_id: &str,
+        amount_sats: u64,
+        secrets: JsValue,
+    ) -> Result<JsValue, JsValue> {
+        let secrets_vec: Vec<String> =
+            serde_wasm_bindgen::from_value(secrets).map_err(to_js_error)?;
+        let secrets_refs: Vec<&str> = secrets_vec.iter().map(|s| s.as_str()).collect();
+        let (intent, bf) = self
+            .inner
+            .prepare_mint_intent(federation_id, amount_sats, secrets_refs)
+            .map_err(to_js_error)?;
+
+        let res = serde_json::json!({
+            "intent": intent,
+            "blinding_factors": bf
+        });
+        serde_wasm_bindgen::to_value(&res).map_err(to_js_error)
+    }
+
+    pub fn issue_ecash(
+        &self,
+        intent: JsValue,
+        blinding_factors: JsValue,
+        original_secrets: JsValue,
+    ) -> Result<JsValue, JsValue> {
+        let intent_obj = serde_wasm_bindgen::from_value(intent).map_err(to_js_error)?;
+        let bf_obj = serde_wasm_bindgen::from_value(blinding_factors).map_err(to_js_error)?;
+        let secrets_obj = serde_wasm_bindgen::from_value(original_secrets).map_err(to_js_error)?;
+
+        let ecash = self
+            .inner
+            .issue_ecash(intent_obj, bf_obj, secrets_obj)
+            .map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&ecash).map_err(to_js_error)
+    }
+
+    pub fn verify_note(&self, note: JsValue) -> Result<bool, JsValue> {
+        let note_obj = serde_wasm_bindgen::from_value(note).map_err(to_js_error)?;
+        Ok(self.inner.verify_note(&note_obj))
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn fedimint(&self) -> WasmFedimintClient {
+        WasmFedimintClient {
+            inner: crate::protocol::nexus::fedimint::FedimintAdapter::new(),
+        }
+    }
+}
+
+#[wasm_bindgen]
+impl WasmCovenantClient {
+    pub fn verify_recursive_invariant(
+        &self,
+        witness: JsValue,
+        expected_hash_hex: &str,
+    ) -> Result<bool, JsValue> {
+        let witness_vec: Vec<Vec<u8>> =
+            serde_wasm_bindgen::from_value(witness).map_err(to_js_error)?;
+        let hash_bytes = hex::decode(expected_hash_hex).map_err(to_js_error)?;
+        let hash: [u8; 32] = hash_bytes
+            .try_into()
+            .map_err(|_| JsValue::from_str("Invalid hash length"))?;
+
+        self.inner
+            .verify_recursive_invariant(&witness_vec, hash)
+            .map_err(to_js_error)
+    }
+}
+
+#[wasm_bindgen]
+impl WasmArkClient {
+    pub async fn recovery_scan(
+        &self,
+        master_seed_hex: &str,
+        gap_limit: u32,
+        asp_url: &str,
+    ) -> Result<JsValue, JsValue> {
+        let seed_bytes = hex::decode(master_seed_hex).map_err(to_js_error)?;
+        let seed: [u8; 32] = seed_bytes
+            .try_into()
+            .map_err(|_| JsValue::from_str("Invalid seed length"))?;
+
+        let found = self
+            .inner
+            .recovery_scan(seed, gap_limit, asp_url)
+            .await
+            .map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&found).map_err(to_js_error)
+    }
+}
