@@ -1,140 +1,28 @@
 use crate::enclave::EnclaveManager;
-use crate::enclave::android_strongbox::CoreEnclaveManager;
-use crate::enclave::cloud::CloudEnclave;
-use crate::protocol::a2p::A2pRouterService;
 use crate::protocol::ark::ArkManager;
-use crate::protocol::asset::AssetRegistry;
-use crate::protocol::bitcoin::BitcoinManager;
 use crate::protocol::bitvm::BitVmManager;
-use crate::protocol::business::BusinessRegistry;
-use crate::protocol::chain_abstraction::ChainAbstractionService;
-use crate::protocol::credit::CreditService;
-use crate::protocol::dlc::DlcManager;
 use crate::protocol::ethereum::EthereumManager;
-use crate::protocol::fiat::FiatRouterService;
-use crate::protocol::intent::{SwapIntent, SwapRequest};
-use crate::protocol::mmr::MmrService;
-use crate::protocol::rails::{RailProxy, SovereignHandshake};
+use crate::protocol::nexus::fedimint::FedimintAdapter;
 use crate::protocol::solana::SolanaManager;
-use crate::protocol::zkml::ZkmlService;
-use serde::{Deserialize, Serialize};
+use hex;
+use serde_wasm_bindgen;
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SdkConfig {
-    #[wasm_bindgen(getter_with_clone)]
-    pub gateway_url: String,
-    pub enforce_attestation: bool,
-}
-
-#[wasm_bindgen]
 pub struct ConclaveWasmClient {
-    pub(crate) config: SdkConfig,
-    pub(crate) enclave: Arc<dyn EnclaveManager>,
-    pub(crate) rails: Arc<RailProxy>,
-    pub(crate) fiat: Arc<FiatRouterService>,
-    pub(crate) a2p: Arc<A2pRouterService>,
-    pub(crate) mmr: Arc<MmrService>,
-    pub(crate) credit: Arc<CreditService>,
+    enclave: Arc<dyn EnclaveManager>,
 }
 
 #[wasm_bindgen]
 impl ConclaveWasmClient {
     #[wasm_bindgen(constructor)]
-    pub fn new(config_json: JsValue, enclave_type: &str) -> Result<ConclaveWasmClient, JsValue> {
-        let config: SdkConfig = serde_wasm_bindgen::from_value(config_json)
-            .map_err(|_| JsValue::from_str("Invalid config JSON"))?;
-
-        let enclave: Arc<dyn EnclaveManager> = match enclave_type {
-            "cloud" => {
-                Arc::new(CloudEnclave::new(config.gateway_url.clone()).map_err(|e| e.to_string())?)
-            }
-            "android" => Arc::new(CoreEnclaveManager::new()),
-            _ => return Err(JsValue::from_str("Unsupported enclave type")),
-        };
-
-        let asset_registry = Arc::new(AssetRegistry::new());
-        let business_registry = Arc::new(BusinessRegistry::new());
-        let client = reqwest::Client::new();
-
-        let rails = Arc::new(RailProxy::new(
-            config.gateway_url.clone(),
-            client.clone(),
-            asset_registry.clone(),
-            business_registry,
-        ));
-
-        let fiat = Arc::new(FiatRouterService::new(
-            config.gateway_url.clone(),
-            client.clone(),
-        ));
-        let a2p = Arc::new(A2pRouterService::new(
-            config.gateway_url.clone(),
-            client.clone(),
-        ));
-        let mmr = Arc::new(MmrService::new(config.gateway_url.clone(), client.clone()));
-        let credit = Arc::new(CreditService::new(
-            config.gateway_url.clone(),
-            client.clone(),
-        ));
-
-        Ok(ConclaveWasmClient {
-            config,
-            enclave,
-            rails,
-            fiat,
-            a2p,
-            mmr,
-            credit,
-        })
-    }
-
-    pub fn signing(&self) -> WasmSigningClient {
-        WasmSigningClient {
-            enclave: self.enclave.clone(),
-        }
-    }
-
-    pub fn swaps(&self) -> WasmSwapClient {
-        WasmSwapClient {
-            rails: self.rails.clone(),
-            fiat: self.fiat.clone(),
-            credit: self.credit.clone(),
-        }
-    }
-
-    pub fn identity(&self) -> WasmIdentityClient {
-        WasmIdentityClient {
-            inner: Arc::new(crate::protocol::identity::IdentityManager::new(
-                self.enclave.clone(),
-            )),
-        }
-    }
-
-    pub fn universal(&self) -> WasmUniversalClient {
-        WasmUniversalClient {
-            inner: Arc::new(ChainAbstractionService::new(
-                self.enclave.clone(),
-                self.rails.registry.clone(),
-            )),
-        }
-    }
-
-    pub fn dlc(&self) -> WasmDlcClient {
-        WasmDlcClient {
-            inner: Arc::new(crate::protocol::dlc::DlcManager::new()),
-        }
-    }
-
-    pub fn zkml(&self) -> WasmZkmlClient {
-        WasmZkmlClient {
-            inner: Arc::new(ZkmlService::new(
-                self.config.gateway_url.clone(),
-                reqwest::Client::new(),
-            )),
-        }
+    pub fn new(enclave_url: &str) -> Result<ConclaveWasmClient, JsValue> {
+        let enclave = Arc::new(
+            crate::enclave::cloud::CloudEnclave::new(enclave_url.to_string())
+                .map_err(to_js_error)?,
+        );
+        Ok(ConclaveWasmClient { enclave })
     }
 
     pub fn ark(&self) -> WasmArkClient {
@@ -151,231 +39,6 @@ impl ConclaveWasmClient {
 }
 
 #[wasm_bindgen]
-pub struct WasmSigningClient {
-    #[wasm_bindgen(skip)]
-    pub enclave: Arc<dyn EnclaveManager>,
-}
-
-#[wasm_bindgen]
-impl WasmSigningClient {
-    pub fn get_public_key(&self, derivation_path: &str) -> Result<String, JsValue> {
-        self.enclave
-            .get_public_key(derivation_path)
-            .map_err(to_js_error)
-    }
-
-    pub fn sign(&self, request: JsValue) -> Result<JsValue, JsValue> {
-        let req = serde_wasm_bindgen::from_value(request).map_err(to_js_error)?;
-        let response = self.enclave.sign(req).map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&response).map_err(to_js_error)
-    }
-}
-
-#[wasm_bindgen]
-pub struct WasmSwapClient {
-    #[wasm_bindgen(skip)]
-    pub rails: Arc<RailProxy>,
-    #[wasm_bindgen(skip)]
-    pub fiat: Arc<FiatRouterService>,
-    #[wasm_bindgen(skip)]
-    pub credit: Arc<CreditService>,
-}
-
-#[wasm_bindgen]
-impl WasmSwapClient {
-    pub fn prepare_intent(&self, rail_name: &str, request: JsValue) -> Result<JsValue, JsValue> {
-        let req: SwapRequest = serde_wasm_bindgen::from_value(request)
-            .map_err(|_| JsValue::from_str("Invalid request format"))?;
-        let intent = self
-            .rails
-            .prepare_intent(rail_name, req, None)
-            .map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&intent).map_err(to_js_error)
-    }
-
-    pub async fn execute_swap(
-        &self,
-        intent: JsValue,
-        signature: String,
-        attestation: Option<String>,
-    ) -> Result<JsValue, JsValue> {
-        let intent_obj: SwapIntent = serde_wasm_bindgen::from_value(intent)
-            .map_err(|_| JsValue::from_str("Invalid intent format"))?;
-        let result = self
-            .rails
-            .broadcast_signed_intent(intent_obj, signature, attestation)
-            .await
-            .map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&result).map_err(to_js_error)
-    }
-
-    pub async fn prepare_fiat_session(&self, request: JsValue) -> Result<JsValue, JsValue> {
-        let req: crate::protocol::fiat::FiatOnRampRequest = serde_wasm_bindgen::from_value(request)
-            .map_err(|_| JsValue::from_str("Invalid request format"))?;
-        let intent = self.fiat.prepare_session(req);
-        serde_wasm_bindgen::to_value(&intent).map_err(to_js_error)
-    }
-
-    pub async fn prepare_vouch(
-        &self,
-        borrower: String,
-        vouchers: Vec<String>,
-        amount: u64,
-    ) -> Result<JsValue, JsValue> {
-        let intent = self.credit.prepare_vouch(borrower, vouchers, amount);
-        serde_wasm_bindgen::to_value(&intent).map_err(to_js_error)
-    }
-
-    pub async fn get_block_height(&self, chain: &str) -> Result<u64, JsValue> {
-        match chain.to_uppercase().as_str() {
-            "BITCOIN" => Ok(840000),
-            "STACKS" => Ok(150000),
-            _ => Err(JsValue::from_str("Unsupported chain for block height")),
-        }
-    }
-}
-
-#[wasm_bindgen]
-pub struct WasmBitcoinManager {
-    #[wasm_bindgen(skip)]
-    pub inner: BitcoinManager,
-}
-
-#[wasm_bindgen]
-impl WasmBitcoinManager {
-    pub fn generate_wpkh_descriptor(&self, derivation_path: &str) -> Result<String, JsValue> {
-        self.inner
-            .generate_wpkh_descriptor(derivation_path)
-            .map_err(to_js_error)
-    }
-
-    pub fn generate_tr_descriptor(&self, derivation_path: &str) -> Result<String, JsValue> {
-        self.inner
-            .generate_tr_descriptor(derivation_path)
-            .map_err(to_js_error)
-    }
-}
-
-#[wasm_bindgen]
-pub struct WasmEthereumManager {
-    #[wasm_bindgen(skip)]
-    pub enclave: Arc<dyn EnclaveManager>,
-}
-
-#[wasm_bindgen]
-impl WasmEthereumManager {
-    pub fn get_address(&self, derivation_path: &str) -> Result<String, JsValue> {
-        EthereumManager::new(self.enclave.as_ref())
-            .get_address(derivation_path)
-            .map_err(to_js_error)
-    }
-}
-
-#[wasm_bindgen]
-pub struct WasmSolanaManager {
-    #[wasm_bindgen(skip)]
-    pub enclave: Arc<dyn EnclaveManager>,
-}
-
-#[wasm_bindgen]
-impl WasmSolanaManager {
-    pub fn get_address(&self, derivation_path: &str) -> Result<String, JsValue> {
-        SolanaManager::new(self.enclave.as_ref())
-            .get_address(derivation_path)
-            .map_err(to_js_error)
-    }
-}
-
-#[wasm_bindgen]
-pub struct WasmIdentityClient {
-    #[wasm_bindgen(skip)]
-    pub inner: Arc<crate::protocol::identity::IdentityManager>,
-}
-
-#[wasm_bindgen]
-impl WasmIdentityClient {
-    pub fn create_identity(&self) -> Result<JsValue, JsValue> {
-        let profile = self.inner.create_identity().map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&profile).map_err(to_js_error)
-    }
-}
-
-#[wasm_bindgen]
-pub struct WasmUniversalClient {
-    #[wasm_bindgen(skip)]
-    pub inner: Arc<ChainAbstractionService>,
-}
-
-#[wasm_bindgen]
-impl WasmUniversalClient {
-    pub fn resolve_intent(&self, intent: JsValue) -> Result<JsValue, JsValue> {
-        let intent_obj = serde_wasm_bindgen::from_value(intent).map_err(to_js_error)?;
-        let resolved = self.inner.resolve_intent(intent_obj).map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&resolved).map_err(to_js_error)
-    }
-
-    pub fn sign_for_chain(&self, request: JsValue) -> Result<JsValue, JsValue> {
-        let req = serde_wasm_bindgen::from_value(request).map_err(to_js_error)?;
-        let response = self.inner.sign_for_chain(req).map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&response).map_err(to_js_error)
-    }
-}
-
-#[wasm_bindgen]
-pub struct WasmDlcClient {
-    #[wasm_bindgen(skip)]
-    pub inner: Arc<DlcManager>,
-}
-
-#[wasm_bindgen]
-impl WasmDlcClient {
-    pub fn offer_contract(
-        &self,
-        oracle: &str,
-        local: u64,
-        remote: u64,
-    ) -> Result<JsValue, JsValue> {
-        let contract = self
-            .inner
-            .offer_contract(oracle, local, remote)
-            .map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&contract).map_err(to_js_error)
-    }
-
-    pub fn accept_contract(
-        &self,
-        contract: JsValue,
-        remote_pubkey: &str,
-    ) -> Result<JsValue, JsValue> {
-        let contract_obj = serde_wasm_bindgen::from_value(contract).map_err(to_js_error)?;
-        let accepted = self
-            .inner
-            .accept_contract(contract_obj, remote_pubkey.to_string())
-            .map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&accepted).map_err(to_js_error)
-    }
-}
-
-#[wasm_bindgen]
-pub struct WasmZkmlClient {
-    #[wasm_bindgen(skip)]
-    pub inner: Arc<ZkmlService>,
-}
-
-#[wasm_bindgen]
-impl WasmZkmlClient {
-    pub async fn generate_compliance_proof(&self, request: JsValue) -> Result<JsValue, JsValue> {
-        let req = serde_wasm_bindgen::from_value(request).map_err(to_js_error)?;
-        let proof = self
-            .inner
-            .generate_compliance_proof(req)
-            .await
-            .map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&proof).map_err(to_js_error)
-    }
-}
-
-#[wasm_bindgen]
 pub struct WasmArkClient {
     #[wasm_bindgen(skip)]
     pub inner: Arc<ArkManager>,
@@ -387,6 +50,34 @@ impl WasmArkClient {
         let seed = hex::decode(seed_hex).map_err(to_js_error)?;
         let key = self.inner.derive_vutxo_key(&seed, index);
         Ok(hex::encode(key))
+    }
+
+    pub async fn recovery_scan(
+        &self,
+        master_seed_hex: &str,
+        gap_limit: u32,
+        asp_url: &str,
+    ) -> Result<JsValue, JsValue> {
+        let seed_bytes = hex::decode(master_seed_hex).map_err(to_js_error)?;
+        let seed: [u8; 32] = seed_bytes
+            .try_into()
+            .map_err(|_| JsValue::from_str("Invalid seed length"))?;
+
+        let found = self
+            .inner
+            .recovery_scan(seed, gap_limit, asp_url)
+            .await
+            .map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&found).map_err(to_js_error)
+    }
+
+    pub fn construct_vtxo_tree(&self, leaves: JsValue) -> Result<JsValue, JsValue> {
+        let leaves_vec = serde_wasm_bindgen::from_value(leaves).map_err(to_js_error)?;
+        let root = self
+            .inner
+            .construct_vtxo_tree(leaves_vec)
+            .map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&root).map_err(to_js_error)
     }
 }
 
@@ -409,6 +100,45 @@ impl WasmBitVmClient {
             .sign_challenge(chal, path, key_id)
             .map_err(to_js_error)
     }
+
+    pub fn aggregate_challenge_signatures(
+        &self,
+        pubkeys_hex: JsValue,
+        pub_nonces_hex: JsValue,
+        partial_sigs_hex: JsValue,
+        challenge: JsValue,
+    ) -> Result<JsValue, JsValue> {
+        let pks: Vec<String> = serde_wasm_bindgen::from_value(pubkeys_hex).map_err(to_js_error)?;
+        let nonces: Vec<String> =
+            serde_wasm_bindgen::from_value(pub_nonces_hex).map_err(to_js_error)?;
+        let sigs: Vec<String> =
+            serde_wasm_bindgen::from_value(partial_sigs_hex).map_err(to_js_error)?;
+        let chal = serde_wasm_bindgen::from_value(challenge).map_err(to_js_error)?;
+
+        let mut pks_decoded = Vec::new();
+        for pk in pks {
+            let bytes = hex::decode(pk).map_err(to_js_error)?;
+            pks_decoded.push(secp256k1::PublicKey::from_slice(&bytes).map_err(to_js_error)?);
+        }
+
+        let mut nonces_decoded = Vec::new();
+        for n in nonces {
+            let bytes = hex::decode(n).map_err(to_js_error)?;
+            nonces_decoded.push(musig2::PubNonce::from_slice(&bytes).map_err(to_js_error)?);
+        }
+
+        let mut sigs_decoded = Vec::new();
+        for s in sigs {
+            let bytes = hex::decode(s).map_err(to_js_error)?;
+            sigs_decoded.push(musig2::PartialSignature::from_slice(&bytes).map_err(to_js_error)?);
+        }
+
+        let aggregate = self
+            .inner
+            .aggregate_challenge_signatures(&pks_decoded, nonces_decoded, sigs_decoded, chal)
+            .map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&aggregate).map_err(to_js_error)
+    }
 }
 
 #[wasm_bindgen]
@@ -421,6 +151,12 @@ impl Iso20022Wrapper {
             serde_wasm_bindgen::from_value(card).map_err(to_js_error)?;
         crate::protocol::job_card::Iso20022Wrapper::wrap_pacs008(&card).map_err(to_js_error)
     }
+}
+
+#[wasm_bindgen]
+pub struct WasmEthereumManager {
+    #[wasm_bindgen(skip)]
+    pub enclave: Arc<dyn EnclaveManager>,
 }
 
 #[wasm_bindgen]
@@ -439,6 +175,12 @@ impl WasmEthereumManager {
         };
         Ok(EthereumManager::new(self.enclave.as_ref()).prepare_erc20_transfer(transfer))
     }
+}
+
+#[wasm_bindgen]
+pub struct WasmSolanaManager {
+    #[wasm_bindgen(skip)]
+    pub enclave: Arc<dyn EnclaveManager>,
 }
 
 #[wasm_bindgen]
@@ -491,6 +233,18 @@ impl WasmCctpClient {
 
 #[wasm_bindgen]
 impl ConclaveWasmClient {
+    pub fn ethereum(&self) -> WasmEthereumManager {
+        WasmEthereumManager {
+            enclave: self.enclave.clone(),
+        }
+    }
+
+    pub fn solana(&self) -> WasmSolanaManager {
+        WasmSolanaManager {
+            enclave: self.enclave.clone(),
+        }
+    }
+
     pub fn accounts(&self) -> WasmAccountClient {
         WasmAccountClient {
             inner: crate::protocol::account_abstraction::ModularAccountManager::new(),
@@ -584,6 +338,23 @@ impl WasmCovenantClient {
                 .map_err(to_js_error)?;
         serde_wasm_bindgen::to_value(&script).map_err(to_js_error)
     }
+
+    pub fn verify_recursive_invariant(
+        &self,
+        witness: JsValue,
+        expected_hash_hex: &str,
+    ) -> Result<bool, JsValue> {
+        let witness_vec: Vec<Vec<u8>> =
+            serde_wasm_bindgen::from_value(witness).map_err(to_js_error)?;
+        let hash_bytes = hex::decode(expected_hash_hex).map_err(to_js_error)?;
+        let hash: [u8; 32] = hash_bytes
+            .try_into()
+            .map_err(|_| JsValue::from_str("Invalid hash length"))?;
+
+        self.inner
+            .verify_recursive_invariant(&witness_vec, hash)
+            .map_err(to_js_error)
+    }
 }
 
 #[wasm_bindgen]
@@ -617,6 +388,10 @@ impl WasmFedimintClient {
         self.inner
             .register_federation(federation_id)
             .map_err(to_js_error)
+    }
+
+    pub fn join_federation(&mut self, invite_code: &str) -> Result<String, JsValue> {
+        self.inner.join_federation(invite_code).map_err(to_js_error)
     }
 
     pub fn prepare_mint_intent(
@@ -669,47 +444,5 @@ impl ConclaveWasmClient {
         WasmFedimintClient {
             inner: crate::protocol::nexus::fedimint::FedimintAdapter::new(),
         }
-    }
-}
-
-#[wasm_bindgen]
-impl WasmCovenantClient {
-    pub fn verify_recursive_invariant(
-        &self,
-        witness: JsValue,
-        expected_hash_hex: &str,
-    ) -> Result<bool, JsValue> {
-        let witness_vec: Vec<Vec<u8>> =
-            serde_wasm_bindgen::from_value(witness).map_err(to_js_error)?;
-        let hash_bytes = hex::decode(expected_hash_hex).map_err(to_js_error)?;
-        let hash: [u8; 32] = hash_bytes
-            .try_into()
-            .map_err(|_| JsValue::from_str("Invalid hash length"))?;
-
-        self.inner
-            .verify_recursive_invariant(&witness_vec, hash)
-            .map_err(to_js_error)
-    }
-}
-
-#[wasm_bindgen]
-impl WasmArkClient {
-    pub async fn recovery_scan(
-        &self,
-        master_seed_hex: &str,
-        gap_limit: u32,
-        asp_url: &str,
-    ) -> Result<JsValue, JsValue> {
-        let seed_bytes = hex::decode(master_seed_hex).map_err(to_js_error)?;
-        let seed: [u8; 32] = seed_bytes
-            .try_into()
-            .map_err(|_| JsValue::from_str("Invalid seed length"))?;
-
-        let found = self
-            .inner
-            .recovery_scan(seed, gap_limit, asp_url)
-            .await
-            .map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&found).map_err(to_js_error)
     }
 }
