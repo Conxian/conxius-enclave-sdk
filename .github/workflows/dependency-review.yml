@@ -11,6 +11,6 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@v4
       - name: Dependency Review
-        uses: actions/dependency-review-action@5a9f2c7e5e5e9d5e3e7d7f6c7a8b5d4e3c2b1a0f # v4.3.5
+        uses: actions/dependency-review-action@v4
