@@ -57,10 +57,80 @@ jobs:
       - name: Verify crates.io package (dry-run)
         run: cargo publish --dry-run
 
+  sbom-provenance:
+    name: SBOM + provenance attestation
+    needs: validate-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # stable
+        with:
+          toolchain: stable
+
+      - name: Select expected release version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ inputs.release_version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify release metadata
+        run: .github/scripts/verify-release-metadata.sh "${{ steps.version.outputs.value }}"
+
+      - name: Build release package artifact
+        run: cargo package --allow-dirty --no-verify
+
+      - name: Locate packaged crate
+        id: crate
+        shell: bash
+        run: |
+          mapfile -t crates < <(find target/package -maxdepth 1 -type f -name '*.crate' | sort)
+          if [[ "${#crates[@]}" -ne 1 ]]; then
+            echo "error: expected exactly one packaged crate, found ${#crates[@]}" >&2
+            printf '%s\n' "${crates[@]}" >&2
+            exit 1
+          fi
+          echo "path=${crates[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Syft
+        uses: taiki-e/install-action@c93ccc03e00cd0e08e494f5fd058a6c55a6a1907 # v2
+        with:
+          tool: syft
+
+      - name: Generate SPDX SBOM
+        shell: bash
+        run: |
+          mkdir -p sbom
+          syft "${{ steps.crate.outputs.path }}" -o spdx-json=sbom/release.spdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-sbom
+          path: sbom/release.spdx.json
+          if-no-files-found: error
+
+      - name: Attest release package provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: ${{ steps.crate.outputs.path }}
+
   publish-crates-io:
     name: Publish crate to crates.io (manual gate)
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_crates_io }}
-    needs: validate-release
+    needs:
+      - validate-release
+      - sbom-provenance
     runs-on: ubuntu-latest
     environment: release
     permissions:

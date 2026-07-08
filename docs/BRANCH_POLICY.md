@@ -14,13 +14,16 @@ To ensure the integrity of the production codebase, all core Conxian repositorie
 
 ## 3. Required CI Checks
 The following checks must pass before a Pull Request can be merged:
-- **Rust Tests**: `cargo test` must pass all units and integration tests.
-- **Linting**: `cargo fmt --check` and `cargo clippy -- -D warnings` must pass.
-- **Hygiene**: No testnet principals (`ST...`), forbidden extensions (`.key`, `.pem`), or sensitive files (`.env`) permitted in production paths.
-- **WASM Build**: `wasm-pack build` must succeed for SDK repositories.
+- **Rust Tests** (`Rust Tests`): `cargo test` must pass all units and integration tests.
+- **Linting** (`Linting`): `cargo fmt --check` and `cargo clippy -- -D warnings` must pass.
+- **Hygiene** (`Repository Hygiene`): No testnet principals (`ST...`), forbidden extensions (`.key`, `.pem`), or sensitive files (`.env`) permitted in production paths.
+- **WASM Build** (`WASM Build`): `wasm-pack build` must succeed for SDK repositories.
+- **Secret Scan** (`gitleaks`): Gitleaks findings must fail CI (fail-closed).
+- **Coverage** (`Coverage Threshold (>= 70%)`): line coverage must remain at or above 70%.
 
 ## 4. Release Pipeline
 - **Validation**: High-risk changes should be validated on a `staged` branch before merging to `main`.
+- **Supply Chain Controls**: `Validate release metadata and package` and `SBOM + provenance attestation` must pass before `Publish crate to crates.io (manual gate)` can run.
 - **Changelog**: Every PR that modifies logic must update `CHANGELOG.md` under the `[Unreleased]` section.
 - **Versioning**: Version bumps must follow SemVer and occur during the final release tag workflow.
 
