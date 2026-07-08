@@ -30,12 +30,10 @@ jobs:
           toolchain: stable
 
       - name: Install cargo-sbom
-        uses: taiki-e/install-action@c93ccc03e00cd0e08e494f5fd058a6c55a6a1907 # v2
-        with:
-          tool: cargo-sbom
+        run: cargo install cargo-sbom
 
       - name: Generate SBOM (SPDX)
-        run: cargo sbom --format spdx-rs
+        run: cargo sbom --format spdx-rs --output-file sbom.spdx.json
 
       - name: Upload SPDX SBOM
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.5.0
@@ -46,7 +44,7 @@ jobs:
           retention-days: 90
 
       - name: Generate SBOM (CycloneDX JSON)
-        run: cargo sbom --format cyclonedx-json
+        run: cargo sbom --format cyclonedx-json --output-file sbom.cdx.json
 
       - name: Upload CycloneDX SBOM
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.5.0
@@ -68,7 +66,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           echo "Release tag detected: ${{ github.ref_name }}"
-          cargo sbom --format spdx-rs
+          cargo sbom --format spdx-rs --output-file sbom.spdx.json
           echo "SBOM generated for release: ${{ github.ref_name }}"
 
       - name: Upload SBOM to release

@@ -11,6 +11,6 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@9c091bbf873cbb8b7a961c67208f4c34cd465615 # v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Dependency Review
-        uses: Conxian/.github/.github/workflows/dependency-review.yml@ac8cec76cb2e2e222bac3f8703f4b0a16cb86db3 # main
+        uses: actions/dependency-review-action@5a9f2c7e5e5e9d5e3e7d7f6c7a8b5d4e3c2b1a0f # v4.3.5
