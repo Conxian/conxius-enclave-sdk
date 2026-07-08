@@ -1,0 +1,130 @@
+# Technical Debt Inventory
+
+This document tracks known technical debt in the `conxius-enclave-sdk` repository.
+
+## Classification Schema
+
+| Priority | Description |
+|----------|-------------|
+| **P1 - Critical** | Blocks production use, security implications, or release |
+| **P2 - High** | Significant impact on maintainability or developer experience |
+| **P3 - Medium** | Moderate impact, should be addressed in next sprint |
+| **P4 - Low** | Nice to have, can be addressed opportunistically |
+
+| Category | Description |
+|----------|-------------|
+| **Security** | Potential security vulnerabilities or hardening needs |
+| **Dependency** | Third-party dependency issues (beta versions, unmaintained) |
+| **Documentation** | Missing or outdated documentation |
+| **Testing** | Insufficient test coverage |
+| **Architecture** | Design or structural improvements needed |
+| **Tooling** | Development/maintenance tool improvements |
+
+## Active Debt Items
+
+### P1 - Critical
+
+#### DEP-001: Beta/Release Candidate Dependencies
+- **Category**: Dependency
+- **Priority**: P1
+- **Description**: Multiple critical cryptographic dependencies use beta/RC versions
+- **Affected Dependencies**:
+  - `bitcoin = "0.33.0-beta"` - Bitcoin protocol support
+  - `secp256k1 = "0.32.0-beta.2"` - ECDSA/Schnorr signatures
+  - `k256 = "0.14.0-rc.9"` - K-256 elliptic curve
+- **Risk**: Breaking changes on stable release, potential compatibility issues
+- **Recommendation**: Pin to stable versions as they become available; monitor upstream releases
+- **Tracking**: Monitor RustSec advisories for these crates
+
+#### DOC-001: No Published Releases
+- **Category**: Documentation
+- **Priority**: P1
+- **Description**: README states "no published GitHub releases" but CHANGELOG documents releases
+- **Impact**: Confusing for new developers, misalignment between documentation and reality
+- **Recommendation**: Publish v2.0.7 as first release, update README status
+- **Related Issue**: #154
+
+### P2 - High
+
+#### DEP-002: Unmaintained Dependencies with Exceptions
+- **Category**: Dependency
+- **Priority**: P2
+- **Description**: Some dependencies have documented exceptions in audit.toml/deny.toml
+- **Ignored Advisories**:
+  - `RUSTSEC-2024-0436`: paste is unmaintained
+  - `RUSTSEC-2026-0173`: proc-macro-error2 is unmaintained
+  - `RUSTSEC-2024-0388`: derivative is unmaintained
+  - `RUSTSEC-2026-0009`: time stack exhaustion
+- **Risk**: Potential future vulnerabilities in unmaintained code
+- **Recommendation**: Review alternatives for unmaintained crates, document rationale for exceptions
+
+#### TEST-001: Hardware Attestation Testing Gaps
+- **Category**: Testing
+- **Priority**: P2
+- **Description**: Hardware-backed logic (enclave/) lacks comprehensive hardware testing
+- **Current Coverage**: Software simulation tests only
+- **Risk**: Changes to hardware attestation may break production flows
+- **Recommendation**: Add integration tests with mock hardware; block production Trust Tiers without hardware tests
+- **AGENTS.md Reference**: "Hardware-backed logic should be tested with both simulated and software attestation"
+
+### P3 - Medium
+
+#### ARCH-001: WASM Bindings Completeness
+- **Category**: Architecture
+- **Priority**: P3
+- **Description**: WASM bindings may not cover all SDK functionality
+- **Current**: Basic signing and attestation bindings exist
+- **Risk**: Incomplete web/mobile integration surface
+- **Recommendation**: Audit wasm_bindings.rs for complete API coverage
+- **Related Issue**: #154 (release requirement)
+
+#### DOC-002: Missing Examples
+- **Category**: Documentation
+- **Priority**: P3
+- **Description**: No examples directory or usage examples
+- **Impact**: Developer onboarding friction
+- **Recommendation**: Add `examples/` directory with common use cases
+- **Affected Files**: Documentation only
+
+### P4 - Low
+
+#### TOOL-001: Cargo.lock Not Tracked
+- **Category**: Tooling
+- **Priority**: P4
+- **Description**: Cargo.lock is not committed to version control
+- **Current Practice**: Generate locally/ephemerally per RELEASING.md
+- **Impact**: Non-reproducible builds without lockfile
+- **Recommendation**: Consider tracking Cargo.lock for reproducible builds
+- **Note**: May be intentional for library crate; verify against team standards
+
+#### DOC-003: CHANGELOG Formatting
+- **Category**: Documentation
+- **Priority**: P4
+- **Description**: CHANGELOG lacks [Unreleased] section for tracking pending changes
+- **Current**: Only documented releases, no unreleased changes section
+- **Recommendation**: Add `[Unreleased]` section for tracking changes before release
+
+## Burn-Down Tracking
+
+| Item | Identified | Target | Status | Updated |
+|------|------------|--------|--------|---------|
+| DEP-001 | 2026-07-08 | Next stable deps | In Progress | 2026-07-08 |
+| DOC-001 | 2026-07-08 | v2.0.7 release | In Progress | 2026-07-08 |
+| DEP-002 | 2026-07-08 | Q3 2026 | Planned | 2026-07-08 |
+| TEST-001 | 2026-07-08 | v2.1.0 | Planned | 2026-07-08 |
+
+## Resolved Debt
+
+_None yet - inventory initiated 2026-07-08_
+
+## Maintenance Notes
+
+- This inventory should be reviewed monthly
+- New debt items should be added during code review
+- Items should be resolved or reclassified quarterly
+- High-priority items should be addressed before major releases
+
+---
+
+*Inventory initiated by OpenHands AI agent - 2026-07-08*
+*Maintained by: SDK Team*
