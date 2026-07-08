@@ -9,74 +9,37 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * 0"  # Weekly on Sunday
+    - cron: "0 0 * * 0"
 
 permissions:
   contents: read
 
 jobs:
   sbom:
-    name: Generate Software Bill of Materials
+    name: Generate SBOM
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          fetch-depth: 0
+        uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # stable
-        with:
-          toolchain: stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-sbom
         run: cargo install cargo-sbom
 
-      - name: Generate SBOM (SPDX)
+      - name: Generate SPDX SBOM
         run: cargo sbom --format spdx-rs --output-file sbom.spdx.json
 
-      - name: Upload SPDX SBOM
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.5.0
-        if: github.event_name != 'schedule'
-        with:
-          name: sbom-spdx
-          path: sbom.spdx.json
-          retention-days: 90
-
-      - name: Generate SBOM (CycloneDX JSON)
+      - name: Generate CycloneDX SBOM
         run: cargo sbom --format cyclonedx-json --output-file sbom.cdx.json
 
-      - name: Upload CycloneDX SBOM
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.5.0
+      - name: Upload SBOM artifacts
         if: github.event_name != 'schedule'
+        uses: actions/upload-artifact@v4
         with:
-          name: sbom-cyclonedx
-          path: sbom.cdx.json
-          retention-days: 90
-
-      - name: Check for known vulnerabilities in SBOM
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        run: |
-          if command -v cve-dashboard &> /dev/null; then
-            echo "Running vulnerability check against SBOM..."
-            # Placeholder for future vulnerability scanning integration
-          fi
-
-      - name: Generate SBOM for release tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          echo "Release tag detected: ${{ github.ref_name }}"
-          cargo sbom --format spdx-rs --output-file sbom.spdx.json
-          echo "SBOM generated for release: ${{ github.ref_name }}"
-
-      - name: Upload SBOM to release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-release-artifact@v4
-        env:
-          GITHUB_RELEASES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          name: sbom-${{ github.ref_name }}
+          name: sbom
           path: |
             sbom.spdx.json
             sbom.cdx.json
-          retention-days: 0
+          retention-days: 90
