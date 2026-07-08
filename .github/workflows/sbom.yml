@@ -29,10 +29,10 @@ jobs:
         run: cargo install cargo-sbom
 
       - name: Generate SPDX SBOM
-        run: cargo sbom --format spdx-rs --output-file sbom.spdx.json
+        run: cargo sbom --output-file sbom.spdx.json
 
       - name: Generate CycloneDX SBOM
-        run: cargo sbom --format cyclonedx-json --output-file sbom.cdx.json
+        run: cargo sbom --format cyclonedx --output-file sbom.cdx.json
 
       - name: Upload SBOM artifacts
         if: github.event_name != 'schedule'
