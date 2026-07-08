@@ -15,7 +15,9 @@ Provide reusable enclave-facing primitives for signing, attestation, device trus
 
 **Active development.** This repository contains both security-oriented implementation work and software-backed development paths used for local integration and interface validation.
 
-There are currently **no published GitHub releases** for this repository. Until the first formal release is published, operators and integrators should treat the codebase as evolving implementation work rather than a stable production SDK.
+The SDK is currently at **v2.0.7** (see [CHANGELOG.md](./CHANGELOG.md)). See the [RELEASING.md](./RELEASING.md) for release process details.
+
+> ⚠️ **Note**: For production use, ensure you pin to a specific version tag. Pre-release versions (0.x.y) may contain breaking changes.
 
 ## Scope
 
@@ -59,6 +61,7 @@ wasm-pack build
 - [CODEOWNERS](./CODEOWNERS)
 - [RELEASING.md](./RELEASING.md)
 - [REPO_OWNERSHIP.md](./REPO_OWNERSHIP.md)
+- [DEBT_INVENTORY.md](./DEBT_INVENTORY.md)
 - [LICENSE](./LICENSE)
 
 ## Support
