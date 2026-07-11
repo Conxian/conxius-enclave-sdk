@@ -102,8 +102,8 @@ impl DeviceIntegrityReport {
         // Attempt to parse as X.509 first to extract the raw public key
         let raw_pubkey = if let Ok(cert) = Certificate::from_der(&pubkey_entry) {
             // Extract from SubjectPublicKeyInfo
-            cert.tbs_certificate
-                .subject_public_key_info
+            cert.tbs_certificate()
+                .subject_public_key_info()
                 .subject_public_key
                 .as_bytes()?
                 .to_vec()
@@ -134,7 +134,7 @@ impl DeviceIntegrityReport {
             if let Ok(cert) = Certificate::from_der(&cert_bytes) {
                 // For hardening, check if the certificate is structurally sound
                 // and its subject matches our trusted root list.
-                let subject_str = format!("{:?}", cert.tbs_certificate.subject);
+                let subject_str = format!("{:?}", cert.tbs_certificate().subject());
                 return TRUSTED_ROOTS.iter().any(|&root| subject_str.contains(root));
             }
         }
