@@ -11,7 +11,7 @@ mock-cloud-enclave = []
 dev-attestation-bypass = []
 
 [dependencies]
-x509-cert = "0.2.5"
+x509-cert = "0.3.0"
 der = { version = "0.7.10", features = ["alloc"] }
 zeroize = { version = "1.8.1", features = ["derive", "zeroize_derive"] }
 async-trait = "0.1.89"
