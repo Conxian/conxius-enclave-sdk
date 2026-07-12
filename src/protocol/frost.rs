@@ -153,12 +153,12 @@ impl FrostManager {
             // Mathematically link/bind the encrypted share to the commitments from Round 1
             // We combine the secret evaluation with all polynomial commitments
             let mut binding_hasher = Sha256::new();
-            binding_hasher.update(&secret_evaluation);
+            binding_hasher.update(secret_evaluation);
             for (k, commitment) in round1_package.commitments.iter().enumerate() {
                 // j^k weight factor simulated by hashing commitment with receiver_id (j) and index (k)
                 binding_hasher.update(commitment.as_bytes());
-                binding_hasher.update(&receiver_id.to_be_bytes());
-                binding_hasher.update(&(k as u32).to_be_bytes());
+                binding_hasher.update(receiver_id.to_be_bytes());
+                binding_hasher.update((k as u32).to_be_bytes());
             }
 
             encrypted_shares.push(FrostEncryptedShare {
@@ -223,11 +223,11 @@ impl FrostManager {
         let expected_secret_evaluation = eval_hasher.finalize();
 
         let mut binding_hasher = Sha256::new();
-        binding_hasher.update(&expected_secret_evaluation);
+        binding_hasher.update(expected_secret_evaluation);
         for (k, commitment) in round1_package.commitments.iter().enumerate() {
             binding_hasher.update(commitment.as_bytes());
-            binding_hasher.update(&receiver_id.to_be_bytes());
-            binding_hasher.update(&(k as u32).to_be_bytes());
+            binding_hasher.update(receiver_id.to_be_bytes());
+            binding_hasher.update((k as u32).to_be_bytes());
         }
         let expected_share = hex::encode(binding_hasher.finalize());
 
