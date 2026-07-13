@@ -77,21 +77,4 @@ jobs:
       - name: Run cargo deny
         run: cargo deny --config deny.toml --locked check advisories bans licenses sources
 
-  secret-scan:
-    name: Secret Scanning
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      actions: read
-      security-events: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          fetch-depth: 0
-
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@1c72ec6b8c93bfd5a1b4b4b5c0a1e3f5e1a9c9e9
-        env:
-          CONFIG_PATH: .gitleaks.toml
+  # Note: Secret Scanning is handled by the Secret Scanning workflow
