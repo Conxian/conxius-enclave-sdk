@@ -73,7 +73,7 @@ jobs:
           wasm-pack build --release --target bundler --out-dir pkg
       - name: Verify WASM output
         run: |
-          if [ ! -f "pkg/lib_conclave_sdk_bg.wasm" ]; then
+          if [ ! -f "pkg/conxius_enclave_sdk_bg.wasm" ]; then
             echo "ERROR: WASM build failed"
             exit 1
           fi
