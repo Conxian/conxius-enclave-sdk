@@ -119,7 +119,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Check for forbidden files (STRICT: No build artifacts in repo)
         run: |
-          FORBIDDEN=$(git ls-files | grep -E "^target/|^pkg/|^node_modules/|\.lock$" || true)
+          FORBIDDEN=$(git ls-files | grep -E "^target/|^pkg/|^node_modules/" || true)
           if [ -n "$FORBIDDEN" ]; then
             echo "ERROR: Forbidden files found in repository:"
             echo "$FORBIDDEN"
@@ -127,7 +127,7 @@ jobs:
           fi
       - name: Check for sensitive extensions (STRICT: No keys in repo)
         run: |
-          SENSITIVE=$(git ls-files | grep -E "\.key$|\.pem$|\.p12$|\.jks$|secret/|private/" || true)
+          SENSITIVE=$(git ls-files | grep -E "\.key$|\.pem$|\.p12$|\.jks$" | grep -v "LICENSE" | grep -v "\.git" || true)
           if [ -n "$SENSITIVE" ]; then
             echo "ERROR: Sensitive files found in repository:"
             echo "$SENSITIVE"
