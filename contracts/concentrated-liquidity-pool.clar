@@ -2,7 +2,11 @@
 ;; Aligned with CON-15 and Sovereign Handshake Ethos
 
 ;; Traits
-(use-trait ft-trait .sip-010-trait-ft-standard.sip-010-trait)
+(define-trait ft-trait
+    (
+        (transfer (uint principal principal (optional (buff 34))) (response bool uint))
+    )
+)
 
 ;; Errors
 (define-constant ERR-NOT-AUTHORIZED (err u100))
