@@ -112,10 +112,11 @@ This document tracks known technical debt in the `conxius-enclave-sdk` repositor
 | DOC-001 | 2026-07-08 | v2.0.7 release | In Progress | 2026-07-08 |
 | DEP-002 | 2026-07-08 | Q3 2026 | Planned | 2026-07-08 |
 | TEST-001 | 2026-07-08 | v2.1.0 | Planned | 2026-07-08 |
+| SEC-001 | 2026-07-12 | Hardened FROST | Resolved | 2026-07-12 |
 
 ## Resolved Debt
 
-_None yet - inventory initiated 2026-07-08_
+- **SEC-001**: Hardened FROST DKG Round 2 verification in `src/protocol/frost.rs` to validate received shares against expected polynomial commitments and identifiers (Resolved: 2026-07-12).
 
 ## Maintenance Notes
 
