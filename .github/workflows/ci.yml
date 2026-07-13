@@ -6,10 +6,20 @@ on:
   pull_request:
     branches: [ main, master ]
 
+# NO SKIP: Do not cancel in-progress CI runs
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
 jobs:
   test:
     name: Rust Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install Rust
@@ -17,11 +27,14 @@ jobs:
         with:
           toolchain: stable
       - name: Run tests
-        run: cargo test
+        run: cargo test --all-features
+        env:
+          RUST_BACKTRACE: full
 
   lint:
     name: Linting
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Install Rust
@@ -32,11 +45,12 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
   wasm:
     name: WASM Build
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       CARGO_HTTP_MULTIPLEXING: false
     steps:
@@ -51,4 +65,4 @@ jobs:
         with:
           tool: wasm-pack
       - name: Build WASM
-        run: CFLAGS="-Dmemmove=__builtin_memmove -Dmemcpy=__builtin_memcpy -Dmemset=__builtin_memset -Dmemcmp=__builtin_memcmp" wasm-pack build
+        run: CFLAGS="-Dmemmove=__builtin_memmove -Dmemcpy=__builtin_memcpy -Dmemset=__builtin_memset -Dmemcmp=__builtin_memcmp" wasm-pack build --release --target bundler

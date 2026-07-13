@@ -1,0 +1,182 @@
+name: CI Strict
+
+on:
+  push:
+    branches: [ main, master ]
+    paths-ignore:
+      - '*.md'
+      - '*.txt'
+      - 'LICENSE'
+      - '.gitignore'
+      - 'docs/**'
+      - '!.github/workflows/**'
+  pull_request:
+    branches: [ main, master ]
+    paths-ignore:
+      - '*.md'
+      - '*.txt'
+      - 'LICENSE'
+      - '.gitignore'
+      - 'docs/**'
+
+# Do not cancel in-progress runs for strict CI
+concurrency:
+  group: ci-strict-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # === STRICT MODE: No skips allowed ===
+  
+  test:
+    name: Rust Tests (Strict)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout (no fetch-depth for better caching)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # stable
+        with:
+          toolchain: stable
+          
+      - name: Cache cargo registry
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4
+        with:
+          path: ~/.cargo/registry
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          
+      - name: Cache cargo index
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4
+        with:
+          path: ~/.cargo/git
+          key: cargo-index-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          
+      - name: Cache cargo build
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4
+        with:
+          path: target
+          key: cargo-build-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}-${{ github.sha }}
+          
+      - name: Run tests
+        run: cargo test --all-features --verbose
+        env:
+          RUST_BACKTRACE: full
+
+  lint:
+    name: Linting (Strict)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # stable
+        with:
+          components: rustfmt, clippy
+          toolchain: stable
+      - name: Check formatting (STRICT: Fail on any formatting issues)
+        run: cargo fmt --all -- --check
+      - name: Clippy (STRICT: Deny all warnings)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  wasm:
+    name: WASM Build (Strict)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_HTTP_MULTIPLEXING: false
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # stable
+        with:
+          targets: wasm32-unknown-unknown
+          toolchain: stable
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2
+        with:
+          tool: wasm-pack
+      - name: Build WASM (STRICT: Verify full build)
+        run: |
+          CFLAGS="-Dmemmove=__builtin_memmove -Dmemcpy=__builtin_memcpy -Dmemset=__builtin_memset -Dmemcmp=__builtin_memcmp" \
+          wasm-pack build --release --target bundler --out-dir pkg
+      - name: Verify WASM output
+        run: |
+          if [ ! -f "pkg/lib_conclave_sdk_bg.wasm" ]; then
+            echo "ERROR: WASM build failed - no output files found"
+            exit 1
+          fi
+
+  hygiene:
+    name: Repository Hygiene (Strict)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Check for forbidden files (STRICT: No build artifacts in repo)
+        run: |
+          FORBIDDEN=$(git ls-files | grep -E "^target/|^pkg/|^node_modules/|\.lock$" || true)
+          if [ -n "$FORBIDDEN" ]; then
+            echo "ERROR: Forbidden files found in repository:"
+            echo "$FORBIDDEN"
+            exit 1
+          fi
+      - name: Check for sensitive extensions (STRICT: No keys in repo)
+        run: |
+          SENSITIVE=$(git ls-files | grep -E "\.key$|\.pem$|\.p12$|\.jks$|secret/|private/" || true)
+          if [ -n "$SENSITIVE" ]; then
+            echo "ERROR: Sensitive files found in repository:"
+            echo "$SENSITIVE"
+            exit 1
+          fi
+      - name: Verify Mainnet Principals (STRICT: No mainnet keys in code)
+        run: |
+          if grep -rnE "ST[123456789ABCDEFGHJKMNPQRSTVWXYZ]{28,}" contracts/ src/ 2>/dev/null; then
+            echo "ERROR: Mainnet principal keys found in source code!"
+            exit 1
+          fi
+      - name: Verify Package Name
+        run: |
+          if ! grep -q 'name = "lib-conclave-sdk"' Cargo.toml; then
+            echo "ERROR: Package name in Cargo.toml must be 'lib-conclave-sdk'"
+            exit 1
+          fi
+      - name: Verify Rust Edition 2024
+        run: |
+          if ! grep -q 'edition = "2024"' Cargo.toml; then
+            echo "WARNING: Cargo.toml should use edition = \"2024\""
+          fi
+
+  security-checks:
+    name: Security Checks (Strict)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # stable
+        with:
+          toolchain: stable
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2
+        with:
+          tool: cargo-audit
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2
+        with:
+          tool: cargo-deny
+      - name: Prepare audit config
+        run: |
+          mkdir -p .cargo
+          cp audit.toml .cargo/audit.toml
+          cargo generate-lockfile
+      - name: Run cargo audit (STRICT: Fail on vulnerabilities)
+        run: cargo audit --file Cargo.lock
+      - name: Run cargo deny (STRICT: Fail on banned packages)
+        run: cargo deny --config deny.toml --locked check advisories bans licenses sources
