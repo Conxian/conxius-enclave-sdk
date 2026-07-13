@@ -1,3 +1,4 @@
+use crate::protocol::rails::TrustTier;
 use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
 use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
@@ -14,10 +15,13 @@ struct BroadcastSwapRequest {
     pub signature: String,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl SovereignRail for ChangellyRail {
     fn name(&self) -> &'static str {
         "changelly"
+    }
+    fn trust_tier(&self) -> TrustTier {
+        TrustTier::T3
     }
 
     fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {

@@ -62,7 +62,9 @@ impl FiatRouterService {
     /// If provider_type is Sovereign, the intent will require hardware attestation at the gateway.
     pub fn prepare_session(&self, request: FiatOnRampRequest) -> FiatSessionIntent {
         let mut hasher = Sha256::new();
-        hasher.update(format!("FIAT_SOVEREIGN_v1:{:?}:{}", request, self.gateway_endpoint).as_bytes());
+        hasher.update(
+            format!("FIAT_SOVEREIGN_v1:{:?}:{}", request, self.gateway_endpoint).as_bytes(),
+        );
         let signable_hash = hasher.finalize().to_vec();
 
         let enforce_sovereignty = request.provider_type == FiatProviderType::Sovereign;

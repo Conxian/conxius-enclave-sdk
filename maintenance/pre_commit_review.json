@@ -1,0 +1,10 @@
+{
+  "files": [
+    "src/protocol/frost.rs",
+    "src/protocol/nexus/fedimint.rs",
+    "src/protocol/ark.rs",
+    "docs/architecture/GAP_SCORECARD.md",
+    "docs/architecture/IMPROVEMENT_PROPOSALS.md"
+  ],
+  "reasoning": "Hardened core protocols for v2.0.5: Implemented FROST Round 3 aggregation, real Fedimint Chaumian blinding on Secp256k1, and hardened Ark stateless recovery scans. These changes bridge critical architectural gaps for institutional multi-sig vaults and community liquidity, as tracked in the updated scorecard."
+}

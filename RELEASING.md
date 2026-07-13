@@ -18,7 +18,7 @@ During beta (`0.x.y`), breaking changes may occur in minor bumps (for example `0
 
 The repository now enforces release readiness through GitHub Actions:
 
-- `CI` workflow: tests, lint, and wasm build on push/PR to `master`.
+- `CI` workflow: tests, lint, and wasm build on push/PR to `main`.
 - `Security` workflow: `cargo audit` + `cargo deny` on push/PR/schedule.
 - `CodeQL` workflow: Rust static analysis on push/PR/schedule.
 - `Release` workflow:
@@ -59,13 +59,13 @@ These checks are enforced by CI and release workflows.
    - Set `Cargo.toml` version to that same version.
    - Run local preflight checks (below).
 
-2. **Merge to `master`**
+2. **Merge to `main`**
    - Release metadata changes must land on default branch before tagging.
 
 3. **Create and push release tag**
    ```bash
    git tag -s vX.Y.Z -m "Release vX.Y.Z"
-   git push origin master
+   git push origin main
    git push origin vX.Y.Z
    ```
 

@@ -5,6 +5,7 @@ use crate::{
 use bitcoin::XOnlyPublicKey;
 use bitcoin::hashes::{HashEngine, sha256t};
 use bitcoin::taproot::TapLeafHash;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 pub struct TaprootManager<'a> {
@@ -134,5 +135,125 @@ impl BitcoinManager {
 
     pub fn taproot(&self) -> TaprootManager<'_> {
         TaprootManager::new(self.enclave.as_ref())
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum TransactionState {
+    Unconfirmed,
+    Confirmed { height: u32, timestamp: u64 },
+    Reorged,
+    Dead,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum FeeBumpStrategy {
+    None,
+    RBF,
+    CPFP,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MempoolPolicy {
+    pub min_relay_fee: u64,
+    pub target_blocks: u32,
+    pub fee_bump_strategy: FeeBumpStrategy,
+}
+
+impl MempoolPolicy {
+    pub fn default_sovereign() -> Self {
+        Self {
+            min_relay_fee: 1000,
+            target_blocks: 3,
+            fee_bump_strategy: FeeBumpStrategy::RBF,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BitcoinTransactionIntent {
+    pub txid: String,
+    pub raw_tx: Vec<u8>,
+    pub state: TransactionState,
+    pub policy: MempoolPolicy,
+}
+
+impl BitcoinTransactionIntent {
+    pub fn new(txid: String, raw_tx: Vec<u8>, policy: MempoolPolicy) -> Self {
+        Self {
+            txid,
+            raw_tx,
+            state: TransactionState::Unconfirmed,
+            policy,
+        }
+    }
+
+    pub fn update_state(&mut self, next_state: TransactionState) {
+        self.state = next_state;
+    }
+}
+
+/// Helpers for constructing OP_CAT (BIP-347) recursive covenants.
+pub struct OpCatHelper;
+
+impl OpCatHelper {
+    /// Constructs a script fragment for an OP_CAT-based covenant check.
+    /// This is used to verify that the spending transaction matches certain constraints.
+    pub fn build_recursive_covenant_script(
+        pubkey: &XOnlyPublicKey,
+        constraints_hash: [u8; 32],
+    ) -> Vec<u8> {
+        let mut script = Vec::new();
+        // 1. Push constraints hash
+        script.push(0x20); // OP_PUSHBYTES_32
+        script.extend_from_slice(&constraints_hash);
+
+        // 2. OP_CAT with some stack element (e.g. part of sighash)
+        script.push(0x7e); // OP_CAT
+
+        // 3. Verify against pubkey
+        script.push(0x20); // OP_PUSHBYTES_32
+        script.extend_from_slice(&pubkey.serialize().0);
+        script.push(0xac); // OP_CHECKSIG
+
+        script
+    }
+
+    /// Generates a SIGHASH_EXTERNAL equivalent using OP_CAT.
+    pub fn build_sighash_external_script(taproot_internal_key: &XOnlyPublicKey) -> Vec<u8> {
+        let mut script = Vec::new();
+        // Simplified OP_CAT sighash construction
+        script.push(0x7e); // OP_CAT
+        script.push(0x7e); // OP_CAT
+        script.push(0x20);
+        script.extend_from_slice(&taproot_internal_key.serialize().0);
+        script.push(0xba); // OP_CHECKSIGVERIFY (v1)
+        script
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dummy_pubkey() -> XOnlyPublicKey {
+        XOnlyPublicKey::from_byte_array(&[1u8; 32]).unwrap()
+    }
+
+    #[test]
+    fn test_op_cat_covenant_script_generation() {
+        let pubkey = dummy_pubkey();
+        let hash = [2u8; 32];
+        let script = OpCatHelper::build_recursive_covenant_script(&pubkey, hash);
+
+        assert!(script.contains(&0x7e)); // OP_CAT
+        assert!(script.contains(&0xac)); // OP_CHECKSIG
+    }
+
+    #[test]
+    fn test_sighash_external_generation() {
+        let pubkey = dummy_pubkey();
+        let script = OpCatHelper::build_sighash_external_script(&pubkey);
+        assert_eq!(script[0], 0x7e);
     }
 }

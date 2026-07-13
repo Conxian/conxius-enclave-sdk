@@ -1,5 +1,6 @@
 use crate::protocol::asset::AssetIdentifier;
-use crate::protocol::rails::{SovereignRail, SwapIntent, SwapResponse, SwapRequest};
+use crate::protocol::rails::TrustTier;
+use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
 use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -20,10 +21,13 @@ pub struct X402Intent {
     pub fallback_url: Option<String>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl SovereignRail for X402Rail {
     fn name(&self) -> &'static str {
-        "x402_industrial"
+        "x402"
+    }
+    fn trust_tier(&self) -> TrustTier {
+        TrustTier::T1
     }
 
     fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {
@@ -32,7 +36,10 @@ impl SovereignRail for X402Rail {
             return Err(ConclaveError::InvalidPayload);
         }
 
-        Ok(Some(format!("X402_INTENT_v1:{}", request.recipient_address)))
+        Ok(Some(format!(
+            "X402_INTENT_v1:{}",
+            request.recipient_address
+        )))
     }
 
     async fn execute_swap(
@@ -85,8 +92,14 @@ mod tests {
         };
 
         let request = SwapRequest {
-            from_asset: AssetIdentifier { chain: Chain::BITCOIN, symbol: "BTC".to_string() },
-            to_asset: AssetIdentifier { chain: Chain::BITCOIN, symbol: "BTC".to_string() },
+            from_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            to_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
             amount: 100,
             recipient_address: "merchant_endpoint".to_string(),
             attribution: None,

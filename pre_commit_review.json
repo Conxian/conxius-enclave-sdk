@@ -1,10 +1,20 @@
 {
-  "files": [
-    "src/protocol/asset.rs",
-    "src/protocol/bitcoin.rs",
-    "src/protocol/mod.rs",
-    "src/protocol/asset_tests.rs",
-    "src/protocol/bitcoin_tests.rs"
-  ],
-  "reasoning": "I have enhanced the SDK to support Rootstock (RSK) and BOB (Bitcoin on Build) in the AssetRegistry, and introduced a BitcoinManager with BDK-compatible descriptor generation and advanced Taproot signing helpers. This aligns the SDK with the full Bitcoin stack support requirements."
+  "changes": [
+    {
+      "file": "src/protocol/covenant.rs",
+      "description": "Hardened CovenantManager with structural verification for OP_CAT recursive invariants."
+    },
+    {
+      "file": "src/protocol/nexus/fedimint.rs",
+      "description": "Expanded FedimintAdapter to support multiple concurrent federations and added registration logic."
+    },
+    {
+      "file": "src/protocol/ark.rs",
+      "description": "Enhanced ArkManager with improved error handling and scan parameter validation."
+    },
+    {
+      "file": "src/wasm_bindings.rs",
+      "description": "Exposed new hardened features to WASM client."
+    }
+  ]
 }

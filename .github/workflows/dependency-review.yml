@@ -1,13 +1,16 @@
 name: Dependency Review
-
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-
 permissions:
   contents: read
-  pull-requests: write
-
 jobs:
   dependency-review:
-    uses: Conxian/.github/.github/workflows/dependency-review.yml@main
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4

@@ -1,9 +1,9 @@
-# Conxian Labs Administrative Registry - Governance
+# Conxian Labs Administrative Registry - Governance (STRICT)
 
 # Verified maintainers with admin access
-* @botshelomokoka @admin-conxian-labs
+*       @botshelomokoka @admin-conxian-labs
 
-# Security and governance-sensitive files
+# Security and governance-sensitive files (STRICT REVIEW)
 /CODEOWNERS @botshelomokoka @admin-conxian-labs
 /SECURITY.md @botshelomokoka @admin-conxian-labs
 /SUPPORT.md @botshelomokoka @admin-conxian-labs
@@ -11,6 +11,25 @@
 /.github/ISSUE_TEMPLATE/** @botshelomokoka @admin-conxian-labs
 /.github/PULL_REQUEST_TEMPLATE* @botshelomokoka @admin-conxian-labs
 /.github/workflows/** @botshelomokoka @admin-conxian-labs
+
+# Enclave and security-critical paths (MANDATORY REVIEW)
+src/enclave/** @botshelomokoka
+src/protocol/frost.rs @botshelomokoka
+src/protocol/musig2.rs @botshelomokoka
+src/protocol/attestation.rs @botshelomokoka
+src/protocol/fedimint.rs @botshelomokoka
+src/protocol/ark.rs @botshelomokoka
+src/protocol/bitvm.rs @botshelomokoka
+
+# Dependency management (STRICT REVIEW REQUIRED)
+/Cargo.toml @botshelomokoka
+/Cargo.lock @botshelomokoka
+/audit.toml @botshelomokoka
+/deny.toml @botshelomokoka
+
+# Release management (STRICT REVIEW REQUIRED)
+RELEASING.md @botshelomokoka
+CHANGELOG.md @botshelomokoka
 
 # Financial and strategic registries
 /REVIEWS.md @botshelomokoka @admin-conxian-labs

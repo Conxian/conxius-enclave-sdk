@@ -1,0 +1,80 @@
+name: Security Strict
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  schedule:
+    - cron: "31 2 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: security-strict-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  cargo-audit:
+    name: Cargo Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145
+        with:
+          tool: cargo-audit
+
+      - name: Prepare audit config and lockfile
+        run: |
+          mkdir -p .cargo
+          cp audit.toml .cargo/audit.toml
+          cargo generate-lockfile
+
+      - name: Run cargo audit
+        run: cargo audit --file Cargo.lock
+
+  cargo-deny:
+    name: Cargo Deny
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145
+        with:
+          tool: cargo-deny
+
+      - name: Prepare lockfile
+        run: cargo generate-lockfile
+
+      - name: Run cargo deny
+        run: cargo deny --config deny.toml --locked check advisories bans licenses sources
+
+  # Note: Secret Scanning is handled by the Secret Scanning workflow

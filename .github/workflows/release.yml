@@ -7,17 +7,19 @@ on:
   workflow_dispatch:
     inputs:
       release_version:
-        description: "Release version to validate (X.Y.Z or vX.Y.Z)"
+        description: "Release version to validate"
         required: true
         type: string
       publish_to_crates_io:
-        description: "Publish to crates.io after validation (manual only)"
+        description: "Publish to crates.io"
         required: true
         default: false
         type: boolean
 
 permissions:
   contents: read
+  attestations: write
+  id-token: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -25,16 +27,18 @@ concurrency:
 
 jobs:
   validate-release:
-    name: Validate release metadata and package
+    name: Validate Release Metadata
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           fetch-depth: 0
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
 
       - name: Select expected release version
         id: version
@@ -52,42 +56,132 @@ jobs:
       - name: Run tests
         run: cargo test
 
-      - name: Verify crates.io package (dry-run)
+      - name: Verify crates.io package
         run: cargo publish --dry-run
 
-  publish-crates-io:
-    name: Publish crate to crates.io (manual gate)
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_crates_io }}
+  sbom-provenance:
+    name: SBOM and Provenance
     needs: validate-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
+
+      - name: Select expected release version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ inputs.release_version }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify release metadata
+        run: .github/scripts/verify-release-metadata.sh "${{ steps.version.outputs.value }}"
+
+      - name: Build release package artifact
+        run: cargo package --allow-dirty --no-verify
+
+      - name: Locate packaged crate
+        id: crate
+        shell: bash
+        run: |
+          mapfile -t crates < <(find target/package -maxdepth 1 -type f -name '*.crate' | sort)
+          if [[ "${#crates[@]}" -ne 1 ]]; then
+            echo "error: expected exactly one packaged crate" >&2
+            exit 1
+          fi
+          echo "path=${crates[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Syft
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145
+        with:
+          tool: syft
+
+      - name: Generate SPDX SBOM
+        shell: bash
+        run: |
+          mkdir -p sbom
+          syft "${{ steps.crate.outputs.path }}" -o spdx-json=sbom/release.spdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-sbom
+          path: sbom/release.spdx.json
+          if-no-files-found: error
+
+      - name: Attest release package provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.crate.outputs.path }}
+
+  release-gate:
+    name: Release Gate
+    needs: [validate-release, sbom-provenance]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all required jobs passed
+        run: |
+          echo "Release Gate Check"
+          echo "Validate Release: ${{ needs.validate-release.result }}"
+          echo "SBOM Provenance: ${{ needs.sbom-provenance.result }}"
+          
+          if [[ "${{ needs.validate-release.result }}" != "success" ]]; then
+            echo "FAILED: Metadata validation did not pass"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.sbom-provenance.result }}" != "success" ]]; then
+            echo "FAILED: SBOM and provenance generation did not pass"
+            exit 1
+          fi
+          
+          echo "ALL RELEASE GATES PASSED"
+
+  publish-crates-io:
+    name: Publish to crates.io
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_crates_io }}
+    needs: [validate-release, sbom-provenance, release-gate]
     runs-on: ubuntu-latest
     environment: release
     permissions:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: stable
 
       - name: Enforce publish from release tag
-        shell: bash
         run: |
           if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
-            echo "error: publishing is only allowed when workflow_dispatch is run against a release tag (vX.Y.Z)" >&2
+            echo "error: publishing requires a release tag"
             exit 1
           fi
 
-      - name: Verify release metadata against requested version
+      - name: Verify release metadata
         run: .github/scripts/verify-release-metadata.sh "${{ inputs.release_version }}"
 
       - name: Preflight crates.io token
-        shell: bash
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           if [[ -z "${CARGO_REGISTRY_TOKEN}" ]]; then
-            echo "error: CARGO_REGISTRY_TOKEN is missing in the release environment secrets" >&2
+            echo "error: CARGO_REGISTRY_TOKEN is missing"
             exit 1
           fi
 

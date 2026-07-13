@@ -10,7 +10,7 @@ The Conclave SDK (`lib-conclave-sdk`) is the canonical high-integrity integratio
 
 - **Primary Owner**: [Conxian](https://github.com/Conxian)
 - **Support Channel**:
-  - Technical issues and feature requests should be tracked via [GitHub Issues](https://github.com/Conxian/conxius-enclave-sdk/issues).
+  - Technical issues and feature requests should be tracked via [GitHub Issues](https://github.com/Conxian/lib-conclave-sdk/issues).
   - Security vulnerabilities MUST be reported to `security@conxian-labs.com` as per [SECURITY.md](SECURITY.md).
 - **Service Level**: The SDK is currently in **Beta** (`0.x`). Support is provided on a best-effort basis by the core engineering team.
 
