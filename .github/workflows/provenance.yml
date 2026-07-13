@@ -58,11 +58,9 @@ jobs:
           retention-days: 90
 
       - name: Generate SLSA Provenance
-        uses: actions/attest-build-provenance@e48d9e0c39b4b7aebfb16dc194da18e2b8c0dd3b # v1.5.0
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
-          subject: "dist/{{ checksum }}"
-          artifact_path: dist/checksums.txt
-          sha256: ${{ steps.checksum.outputs.checksum }}
+          subject-path: target/release/libconclave_sdk.so
 
   provenance-attest:
     name: Create Release Attestation
