@@ -1,4 +1,25 @@
-# Conclave SDK: Agent Directives (v0.2.5)
+# Conclave SDK: Agent Directives (v0.2.8)
+
+## Production Status
+
+**✅ PRODUCTION READY** - v2.0.7
+
+See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for full checklist.
+
+## Repository Tracking
+
+For comprehensive tracking of issues, pull requests, and branches:
+- **TRACKING.md** - Main tracking overview
+- **ISSUES_INDEX.md** - GitHub issues (synced locally)
+- **PRS_INDEX.md** - Pull requests (synced locally)
+- **BRANCHES_INDEX.md** - Branch overview
+- **REPOSITORY_ANALYSIS.md** - Capabilities, gaps, and roadmap
+- **DEBT_INVENTORY.md** - Technical debt tracking
+
+### Syncing from GitHub
+```bash
+./scripts/sync_issues.sh
+```
 
 ## Core Ethos
 The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native Bitcoin applications. We prioritize hardware-backed security (TEE, StrongBox), non-custodial orchestration, and universal asset support.

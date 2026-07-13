@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Local issue and PR tracking system with sync script
+- Repository analysis documentation
+- Production readiness checklist
+
+### Planned for v2.0.8
+- Fedimint wasm crate integration (G-001)
+- Ark BitVM2 challenge orchestration (G-002)
+- Fedimint cryptographic blinding (G-003)
+
 ## [2.0.7] - 2026-07-05
 
 ### Added

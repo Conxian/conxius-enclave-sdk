@@ -2,22 +2,31 @@
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
+[![Version](https://img.shields.io/badge/version-2.0.7-blue.svg)](CHANGELOG.md)
+[![Status](https://img.shields.io/badge/status-production%20ready-green.svg)](PRODUCTION_READINESS.md)
 
 **Hardware-backed security primitives for the broader Conxian ecosystem.**
 
 The Conclave SDK provides a high-integrity root of trust for security-sensitive wallet, signing, attestation, and policy flows.
 
+## Status
+
+**✅ Production Ready** - The SDK is at **v2.0.7** with all P1 issues resolved. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for the full readiness checklist.
+
+## Quick Start
+
+```bash
+# Add to your Cargo.toml
+[dependencies]
+lib-conclave-sdk = "2.0.7"
+
+# Or from git
+lib-conclave-sdk = { git = "https://github.com/Conxian/conxius-enclave-sdk", tag = "v2.0.7" }
+```
+
 ## Purpose
 
 Provide reusable enclave-facing primitives for signing, attestation, device trust, and hardened key handling across Conxian-aligned applications and services.
-
-## Status
-
-**Active development.** This repository contains both security-oriented implementation work and software-backed development paths used for local integration and interface validation.
-
-The SDK is currently at **v2.0.7** (see [CHANGELOG.md](./CHANGELOG.md)). See the [RELEASING.md](./RELEASING.md) for release process details.
-
-> ⚠️ **Note**: For production use, ensure you pin to a specific version tag. Pre-release versions (0.x.y) may contain breaking changes.
 
 ## Scope
 
@@ -37,21 +46,52 @@ This repository does **not** act as a complete wallet, DAO-facing governance sur
 - `conxian-gateway` and `conxian-nexus` provide middleware and service-side integration surfaces.
 - `lib-conxian-core` provides broader shared primitives across the stack.
 
-## Release discipline
+## Key Features
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Hardware Attestation | ✅ | TEE, StrongBox, Secure Enclave support |
+| FROST DKG | ✅ v2.0.8 | Distributed key generation |
+| Fedimint | ✅ v2.0.7 | Federation adapter with blinding |
+| Ark | ✅ v2.0.7 | vTXO tree construction |
+| BitVM2 | ✅ | Optimistic challenge-response |
+| MuSig2 | ✅ | Multi-signature aggregation |
+| 30+ Chains | ✅ | Multi-chain asset support |
+| WASM | ✅ | WebAssembly bindings |
+
+## Development
+
+```bash
+# Build
+cargo build
+
+# Test
+cargo test
+
+# WASM build
+wasm-pack build
+
+# Format check
+cargo fmt --all -- --check
+
+# Lint
+cargo clippy -- -D warnings
+```
+
+## Release Discipline
 
 - Use Semantic Versioning for formal releases.
 - Publish GitHub releases with annotated tags in the form `vX.Y.Z`.
 - Record release-facing changes in [CHANGELOG.md](./CHANGELOG.md).
 - Follow the workflow in [RELEASING.md](./RELEASING.md).
-- Keep README status language aligned with the latest release and actual driver maturity.
+- See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for release checklist.
 
-## Development
+## Documentation
 
-```bash
-cargo build
-cargo test
-wasm-pack build
-```
+- [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) - Release checklist
+- [TRACKING.md](./TRACKING.md) - Issue and PR tracking
+- [REPOSITORY_ANALYSIS.md](./REPOSITORY_ANALYSIS.md) - Capabilities and gaps
+- [docs/architecture/](docs/architecture/) - Architecture documentation
 
 ## Policies
 

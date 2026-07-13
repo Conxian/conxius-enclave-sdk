@@ -103,16 +103,18 @@ This document tracks known technical debt in the `conxius-enclave-sdk` repositor
 - **Description**: CHANGELOG lacks [Unreleased] section for tracking pending changes
 - **Current**: Only documented releases, no unreleased changes section
 - **Recommendation**: Add `[Unreleased]` section for tracking changes before release
+- **Status**: ✅ RESOLVED (2026-07-13)
 
 ## Burn-Down Tracking
 
 | Item | Identified | Target | Status | Updated |
 |------|------------|--------|--------|---------|
-| DEP-001 | 2026-07-08 | Next stable deps | In Progress | 2026-07-08 |
-| DOC-001 | 2026-07-08 | v2.0.7 release | In Progress | 2026-07-08 |
+| DEP-001 | 2026-07-08 | Next stable deps | In Progress | 2026-07-13 |
+| DOC-001 | 2026-07-08 | v2.0.7 release | ✅ Resolved | 2026-07-13 |
 | DEP-002 | 2026-07-08 | Q3 2026 | Planned | 2026-07-08 |
 | TEST-001 | 2026-07-08 | v2.1.0 | Planned | 2026-07-08 |
-| SEC-001 | 2026-07-12 | Hardened FROST | Resolved | 2026-07-12 |
+| SEC-001 | 2026-07-12 | Hardened FROST | ✅ Resolved | 2026-07-12 |
+| DOC-003 | 2026-07-08 | CHANGELOG [Unreleased] | ✅ Resolved | 2026-07-13 |
 
 ## Resolved Debt
 
