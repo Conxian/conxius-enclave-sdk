@@ -1,16 +1,16 @@
 # Changelog
 
-## [Unreleased]
+## [2.0.8] - 2026-07-13
 
 ### Added
 - Local issue and PR tracking system with sync script
 - Repository analysis documentation
 - Production readiness checklist
+- Strict CI/CD workflows (ci-strict, release-strict, security-strict)
+- Branch protection policy documentation
 
-### Planned for v2.0.8
-- Fedimint wasm crate integration (G-001)
-- Ark BitVM2 challenge orchestration (G-002)
-- Fedimint cryptographic blinding (G-003)
+### Changed
+- Enforced strict release gate requiring both validation and SBOM jobs
 
 ## [2.0.7] - 2026-07-05
 

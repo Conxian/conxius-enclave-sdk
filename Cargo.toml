@@ -1,6 +1,6 @@
 [package]
 name = "lib-conclave-sdk"
-version = "2.0.7"
+version = "2.0.8"
 license = "MIT"
 rust-version = "1.85"
 edition = "2024"
