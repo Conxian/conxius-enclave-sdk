@@ -11,6 +11,14 @@
 
 ### Changed
 - Enforced strict release gate requiring both validation and SBOM jobs
+- Improved provenance attestation workflow with better artifact detection
+- Added required metadata fields for crates.io publication (description, docs, repository)
+- Fixed SLSA provenance subject-path configuration
+
+### Fixed
+- Fixed `attest-build-provenance` action to use valid `subject-path` parameter
+- Fixed library artifact filename detection (liblib_conclave_sdk.so pattern)
+- Replaced hardcoded SIP-010 trait principal with portable inline trait definition
 
 ## [2.0.7] - 2026-07-05
 
