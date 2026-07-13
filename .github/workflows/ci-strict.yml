@@ -108,7 +108,7 @@ jobs:
           fi
       - name: Verify Package Name
         run: |
-          if ! grep -q 'name = "lib-conclave-sdk"' Cargo.toml; then
+          if ! grep -q 'name = "conxius-enclave-sdk"' Cargo.toml; then
             echo "ERROR: Wrong package name"
             exit 1
           fi

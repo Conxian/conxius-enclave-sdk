@@ -23,7 +23,7 @@ jobs:
           ! grep -rnE "ST[123456789ABCDEFGHJKMNPQRSTVWXYZ]{28,}" contracts/ src/
       - name: Verify Package Name
         run: |
-          if ! grep -q 'name = "lib-conclave-sdk"' Cargo.toml; then
+          if ! grep -q 'name = "conxius-enclave-sdk"' Cargo.toml; then
             echo "Error: Package name in Cargo.toml must be 'lib-conclave-sdk'"
             false
           fi
