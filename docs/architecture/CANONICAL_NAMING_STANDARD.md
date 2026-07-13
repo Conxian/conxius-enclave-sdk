@@ -10,7 +10,7 @@ This document defines the naming standard for Conxian public, operator, and BOS 
 ## 2. Repo Role Standard
 | Repo | Canonical Description | Audience |
 | --- | --- | --- |
-| `lib-conclave-sdk` | Secure foundation for hardware-backed signing and attestation. | Developers |
+| `conxius-enclave-sdk` | Secure foundation for hardware-backed signing and attestation. | Developers |
 | `conxian-gateway` | High-performance middleware for intent declaration and settlement routing. | Integrators |
 | `conxian-nexus` | Decentralized state-layer and ZK-verifiable compute orchestrator. | Operators |
 | `conxius-wallet` | Reference implementation for sovereign, non-custodial Bitcoin apps. | End-users |

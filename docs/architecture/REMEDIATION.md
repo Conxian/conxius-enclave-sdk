@@ -41,4 +41,4 @@
 
 ### 8. Fail-Closed Admin & Pipeline Hardening
 - **Status**: COMPLETED.
-- **Implementation**: Pinned GitHub Actions to immutable SHAs. Hardened `RailProxy` to fail closed on attestation or replay-guard compromise. Verified `lib-conclave-sdk` package naming and submodule integrity.
+- **Implementation**: Pinned GitHub Actions to immutable SHAs. Hardened `RailProxy` to fail closed on attestation or replay-guard compromise. Verified `conxius-enclave-sdk` package naming and submodule integrity.

@@ -3,7 +3,7 @@
 ## [2.0.9] - 2026-07-13
 
 ### Changed
-- Renamed crate from `lib-conclave-sdk` to `conxius-enclave-sdk` to match repository name
+- Renamed crate from `conxius-enclave-sdk` to `conxius-enclave-sdk` to match repository name
 
 ## [2.0.8] - 2026-07-13
 

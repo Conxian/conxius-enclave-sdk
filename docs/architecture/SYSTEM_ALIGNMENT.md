@@ -27,6 +27,6 @@
 - **Fail-Closed Policy**: Automated rejection of bypass-mode in production paths.
 
 ## Release Metadata
-- **Canonical Name**: lib-conclave-sdk
+- **Canonical Name**: conxius-enclave-sdk
 - **Branding**: Conclave SDK
 - **Maturity**: Bleeding Edge / Production Path (Hardened)

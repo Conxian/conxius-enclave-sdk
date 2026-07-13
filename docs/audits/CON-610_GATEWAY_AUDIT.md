@@ -1,7 +1,7 @@
 # CON-610: Gateway Execution & Settlement Audit
 
 ## Overview
-Audit of `conxian-gateway` settlement and execution paths within `lib-conclave-sdk` for production safety and testnet residue.
+Audit of `conxian-gateway` settlement and execution paths within `conxius-enclave-sdk` for production safety and testnet residue.
 
 ## Findings
 

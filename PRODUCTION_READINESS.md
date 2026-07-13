@@ -67,7 +67,7 @@
 
 ### 🚀 Release Process
 
-- [ ] Create release tag (v2.0.7)
+- [ ] Create release tag (v2.0.9)
 - [ ] Push tag to trigger Release workflow
 - [ ] Verify CI gates pass
 - [ ] Run manual publish workflow
@@ -100,7 +100,7 @@
 
 | Version | Status | Notes |
 |---------|--------|-------|
-| v2.0.7 | ✅ Ready for Release | All issues closed |
+| v2.0.9 | ✅ Ready for Release | All issues closed |
 | v2.0.8 | 🔄 In Progress | Fedimint + Ark hardening |
 
 ---
@@ -120,7 +120,7 @@
 
 ## Release Procedure
 
-### Option 1: Release v2.0.7 Now
+### Option 1: Release v2.0.9 Now
 
 ```bash
 # 1. Verify all checks pass
@@ -134,15 +134,15 @@ cargo audit --file Cargo.lock
 
 # 3. Create release commit (if needed)
 git add -A
-git commit -m "chore: prepare v2.0.7 release"
+git commit -m "chore: prepare v2.0.9 release"
 
 # 4. Push and create tag
 git push origin main
-git tag -s v2.0.7 -m "Release v2.0.7"
-git push origin v2.0.7
+git tag -s v2.0.9 -m "Release v2.0.9"
+git push origin v2.0.9
 
 # 5. Trigger manual publish via GitHub Actions
-# Actions → Release → Run workflow → v2.0.7 → publish_to_crates_io: true
+# Actions → Release → Run workflow → v2.0.9 → publish_to_crates_io: true
 ```
 
 ### Option 2: Wait for Stable Dependencies
@@ -177,7 +177,7 @@ git push origin v2.0.7
 | Support Email | support@conxian-labs.com |
 | Security Email | security@conxian-labs.com |
 | GitHub Issues | https://github.com/Conxian/conxius-enclave-sdk/issues |
-| crates.io | https://crates.io/crates/lib-conclave-sdk |
+| crates.io | https://crates.io/crates/conxius-enclave-sdk |
 
 ---
 

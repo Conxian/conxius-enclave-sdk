@@ -1,7 +1,7 @@
 # CON-627: SDK Extraction Audit Findings
 
 ## Overview
-The current `lib-conclave-sdk` architecture was audited for its viability as a standalone, reusable SDK that can be decoupled from any specific wallet UI.
+The current `conxius-enclave-sdk` architecture was audited for its viability as a standalone, reusable SDK that can be decoupled from any specific wallet UI.
 
 ## Findings
 

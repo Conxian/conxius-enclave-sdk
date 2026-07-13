@@ -24,6 +24,6 @@ jobs:
       - name: Verify Package Name
         run: |
           if ! grep -q 'name = "conxius-enclave-sdk"' Cargo.toml; then
-            echo "Error: Package name in Cargo.toml must be 'lib-conclave-sdk'"
+            echo "Error: Package name in Cargo.toml must be 'conxius-enclave-sdk'"
             false
           fi
