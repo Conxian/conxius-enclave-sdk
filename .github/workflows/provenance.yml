@@ -40,15 +40,19 @@ jobs:
           cargo build --release --lib --verbose
           mkdir -p dist
           # Find and copy the built library (platform-specific extension)
-          if [ -f "target/release/libconclave_sdk.so" ]; then
+          # Note: crate name "lib-conclave-sdk" produces "liblib_conclave_sdk.so"
+          if [ -f "target/release/liblib_conclave_sdk.so" ]; then
+            cp target/release/liblib_conclave_sdk.so dist/libconclave_sdk.so
+            echo "artifact=libconclave_sdk.so" >> $GITHUB_OUTPUT
+          elif [ -f "target/release/liblib_conclave_sdk.dylib" ]; then
+            cp target/release/liblib_conclave_sdk.dylib dist/libconclave_sdk.so
+            echo "artifact=libconclave_sdk.so" >> $GITHUB_OUTPUT
+          elif [ -f "target/release/liblib_conclave_sdk.a" ]; then
+            cp target/release/liblib_conclave_sdk.a dist/libconclave_sdk.a
+            echo "artifact=libconclave_sdk.a" >> $GITHUB_OUTPUT
+          elif [ -f "target/release/libconclave_sdk.so" ]; then
             cp target/release/libconclave_sdk.so dist/
             echo "artifact=libconclave_sdk.so" >> $GITHUB_OUTPUT
-          elif [ -f "target/release/libconclave_sdk.dylib" ]; then
-            cp target/release/libconclave_sdk.dylib dist/libconclave_sdk.so
-            echo "artifact=libconclave_sdk.so" >> $GITHUB_OUTPUT
-          elif [ -f "target/release/libconclave_sdk.a" ]; then
-            cp target/release/libconclave_sdk.a dist/
-            echo "artifact=libconclave_sdk.a" >> $GITHUB_OUTPUT
           else
             echo "ERROR: No library artifact found!"
             ls -la target/release/ | grep -E "libconclave|\.so|\.a|\.dylib"
