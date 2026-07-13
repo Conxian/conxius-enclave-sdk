@@ -40,22 +40,19 @@ jobs:
           cargo build --release --lib --verbose
           mkdir -p dist
           # Find and copy the built library (platform-specific extension)
-          # Note: crate name "lib-conclave-sdk" produces "liblib_conclave_sdk.so"
-          if [ -f "target/release/liblib_conclave_sdk.so" ]; then
-            cp target/release/liblib_conclave_sdk.so dist/libconclave_sdk.so
-            echo "artifact=libconclave_sdk.so" >> $GITHUB_OUTPUT
-          elif [ -f "target/release/liblib_conclave_sdk.dylib" ]; then
-            cp target/release/liblib_conclave_sdk.dylib dist/libconclave_sdk.so
-            echo "artifact=libconclave_sdk.so" >> $GITHUB_OUTPUT
-          elif [ -f "target/release/liblib_conclave_sdk.a" ]; then
-            cp target/release/liblib_conclave_sdk.a dist/libconclave_sdk.a
-            echo "artifact=libconclave_sdk.a" >> $GITHUB_OUTPUT
-          elif [ -f "target/release/libconclave_sdk.so" ]; then
-            cp target/release/libconclave_sdk.so dist/
-            echo "artifact=libconclave_sdk.so" >> $GITHUB_OUTPUT
+          # Crate name "conxius-enclave-sdk" produces "libconxius_enclave_sdk.so"
+          if [ -f "target/release/libconxius_enclave_sdk.so" ]; then
+            cp target/release/libconxius_enclave_sdk.so dist/
+            echo "artifact=libconxius_enclave_sdk.so" >> $GITHUB_OUTPUT
+          elif [ -f "target/release/libconxius_enclave_sdk.dylib" ]; then
+            cp target/release/libconxius_enclave_sdk.dylib dist/
+            echo "artifact=libconxius_enclave_sdk.so" >> $GITHUB_OUTPUT
+          elif [ -f "target/release/libconxius_enclave_sdk.a" ]; then
+            cp target/release/libconxius_enclave_sdk.a dist/
+            echo "artifact=libconxius_enclave_sdk.a" >> $GITHUB_OUTPUT
           else
             echo "ERROR: No library artifact found!"
-            ls -la target/release/ | grep -E "libconclave|\.so|\.a|\.dylib"
+            ls -la target/release/ | grep -E "libconxius|\.so|\.a|\.dylib"
             exit 1
           fi
           echo "Build artifacts copied to dist/"
@@ -63,17 +60,17 @@ jobs:
       - name: Create Checksums
         id: checksum
         run: |
-          if [ ! -f "dist/libconclave_sdk.so" ] && [ ! -f "dist/libconclave_sdk.a" ]; then
+          if [ ! -f "dist/libconxius_enclave_sdk.so" ] && [ ! -f "dist/libconxius_enclave_sdk.a" ]; then
             echo "ERROR: Library artifact not found in dist/"
             ls -la dist/
             exit 1
           fi
           # Use the .so file if present, otherwise check for .a
           LIB_FILE=""
-          if [ -f "dist/libconclave_sdk.so" ]; then
-            LIB_FILE="dist/libconclave_sdk.so"
+          if [ -f "dist/libconxius_enclave_sdk.so" ]; then
+            LIB_FILE="dist/libconxius_enclave_sdk.so"
           else
-            LIB_FILE="dist/libconclave_sdk.a"
+            LIB_FILE="dist/libconxius_enclave_sdk.a"
           fi
           sha256sum "$LIB_FILE" > dist/checksums.txt
           echo "checksum=$(sha256sum $LIB_FILE | cut -d' ' -f1)" >> $GITHUB_OUTPUT
@@ -84,14 +81,14 @@ jobs:
         with:
           name: release-artifact-${{ github.ref_name }}
           path: |
-            dist/libconclave_sdk.so
+            dist/libconxius_enclave_sdk.so
             dist/checksums.txt
           retention-days: 90
 
       - name: Generate SLSA Provenance
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
-          subject-path: dist/libconclave_sdk.so
+          subject-path: dist/libconxius_enclave_sdk.so
 
   provenance-attest:
     name: Create Release Attestation
