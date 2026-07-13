@@ -3,27 +3,12 @@ name: Security Strict
 on:
   push:
     branches: [ main, master ]
-    paths:
-      - '**.rs'
-      - '**/Cargo.toml'
-      - '**/Cargo.lock'
-      - '**/audit.toml'
-      - '**/deny.toml'
-      - '.github/workflows/security-strict.yml'
   pull_request:
     branches: [ main, master ]
-    paths:
-      - '**.rs'
-      - '**/Cargo.toml'
-      - '**/Cargo.lock'
-      - '**/audit.toml'
-      - '**/deny.toml'
-      - '.github/workflows/security-strict.yml'
   schedule:
-    - cron: "31 2 * * 1"  # Weekly on Monday
+    - cron: "31 2 * * 1"
   workflow_dispatch:
 
-# STRICT MODE: Never cancel security scans
 concurrency:
   group: security-strict-${{ github.ref }}
   cancel-in-progress: false
@@ -38,76 +23,62 @@ env:
 
 jobs:
   cargo-audit:
-    name: Cargo Audit (STRICT)
+    name: Cargo Audit
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
           toolchain: stable
 
       - name: Install cargo-audit
-        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145
         with:
           tool: cargo-audit
 
-      - name: Prepare audit config and lockfile (STRICT: Must exist)
-        shell: bash
+      - name: Prepare audit config and lockfile
         run: |
-          if [ ! -f "audit.toml" ]; then
-            echo "ERROR: audit.toml not found"
-            exit 1
-          fi
           mkdir -p .cargo
           cp audit.toml .cargo/audit.toml
           cargo generate-lockfile
-          if [ ! -f "Cargo.lock" ]; then
-            echo "ERROR: Cargo.lock not generated"
-            exit 1
-          fi
 
-      - name: Run cargo audit (STRICT: Fail on vulnerabilities)
+      - name: Run cargo audit
         run: cargo audit --file Cargo.lock
 
   cargo-deny:
-    name: Cargo Deny (STRICT)
+    name: Cargo Deny
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
           toolchain: stable
 
       - name: Install cargo-deny
-        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145
         with:
           tool: cargo-deny
 
-      - name: Prepare lockfile (STRICT: Must exist)
-        run: |
-          cargo generate-lockfile
-          if [ ! -f "Cargo.lock" ]; then
-            echo "ERROR: Cargo.lock not generated"
-            exit 1
-          fi
+      - name: Prepare lockfile
+        run: cargo generate-lockfile
 
-      - name: Run cargo deny (STRICT: Fail on bans/licenses)
+      - name: Run cargo deny
         run: cargo deny --config deny.toml --locked check advisories bans licenses sources
 
   secret-scan:
-    name: Secret Scanning (STRICT)
+    name: Secret Scanning
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -116,11 +87,11 @@ jobs:
       security-events: write
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           fetch-depth: 0
 
-      - name: Run Gitleaks (STRICT: No secrets allowed)
-        uses: gitleaks/gitleaks-action@1c72ec6b8c93bfd5a1b4b4b5c0a1e3f5e1a9c9e9 # v3.0.0
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@1c72ec6b8c93bfd5a1b4b4b5c0a1e3f5e1a9c9e9
         env:
           CONFIG_PATH: .gitleaks.toml

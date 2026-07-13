@@ -7,16 +7,15 @@ on:
   workflow_dispatch:
     inputs:
       release_version:
-        description: "Release version to validate (X.Y.Z or vX.Y.Z)"
+        description: "Release version to validate"
         required: true
         type: string
       publish_to_crates_io:
-        description: "Publish to crates.io after validation (manual only)"
+        description: "Publish to crates.io after validation"
         required: true
         default: false
         type: boolean
 
-# STRICT MODE: Never cancel in-progress releases
 concurrency:
   group: release-strict-${{ github.ref }}
   cancel-in-progress: false
@@ -31,22 +30,20 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  # === STRICT VALIDATION (Always runs) ===
-  
   validate-release:
-    name: Validate Release Metadata (STRICT)
+    name: Validate Release Metadata
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
       version: ${{ steps.version.outputs.value }}
     steps:
-      - name: Checkout (full history for version verification)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           fetch-depth: 0
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
           toolchain: stable
 
@@ -59,31 +56,28 @@ jobs:
           else
             VERSION="${{ inputs.release_version }}"
           fi
-          # Normalize version (remove 'v' prefix if present)
           VERSION="${VERSION#v}"
           echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Selected version: ${VERSION}"
 
-      - name: Verify release metadata (STRICT: All checks required)
+      - name: Verify release metadata
         run: .github/scripts/verify-release-metadata.sh "${{ steps.version.outputs.value }}"
 
-      - name: Run tests (STRICT: Must pass)
+      - name: Run tests
         run: cargo test --all-features --verbose
         env:
           RUST_BACKTRACE: full
 
-      - name: Run linting (STRICT: Must pass)
+      - name: Run linting
         run: |
           cargo fmt --all -- --check
           cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Verify crates.io package (dry-run) (STRICT: Must pass)
+      - name: Verify crates.io package
         run: cargo publish --dry-run --allow-dirty
 
-  # === SBOM AND PROVENANCE ===
-  
   sbom-provenance:
-    name: SBOM + Provenance (STRICT)
+    name: SBOM and Provenance
     needs: validate-release
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -93,17 +87,17 @@ jobs:
       attestations: write
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
           toolchain: stable
 
       - name: Verify release metadata
         run: .github/scripts/verify-release-metadata.sh "${{ needs.validate-release.outputs.version }}"
 
-      - name: Build release package artifact (STRICT: Must succeed)
+      - name: Build release package
         run: cargo package --allow-dirty --no-verify
 
       - name: Locate packaged crate
@@ -112,45 +106,36 @@ jobs:
         run: |
           mapfile -t crates < <(find target/package -maxdepth 1 -type f -name '*.crate' | sort)
           if [[ "${#crates[@]}" -ne 1 ]]; then
-            echo "ERROR: expected exactly one packaged crate, found ${#crates[@]}" >&2
-            printf '%s\n' "${crates[@]}" >&2
+            echo "ERROR: expected exactly one packaged crate" >&2
             exit 1
           fi
           echo "path=${crates[0]}" >> "$GITHUB_OUTPUT"
-          echo "Package: ${crates[0]}"
 
       - name: Install Syft
-        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145 # v2
+        uses: taiki-e/install-action@2ca9b94c269419b7b0c711c09d0b21c4e1d51145
         with:
           tool: syft
 
-      - name: Generate SPDX SBOM (STRICT: Must generate)
-        shell: bash
+      - name: Generate SPDX SBOM
         run: |
           mkdir -p sbom
           syft "${{ steps.crate.outputs.path }}" -o spdx-json=sbom/release.spdx.json
-          if [ ! -f "sbom/release.spdx.json" ]; then
-            echo "ERROR: SBOM generation failed"
-            exit 1
-          fi
 
-      - name: Upload SBOM artifact (STRICT: Must upload)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: release-sbom-${{ needs.validate-release.outputs.version }}
           path: sbom/release.spdx.json
           if-no-files-found: error
           retention-days: 90
 
-      - name: Attest release package provenance (STRICT: Generate attestation)
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+      - name: Attest release provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be
         with:
           subject-path: ${{ steps.crate.outputs.path }}
 
-  # === CRATES.IO PUBLICATION (Manual gate only) ===
-  
   publish-crates-io:
-    name: Publish to crates.io (Manual Gate)
+    name: Publish to crates.io
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_crates_io }}
     needs:
       - validate-release
@@ -162,41 +147,33 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
           toolchain: stable
 
-      - name: Enforce publish from release tag (STRICT: Tag required)
-        shell: bash
+      - name: Enforce publish from release tag
         run: |
           if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
-            echo "ERROR: publishing is only allowed when workflow_dispatch is run against a release tag (vX.Y.Z)" >&2
-            echo "Current ref type: ${GITHUB_REF_TYPE}" >&2
+            echo "ERROR: publishing requires a release tag"
             exit 1
           fi
 
-      - name: Verify release metadata against requested version
+      - name: Verify release metadata
         run: .github/scripts/verify-release-metadata.sh "${{ inputs.release_version }}"
 
-      - name: Preflight crates.io token (STRICT: Token required)
-        shell: bash
+      - name: Preflight crates.io token
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           if [[ -z "${CARGO_REGISTRY_TOKEN}" ]]; then
-            echo "ERROR: CARGO_REGISTRY_TOKEN is missing in the release environment secrets" >&2
-            echo "Please configure CARGO_REGISTRY_TOKEN in the 'release' environment secrets" >&2
+            echo "ERROR: CARGO_REGISTRY_TOKEN is missing"
             exit 1
           fi
-          echo "Token found, proceeding with publish..."
 
-      - name: Publish to crates.io (STRICT: Final gate)
+      - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          echo "Publishing version ${{ inputs.release_version }} to crates.io..."
-          cargo publish --token "${CARGO_REGISTRY_TOKEN}"
-          echo "Publish complete!"
+        run: cargo publish --token "${CARGO_REGISTRY_TOKEN}"
