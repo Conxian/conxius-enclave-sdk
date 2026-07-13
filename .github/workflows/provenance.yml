@@ -37,16 +37,43 @@ jobs:
 
       - name: Build release artifacts
         run: |
-          cargo build --release --lib
+          cargo build --release --lib --verbose
           mkdir -p dist
+          # Find and copy the built library (platform-specific extension)
+          if [ -f "target/release/libconclave_sdk.so" ]; then
+            cp target/release/libconclave_sdk.so dist/
+            echo "artifact=libconclave_sdk.so" >> $GITHUB_OUTPUT
+          elif [ -f "target/release/libconclave_sdk.dylib" ]; then
+            cp target/release/libconclave_sdk.dylib dist/libconclave_sdk.so
+            echo "artifact=libconclave_sdk.so" >> $GITHUB_OUTPUT
+          elif [ -f "target/release/libconclave_sdk.a" ]; then
+            cp target/release/libconclave_sdk.a dist/
+            echo "artifact=libconclave_sdk.a" >> $GITHUB_OUTPUT
+          else
+            echo "ERROR: No library artifact found!"
+            ls -la target/release/ | grep -E "libconclave|\.so|\.a|\.dylib"
+            exit 1
+          fi
+          echo "Build artifacts copied to dist/"
 
       - name: Create Checksums
         id: checksum
         run: |
-          cd target/release
-          sha256sum libconclave_sdk.so > ../../dist/checksums.txt
-          echo "artifact=libconclave_sdk.so" >> $GITHUB_OUTPUT
-          echo "checksum=$(sha256sum libconclave_sdk.so | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          if [ ! -f "dist/libconclave_sdk.so" ] && [ ! -f "dist/libconclave_sdk.a" ]; then
+            echo "ERROR: Library artifact not found in dist/"
+            ls -la dist/
+            exit 1
+          fi
+          # Use the .so file if present, otherwise check for .a
+          LIB_FILE=""
+          if [ -f "dist/libconclave_sdk.so" ]; then
+            LIB_FILE="dist/libconclave_sdk.so"
+          else
+            LIB_FILE="dist/libconclave_sdk.a"
+          fi
+          sha256sum "$LIB_FILE" > dist/checksums.txt
+          echo "checksum=$(sha256sum $LIB_FILE | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "Checksum created for $LIB_FILE"
 
       - name: Upload release artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.5.0
