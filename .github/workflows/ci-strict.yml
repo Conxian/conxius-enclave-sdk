@@ -3,21 +3,9 @@ name: CI Strict
 on:
   push:
     branches: [ main, master ]
-    paths-ignore:
-      - '*.md'
-      - '*.txt'
-      - 'LICENSE'
-      - '.gitignore'
-      - 'docs/**'
-      - '!.github/workflows/**'
   pull_request:
     branches: [ main, master ]
-    paths-ignore:
-      - '*.md'
-      - '*.txt'
-      - 'LICENSE'
-      - '.gitignore'
-      - 'docs/**'
+  workflow_dispatch:
 
 # Do not cancel in-progress runs for strict CI
 concurrency:
