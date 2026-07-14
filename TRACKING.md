@@ -25,7 +25,9 @@ This document provides a comprehensive overview of the Conclave SDK repository s
 | **Language** | Rust |
 | **Latest Tag** | v2.0.9 |
 | **Current Version** | v2.0.9 |
-| **Production Status** | ✅ Ready |
+| **Production Status** | ✅ Production Ready |
+| **Test Coverage** | 121 tests (25 hardware attestation) |
+| **Last Updated** | 2026-07-14 |
 
 ## Related Repositories
 

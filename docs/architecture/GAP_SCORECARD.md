@@ -1,4 +1,4 @@
-# Conclave SDK: Research & Implementation Gap Scorecard (v2.0.8)
+# Conclave SDK: Research & Implementation Gap Scorecard (v2.0.9)
 
 ## Overview
 This document tracks the resolution of production-path logic, architectural gaps, and research requirements for the Conclave SDK.
@@ -7,6 +7,17 @@ This document tracks the resolution of production-path logic, architectural gaps
 - **Criticality**: [High, Medium, Low]
 - **Complexity**: [High, Medium, Low]
 - **Status**: [Completed, In Progress, Backlog]
+
+## Technical Resolutions (v2.0.9)
+
+### 1. Hardware Attestation Comprehensive Test Suite
+- **Resolution**: Added comprehensive 25-test suite in `src/enclave/hardware_attestation_tests.rs` covering:
+  - Trust Tier Verification (CloudTEE, StrongBox, TEE, Software blocking)
+  - Freshness & Replay Protection (stale attestation, nonce validation, replay guard)
+  - Cryptographic Verification (invalid signatures, untrusted roots, hardware hardening)
+  - Trust Enforcement (production vs development trust classification)
+  - Edge Cases (empty signatures, chain validation, concurrent access)
+- **Status**: Completed (v2.0.9)
 
 ## Technical Resolutions (v2.0.8)
 

@@ -2,9 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+- Comprehensive hardware attestation test suite with 25 tests covering trust tiers, freshness, replay protection, and trust enforcement
+- Session Continuity Protocol in AGENTS.md for strict production verification
+
 ### Documentation
 - Fixed version staleness across AGENTS.md, README.md, and TRACKING.md
-- Added Session Continuity Protocol to AGENTS.md for strict production verification
+- Updated REPOSITORY_ANALYSIS.md to v2.0.9 with TEST-001 resolved
+- Updated GAP_SCORECARD.md to v2.0.9
+- Updated CODEOWNERS for hardware_attestation_tests.rs
 
 ## [2.0.9] - 2026-07-13
 
