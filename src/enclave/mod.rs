@@ -3,6 +3,9 @@ pub mod attestation;
 pub mod cloud;
 pub mod replay_guard;
 
+#[cfg(test)]
+mod hardware_attestation_tests;
+
 use crate::ConclaveResult;
 use serde::{Deserialize, Serialize};
 

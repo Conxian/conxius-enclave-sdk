@@ -5,7 +5,14 @@ use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
 use x509_cert::Certificate;
 
+#[cfg(test)]
+pub const MAX_ATTESTATION_AGE_SECS: u64 = 300;
+#[cfg(not(test))]
 const MAX_ATTESTATION_AGE_SECS: u64 = 300;
+
+#[cfg(test)]
+pub const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
+#[cfg(not(test))]
 const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
 
 const TRUSTED_ROOTS: &[&str] = &[
@@ -43,10 +50,17 @@ pub struct DeviceIntegrityReport {
 impl DeviceIntegrityReport {
     /// Verifies the integrity report using a realistic hardware attestation model.
     pub fn verify(&self, expected_nonce: &[u8]) -> bool {
-        self.verify_at_time(expected_nonce, unix_time_secs())
+        self.verify_at_time_impl(expected_nonce, unix_time_secs())
     }
 
-    fn verify_at_time(&self, expected_nonce: &[u8], now_secs: u64) -> bool {
+    /// Verifies at a specific timestamp (for testing).
+    #[cfg(test)]
+    pub fn verify_at_time(&self, expected_nonce: &[u8], now_secs: u64) -> bool {
+        self.verify_at_time_impl(expected_nonce, now_secs)
+    }
+
+    #[cfg_attr(test, allow(dead_code))]
+    fn verify_at_time_impl(&self, expected_nonce: &[u8], now_secs: u64) -> bool {
         if self.signature.is_empty() || self.certificate_chain.len() < 2 {
             return false;
         }
