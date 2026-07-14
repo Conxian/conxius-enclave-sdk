@@ -18,7 +18,7 @@ The Conclave SDK provides a high-integrity root of trust for security-sensitive 
 ```bash
 # Add to your Cargo.toml
 [dependencies]
-conxius-enclave-sdk = "2.0.8"
+conxius-enclave-sdk = "2.0.9"
 
 # Or from git
 conxius-enclave-sdk = { git = "https://github.com/Conxian/conxius-enclave-sdk", tag = "v2.0.9" }

@@ -1,10 +1,26 @@
-# Conclave SDK: Agent Directives (v0.2.8)
+# Conclave SDK: Agent Directives (v0.2.9)
 
 ## Production Status
 
-**✅ PRODUCTION READY** - v2.0.7
+**✅ PRODUCTION READY** - v2.0.9
 
 See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for full checklist.
+
+---
+
+## 🔄 Session Continuity Protocol
+
+> **⚠️ VERIFY PREVIOUS WORK BEFORE CONTINUING**
+> 
+> At the start of **every new session**, you MUST:
+> 1. Run `cargo test` to verify all tests pass
+> 2. Run `cargo fmt --all -- --check` to verify formatting
+> 3. Run `cargo clippy -- -D warnings` to verify no lints
+> 4. Report any failures before proceeding with new work
+>
+> This enforces strict live and production code standards.
+
+---
 
 ## Repository Tracking
 

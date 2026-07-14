@@ -21,10 +21,10 @@ This document provides a comprehensive overview of the Conclave SDK repository s
 | Property | Value |
 |----------|-------|
 | **Repository** | Conxian/conxius-enclave-sdk |
-| **Default Branch** | master (origin/main) |
+| **Default Branch** | main |
 | **Language** | Rust |
-| **Latest Tag** | v2.0.7 |
-| **Current Version** | v2.0.7 |
+| **Latest Tag** | v2.0.9 |
+| **Current Version** | v2.0.9 |
 | **Production Status** | ✅ Ready |
 
 ## Related Repositories

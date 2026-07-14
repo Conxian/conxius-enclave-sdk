@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Documentation
+- Fixed version staleness across AGENTS.md, README.md, and TRACKING.md
+- Added Session Continuity Protocol to AGENTS.md for strict production verification
+
 ## [2.0.9] - 2026-07-13
 
 ### Changed
