@@ -66,6 +66,7 @@ This document tracks known technical debt in the `conxius-enclave-sdk` repositor
 - **Risk**: Changes to hardware attestation may break production flows
 - **Recommendation**: Add integration tests with mock hardware; block production Trust Tiers without hardware tests
 - **AGENTS.md Reference**: "Hardware-backed logic should be tested with both simulated and software attestation"
+- **Status**: ✅ RESOLVED (2026-07-14) - Comprehensive test suite added with 25 tests covering trust tiers, freshness, replay protection, and trust enforcement
 
 ### P3 - Medium
 
@@ -112,13 +113,14 @@ This document tracks known technical debt in the `conxius-enclave-sdk` repositor
 | DEP-001 | 2026-07-08 | Next stable deps | In Progress | 2026-07-14 |
 | DOC-001 | 2026-07-08 | v2.0.7 release | ✅ Resolved | 2026-07-14 |
 | DEP-002 | 2026-07-08 | Q3 2026 | Planned | 2026-07-14 |
-| TEST-001 | 2026-07-08 | v2.1.0 | Planned | 2026-07-14 |
+| TEST-001 | 2026-07-08 | v2.0.9 | ✅ Resolved | 2026-07-14 |
 | SEC-001 | 2026-07-12 | Hardened FROST | ✅ Resolved | 2026-07-14 |
 | DOC-003 | 2026-07-08 | CHANGELOG [Unreleased] | ✅ Resolved | 2026-07-14 |
 
 ## Resolved Debt
 
 - **SEC-001**: Hardened FROST DKG Round 2 verification in `src/protocol/frost.rs` to validate received shares against expected polynomial commitments and identifiers (Resolved: 2026-07-12).
+- **TEST-001**: Comprehensive hardware attestation test suite in `src/enclave/hardware_attestation_tests.rs` covering trust tiers, freshness, replay protection, cryptographic verification, and trust enforcement with 25 tests (Resolved: 2026-07-14).
 
 ## Maintenance Notes
 
