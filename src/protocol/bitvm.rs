@@ -1,6 +1,6 @@
 use crate::protocol::bitcoin::TaprootManager;
 use crate::protocol::musig2::MuSig2Session;
-use crate::{ConclaveResult, enclave::EnclaveManager};
+use crate::{enclave::EnclaveManager, ConclaveResult};
 use musig2::{PartialSignature, PubNonce};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

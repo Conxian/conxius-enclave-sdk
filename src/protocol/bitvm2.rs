@@ -89,6 +89,7 @@ pub struct BitVm2ChallengeResponse {
 /// BitVM2 Orchestrator - manages challenge lifecycle
 pub struct BitVm2Orchestrator {
     ark_manager: Arc<ArkManager>,
+    #[allow(dead_code)]
     bitvm_manager: Arc<BitVmManager>,
     active_challenges: std::collections::HashMap<String, BitVm2ChallengeStatus>,
 }

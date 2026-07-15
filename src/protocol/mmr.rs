@@ -1,5 +1,5 @@
-use crate::ConclaveResult;
 use crate::state::MerkleMountainRange;
+use crate::ConclaveResult;
 use serde::{Deserialize, Serialize};
 
 /// Service for handling Merkle Mountain Range (MMR) operations.

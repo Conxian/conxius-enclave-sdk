@@ -1,7 +1,7 @@
 use crate::enclave::attestation::{AttestationLevel, DeviceIntegrityReport};
 use crate::{
-    ConclaveError, ConclaveResult,
     enclave::{EnclaveManager, SignRequest, SignResponse, SigningAlgorithm},
+    ConclaveError, ConclaveResult,
 };
 use ed25519_dalek::{Signer, SigningKey};
 use rand::Rng;

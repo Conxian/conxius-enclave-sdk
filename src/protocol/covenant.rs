@@ -98,17 +98,15 @@ mod tests {
         let witness = vec![part1.clone(), part2.clone()];
 
         // Valid invariant
-        assert!(
-            mgr.verify_recursive_invariant(&witness, expected_hash)
-                .unwrap()
-        );
+        assert!(mgr
+            .verify_recursive_invariant(&witness, expected_hash)
+            .unwrap());
 
         // Invalid invariant
         let wrong_hash = [0u8; 32];
-        assert!(
-            !mgr.verify_recursive_invariant(&witness, wrong_hash)
-                .unwrap()
-        );
+        assert!(!mgr
+            .verify_recursive_invariant(&witness, wrong_hash)
+            .unwrap());
 
         // Empty witness fails closed
         assert!(mgr.verify_recursive_invariant(&[], expected_hash).is_err());

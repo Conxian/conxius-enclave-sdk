@@ -1,6 +1,6 @@
-use crate::ConclaveResult;
 use crate::enclave::EnclaveManager;
 use crate::protocol::stacks::StacksManager;
+use crate::ConclaveResult;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

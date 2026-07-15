@@ -539,12 +539,9 @@ impl WasmDlcClient {
         }
     }
 
-    pub fn generate_contract_id(
-        &self,
-        oracle_announcement: &str,
-        local_collateral: u64,
-    ) -> String {
-        self.inner.generate_contract_id(oracle_announcement, local_collateral)
+    pub fn generate_contract_id(&self, oracle_announcement: &str, local_collateral: u64) -> String {
+        self.inner
+            .generate_contract_id(oracle_announcement, local_collateral)
     }
 
     pub fn offer_contract(

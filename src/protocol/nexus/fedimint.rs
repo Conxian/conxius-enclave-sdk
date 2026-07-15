@@ -18,8 +18,8 @@
 //! - [fedimint-tbs crate](https://crates.io/crates/fedimint-tbs)
 
 use crate::{ConclaveError, ConclaveResult};
-use bitcoin::PublicKey;
 use bitcoin::secp256k1::{self, Scalar, Secp256k1, SecretKey};
+use bitcoin::PublicKey;
 use hex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -301,8 +301,9 @@ impl FedimintAdapter {
             let pk_internal = secp256k1::PublicKey::from_secret_key(&sk);
 
             // Recompute unblinded signature: Sig = P * s
-            let unblinded_sig = pk_internal.mul_tweak(&fed_scalar)
-                .map_err(|_| ConclaveError::CryptoError("Signature computation failed".to_string()))?;
+            let unblinded_sig = pk_internal.mul_tweak(&fed_scalar).map_err(|_| {
+                ConclaveError::CryptoError("Signature computation failed".to_string())
+            })?;
 
             notes.push(EcashNote {
                 federation_id: intent.federation_id.clone(),
@@ -392,7 +393,7 @@ impl FedimintAdapter {
         // In production, this would use proper Fiat-Shamir transformation
         let mut response_hasher = Sha256::new();
         response_hasher.update(challenge.as_bytes());
-        response_hasher.update(&sk_bytes);
+        response_hasher.update(sk_bytes);
         let response = hex::encode(response_hasher.finalize());
 
         Ok(DleqProof {
@@ -442,13 +443,11 @@ impl FedimintAdapter {
         federation_id: &str,
     ) -> ConclaveResult<ThresholdBlindSignature> {
         if partial_signatures.len() < threshold as usize {
-            return Err(ConclaveError::CryptoError(
-                format!(
-                    "Not enough signatures: got {}, need {}",
-                    partial_signatures.len(),
-                    threshold
-                )
-            ));
+            return Err(ConclaveError::CryptoError(format!(
+                "Not enough signatures: got {}, need {}",
+                partial_signatures.len(),
+                threshold
+            )));
         }
 
         // In production, this would aggregate BLS signatures properly
@@ -468,10 +467,7 @@ impl FedimintAdapter {
     }
 
     /// Validates a threshold blind signature has sufficient signatures.
-    pub fn validate_threshold_signature(
-        &self,
-        signature: &ThresholdBlindSignature,
-    ) -> bool {
+    pub fn validate_threshold_signature(&self, signature: &ThresholdBlindSignature) -> bool {
         signature.signature_count >= signature.threshold
     }
 }

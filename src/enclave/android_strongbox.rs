@@ -2,7 +2,7 @@ use hmac::{Hmac, KeyInit, Mac};
 use k256::schnorr::signature::Signer;
 use pbkdf2::pbkdf2_hmac;
 use rand::Rng;
-use secp256k1::{Message, SecretKey, ecdsa::RecoverableSignature, ecdsa::RecoveryId};
+use secp256k1::{ecdsa::RecoverableSignature, ecdsa::RecoveryId, Message, SecretKey};
 use sha2::Sha512;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -10,8 +10,8 @@ use zeroize::{Zeroize, Zeroizing};
 
 use crate::enclave::attestation::{AttestationLevel, DeviceIntegrityReport};
 use crate::{
-    ConclaveError, ConclaveResult,
     enclave::{EnclaveManager, SignRequest, SignResponse, SigningAlgorithm},
+    ConclaveError, ConclaveResult,
 };
 
 type HmacSha512 = Hmac<Sha512>;

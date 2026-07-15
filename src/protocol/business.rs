@@ -1,9 +1,9 @@
 use crate::{
-    ConclaveError, ConclaveResult,
     enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
+    ConclaveError, ConclaveResult,
 };
 use rand::Rng;
-use secp256k1::{Message, PublicKey, ecdsa::Signature};
+use secp256k1::{ecdsa::Signature, Message, PublicKey};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::collections::HashMap;

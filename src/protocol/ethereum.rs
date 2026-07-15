@@ -1,6 +1,6 @@
 use crate::{
-    ConclaveError, ConclaveResult,
     enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
+    ConclaveError, ConclaveResult,
 };
 use serde::{Deserialize, Serialize};
 use sha2::Digest;

@@ -1,4 +1,4 @@
-use crate::{ConclaveError, ConclaveResult, enclave::EnclaveManager};
+use crate::{enclave::EnclaveManager, ConclaveError, ConclaveResult};
 use blake2::{Blake2s256, Digest};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

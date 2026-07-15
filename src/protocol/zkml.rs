@@ -210,7 +210,10 @@ impl ZkmlService {
         &self,
         model_id: &str,
     ) -> ConclaveResult<Vec<ProofSystem>> {
-        let url = format!("{}/v1/zkml/models/{}/proof-systems", self.gateway_url, model_id);
+        let url = format!(
+            "{}/v1/zkml/models/{}/proof-systems",
+            self.gateway_url, model_id
+        );
 
         let response = self
             .http_client
@@ -262,6 +265,8 @@ mod tests {
             model_id: "compliance_v1".to_string(),
             input_commitment: "0xabc".to_string(),
             compliance_rule: "KYC_AML".to_string(),
+            proof_system: None,
+            expected_output_hash: None,
         };
         let json = serde_json::to_string(&req).unwrap();
         assert!(json.contains("compliance_v1"));

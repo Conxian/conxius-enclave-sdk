@@ -1,6 +1,6 @@
 use crate::{
-    ConclaveError, ConclaveResult,
     enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
+    ConclaveError, ConclaveResult,
 };
 use sha2::{Digest, Sha256};
 

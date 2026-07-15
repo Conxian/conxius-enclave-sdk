@@ -1,5 +1,5 @@
-use crate::ConclaveResult;
 use crate::enclave::EnclaveManager;
+use crate::ConclaveResult;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 

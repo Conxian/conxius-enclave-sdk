@@ -1,7 +1,7 @@
 use crate::{ConclaveError, ConclaveResult};
 use musig2::{
-    AggNonce, CompactSignature, KeyAggContext, PartialSignature, PubNonce, SecNonce,
-    aggregate_partial_signatures,
+    aggregate_partial_signatures, AggNonce, CompactSignature, KeyAggContext, PartialSignature,
+    PubNonce, SecNonce,
 };
 use rand::Rng;
 use secp256k1::{PublicKey, SecretKey};

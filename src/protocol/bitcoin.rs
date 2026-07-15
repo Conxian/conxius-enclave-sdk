@@ -1,10 +1,10 @@
 use crate::{
-    ConclaveError, ConclaveResult,
     enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
+    ConclaveError, ConclaveResult,
 };
-use bitcoin::XOnlyPublicKey;
-use bitcoin::hashes::{HashEngine, sha256t};
+use bitcoin::hashes::{sha256t, HashEngine};
 use bitcoin::taproot::TapLeafHash;
+use bitcoin::XOnlyPublicKey;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 

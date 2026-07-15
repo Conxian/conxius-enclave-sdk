@@ -1,6 +1,6 @@
 use crate::{
-    ConclaveResult,
     enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
+    ConclaveResult,
 };
 use serde::{Deserialize, Serialize};
 

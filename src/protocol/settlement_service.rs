@@ -1,9 +1,9 @@
-use crate::ConclaveResult;
 use crate::protocol::asset::AssetRegistry;
 use crate::protocol::rails::TrustTier;
 use crate::protocol::settlement::{
     SettlementManager, SettlementProposal, SettlementTrigger, TriggerSource,
 };
+use crate::ConclaveResult;
 use async_trait::async_trait;
 use std::sync::Arc;
 

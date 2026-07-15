@@ -1,11 +1,11 @@
 #[allow(unused_imports)]
 use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 use crate::protocol::intent::{AssetAmount, CrossChainIntent, ResolvedCrossChainOrder};
-use crate::{ConclaveError, ConclaveResult, enclave::EnclaveManager};
+use crate::{enclave::EnclaveManager, ConclaveError, ConclaveResult};
 use alloy::primitives::{Address as EthAddress, Keccak256};
-use bitcoin::Network;
 use bitcoin::address::Address;
 use bitcoin::key::PublicKey;
+use bitcoin::Network;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 

@@ -2,8 +2,8 @@ use crate::{ConclaveError, ConclaveResult};
 use base64::prelude::*;
 use bitcoin::script::ScriptPubKeyBufExt;
 use bitcoin::{
-    Address, OutPoint, Sequence, Transaction, TxIn, TxOut, Txid, Witness, absolute, hashes::sha256,
-    script::ScriptBuf, transaction,
+    absolute, hashes::sha256, script::ScriptBuf, transaction, Address, OutPoint, Sequence,
+    Transaction, TxIn, TxOut, Txid, Witness,
 };
 use serde::{Deserialize, Serialize};
 
