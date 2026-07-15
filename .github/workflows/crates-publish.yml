@@ -1,0 +1,53 @@
+name: Publish to crates.io
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 0.2.10)'
+        required: true
+        type: string
+
+# Trusted publisher - no token needed!
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Requires trusted publisher configured on crates.io
+    # Setup: https://crates.io/crates/[CRATE]/settings/new-trusted-publisher
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Configure sparse Cargo registry
+        run: |
+          mkdir -p ~/.cargo
+          cat >> ~/.cargo/config.toml << 'EOF'
+          [registries.crates-io]
+          protocol = "sparse"
+          index = "sparse+https://index.crates.io/"
+          EOF
+
+      - name: Publish to crates.io (Trusted Publisher)
+        uses: dtolnay/cargo-publish@v0.10
+        with:
+          args: --tokenless
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
