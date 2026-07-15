@@ -53,53 +53,85 @@ This document captures external research findings relevant to the Conclave SDK's
   - Optimistic SNARK verifier for fraud proofs
   - Script chunking for Bitcoin's 100KB block limit
 
+### BitVM3 Evolution (2025-2026)
+- **Garbled Circuits**: BitVM3 moves computation off-chain using garbled circuits
+- **Assertion Size**: ~56 kB (vs 1GB for BitVM1, 2-4MB for BitVM2)
+- **Disprove TX**: ~200 bytes (massive reduction)
+- **Prover Cost**: One-time ~5TB setup, ZeroGC reduces to MBs
+- **Deployment**: Clementine (Citrea testnet April 2025), Bitlayer mainnet beta
+
 ### Performance
 - **Current**: ~$15k fees for challenged execution
 - **Target**: <$50 fees via BitVM3 optimizations
-- **Latency**: ~42 blocks (7h 36min) for settlement
+- **Latency**: ~42 blocks (7h 36min) for settlement (optimistic: next block)
+- **Throughput**: Shielded CSV claims ~100 TPS with 64-byte nullifiers
 
 ### Ecosystem Adoption
-- **Citrea**: ZK-rollup using BitVM2 for permissionless exits
-- **BOB**: Native BitVM bridge for BTC-DeFi primitives
-- **Bitlayer/Botanix**: EVM-compatible and optimistic rollup designs
+- **Citrea/Clementine**: ZK-rollup with collateral-efficient BitVM bridge
+- **BOB**: Native BitVM bridge, ~87% cost reduction (~$10/assertion)
+- **Bitlayer**: Mainnet beta with Finality Chain (PoS) coordination
+- **Alpen Labs/Glock**: Designated-verifier SNARKs for lower on-chain cost
+- **GOAT**: Audited Bitcoin-anchored zk-rollup
 
 ### Key References
+- [BitVM3 Whitepaper](https://bitvm.org/bitvm3.pdf)
 - [BitVM2 Whitepaper](https://bitvm.org/bitvm_bridge.pdf)
-- [ePrint IACR Paper](https://eprint.iacr.org/2025/1158.pdf)
+- [Clementine Design](https://citrea.xyz/clementine_whitepaper.pdf)
+- [Glock ePrint](https://eprint.iacr.org/2025/1485)
 - [BitVM GitHub](https://github.com/BitVM/BitVM)
 
 ### Applicability
 - `src/protocol/bitvm.rs`: Challenge orchestration
 - `src/protocol/ark.rs`: Forfeit transaction integration
+- `src/protocol/bitvm2.rs`: Already implemented with forfeit/commitment methods
 - GAP item G-002: Ark BitVM2 Challenge Orchestration
 
 ---
 
 ## Fedimint eCash Evolution
 
+### v0.4 Architecture (2024-2025)
+- **Federation Formation**: Dealer-free Pedersen DKG produces threshold key shares
+- **Consensus**: AlephBFT (async BFT), 3m+1 fault tolerance
+- **Guardian Model**: Threshold BLS blind signatures, no single guardian holds full key
+- **Key Generation**: DKG runs at federation setup, latency ~seconds
+
 ### Threshold BLS Blind Signatures
 - Replaces single-key blind signing with threshold scheme
 - Based on BLS12-381 pairings
 - Quorum-based signing prevents single-guardian compromise
 - Batch verification support
+- **fedimint-tbs**: Production BLS threshold signing crate
 
 ### DLEQ Proofs
 - Discrete-logarithm equality proofs in issuance flow
 - Validates blinded token without exposing secret
 - NUT-12 construction for privacy
 
+### Lightning Gateway Integration
+- **LN Gateways**: Untrusted economic actors (not guardians)
+- **Threshold Point Encryption**: For Lightning preimages (atomic ecash↔LN swaps)
+- **Multi-federation**: Gateways can serve multiple Fedimints
+- **v0.4 Changes**: GatewayBuilder refactor, ILnRpc sync_wallet, LUD-21 hex encoding
+
 ### Performance Metrics
 - **Latency**: <200ms intra-federation (with guardians offline)
 - **Throughput**: 2-3x improvement over Chaumian-only
 - **Gateway**: Multi-federation support, LNURL-pay in development
 
+### Operational Considerations
+- **Upgrade**: Lock-step session count requirement for pre-v0.4 upgrades
+- **Recovery**: 12-word operator recovery for ecash and on-chain funds
+- **Consensus Halt**: Federation halts if quorum not present
+
 ### Key References
 - [Fedimint Official](https://fedimint.org)
 - [Fedimint GitHub](https://github.com/fedimint/fedimint)
 - [fedimint-tbs crate](https://crates.io/crates/fedimint-tbs)
+- [v0.4 Release Notes](https://github.com/fedimint/fedimint/blob/master/docs/RELEASE_NOTES-v0.4.md)
 
 ### Applicability
-- `src/protocol/nexus/fedimint.rs`: Federation adapter
+- `src/protocol/nexus/fedimint.rs`: Federation adapter (updated with DLEQ proofs)
 - GAP items G-001, G-003: Fedimint Wasm/Blinding integration
 
 ---
@@ -201,18 +233,22 @@ workspace/
 - **wasm-opt -Oz**: Size optimization
 
 ### Trial (Evaluate for Future)
+- **BitVM3 Garbled Circuits**: Next-gen bridge optimization (~56kB assertions)
 - **BitVM2 Challenge Orchestration**: Ark integration
 - **Succinct SP1**: ZK verification on Bitcoin
 - **ezkl**: ML model verification
+- **Glock/DV-SNARKs**: Lower on-chain verifier cost
 
 ### Assess (Monitor Developments)
-- **BitVM3**: Transaction size optimizations
+- **Clementine Bridge**: Collateral-efficient BitVM deployment
+- **Bitlayer Mainnet**: Full-stack BitVM bridge production
 - **STARKs on Bitcoin**: Quantum-resistant verification
 - **ARM CCA Attestation**: Next-gen mobile security
 
 ### Hold (Not Recommended)
 - **Single-key Fedimint signing**: Security risk
 - **OP_CAT without BIP-347**: Non-standard Bitcoin
+- **RSA-based BitVM3**: Security break/retraction documented
 
 ---
 
@@ -225,6 +261,8 @@ workspace/
 | 2026-07-15 | Fedimint | Threshold BLS, DLEQ proofs | Update fedimint.rs implementation |
 | 2026-07-15 | WASM SDK | wasm-pack patterns, async best practices | Complete ARCH-001 audit |
 | 2026-07-15 | ZKML | SNARK/STARK developments, ezkl | Evaluate zkml.rs enhancements |
+| 2026-07-15 | BitVM3 | Garbled circuits, 56kB assertions, Clementine/BOB/Bitlayer | Consider BitVM3 integration path |
+| 2026-07-15 | Fedimint v0.4 | DKG, AlephBFT consensus, LN gateway integration | Review v0.4 API changes |
 
 ---
 
