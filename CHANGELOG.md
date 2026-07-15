@@ -3,6 +3,19 @@
 ## [Unreleased]
 
 ### Added
+
+### Documentation
+
+## [2.0.10] - 2026-07-15
+
+### Fixed
+- Resolved Rust 2024 let chain syntax issue in `rails/mod.rs` (refactored to nested if statements)
+- Fixed missing struct fields in `ZkmlProofRequest` test (`proof_system`, `expected_output_hash`)
+- Added `#[allow(dead_code)]` to unused `bitvm_manager` field in `bitvm2.rs`
+- Fixed needless borrow clippy warning in `fedimint.rs` `create_dleq_proof`
+- Fixed WASM mutable borrow errors in `WasmBitVm2Orchestrator` using `Arc<RefCell<>>`
+
+### Added
 - Comprehensive hardware attestation test suite with 25 tests covering trust tiers, freshness, replay protection, and trust enforcement
 - Session Continuity Protocol in AGENTS.md for strict production verification
 
