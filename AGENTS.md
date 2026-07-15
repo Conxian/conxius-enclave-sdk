@@ -1,8 +1,8 @@
-# Conclave SDK: Agent Directives (v0.4.0)
+# Conclave SDK: Agent Directives (v0.4.1)
 
 ## Production Status
 
-**✅ PRODUCTION READY** - v2.0.9
+**✅ PRODUCTION READY** - v2.0.10
 
 See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for full checklist.
 
@@ -56,12 +56,12 @@ cat NEXT_SESSION_PLAN.md
 cat RESEARCH_LOG.md
 ```
 
-### Key Accomplishments (2026-07-15 - Cycle 2):
-- ✅ Comprehensive gap analysis across all modules
-- ✅ External research on TEE, BitVM2, Fedimint, WASM, ZKML
-- ✅ Identified 12+ modules needing WASM bindings
-- ✅ Added self-evolution patterns to knowledge base
-- ✅ Updated tracking documents with multidimensional findings
+### Key Accomplishments (2026-07-15 - Cycle 4 & 5):
+- ✅ Fixed CI failures: Rust 2024 let chains, missing struct fields, WASM mutable borrow
+- ✅ Updated all GitHub Actions to Node.js 24 compatible versions (v4/v5)
+- ✅ Released v2.0.10 with full CI passing
+- ✅ WASM bindings completeness (12+ modules covered)
+- ✅ Comprehensive hardware attestation test suite (25 tests)
 
 ---
 
@@ -162,8 +162,16 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 - Hardware-backed logic should be tested with both simulated and software attestation (for CI) but blocked for production-level Trust Tiers.
 
 ## WASM Binding Requirements
-Missing bindings identified for: Lightning, Settlement Service, Solver, Swap Router, ZKML, DLC, Stablecoin Orchestrator, Job Card (ISO20022), MMR, Opportunity, Business logic.
+- ✅ Lightning, Settlement Service, Solver, Swap Router, ZKML, DLC
+- ✅ Stablecoin Orchestrator, Job Card (ISO20022), MMR, Opportunity, Business logic
+
+## GitHub Actions Node.js 24 Compliance
+All workflows updated to support Node.js 24 (mandatory since Sept 2026):
+- `actions/checkout@v4`
+- `actions/upload-artifact@v5`
+- `actions/download-artifact@v5`
+- `actions/attest-build-provenance@v4.1.1`
 
 ---
 
-*Knowledge Base Version: v0.4.0 | Last Updated: 2026-07-15*
+*Knowledge Base Version: v0.4.1 | Last Updated: 2026-07-15*
