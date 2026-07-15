@@ -119,7 +119,6 @@ This document tracks known technical debt in the `conxius-enclave-sdk` repositor
 | ARCH-001 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
 | DOC-002 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
 | CI-001 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
-| BIP-110 | 2026-07-15 | v2.1.0 | In Progress | 2026-07-15 |
 
 ## Resolved Debt
 

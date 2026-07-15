@@ -95,28 +95,6 @@ k256 = "0.14.0"                 # ✅ Upgraded to stable!
 
 ---
 
-## 🔄 New: BIP-110 Compliance (Issue #179)
-
-### Status
-- **Priority**: HIGH
-- **Feature Flag**: `bip110_compliant` (added)
-
-### Implementation Progress
-- [x] Add `bip110_compliant` feature flag to Cargo.toml
-- [x] Create `src/protocol/bip110.rs` module
-- [ ] Verify BIP-322 works under new rules
-- [ ] Add compliance tests for transaction builders
-- [ ] Document max data sizes in signing operations
-
-### BIP-110 Limits
-| Rule | Limit |
-|------|-------|
-| Pushdata/Witness | 256 bytes |
-| OP_RETURN | 83 bytes |
-| ScriptPubKey | 34 bytes |
-
----
-
 ## Stretch Goal: ZKML Enhancement
 
 ### Research Notes (from RESEARCH_LOG.md)
