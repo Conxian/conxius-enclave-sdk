@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
-[![Version](https://img.shields.io/badge/version-2.0.10-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.12-blue.svg)](CHANGELOG.md)
 [![Status](https://img.shields.io/badge/status-production%20ready-green.svg)](PRODUCTION_READINESS.md)
 
 **Hardware-backed security primitives for the broader Conxian ecosystem.**
@@ -11,17 +11,17 @@ The Conclave SDK provides a high-integrity root of trust for security-sensitive 
 
 ## Status
 
-**✅ Production Ready** - The SDK is at **v2.0.11** with all P1 issues resolved. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for the full readiness checklist.
+**✅ Production Ready** - The SDK is at **v2.0.12** with all P1 issues resolved. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for the full readiness checklist.
 
 ## Quick Start
 
 ```bash
 # Add to your Cargo.toml
 [dependencies]
-conxius-enclave-sdk = "2.0.10"
+conxius-enclave-sdk = "2.0.12"
 
 # Or from git
-conxius-enclave-sdk = { git = "https://github.com/Conxian/conxius-enclave-sdk", tag = "v2.0.11" }
+conxius-enclave-sdk = { git = "https://github.com/Conxian/conxius-enclave-sdk", tag = "v2.0.12" }
 ```
 
 ## Purpose

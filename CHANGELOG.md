@@ -6,6 +6,12 @@
 
 ### Documentation
 
+## [2.0.12] - 2026-07-15
+
+### Fixed
+- Refactored the BitVM2 vTXO tree-root helper into an associated function so stable Clippy passes.
+- Bumped the crate version after v2.0.11 was already published to crates.io.
+
 ## [2.0.11] - 2026-07-15
 
 ### Added

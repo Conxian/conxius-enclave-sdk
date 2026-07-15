@@ -114,7 +114,7 @@ impl BitVm2Orchestrator {
         taproot_internal_key: [u8; 32],
     ) -> ConclaveResult<BitVm2ForfeitTransaction> {
         // Calculate merkle root from tree
-        let merkle_root = self.calculate_tree_root(&vtxo_tree)?;
+        let merkle_root = Self::calculate_tree_root(&vtxo_tree)?;
 
         // Create commitment hash from state data
         let mut commitment_data = Vec::new();
@@ -282,7 +282,7 @@ impl BitVm2Orchestrator {
     }
 
     /// Calculate the merkle root hash from a vTXO tree
-    fn calculate_tree_root(&self, tree: &VtxoTreeNode) -> ConclaveResult<[u8; 32]> {
+    fn calculate_tree_root(tree: &VtxoTreeNode) -> ConclaveResult<[u8; 32]> {
         if tree.is_leaf {
             use blake2::{Blake2s256, Digest};
             let mut hasher = Blake2s256::new();
@@ -292,10 +292,12 @@ impl BitVm2Orchestrator {
             hash.copy_from_slice(&result);
             Ok(hash)
         } else {
-            let left_hash =
-                self.calculate_tree_root(tree.left.as_ref().ok_or(ConclaveError::InvalidPayload)?)?;
-            let right_hash = self
-                .calculate_tree_root(tree.right.as_ref().ok_or(ConclaveError::InvalidPayload)?)?;
+            let left_hash = Self::calculate_tree_root(
+                tree.left.as_ref().ok_or(ConclaveError::InvalidPayload)?,
+            )?;
+            let right_hash = Self::calculate_tree_root(
+                tree.right.as_ref().ok_or(ConclaveError::InvalidPayload)?,
+            )?;
 
             use blake2::{Blake2s256, Digest};
             let mut hasher = Blake2s256::new();
