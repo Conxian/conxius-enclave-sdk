@@ -10,14 +10,16 @@ See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for full checklist.
 
 ## 🔄 Session Continuity Protocol
 
-> **⚠️ VERIFY PREVIOUS WORK BEFORE CONTINUING**
+> **⚠️ VERIFY BEFORE ANY CHANGES - NON-NEGOTIABLE**
 >
-> At the start of **every new session**, you MUST:
+> At the start of **every new session**, you MUST in this exact order:
 > 1. Run `cargo test` to verify all tests pass
 > 2. Run `cargo fmt --all -- --check` to verify formatting
 > 3. Run `cargo clippy -- -D warnings` to verify no lints
-> 4. Report any failures before proceeding with new work
-> 5. Read [SESSION_HISTORY.md](./SESSION_HISTORY.md) for previous session context
+> 4. Report any failures **BEFORE making ANY changes**
+> 5. Only then proceed with new work
+>
+> **PATTENRN VIOLATION**: Skipping verification and making changes immediately violates this protocol. The knowledge base exists to prevent this.
 >
 > This enforces strict live and production code standards.
 
