@@ -67,7 +67,7 @@
 
 ### 🚀 Release Process
 
-- [x] Create release tag (v2.0.11)
+- [x] Create release tag (v2.0.12)
 - [x] Push tag to trigger Release workflow
 - [x] Verify CI gates pass
 - [x] Run manual publish workflow
@@ -100,8 +100,8 @@
 
 | Version | Status | Notes |
 |---------|--------|-------|
+| v2.0.12 | ✅ Released | All issues closed |
 | v2.0.11 | ✅ Released | All issues closed |
-| v2.0.9 | ✅ Ready for Release | All issues closed |
 
 ---
 
@@ -120,7 +120,7 @@
 
 ## Release Procedure
 
-### Option 1: Release v2.0.11 Now
+### Option 1: Release v2.0.12 Now
 
 ```bash
 # 1. Verify all checks pass
@@ -134,15 +134,15 @@ cargo audit --file Cargo.lock
 
 # 3. Create release commit (if needed)
 git add -A
-git commit -m "chore: prepare v2.0.11 release"
+git commit -m "chore: prepare v2.0.12 release"
 
 # 4. Push and create tag
 git push origin main
-git tag -s v2.0.11 -m "Release v2.0.11"
-git push origin v2.0.11
+git tag -s v2.0.12 -m "Release v2.0.12"
+git push origin v2.0.12
 
 # 5. Trigger manual publish via GitHub Actions
-# Actions → Release → Run workflow → v2.0.11 → publish_to_crates_io: true
+# Actions → Release → Run workflow → v2.0.12 → publish_to_crates_io: true
 ```
 
 ### Option 2: Wait for Stable Dependencies
@@ -166,7 +166,7 @@ git push origin v2.0.11
 - [x] Notify stakeholders
 - [x] Update documentation links
 - [x] Close tracking issues
-- [x] Schedule v2.0.11 planning
+- [x] Schedule v2.0.12 planning
 
 ---
 

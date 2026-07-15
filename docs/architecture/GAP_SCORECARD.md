@@ -1,4 +1,4 @@
-# Conclave SDK: Research & Implementation Gap Scorecard (v2.0.11)
+# Conclave SDK: Research & Implementation Gap Scorecard (v2.0.12)
 
 ## Overview
 This document tracks the resolution of production-path logic, architectural gaps, and research requirements for the Conclave SDK.
@@ -7,6 +7,12 @@ This document tracks the resolution of production-path logic, architectural gaps
 - **Criticality**: [High, Medium, Low]
 - **Complexity**: [High, Medium, Low]
 - **Status**: [Completed, In Progress, Backlog]
+
+## Technical Resolutions (v2.0.12)
+
+### 1. BitVM2: Static Tree Root Helper
+- **Resolution**: Made `calculate_tree_root` method static since it doesn't use `self`, improving code clarity and enabling static dispatch optimization.
+- **Status**: Completed (v2.0.12)
 
 ## Technical Resolutions (v2.0.11)
 
@@ -65,7 +71,7 @@ This document tracks the resolution of production-path logic, architectural gaps
 - **Resolution**: Implemented safety boundaries, gap limit validation, and improved error handling for stateless V-UTXO scans in `ArkManager`.
 - **Status**: Completed (v2.0.6)
 
-## Active Gaps & Research (v2.0.11+ Roadmap)
+## Active Gaps & Research (v2.0.12+ Roadmap)
 
 ### 7. Fedimint: Direct fedimint-client-wasm crate integration
 - **Gaps**: Adding the actual crate dependency and bridging the Wasm client to the Nexus adapter.

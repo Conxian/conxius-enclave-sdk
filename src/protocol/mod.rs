@@ -3,6 +3,8 @@ pub mod account_abstraction;
 pub mod ark;
 pub mod asset;
 pub mod asset_tests;
+#[cfg(feature = "bip110_compliant")]
+pub mod bip110;
 pub mod bip322;
 pub mod bitcoin;
 pub mod bitcoin_tests;

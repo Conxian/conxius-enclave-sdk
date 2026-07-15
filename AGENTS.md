@@ -2,7 +2,7 @@
 
 ## Production Status
 
-**✅ PRODUCTION READY** - v2.0.11
+**✅ PRODUCTION READY** - v2.0.12
 
 See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for full checklist.
 
@@ -56,10 +56,12 @@ cat NEXT_SESSION_PLAN.md
 cat RESEARCH_LOG.md
 ```
 
-### Key Accomplishments (2026-07-15 - Cycle 4 & 5):
+### Key Accomplishments (2026-07-15 - Cycle 10):
+- ✅ Released v2.0.12 with BitVM2 static method fix
+- ✅ Updated all documentation to v2.0.12
+- ✅ Researched BIP-110 Reduced Data Softfork
 - ✅ Fixed CI failures: Rust 2024 let chains, missing struct fields, WASM mutable borrow
 - ✅ Updated all GitHub Actions to Node.js 24 compatible versions (v4/v5)
-- ✅ Released v2.0.11 with full CI passing
 - ✅ WASM bindings completeness (12+ modules covered)
 - ✅ Comprehensive hardware attestation test suite (25 tests)
 
@@ -99,6 +101,12 @@ cat RESEARCH_LOG.md
 - **Bitcoin Integration**: BitVM, Citrea rollups, zkBitcoin
 - **Tooling**: ezkl, Circom/snarkjs, RISC-V (Succinct SP1)
 - **Use Cases**: Privacy oracles, AI marketplaces, on-chain fraud detection
+
+### BIP-110: Reduced Data Temporary Softfork
+- **Limits**: 256-byte pushdata, 83-byte OP_RETURN, 34-byte ScriptPubKey
+- **Activation**: Versionbits with 55% threshold, block 961,632
+- **SDK Impact**: BIP-322 chunking, Ark/BitVM2 data segmentation, stricter outputs
+- **Reference**: [BIP-110 Spec](https://bips.dev/110)
 
 ---
 

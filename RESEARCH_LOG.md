@@ -263,13 +263,44 @@ workspace/
 | 2026-07-15 | ZKML | SNARK/STARK developments, ezkl | Evaluate zkml.rs enhancements |
 | 2026-07-15 | BitVM3 | Garbled circuits, 56kB assertions, Clementine/BOB/Bitlayer | Consider BitVM3 integration path |
 | 2026-07-15 | Fedimint v0.4 | DKG, AlephBFT consensus, LN gateway integration | Review v0.4 API changes |
+| 2026-07-15 | BIP-110 | Reduced Data Softfork: 256B pushdata, 83B OP_RETURN, 34B ScriptPubKey | Implement bip110_compliant feature |
+
+---
+
+## BIP-110: Reduced Data Temporary Softfork (2026)
+
+### Overview
+BIP-110 is a temporary softfork that moves Bitcoin policy limits into consensus to discourage on-chain data storage while preserving monetary use cases.
+
+### Key Limits
+| Rule | Limit | Description |
+|------|-------|-------------|
+| Pushdata/Witness | 256 bytes | OP_PUSHDATA and witness items >256 bytes invalid |
+| OP_RETURN | 83 bytes | Restores 83-byte OP_RETURN as consensus rule |
+| ScriptPubKey | 34 bytes | New outputs >34 bytes invalid unless OP_RETURN |
+
+### Activation & Grandfathering
+- Versionbits deployment with 55% threshold
+- Mandatory activation height: block 961,632
+- UTXOs created before activation are grandfathered
+- Automatic expiry after ~1 year
+
+### SDK Impact Analysis
+- **BIP-322 Signing**: Messages >256 bytes require chunking
+- **Ark/BitVM2**: Large data commitments need segmentation
+- **Transaction Builders**: Enforce stricter output limits
+
+### References
+- [BIP-110 Spec](https://bips.dev/110)
+- [Bitcoin Optech #412](https://bitcoinops.org/en/newsletters/2026/07/03)
+- [Test Vectors](https://github.com/bitcoin/bips/blob/master/bip-0110/test-vectors.py)
 
 ---
 
 ## Action Items from Research
 
 ### Immediate (v2.1.0)
-- [ ] Complete WASM bindings audit (ARCH-001)
+- [ ] Implement bip110_compliant feature flag (Issue #179)
 - [ ] Document Fedimint threshold BLS upgrade path
 - [ ] Add BitVM2 forfeit transaction documentation
 
@@ -286,4 +317,5 @@ workspace/
 ---
 
 *Research log initiated: 2026-07-15*
+*Updated: 2026-07-15 (Cycle 10)*
 *Maintained by: SDK Team*

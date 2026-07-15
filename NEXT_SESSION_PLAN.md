@@ -1,7 +1,7 @@
 # Next Session Plan
 
 > **For**: OpenHands AI Agent  
-> **Context**: Continuing Conclave SDK v2.0.11 development  
+> **Context**: Continuing Conclave SDK v2.0.12 development  
 > **Priority Order**: P1 → P2 → P3
 > **Knowledge Base**: v0.4.1
 
@@ -95,6 +95,28 @@ k256 = "0.14.0"                 # ✅ Upgraded to stable!
 
 ---
 
+## 🔄 New: BIP-110 Compliance (Issue #179)
+
+### Status
+- **Priority**: HIGH
+- **Feature Flag**: `bip110_compliant` (added)
+
+### Implementation Progress
+- [x] Add `bip110_compliant` feature flag to Cargo.toml
+- [x] Create `src/protocol/bip110.rs` module
+- [ ] Verify BIP-322 works under new rules
+- [ ] Add compliance tests for transaction builders
+- [ ] Document max data sizes in signing operations
+
+### BIP-110 Limits
+| Rule | Limit |
+|------|-------|
+| Pushdata/Witness | 256 bytes |
+| OP_RETURN | 83 bytes |
+| ScriptPubKey | 34 bytes |
+
+---
+
 ## Stretch Goal: ZKML Enhancement
 
 ### Research Notes (from RESEARCH_LOG.md)
@@ -171,5 +193,5 @@ Per CODEOWNERS, these files require @botshelomokoka review:
 ---
 
 *Plan created: 2026-07-14*
-*Updated: 2026-07-15 (Cycle 9)*
+*Updated: 2026-07-15 (Cycle 10)*
 *Next update: After session completion*

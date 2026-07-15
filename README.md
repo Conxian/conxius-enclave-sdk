@@ -51,7 +51,7 @@ This repository does **not** act as a complete wallet, DAO-facing governance sur
 | Feature | Status | Description |
 |---------|--------|-------------|
 | Hardware Attestation | ✅ | TEE, StrongBox, Secure Enclave support |
-| FROST DKG | ✅ v2.0.11 | Distributed key generation |
+| FROST DKG | ✅ v2.0.12 | Distributed key generation |
 | Fedimint | ✅ v2.0.7 | Federation adapter with blinding |
 | Ark | ✅ v2.0.7 | vTXO tree construction |
 | BitVM2 | ✅ | Optimistic challenge-response |

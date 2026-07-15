@@ -13,6 +13,7 @@ repository = "https://github.com/Conxian/conxius-enclave-sdk"
 default = []
 mock-cloud-enclave = []
 dev-attestation-bypass = []
+bip110_compliant = []
 
 [dependencies]
 x509-cert = "0.3.0"

@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### Added
+- Added `bip110_compliant` feature flag for BIP-110 Reduced Data Temporary Softfork compliance
+- Added BIP-110 validator module with limits: 256-byte pushdata, 83-byte OP_RETURN, 34-byte ScriptPubKey
+- Added message chunking utilities for BIP-322 under BIP-110 rules
 
 ### Documentation
 
