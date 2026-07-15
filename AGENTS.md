@@ -1,8 +1,26 @@
-# Conclave SDK: Agent Directives (v0.4.1)
+# Conclave SDK: Agent Directives (v0.4.2)
 
 ## Production Status
 
 **✅ PRODUCTION READY** - v2.0.12
+
+---
+
+## 🚨 MANDATORY SESSION INITIALIZATION
+
+**Execute these commands IMMEDIATELY at the start of EVERY session, in this exact order:**
+
+```bash
+# 1. Setup Rust if not available
+source ~/.cargo/env 2>/dev/null || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source ~/.cargo/env
+
+# 2. Verify build state (BLOCKS all further work until passing)
+cargo fmt --all -- --check && cargo clippy --all-features -- -D warnings && cargo test
+
+# 3. ONLY AFTER verification passes: proceed with session work
+```
+
+**VIOLATION CONSEQUENCE**: Pushing code without verification will result in CI failures and rejected PRs. This is non-negotiable.
 
 See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for full checklist.
 
@@ -12,14 +30,12 @@ See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for full checklist.
 
 > **⚠️ VERIFY BEFORE ANY CHANGES - NON-NEGOTIABLE**
 >
-> At the start of **every new session**, you MUST in this exact order:
-> 1. Run `cargo test` to verify all tests pass
-> 2. Run `cargo fmt --all -- --check` to verify formatting
-> 3. Run `cargo clippy -- -D warnings` to verify no lints
-> 4. Report any failures **BEFORE making ANY changes**
-> 5. Only then proceed with new work
+> At the start of **every new session**:
+> 1. Run MANDATORY SESSION INITIALIZATION (see above)
+> 2. Report any failures **BEFORE making ANY changes**
+> 3. Only then proceed with new work
 >
-> **PATTENRN VIOLATION**: Skipping verification and making changes immediately violates this protocol. The knowledge base exists to prevent this.
+> **PATTERN VIOLATION**: Previous sessions skipped verification and made changes immediately. This caused CI failures and rejected PRs.
 >
 > This enforces strict live and production code standards.
 
@@ -184,4 +200,4 @@ All workflows updated to support Node.js 24 (mandatory since Sept 2026):
 
 ---
 
-*Knowledge Base Version: v0.4.1 | Last Updated: 2026-07-15*
+*Knowledge Base Version: v0.4.2 | Last Updated: 2026-07-15*
