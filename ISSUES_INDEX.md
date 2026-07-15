@@ -1,24 +1,37 @@
 # Conclave SDK Issues Index
 
-> Auto-generated from GitHub. Last sync: 2026-07-15 00:22:00
+> Auto-generated from GitHub. Last sync: 2026-07-15 03:00:00
 
 ## Summary
-- **Total Issues**: 176
-- **Open Issues**: 4
-- **Closed Issues**: 172
+- **Total Issues**: 180
+- **Open Issues**: 0
+- **Closed Issues**: 180
 
 ## Open Issues
 
-- [ ] **#175**: [P3] ZKML Module Enhancement and Modernization
+*None - All issues resolved!*
+
+## Recently Closed (Cycle 4-5)
+
+- [x] **#180**: [P1] Resolve CI failures - Rust 2024 let chains and WASM mutable borrow
+  - Labels: bug, P1, ci-cd, wasm
+
+- [x] **#179**: [P1] Update GitHub Actions to Node.js 24 compliance
+  - Labels: chore, P1, ci-cd, maintenance
+
+- [x] **#178**: [P2] WASM BitVm2Orchestrator mutable borrow fix
+  - Labels: bug, P2, wasm, bitvm2
+
+- [x] **#175**: [P3] ZKML Module Enhancement and Modernization
   - Labels: enhancement, P3, zkml, bitcoin, research
 
-- [ ] **#174**: [P2] Fedimint Cryptographic Blinding Integration
+- [x] **#174**: [P2] Fedimint Cryptographic Blinding Integration
   - Labels: enhancement, P2, fedimint, cryptography, privacy
 
-- [ ] **#173**: [P1] Ark BitVM2 Challenge Orchestration Integration
+- [x] **#173**: [P1] Ark BitVM2 Challenge Orchestration Integration
   - Labels: enhancement, P1, bitcoin, ark, bitvm2
 
-- [ ] **#172**: [P2] WASM Bindings Completeness Audit - 12+ modules missing
+- [x] **#172**: [P2] WASM Bindings Completeness Audit - 12+ modules missing
   - Labels: enhancement, P2, wasm, architecture
 
 ## Closed Issues
