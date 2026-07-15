@@ -1,6 +1,6 @@
 # Conclave SDK Pull Requests Index
 
-> Auto-generated from GitHub. Last sync: 2026-07-13 05:52:07
+> Auto-generated from GitHub. Last sync: 2026-07-15 07:20:14
 
 ## Summary
 - **Total PRs**: 100
@@ -11,6 +11,18 @@
 ## Open PRs
 
 ## Recently Merged PRs
+- [x] **#178**: chore: bump version to 2.0.12
+  - Author: charliecreates[bot] | Merged: 2026-07-15
+
+- [x] **#177**: fix(release): prevent duplicate crates.io publishing
+  - Author: charliecreates[bot] | Merged: 2026-07-15
+
+- [x] **#171**: fix(contracts): replace hardcoded SIP-010 trait principal
+  - Author: botshelomokoka | Merged: 2026-07-13
+
+- [x] **#170**: fix(ci): use valid provenance subject path
+  - Author: charliecreates[bot] | Merged: 2026-07-13
+
 - [x] **#168**: harden(frost): implement robust DKG Round 2 share verification against commitments
   - Author: botshelomokoka | Merged: 2026-07-13
 
@@ -58,18 +70,6 @@
 
 - [x] **#147**: chore(deps): bump taiki-e/install-action from 2.82.5 to 2.82.8
   - Author: dependabot[bot] | Merged: 2026-07-04
-
-- [x] **#144**: fix(clarity): remove hardcoded principal trait import
-  - Author: charliecreates[bot] | Merged: 2026-06-28
-
-- [x] **#143**: Hardened BIP-322 Verification & v2.0.3 Documentation Alignment
-  - Author: botshelomokoka | Merged: 2026-06-28
-
-- [x] **#142**: fix: SDK release readiness — LTS alignment (tags, MSRV, CI hardening)
-  - Author: botshelomokoka | Merged: 2026-06-28
-
-- [x] **#141**: chore(deps): bump taiki-e/install-action from 2.82.0 to 2.82.5
-  - Author: dependabot[bot] | Merged: 2026-06-27
 
 
 ## Closed (Not Merged) PRs
