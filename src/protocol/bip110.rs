@@ -52,13 +52,25 @@ impl std::fmt::Display for Bip110Violation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Bip110Violation::PushdataTooLarge { actual, limit } => {
-                write!(f, "Pushdata size {} exceeds BIP-110 limit of {} bytes", actual, limit)
+                write!(
+                    f,
+                    "Pushdata size {} exceeds BIP-110 limit of {} bytes",
+                    actual, limit
+                )
             }
             Bip110Violation::OpReturnTooLarge { actual, limit } => {
-                write!(f, "OP_RETURN size {} exceeds BIP-110 limit of {} bytes", actual, limit)
+                write!(
+                    f,
+                    "OP_RETURN size {} exceeds BIP-110 limit of {} bytes",
+                    actual, limit
+                )
             }
             Bip110Violation::ScriptPubkeyTooLarge { actual, limit } => {
-                write!(f, "ScriptPubKey size {} exceeds BIP-110 limit of {} bytes", actual, limit)
+                write!(
+                    f,
+                    "ScriptPubKey size {} exceeds BIP-110 limit of {} bytes",
+                    actual, limit
+                )
             }
         }
     }
@@ -90,11 +102,7 @@ impl Bip110Validator {
     /// Validate a pushdata segment for BIP-110 compliance
     pub fn validate_pushdata(&self, data: &[u8]) -> ConclaveResult<()> {
         if data.len() > self.limits.max_pushdata_bytes {
-            return Err(ConclaveError::ProtocolViolation(format!(
-                "BIP-110 violation: pushdata size {} exceeds limit of {} bytes",
-                data.len(),
-                self.limits.max_pushdata_bytes
-            )));
+            return Err(ConclaveError::InvalidPayload);
         }
         Ok(())
     }
@@ -104,20 +112,19 @@ impl Bip110Validator {
     /// Messages longer than 256 bytes need to be split into chunks.
     /// Each chunk (including prefix) must fit within the pushdata limit.
     pub fn validate_message_chunking(&self, message: &str) -> ConclaveResult<Vec<Vec<u8>>> {
-        let prefix = b"\x18Bitcoin Signed Message:\n";
         let message_bytes = message.as_bytes();
-        
+
         // Calculate header size (1 byte for length prefix)
         let header_size = 1;
         let max_payload = self.limits.max_pushdata_bytes - header_size;
-        
+
         // BIP-322 uses compact integer encoding for message length
         // For messages <= 252 bytes, use single byte length
         // For longer messages, we need to chunk
-        
+
         let mut chunks = Vec::new();
         let mut remaining = message_bytes;
-        
+
         while !remaining.is_empty() {
             let chunk_size = remaining.len().min(max_payload);
             let mut chunk = Vec::with_capacity(header_size + chunk_size);
@@ -126,7 +133,7 @@ impl Bip110Validator {
             chunks.push(chunk);
             remaining = &remaining[chunk_size..];
         }
-        
+
         Ok(chunks)
     }
 
@@ -134,7 +141,7 @@ impl Bip110Validator {
     pub fn chunk_count(&self, message: &str) -> usize {
         let message_bytes = message.as_bytes();
         let max_payload = self.limits.max_pushdata_bytes - 1; // 1 byte for length
-        (message_bytes.len() + max_payload - 1) / max_payload
+        message_bytes.len().div_ceil(max_payload)
     }
 
     /// Check if a message requires chunking under BIP-110
@@ -144,7 +151,7 @@ impl Bip110Validator {
         let prefix = b"\x18Bitcoin Signed Message:\n";
         let header_size = 1; // Length byte
         let message_bytes = message.as_bytes();
-        
+
         prefix.len() + header_size + message_bytes.len() > self.limits.max_pushdata_bytes
     }
 }
@@ -158,9 +165,7 @@ impl Default for Bip110Validator {
 /// Chunk data into BIP-110 compliant segments
 pub fn chunk_for_bip110(data: &[u8], max_chunk_size: usize) -> Vec<Vec<u8>> {
     let max_size = max_chunk_size.min(256); // Hard limit of 256
-    data.chunks(max_size)
-        .map(|chunk| chunk.to_vec())
-        .collect()
+    data.chunks(max_size).map(|chunk| chunk.to_vec()).collect()
 }
 
 #[cfg(test)]
@@ -171,7 +176,7 @@ mod tests {
     fn test_default_limits() {
         let validator = Bip110Validator::new();
         let limits = validator.limits();
-        
+
         assert_eq!(limits.max_pushdata_bytes, 256);
         assert_eq!(limits.max_op_return_bytes, 83);
         assert_eq!(limits.max_script_pubkey_bytes, 34);
@@ -223,7 +228,7 @@ mod tests {
         let validator = Bip110Validator::new();
         let message = "hello world";
         let chunks = validator.validate_message_chunking(message).unwrap();
-        
+
         // Short message should be one chunk
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0][0], message.len() as u8);
@@ -235,7 +240,7 @@ mod tests {
         let validator = Bip110Validator::new();
         let message = "x".repeat(300);
         let chunks = validator.validate_message_chunking(&message).unwrap();
-        
+
         // Should be at least 2 chunks for 300 bytes
         assert!(chunks.len() >= 2);
     }
@@ -244,7 +249,7 @@ mod tests {
     fn test_chunk_for_bip110() {
         let data = vec![0u8; 300];
         let chunks = chunk_for_bip110(&data, 256);
-        
+
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0].len(), 256);
         assert_eq!(chunks[1].len(), 44);
