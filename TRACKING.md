@@ -1,6 +1,6 @@
 # Conclave SDK Repository Tracking
 
-> **✅ PRODUCTION READY** - v2.0.7
+> **✅ PRODUCTION READY** - v2.0.12
 
 This document provides a comprehensive overview of the Conclave SDK repository status, including issues, pull requests, and branches.
 
@@ -23,8 +23,8 @@ This document provides a comprehensive overview of the Conclave SDK repository s
 | **Repository** | Conxian/conxius-enclave-sdk |
 | **Default Branch** | main |
 | **Language** | Rust |
-| **Latest Tag** | v2.0.11 |
-| **Current Version** | v2.0.11 |
+| **Latest Tag** | v2.0.12 |
+| **Current Version** | v2.0.12 |
 | **Production Status** | ✅ Production Ready |
 | **Test Coverage** | 121 tests (25 hardware attestation) |
 | **Last Updated** | 2026-07-14 |
