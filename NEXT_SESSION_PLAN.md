@@ -73,17 +73,17 @@ examples/
 
 ---
 
-## Priority 2: DEP-001 - Beta Dependencies Monitoring
+## ✅ Completed: DEP-001 - Beta Dependencies
 
 ### Current State
 ```
-bitcoin = "0.33.0-beta"        # Watch for stable
-secp256k1 = "0.32.0-beta.2"   # Watch for stable
-k256 = "0.14.0-rc.9"           # Watch for stable
+bitcoin = "0.33.0-beta"        # Watch for 0.32.101 stable
+secp256k1 = "0.32.0-beta.2"   # Watch for 0.31.1 stable
+k256 = "0.14.0"                 # ✅ Upgraded to stable!
 ```
 
-### Action Items
-1. Monitor crates.io for stable releases weekly
+### Action Items (Remaining)
+1. Monitor crates.io for bitcoin and secp256k1 stable releases
 2. When stable release available:
    - Update Cargo.toml
    - Run full test suite
@@ -94,7 +94,7 @@ k256 = "0.14.0-rc.9"           # Watch for stable
 ### Monitoring Links
 - https://crates.io/crates/bitcoin
 - https://crates.io/crates/secp256k1
-- https://crates.io/crates/k256
+- https://crates.io/crates/k256 (✅ done)
 
 ---
 
