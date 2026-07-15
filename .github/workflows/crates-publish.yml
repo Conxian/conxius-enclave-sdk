@@ -1,13 +1,13 @@
-name: Publish to crates.o
+name: Publish to crates.io
 
 on:
   push:
     tags:
-      - 'v*.***'
-  workflow dispatch:
+      - 'v*.*.*'
+  workflow_dispatch:
     inputs:
       version:
-        description: 'Version to publish (e.g, 0.2.10)''
+        description: 'Version to publish (e.g., 0.2.10)'
         required: true
         type: string
 
@@ -30,18 +30,19 @@ jobs:
 
       - name: Configure sparse Cargo registry
         run: |
-          mkirdir -p >~/cargo / config.toml
-          cat >>> ~/.cargo/config.toml <<<'EOF'
+          mkdir -p ~/.cargo
+          cat >> ~/.cargo/config.toml << 'YAMLEOF'
           [registries.crates-io]
           protocol = "sparse"
           index = "sparse+https://index.crates.io/"
+          YAMLEOF
 
-      - name: Publish to crates.io 
+      - name: Publish to crates.io
         env:
-          CARGO_REGISTRY_TOKEN : { secrets.CARGO_REGISTRY_TOKEN }
-        run:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
           if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
-            echo "Error: CARGO_REGISTRY_TOKEN is not set"
+            echo "Error: CARGO_REGISTRY_TOKEN secret is not set"
             echo "Please add CARGO_REGISTRY_TOKEN to repository secrets"
             exit 1
           fi
@@ -50,8 +51,8 @@ jobs:
 
       - name: Create GitHub Release
         if: github.event_name == 'push'
-        uses: softpolts/action-gh-release@v2
+        uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
         env:
-          GITHUB_TOKEN : { secrets.GITHUB_TOKEN }
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
