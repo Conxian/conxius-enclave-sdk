@@ -9,10 +9,11 @@ This document tracks what was accomplished in previous sessions so future agents
 ## Session: 2026-07-15 (Cycle 4: CI Failures Resolution)
 
 ### Summary
-Fixed CI failures caused by Rust 2024 edition features and missing struct fields. All checks now pass (124 tests, formatting, clippy).
+Fixed CI failures caused by Rust 2024 edition features, missing struct fields, and WASM mutable borrow errors. All checks now pass.
 
 ### Commits Pushed (Cycle 4)
 1. `fe933f3` - fix: resolve CI failures - Rust 2024 let chains and missing struct fields
+2. `3982041` - fix(wasm): resolve mutable borrow errors in WasmBitVm2Orchestrator
 
 ### Issues Fixed
 
@@ -43,6 +44,11 @@ if let Ok(Some(_)) = rail.validate_request(request) {
 #### 4. Clippy Warning (fedimint.rs)
 - **Problem**: Needlessly borrowed `sk_bytes` in `response_hasher.update(&sk_bytes)`
 - **Solution**: Removed the borrow: `response_hasher.update(sk_bytes)`
+
+#### 5. WASM Mutable Borrow Errors (wasm_bindings.rs)
+- **Problem**: `WasmBitVm2Orchestrator` methods called `&self` but underlying methods require `&mut self`
+- **Solution**: Wrapped inner `BitVm2Orchestrator` in `Arc<RefCell<>>` for interior mutability
+- Used `.borrow()` for read-only methods and `.borrow_mut()` for mutation methods
 
 ### Verification
 ```bash
