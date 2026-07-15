@@ -12,6 +12,11 @@
 /.github/PULL_REQUEST_TEMPLATE* @botshelomokoka @admin-conxian-labs
 /.github/workflows/** @botshelomokoka @admin-conxian-labs
 
+# Session continuity and agent knowledge (STRICT REVIEW)
+/SESSION_HISTORY.md @botshelomokoka @admin-conxian-labs
+/NEXT_SESSION_PLAN.md @botshelomokoka @admin-conxian-labs
+/AGENTS.md @botshelomokoka @admin-conxian-labs
+
 # Enclave and security-critical paths (MANDATORY REVIEW)
 src/enclave/** @botshelomokoka
 src/enclave/hardware_attestation_tests.rs @botshelomokoka

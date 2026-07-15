@@ -443,3 +443,187 @@ impl ConclaveWasmClient {
         }
     }
 }
+
+// ============================================================================
+// Lightning LND WASM Bindings
+// ============================================================================
+
+#[wasm_bindgen]
+pub struct WasmLightningClient {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::lightning::LightningPaymentIntent,
+}
+
+#[wasm_bindgen]
+impl WasmLightningClient {
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        payment_hash: &str,
+        invoice: &str,
+        amount_msat: u64,
+        expiry_secs: Option<u64>,
+    ) -> Result<WasmLightningClient, JsValue> {
+        let intent = crate::protocol::lightning::LightningPaymentIntent::new(
+            payment_hash.to_string(),
+            invoice.to_string(),
+            amount_msat,
+            expiry_secs,
+        );
+        Ok(WasmLightningClient { inner: intent })
+    }
+
+    pub fn apply_event(&mut self, event_json: &str) -> Result<(), JsValue> {
+        let event: crate::protocol::lightning::LightningEvent =
+            serde_json::from_str(event_json).map_err(to_js_error)?;
+        self.inner.apply_event(event).map_err(to_js_error)
+    }
+
+    pub fn can_retry(&self) -> bool {
+        self.inner.can_retry()
+    }
+
+    pub fn get_status(&self) -> String {
+        format!("{:?}", self.inner.status)
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn lightning(&self) -> WasmLightningClientConstructor {
+        WasmLightningClientConstructor
+    }
+}
+
+#[wasm_bindgen]
+pub struct WasmLightningClientConstructor;
+
+#[wasm_bindgen]
+impl WasmLightningClientConstructor {
+    pub fn create_intent(
+        &self,
+        payment_hash: &str,
+        invoice: &str,
+        amount_msat: u64,
+        expiry_secs: Option<u64>,
+    ) -> Result<WasmLightningClient, JsValue> {
+        WasmLightningClient::new(payment_hash, invoice, amount_msat, expiry_secs)
+    }
+}
+
+// ============================================================================
+// Swap Router WASM Bindings
+// ============================================================================
+
+#[wasm_bindgen]
+pub struct WasmSwapRouterClient {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::swap_router::SwapRouter,
+}
+
+#[wasm_bindgen]
+impl WasmSwapRouterClient {
+    #[wasm_bindgen(constructor)]
+    pub fn new(gateway_url: &str) -> WasmSwapRouterClient {
+        WasmSwapRouterClient {
+            inner: crate::protocol::swap_router::SwapRouter::new(
+                gateway_url.to_string(),
+                reqwest::Client::new(),
+            ),
+        }
+    }
+
+    pub fn gateway_url(&self) -> String {
+        self.inner.gateway_url.clone()
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn swap_router(&self) -> WasmSwapRouterClient {
+        WasmSwapRouterClient {
+            inner: crate::protocol::swap_router::SwapRouter::new(
+                "https://gateway.conxian-labs.com".to_string(),
+                reqwest::Client::new(),
+            ),
+        }
+    }
+}
+
+// ============================================================================
+// Solver WASM Bindings
+// ============================================================================
+
+#[wasm_bindgen]
+pub struct WasmSolverClient {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::solver::SolverManager,
+}
+
+#[wasm_bindgen]
+impl WasmSolverClient {
+    pub fn new() -> WasmSolverClient {
+        WasmSolverClient {
+            inner: crate::protocol::solver::SolverManager,
+        }
+    }
+
+    pub fn rank_bids(&self, bids_json: &str) -> Result<JsValue, JsValue> {
+        let bids: Vec<crate::protocol::solver::SolverBid> =
+            serde_json::from_str(bids_json).map_err(to_js_error)?;
+        let ranked =
+            crate::protocol::solver::SolverManager::rank_bids(bids).map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&ranked).map_err(to_js_error)
+    }
+}
+
+impl Default for WasmSolverClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn solver(&self) -> WasmSolverClient {
+        WasmSolverClient::new()
+    }
+}
+
+// ============================================================================
+// ZKML WASM Bindings
+// ============================================================================
+
+#[wasm_bindgen]
+pub struct WasmZkmlClient {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::zkml::ZkmlService,
+}
+
+#[wasm_bindgen]
+impl WasmZkmlClient {
+    #[wasm_bindgen(constructor)]
+    pub fn new(gateway_url: &str) -> WasmZkmlClient {
+        WasmZkmlClient {
+            inner: crate::protocol::zkml::ZkmlService::new(
+                gateway_url.to_string(),
+                reqwest::Client::new(),
+            ),
+        }
+    }
+
+    pub fn gateway_url(&self) -> String {
+        self.inner.gateway_url.clone()
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn zkml(&self) -> WasmZkmlClient {
+        WasmZkmlClient {
+            inner: crate::protocol::zkml::ZkmlService::new(
+                "https://gateway.conxian-labs.com".to_string(),
+                reqwest::Client::new(),
+            ),
+        }
+    }
+}

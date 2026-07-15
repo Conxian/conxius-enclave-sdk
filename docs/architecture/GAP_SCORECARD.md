@@ -49,26 +49,47 @@ This document tracks the resolution of production-path logic, architectural gaps
 - **Resolution**: Implemented safety boundaries, gap limit validation, and improved error handling for stateless V-UTXO scans in `ArkManager`.
 - **Status**: Completed (v2.0.6)
 
-## Active Gaps & Research (v2.0.8 Roadmap)
+## Active Gaps & Research (v2.0.9+ Roadmap)
 
 ### 7. Fedimint: Direct fedimint-client-wasm crate integration
 - **Gaps**: Adding the actual crate dependency and bridging the Wasm client to the Nexus adapter.
+- **Research Note**: Fedimint now uses threshold BLS blind signatures (BLS12-381) replacing single-key signing. DLEQ proofs provide additional privacy guarantees.
 - **Criticality**: Medium
 - **Complexity**: High
 - **Status**: Backlog
 
 ### 8. Ark: BitVM2 Challenge Orchestration
 - **Gaps**: Integration of Ark forfeit transactions with the BitVM2 optimistic challenge-response tree.
+- **Research Note**: BitVM2 uses permissionless challengers with existential honesty (1-of-n). Q4 2025 roadmap targets <$50 fees via BitVM3 optimizations. Ecosystem adoption by Citrea, BOB, Bitlayer, Botanix.
 - **Criticality**: High
 - **Complexity**: Urgent
 - **Status**: Backlog
 
 ### 9. Fedimint: Cryptographic Blinding Integration
 - **Gaps**: Integrating real cryptographic blinding and unblinding of e-cash notes in the Fedimint client adapter.
+- **Research Note**: Modern Fedimint uses threshold BLS with DLEQ proofs for issuance validation.
 - **Criticality**: Medium
 - **Complexity**: High
 - **Status**: Backlog
 
+### 10. WASM Bindings Completeness Audit (NEW)
+- **Gaps**: 12+ modules lack WASM bindings despite being public APIs.
+- **Missing Modules**: Lightning, Settlement Service, Solver, Swap Router, ZKML, DLC, Stablecoin Orchestrator, Job Card (ISO20022), MMR, Opportunity, Business logic
+- **Research Note**: Modern WASM SDK patterns favor core crate (no wasm-bindgen) + cdylib wrapper. Use wasm-bindgen-futures for async, wasm-opt -Oz for optimization.
+- **Criticality**: Medium
+- **Complexity**: Medium
+- **Status**: Backlog
+
+### 11. ZKML Module Enhancement (NEW)
+- **Gaps**: `zkml.rs` exists but may need integration with modern tooling.
+- **Research Note**: ezkl supports TensorFlow/Keras to SNARK circuits. Succinct SP1 enables general-purpose zkVM for Bitcoin. SNARKs: ~192 bytes, 3ms verify. STARKs: 45-200KB, quantum-resistant.
+- **Criticality**: Low
+- **Complexity**: High
+- **Status**: Backlog (Monitor)
+
 ## Research Archive
 - **BIP-347 OP_CAT**: Script primitives verified in `src/protocol/covenant.rs`.
 - **vTXO Trees**: Binary tree structure for Ark exits implemented in `src/protocol/ark.rs`.
+- **TEE Attestation**: Intel SGX DCAP, AMD SEV-SNP, ARM PSA patterns documented in `RESEARCH_LOG.md`.
+- **BitVM2**: Permissionless challenger model, optimistic rollup architecture documented in `RESEARCH_LOG.md`.
+- **Fedimint Evolution**: Threshold BLS blind signatures, DLEQ proofs documented in `RESEARCH_LOG.md`.

@@ -1,7 +1,7 @@
 # Conclave SDK Repository Analysis
 
 > Comprehensive analysis of capabilities, gaps, and implementation roadmap
-> Generated: 2026-07-14 | Updated for v2.0.9
+> Generated: 2026-07-14 | Updated: 2026-07-15 (Cycle 2) | v2.0.9
 
 ---
 
@@ -14,6 +14,7 @@ The **Conclave SDK** (`conxius-enclave-sdk`) is a Rust-based hardware-backed sec
 - **Tech Debt**: Moderate (P1 dependencies on beta crates)
 - **Open PRs**: 0 (all merged)
 - **Test Coverage**: ✅ Comprehensive (121 tests including 25 hardware attestation tests)
+- **Knowledge Base**: v0.4.0 with self-evolution patterns
 
 ---
 
@@ -33,6 +34,7 @@ The **Conclave SDK** (`conxius-enclave-sdk`) is a Rust-based hardware-backed sec
 | **FROST** | 1 | DKG Round 2 verification | ✅ v2.0.8 |
 | **MuSig2** | 1 | Multi-signature aggregation | ✅ Stable |
 | **Settlement Rails** | 7 | x402, Wormhole, Boltz, NTT, Bisq | ✅ Implemented |
+| **ZKML** | 1 | Zero-knowledge machine learning | ✅ Implemented |
 
 ### Key Dependencies
 
@@ -42,13 +44,13 @@ secp256k1 = "0.32.0-beta.2"    # ⚠️ Beta - needs stable release
 k256 = "0.14.0-rc.9"           # ⚠️ RC - needs stable release
 alloy = "2.1.0"                # ✅ Ethereum RPC
 musig2 = "0.4.1"               # ✅ Multi-sig
-frost = "0.4.x"                # ✅ DKG
+frost = "0.4.x"                 # ✅ DKG
 ```
 
 ### API Surface (348 public items)
 
 - 57 Rust source files
-- WASM bindings for web integration
+- 12 WASM client types exposed
 - Multi-platform support (native + WASM)
 
 ---
@@ -80,7 +82,7 @@ frost = "0.4.x"                # ✅ DKG
 
 ---
 
-## Gap Scorecard (v2.0.9 Roadmap)
+## Gap Scorecard (v2.0.9+ Roadmap)
 
 ### Completed Items (v2.0.9)
 1. ✅ **Hardware Attestation Test Suite** - Comprehensive 25-test suite in `src/enclave/hardware_attestation_tests.rs`
@@ -95,6 +97,44 @@ frost = "0.4.x"                # ✅ DKG
 | G-001 | Fedimint Wasm Crate Integration | Medium | High | Fedimint |
 | G-002 | Ark BitVM2 Challenge Orchestration | High | Urgent | Ark v3 |
 | G-003 | Fedimint Cryptographic Blinding | Medium | High | Fedimint |
+| G-010 | WASM Bindings Completeness | Medium | Medium | Web Integration |
+| G-011 | ZKML Enhancement | Low | High | Advanced Features |
+
+---
+
+## WASM Binding Analysis
+
+### Current Coverage (12 types)
+| Client | Public Methods | Status |
+|--------|----------------|--------|
+| WasmArkClient | 3 | ✅ Complete |
+| WasmBitVmClient | 2 | ✅ Complete |
+| WasmEthereumManager | 1 | ✅ Complete |
+| WasmSolanaManager | 1 | ✅ Complete |
+| WasmFedimintClient | 5 | ✅ Complete |
+| WasmFrostClient | 1 | ✅ Complete |
+| WasmCovenantClient | 2 | ✅ Complete |
+| WasmIntentClient | 2 | ✅ Complete |
+| WasmAccountClient | 1 | ✅ Complete |
+| WasmCctpClient | 1 | ✅ Complete |
+| Iso20022Wrapper | 1 | ✅ Complete |
+| ConclaveWasmClient | 5 (factories) | ✅ Complete |
+
+### Missing Bindings (11 modules)
+
+| Module | File | Public APIs | Priority |
+|--------|------|-------------|----------|
+| Lightning | `lightning.rs` | LND integration | High |
+| Swap Router | `swap_router.rs` | Cross-chain swaps | High |
+| Settlement Service | `settlement_service.rs` | Service orchestration | Medium |
+| Solver | `solver.rs` | Intent resolution | Medium |
+| ZKML | `zkml.rs` | ML verification | Low |
+| DLC | `dlc.rs` | Discreet logging | Low |
+| Stablecoin Orchestrator | `stablecoin_orchestrator.rs` | Multi-stablecoin | Low |
+| MMR | `mmr.rs` | Merkle mountain ranges | Low |
+| Opportunity | `opportunity.rs` | Market opportunities | Low |
+| Business | `business.rs` | Business logic | Low |
+| A2P | `a2p.rs` | Application-to-protocol | Low |
 
 ---
 
@@ -144,10 +184,11 @@ From `conxius-platform#1136`:
 
 ### Short-term Actions (P2)
 
-2. **WASM Bindings Audit**
+2. **WASM Bindings Audit (ARCH-001)**
    - Map all public APIs to WASM exports
-   - Add missing bindings for Ark, BitVM2
+   - Add missing bindings for Lightning, Swap Router, Solver
    - Add FDC3 context type bindings
+   - Follow modern WASM patterns (wasm-bindgen-futures, wasm-opt)
 
 3. **Review Unmaintained Dependencies**
    - Address DEP-002 exceptions in audit.toml/deny.toml
@@ -157,17 +198,25 @@ From `conxius-platform#1136`:
 
 5. **Fedimint Integration**
    - Add fedimint-client-wasm crate dependency
-   - Implement real cryptographic blinding
+   - Implement real cryptographic blinding (threshold BLS)
    - Add federation invite code support
 
-6. **Ark BitVM2 Orchestration**
+6. **Ark BitVM2 Orchestration (G-002)**
    - Integrate forfeit transactions with challenge tree
    - Implement optimistic verification paths
+   - Support permissionless challengers
 
 7. **Documentation Expansion**
    - Add `examples/` directory
    - Create API documentation
    - Add architecture diagrams
+
+### Long-term Actions (P4)
+
+8. **ZKML Enhancement**
+   - Evaluate ezkl integration for model verification
+   - Consider Succinct SP1 for Bitcoin-compatible verification
+   - Document use cases (privacy oracles, fraud detection)
 
 ---
 
@@ -176,16 +225,45 @@ From `conxius-platform#1136`:
 ### Strengths
 - ✅ Clean module separation
 - ✅ Zero-dependency error handling
-- ✅ WASM-ready architecture
+- ✅ WASM-ready architecture (12 client types)
 - ✅ Comprehensive settlement rails
 - ✅ Hardened FROST implementation
+- ✅ Comprehensive test suite (121 tests)
+- ✅ Self-evolution knowledge patterns
 
 ### Areas for Improvement
-- ⚠️ Beta dependency exposure
-- ⚠️ Hardware test coverage
-- ⚠️ WASM bindings completeness
-- ⚠️ Example documentation
+- ⚠️ Beta dependency exposure (DEP-001)
+- ⚠️ WASM bindings completeness (11 modules missing)
+- ⚠️ Example documentation (DOC-002)
 - ⚠️ CHANGELOG discipline
+
+---
+
+## External Research Intelligence
+
+### TEE Attestation (2024-2025)
+- Intel SGX DCAP with ECDSA quotes
+- AMD SEV-SNP with 64-byte guest-data
+- ARM PSA/CCA with EAT tokens
+
+### BitVM2 (Q4 2025)
+- Permissionless challengers (existential honesty)
+- <$50 fee target via BitVM3
+- Ecosystem: Citrea, BOB, Bitlayer, Botanix
+
+### Fedimint Evolution
+- Threshold BLS blind signatures
+- DLEQ proofs for privacy
+- 200ms intra-federation latency
+
+### WASM Best Practices
+- Core crate + cdylib wrapper
+- wasm-bindgen-futures for async
+- wasm-opt -Oz optimization
+
+### ZKML
+- SNARKs: ~192 bytes, 3ms verify
+- STARKs: quantum-resistant
 
 ---
 
@@ -206,13 +284,14 @@ From `conxius-platform#1136`:
 The Conclave SDK is **production-ready** for v2.0.9 with all P1 issues resolved. The primary remaining items are:
 
 1. **Dependencies**: Awaiting stable versions of critical crypto crates (DEP-001)
-2. **WASM**: Incomplete bindings for advanced features (ARCH-001)
+2. **WASM**: 11 modules missing bindings (ARCH-001/G-010)
 3. **Documentation**: Missing examples (DOC-002)
-4. **Dependencies**: Unmaintained crate review (DEP-002)
+4. **Ark BitVM2**: Critical integration for Ark v3 (G-002)
 
-The SDK is well-positioned for the v2.0.9+ roadmap with comprehensive testing now in place.
+The SDK is well-positioned for the v2.0.9+ roadmap with comprehensive testing now in place. The knowledge base has been upgraded to v0.4.0 with self-evolution patterns for continuous improvement.
 
 ---
 
 *Analysis generated by OpenHands AI agent*
-*Last updated: 2026-07-14*
+*Last updated: 2026-07-15*
+*Knowledge Base Version: v0.4.0*
