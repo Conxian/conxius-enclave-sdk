@@ -11,7 +11,7 @@ The Conclave SDK provides a high-integrity root of trust for security-sensitive 
 
 ## Status
 
-**✅ Production Ready** - The SDK is at **v2.0.10** with all P1 issues resolved. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for the full readiness checklist.
+**✅ Production Ready** - The SDK is at **v2.0.11** with all P1 issues resolved. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for the full readiness checklist.
 
 ## Quick Start
 
@@ -21,7 +21,7 @@ The Conclave SDK provides a high-integrity root of trust for security-sensitive 
 conxius-enclave-sdk = "2.0.10"
 
 # Or from git
-conxius-enclave-sdk = { git = "https://github.com/Conxian/conxius-enclave-sdk", tag = "v2.0.10" }
+conxius-enclave-sdk = { git = "https://github.com/Conxian/conxius-enclave-sdk", tag = "v2.0.11" }
 ```
 
 ## Purpose
@@ -51,7 +51,7 @@ This repository does **not** act as a complete wallet, DAO-facing governance sur
 | Feature | Status | Description |
 |---------|--------|-------------|
 | Hardware Attestation | ✅ | TEE, StrongBox, Secure Enclave support |
-| FROST DKG | ✅ v2.0.10 | Distributed key generation |
+| FROST DKG | ✅ v2.0.11 | Distributed key generation |
 | Fedimint | ✅ v2.0.7 | Federation adapter with blinding |
 | Ark | ✅ v2.0.7 | vTXO tree construction |
 | BitVM2 | ✅ | Optimistic challenge-response |

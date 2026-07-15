@@ -1,7 +1,7 @@
 # Next Session Plan
 
 > **For**: OpenHands AI Agent  
-> **Context**: Continuing Conclave SDK v2.0.10 development  
+> **Context**: Continuing Conclave SDK v2.0.11 development  
 > **Priority Order**: P1 → P2 → P3
 > **Knowledge Base**: v0.4.1
 

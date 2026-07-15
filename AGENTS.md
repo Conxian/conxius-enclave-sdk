@@ -2,7 +2,7 @@
 
 ## Production Status
 
-**✅ PRODUCTION READY** - v2.0.10
+**✅ PRODUCTION READY** - v2.0.11
 
 See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for full checklist.
 
@@ -59,7 +59,7 @@ cat RESEARCH_LOG.md
 ### Key Accomplishments (2026-07-15 - Cycle 4 & 5):
 - ✅ Fixed CI failures: Rust 2024 let chains, missing struct fields, WASM mutable borrow
 - ✅ Updated all GitHub Actions to Node.js 24 compatible versions (v4/v5)
-- ✅ Released v2.0.10 with full CI passing
+- ✅ Released v2.0.11 with full CI passing
 - ✅ WASM bindings completeness (12+ modules covered)
 - ✅ Comprehensive hardware attestation test suite (25 tests)
 

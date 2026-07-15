@@ -48,4 +48,4 @@ The SDK provides WASM bindings for:
 
 ---
 
-*Part of Conclave SDK v2.0.10*
+*Part of Conclave SDK v2.0.11*

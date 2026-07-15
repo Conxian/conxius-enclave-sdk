@@ -6,6 +6,15 @@
 
 ### Documentation
 
+## [2.0.11] - 2026-07-15
+
+### Added
+- Added auto-create GitHub Release job on tag push
+- Added auto-publish to crates.io on tag push
+
+### Changed
+- Fully automated release pipeline (tag → tests → SBOM → release → crates.io)
+
 ## [2.0.10] - 2026-07-15
 
 ### Fixed
