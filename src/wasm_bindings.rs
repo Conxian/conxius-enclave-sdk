@@ -520,6 +520,74 @@ pub struct WasmSwapRouterClient {
     pub inner: crate::protocol::swap_router::SwapRouter,
 }
 
+// ============================================================================
+// DLC WASM Bindings
+// ============================================================================
+
+#[wasm_bindgen]
+pub struct WasmDlcClient {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::dlc::DlcManager,
+}
+
+#[wasm_bindgen]
+impl WasmDlcClient {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmDlcClient {
+        WasmDlcClient {
+            inner: crate::protocol::dlc::DlcManager::new(),
+        }
+    }
+
+    pub fn generate_contract_id(
+        &self,
+        oracle_announcement: &str,
+        local_collateral: u64,
+    ) -> String {
+        self.inner.generate_contract_id(oracle_announcement, local_collateral)
+    }
+
+    pub fn offer_contract(
+        &self,
+        oracle_announcement: &str,
+        local_collateral: u64,
+        remote_collateral: u64,
+    ) -> Result<JsValue, JsValue> {
+        let contract = self
+            .inner
+            .offer_contract(oracle_announcement, local_collateral, remote_collateral)
+            .map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&contract).map_err(to_js_error)
+    }
+
+    pub fn accept_contract(
+        &self,
+        contract_json: &str,
+        remote_pubkey: &str,
+    ) -> Result<JsValue, JsValue> {
+        let contract: crate::protocol::dlc::DlcContract =
+            serde_json::from_str(contract_json).map_err(to_js_error)?;
+        let accepted = self
+            .inner
+            .accept_contract(contract, remote_pubkey.to_string())
+            .map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&accepted).map_err(to_js_error)
+    }
+}
+
+impl Default for WasmDlcClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn dlc(&self) -> WasmDlcClient {
+        WasmDlcClient::new()
+    }
+}
+
 #[wasm_bindgen]
 impl WasmSwapRouterClient {
     #[wasm_bindgen(constructor)]
@@ -741,5 +809,234 @@ impl Default for WasmBitVm2Orchestrator {
 impl ConclaveWasmClient {
     pub fn bitvm2(&self) -> WasmBitVm2Orchestrator {
         WasmBitVm2Orchestrator::new()
+    }
+}
+
+// ============================================================================
+// MMR WASM Bindings
+// ============================================================================
+
+#[wasm_bindgen]
+pub struct WasmMmrClient {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::mmr::MmrService,
+}
+
+#[wasm_bindgen]
+impl WasmMmrClient {
+    #[wasm_bindgen(constructor)]
+    pub fn new(base_url: &str) -> WasmMmrClient {
+        WasmMmrClient {
+            inner: crate::protocol::mmr::MmrService::new(
+                base_url.to_string(),
+                reqwest::Client::new(),
+            ),
+        }
+    }
+
+    pub fn base_url(&self) -> String {
+        self.inner.base_url.clone()
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn mmr(&self) -> WasmMmrClient {
+        WasmMmrClient::new("https://gateway.conxian-labs.com")
+    }
+}
+
+// ============================================================================
+// Business WASM Bindings
+// ============================================================================
+
+#[wasm_bindgen]
+pub struct WasmBusinessClient {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::business::BusinessRegistry,
+}
+
+#[wasm_bindgen]
+impl WasmBusinessClient {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmBusinessClient {
+        WasmBusinessClient {
+            inner: crate::protocol::business::BusinessRegistry::new(),
+        }
+    }
+
+    pub fn is_active(&self, business_id: &str) -> bool {
+        self.inner.is_active(business_id)
+    }
+
+    pub fn get_business(&self, business_id: &str) -> Result<JsValue, JsValue> {
+        let profile = self.inner.get_business(business_id);
+        match profile {
+            Some(p) => serde_wasm_bindgen::to_value(&p).map_err(to_js_error),
+            None => Err(JsValue::from_str("Business not found")),
+        }
+    }
+
+    pub fn register_business(&self, profile_json: &str) -> Result<(), JsValue> {
+        let profile: crate::protocol::business::BusinessProfile =
+            serde_json::from_str(profile_json).map_err(to_js_error)?;
+        self.inner.register_business(profile);
+        Ok(())
+    }
+}
+
+impl Default for WasmBusinessClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn business(&self) -> WasmBusinessClient {
+        WasmBusinessClient::new()
+    }
+}
+
+// ============================================================================
+// Settlement Service WASM Bindings
+// ============================================================================
+
+#[wasm_bindgen]
+pub struct WasmSettlementClient {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::settlement_service::ConclaveSettlementService,
+}
+
+#[wasm_bindgen]
+impl WasmSettlementClient {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmSettlementClient {
+        use crate::protocol::asset::AssetRegistry;
+        WasmSettlementClient {
+            inner: crate::protocol::settlement_service::ConclaveSettlementService::new(
+                std::sync::Arc::new(AssetRegistry::new()),
+            ),
+        }
+    }
+
+    pub fn resolve_trust_tier(&self, source: &str) -> String {
+        let trigger_source = match source {
+            "iso20022" => crate::protocol::settlement::TriggerSource::Iso20022,
+            "papss" => crate::protocol::settlement::TriggerSource::Papss,
+            "brics" => crate::protocol::settlement::TriggerSource::Brics,
+            _ => return "Unknown".to_string(),
+        };
+        format!("{:?}", self.inner.resolve_trust_tier(&trigger_source))
+    }
+}
+
+impl Default for WasmSettlementClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn settlement(&self) -> WasmSettlementClient {
+        WasmSettlementClient::new()
+    }
+}
+
+// ============================================================================
+// Stablecoin Orchestrator WASM Bindings
+// ============================================================================
+
+#[wasm_bindgen]
+pub struct WasmStablecoinClient {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::stablecoin_orchestrator::StablecoinOrchestrator,
+}
+
+#[wasm_bindgen]
+impl WasmStablecoinClient {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmStablecoinClient {
+        use crate::protocol::asset::AssetRegistry;
+        WasmStablecoinClient {
+            inner: crate::protocol::stablecoin_orchestrator::StablecoinOrchestrator::new(
+                std::sync::Arc::new(AssetRegistry::new()),
+            ),
+        }
+    }
+}
+
+impl Default for WasmStablecoinClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn stablecoin(&self) -> WasmStablecoinClient {
+        WasmStablecoinClient::new()
+    }
+}
+
+// ============================================================================
+// Opportunity WASM Bindings
+// ============================================================================
+
+#[wasm_bindgen]
+pub struct WasmOpportunityClient {
+    #[wasm_bindgen(skip)]
+    pub _phantom: std::marker::PhantomData<()>,
+}
+
+#[wasm_bindgen]
+impl WasmOpportunityClient {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmOpportunityClient {
+        WasmOpportunityClient {
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl Default for WasmOpportunityClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn opportunity(&self) -> WasmOpportunityClient {
+        WasmOpportunityClient::new()
+    }
+}
+
+// ============================================================================
+// A2P WASM Bindings
+// ============================================================================
+
+#[wasm_bindgen]
+pub struct WasmA2PClient;
+
+#[wasm_bindgen]
+impl WasmA2PClient {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmA2PClient {
+        WasmA2PClient
+    }
+}
+
+impl Default for WasmA2PClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn a2p(&self) -> WasmA2PClient {
+        WasmA2PClient::new()
     }
 }
