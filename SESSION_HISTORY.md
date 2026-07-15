@@ -6,6 +6,53 @@ This document tracks what was accomplished in previous sessions so future agents
 
 ---
 
+## Session: 2026-07-15 (Cycle 4: CI Failures Resolution)
+
+### Summary
+Fixed CI failures caused by Rust 2024 edition features and missing struct fields. All checks now pass (124 tests, formatting, clippy).
+
+### Commits Pushed (Cycle 4)
+1. `fe933f3` - fix: resolve CI failures - Rust 2024 let chains and missing struct fields
+
+### Issues Fixed
+
+#### 1. Let Chain Syntax (rails/mod.rs)
+- **Problem**: `if let Ok(Some(_)) = ... && ...` uses let chains, which require Rust 2024 edition
+- **Solution**: Refactored to nested if statements for Rust 2021 compatibility
+```rust
+// Before (Rust 2024 only)
+if let Ok(Some(_)) = rail.validate_request(request)
+    && rail.trust_tier() <= self.min_trust_tier
+
+// After (Rust 2021 compatible)
+if let Ok(Some(_)) = rail.validate_request(request) {
+    if rail.trust_tier() <= self.min_trust_tier {
+        candidates.push(rail);
+    }
+}
+```
+
+#### 2. Missing Struct Fields (zkml.rs)
+- **Problem**: `ZkmlProofRequest` was updated with new fields but test construction was missing them
+- **Solution**: Added `proof_system: None` and `expected_output_hash: None` to test
+
+#### 3. Dead Code Warning (bitvm2.rs)
+- **Problem**: `bitvm_manager` field was never read
+- **Solution**: Added `#[allow(dead_code)]` attribute
+
+#### 4. Clippy Warning (fedimint.rs)
+- **Problem**: Needlessly borrowed `sk_bytes` in `response_hasher.update(&sk_bytes)`
+- **Solution**: Removed the borrow: `response_hasher.update(sk_bytes)`
+
+### Verification
+```bash
+cargo test --all-features  # 124 tests passed
+cargo fmt --all -- --check # Passed
+cargo clippy -- -D warnings # Passed
+```
+
+---
+
 ## Session: 2026-07-15 (Cycle 3: CI Fixes & WASM Completeness)
 
 ### Summary
