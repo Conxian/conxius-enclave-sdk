@@ -1,23 +1,23 @@
 # Conclave SDK Issues Index
 
-> Auto-generated from GitHub. Last sync: 2026-07-15 03:00:00
+> Auto-generated from GitHub. Last sync: 2026-07-15 07:00:00
 
 ## Summary
-- **Total Issues**: 180
-- **Open Issues**: 0
+- **Total Issues**: 181
+- **Open Issues**: 1
 - **Closed Issues**: 180
 
 ## Open Issues
 
-*None - All issues resolved!*
+- [ ] **#179**: [BIP-110] Add bip110_compliant feature flag
+  - Labels: enhancement, bitcoin, bip110
+  - Priority: HIGH
+  - Status: Partial - Feature flag and module implemented, BIP-322 integration remaining
 
-## Recently Closed (Cycle 4-5)
+## Recently Closed
 
 - [x] **#180**: [P1] Resolve CI failures - Rust 2024 let chains and WASM mutable borrow
   - Labels: bug, P1, ci-cd, wasm
-
-- [x] **#179**: [P1] Update GitHub Actions to Node.js 24 compliance
-  - Labels: chore, P1, ci-cd, maintenance
 
 - [x] **#178**: [P2] WASM BitVm2Orchestrator mutable borrow fix
   - Labels: bug, P2, wasm, bitvm2
