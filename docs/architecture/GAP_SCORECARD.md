@@ -72,13 +72,14 @@ This document tracks the resolution of production-path logic, architectural gaps
 - **Complexity**: High
 - **Status**: Backlog
 
-### 10. WASM Bindings Completeness Audit (NEW)
+### 10. WASM Bindings Completeness Audit (RESOLVED)
 - **Gaps**: 12+ modules lack WASM bindings despite being public APIs.
-- **Missing Modules**: Lightning, Settlement Service, Solver, Swap Router, ZKML, DLC, Stablecoin Orchestrator, Job Card (ISO20022), MMR, Opportunity, Business logic
+- **Resolution**: Added WASM bindings for 7 missing modules: DLC, MMR, Business, Settlement, Stablecoin, Opportunity, A2P
+- **Current Coverage**: 23 WASM client types covering all major protocol modules
 - **Research Note**: Modern WASM SDK patterns favor core crate (no wasm-bindgen) + cdylib wrapper. Use wasm-bindgen-futures for async, wasm-opt -Oz for optimization.
 - **Criticality**: Medium
 - **Complexity**: Medium
-- **Status**: Backlog
+- **Status**: Completed (v2.0.9)
 
 ### 11. ZKML Module Enhancement (NEW)
 - **Gaps**: `zkml.rs` exists but may need integration with modern tooling.

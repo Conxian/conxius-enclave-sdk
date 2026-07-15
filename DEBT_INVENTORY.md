@@ -74,10 +74,10 @@ This document tracks known technical debt in the `conxius-enclave-sdk` repositor
 - **Category**: Architecture
 - **Priority**: P3
 - **Description**: WASM bindings may not cover all SDK functionality
-- **Current**: Basic signing and attestation bindings exist
+- **Current**: 23 WASM client types covering Ark, BitVM, Ethereum, Solana, Fedimint, FROST, Covenant, Intent, Account, CCTP, Lightning, Swap Router, Solver, ZKML, DLC, MMR, Business, Settlement, Stablecoin, Opportunity, A2P
 - **Risk**: Incomplete web/mobile integration surface
-- **Recommendation**: Audit wasm_bindings.rs for complete API coverage
-- **Related Issue**: #154 (release requirement)
+- **Status**: ✅ RESOLVED (2026-07-15) - Added 7 new WASM bindings (DLC, MMR, Business, Settlement, Stablecoin, Opportunity, A2P)
+- **Related Issue**: #172 (release requirement)
 
 #### DOC-002: Missing Examples
 - **Category**: Documentation
