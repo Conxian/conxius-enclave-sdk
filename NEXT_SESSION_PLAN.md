@@ -37,7 +37,7 @@ cat ISSUES_INDEX.md
 - Stablecoin Orchestrator, MMR, Opportunity, Business Logic, A2P
 - All CI checks passing ✅
 
-### G-002 - Ark BitVM2 Challenge Orchestration (IN PROGRESS)
+### G-002 - Ark BitVM2 Challenge Orchestration (DONE)
 - Initial implementation complete
 - `WasmBitVm2Orchestrator` with RefCell for interior mutability
 - Challenge lifecycle management working
@@ -98,28 +98,20 @@ k256 = "0.14.0"                 # ✅ Upgraded to stable!
 
 ---
 
-## Priority 3: G-002 - Ark BitVM2 Challenge Orchestration
+## ✅ Completed: G-002 - Ark BitVM2 Challenge Orchestration
 
-### Why This Matters
-Highest priority backlog item according to GAP_SCORECARD.md. Critical for Ark v3 integration.
+### Implementation Complete
+- `BitVm2Orchestrator` with full commitment lifecycle
+- Challenge/Response flow with SNARK proof support
+- WASM bindings (`WasmBitVm2Orchestrator`)
+- 3 unit tests passing
+- Documentation in `docs/architecture/BITVM2_ARK_RESEARCH.md`
 
-### Research Notes (from RESEARCH_LOG.md)
-- **BitVM2**: Optimistic rollup with permissionless challengers
-- **Security**: Existential honesty (1-of-n honest verifier needed)
-- **Performance**: ~$15k fees (targeting <$50 via BitVM3)
-- **Ecosystem**: Citrea, BOB, Bitlayer, Botanix adoption
-
-### Implementation Steps
-1. Study BitVM2 specification
-2. Understand Ark forfeit transaction structure
-3. Design challenge-response integration
-4. Document design in docs/architecture/
-5. Implement prototype (if approved)
-
-### Key Files to Research
-- `src/protocol/ark.rs` - Current forfeit signing
-- `src/protocol/bitvm.rs` - Current challenge structure
-- `docs/architecture/BITVM2_ARK_RESEARCH.md` - Existing research
+### Key Components
+- `BitVm2ChallengeStatus` - Tracks phase, txids, resolution
+- `BitVm2ForfeitTransaction` - Forfeit with challenge data
+- `BitVm2Commitment` - Optimistic commitment structure
+- `BitVm2ChallengeResponse` - SNARK proof + tap index
 
 ---
 
