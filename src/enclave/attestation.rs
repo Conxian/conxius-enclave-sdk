@@ -141,7 +141,10 @@ impl DeviceIntegrityReport {
     }
 
     fn verify_certificate_chain(&self) -> bool {
-        let last_entry = self.certificate_chain.last().unwrap();
+        let last_entry = match self.certificate_chain.last() {
+            Some(entry) => entry,
+            None => return false,
+        };
 
         // Try to parse as DER hex
         if let Ok(cert_bytes) = hex::decode(last_entry) {

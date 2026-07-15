@@ -124,7 +124,8 @@ impl FedimintAdapter {
             blinding_factors.push(hex::encode(r_bytes));
 
             // 3. Blind the point: B = P * r
-            let r_scalar = Scalar::from_be_bytes(r_bytes).unwrap();
+            let r_scalar = Scalar::from_be_bytes(r_bytes)
+                .map_err(|_| ConclaveError::CryptoError("Invalid blinding factor".to_string()))?;
             let blinded_pk = pk_internal
                 .mul_tweak(&r_scalar)
                 .map_err(|e| ConclaveError::CryptoError(format!("Blinding failed: {:?}", e)))?;
@@ -167,8 +168,10 @@ impl FedimintAdapter {
         fed_sk_hasher.update(intent.federation_id.as_bytes());
         let fed_sk_hash = fed_sk_hasher.finalize();
         let fed_sk_bytes: [u8; 32] = fed_sk_hash.into();
-        let fed_sk = SecretKey::from_secret_bytes(fed_sk_bytes).unwrap();
-        let fed_scalar = Scalar::from_be_bytes(fed_sk.to_secret_bytes()).unwrap();
+        let fed_sk = SecretKey::from_secret_bytes(fed_sk_bytes)
+            .map_err(|_| ConclaveError::CryptoError("Invalid federation key".to_string()))?;
+        let fed_scalar = Scalar::from_be_bytes(fed_sk.to_secret_bytes())
+            .map_err(|_| ConclaveError::CryptoError("Invalid federation scalar".to_string()))?;
 
         for (i, _msg_hex) in intent.blinded_messages.iter().enumerate() {
             // Recompute original public key point P = H(secret) * G
@@ -176,11 +179,13 @@ impl FedimintAdapter {
             h.update(original_secrets[i].as_bytes());
             let s_hash = h.finalize();
             let sk_b: [u8; 32] = s_hash.into();
-            let sk = SecretKey::from_secret_bytes(sk_b).unwrap();
+            let sk = SecretKey::from_secret_bytes(sk_b)
+                .map_err(|_| ConclaveError::CryptoError("Invalid secret key".to_string()))?;
             let pk_internal = secp256k1::PublicKey::from_secret_key(&sk);
 
             // Recompute unblinded signature: Sig = P * s
-            let unblinded_sig = pk_internal.mul_tweak(&fed_scalar).unwrap();
+            let unblinded_sig = pk_internal.mul_tweak(&fed_scalar)
+                .map_err(|_| ConclaveError::CryptoError("Signature computation failed".to_string()))?;
 
             notes.push(EcashNote {
                 federation_id: intent.federation_id.clone(),
