@@ -1,9 +1,9 @@
 # Next Session Plan
 
 > **For**: OpenHands AI Agent  
-> **Context**: Continuing Conclave SDK v2.0.9+ development  
+> **Context**: Continuing Conclave SDK v2.0.10 development  
 > **Priority Order**: P1 → P2 → P3
-> **Knowledge Base**: v0.4.0
+> **Knowledge Base**: v0.4.1
 
 ---
 
@@ -29,57 +29,22 @@ cat ISSUES_INDEX.md
 
 ---
 
-## Priority 1: ARCH-001 - WASM Bindings Completeness Audit
+## ✅ Completed Items
 
-### Why This Matters
-The WASM bindings (`src/wasm_bindings.rs`) provide the web/mobile integration surface. **12+ modules are missing bindings**, limiting SDK adoption.
+### ARCH-001 - WASM Bindings Completeness Audit (DONE)
+- All 12+ modules now have WASM bindings
+- Lightning, Swap Router, Settlement Service, Solver, ZKML, DLC
+- Stablecoin Orchestrator, MMR, Opportunity, Business Logic, A2P
+- All CI checks passing ✅
 
-### Current WASM Coverage (from wasm_bindings.rs)
-- ✅ Ark bindings: `WasmArkClient` (derive_vutxo_key, recovery_scan, construct_vtxo_tree)
-- ✅ BitVM bindings: `WasmBitVmClient` (sign_challenge, aggregate_challenge_signatures)
-- ✅ Ethereum bindings: `WasmEthereumManager` (prepare_erc20_transfer)
-- ✅ Solana bindings: `WasmSolanaManager` (prepare_spl_transfer)
-- ✅ Fedimint bindings: `WasmFedimintClient` (register_federation, join_federation, mint, issue, verify)
-- ✅ FROST bindings: `WasmFrostClient` (generate_key_package)
-- ✅ Covenant bindings: `WasmCovenantClient` (generate_cat_vault_script, verify_recursive_invariant)
-- ✅ Intent bindings: `WasmIntentClient` (instrument_context, settlement_context)
-- ✅ Account bindings: `WasmAccountClient` (prepare_execution)
-- ✅ CCTP bindings: `WasmCctpClient` (prepare_burn_payload)
-- ✅ Iso20022 bindings: `Iso20022Wrapper` (wrap_pacs008)
-
-### Missing WASM Bindings (Priority Order)
-1. **Lightning LND**: `src/protocol/lightning.rs`
-2. **Swap Router**: `src/protocol/swap_router.rs`
-3. **Settlement Service**: `src/protocol/settlement_service.rs`
-4. **Solver**: `src/protocol/solver.rs`
-5. **ZKML**: `src/protocol/zkml.rs`
-6. **DLC**: `src/protocol/dlc.rs`
-7. **Stablecoin Orchestrator**: `src/protocol/stablecoin_orchestrator.rs`
-8. **MMR (Merkle Mountain Range)**: `src/protocol/mmr.rs`
-9. **Opportunity**: `src/protocol/opportunity.rs`
-10. **Business Logic**: `src/protocol/business.rs`
-11. **A2P**: `src/protocol/a2p.rs`
-
-### Implementation Steps
-1. Audit each module in `src/protocol/` for public APIs
-2. Cross-reference with `wasm_bindings.rs` exports
-3. Identify missing bindings
-4. Implement missing WASM wrappers following modern patterns:
-   - Core crate (no wasm-bindgen) + cdylib wrapper
-   - Use `wasm-bindgen-futures` for async operations
-   - Use `serde-wasm-bindgen` for type serialization
-5. Add tests for WASM bindings
-6. Update `REPOSITORY_ANALYSIS.md` ARCH-001 status
-
-### Modern WASM SDK Patterns (from research)
-- **Architecture**: Core crate (no wasm-bindgen) + wasm wrapper (cdylib)
-- **Async**: wasm-bindgen-futures for Promise-based JS integration
-- **Optimization**: wasm-opt -Oz, wasm-slim for 10-20% size reduction
-- **Security**: Input validation at JS boundary, keys never exposed to JS
+### G-002 - Ark BitVM2 Challenge Orchestration (IN PROGRESS)
+- Initial implementation complete
+- `WasmBitVm2Orchestrator` with RefCell for interior mutability
+- Challenge lifecycle management working
 
 ---
 
-## Priority 2: DOC-002 - Examples Directory
+## Priority 1: DOC-002 - Examples Directory
 
 ### Why This Matters
 Developers need working examples to adopt the SDK. No examples currently exist.
@@ -91,7 +56,7 @@ Developers need working examples to adopt the SDK. No examples currently exist.
 4. Add Ark vTXO derivation example
 5. Add Fedimint federation join example
 6. Add multi-chain signing example
-7. Add WASM integration example (if bindings complete)
+7. Add WASM integration example
 
 ### Files to Create
 ```
@@ -105,6 +70,31 @@ examples/
 ├── multi_chain_signing.rs
 └── wasm_integration.rs
 ```
+
+---
+
+## Priority 2: DEP-001 - Beta Dependencies Monitoring
+
+### Current State
+```
+bitcoin = "0.33.0-beta"        # Watch for stable
+secp256k1 = "0.32.0-beta.2"   # Watch for stable
+k256 = "0.14.0-rc.9"           # Watch for stable
+```
+
+### Action Items
+1. Monitor crates.io for stable releases weekly
+2. When stable release available:
+   - Update Cargo.toml
+   - Run full test suite
+   - Check for breaking changes
+   - Create compatibility shim if needed
+   - Update CHANGELOG
+
+### Monitoring Links
+- https://crates.io/crates/bitcoin
+- https://crates.io/crates/secp256k1
+- https://crates.io/crates/k256
 
 ---
 
@@ -130,31 +120,6 @@ Highest priority backlog item according to GAP_SCORECARD.md. Critical for Ark v3
 - `src/protocol/ark.rs` - Current forfeit signing
 - `src/protocol/bitvm.rs` - Current challenge structure
 - `docs/architecture/BITVM2_ARK_RESEARCH.md` - Existing research
-
----
-
-## Background: DEP-001 Beta Dependencies Monitoring
-
-### Current State
-```
-bitcoin = "0.33.0-beta"        # Watch for stable
-secp256k1 = "0.32.0-beta.2"   # Watch for stable
-k256 = "0.14.0-rc.9"           # Watch for stable
-```
-
-### Action Items
-1. Monitor crates.io for stable releases weekly
-2. When stable release available:
-   - Update Cargo.toml
-   - Run full test suite
-   - Check for breaking changes
-   - Create compatibility shim if needed
-   - Update CHANGELOG
-
-### Monitoring Links
-- https://crates.io/crates/bitcoin
-- https://crates.io/crates/secp256k1
-- https://crates.io/crates/k256
 
 ---
 
@@ -234,5 +199,5 @@ Per CODEOWNERS, these files require @botshelomokoka review:
 ---
 
 *Plan created: 2026-07-14*
-*Updated: 2026-07-15 (Cycle 2)*
+*Updated: 2026-07-15 (Cycle 5)*
 *Next update: After session completion*
