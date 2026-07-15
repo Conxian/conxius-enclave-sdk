@@ -3,27 +3,29 @@
 > **For**: OpenHands AI Agent  
 > **Context**: Continuing Conclave SDK v2.0.12 development  
 > **Priority Order**: P1 → P2 → P3
-> **Knowledge Base**: v0.4.1
+> **Knowledge Base**: v0.4.2
 
 ---
 
 ## Session Startup Checklist
 
 ```bash
-# 1. Pull and verify
+# 1. Pull latest changes
 git pull origin main
-cargo test && cargo fmt --check && cargo clippy -- -D warnings
 
-# 2. Read session history
+# 2. Sync issues and PRs from GitHub (MANDATORY)
+./scripts/sync_issues.sh
+
+# 3. Verify build (MANDATORY - blocks work until passing)
+cargo fmt --all -- --check && cargo clippy --all-features -- -D warnings && cargo test
+
+# 4. Read session history
 cat SESSION_HISTORY.md
 
-# 3. Review this plan
+# 5. Review this plan
 cat NEXT_SESSION_PLAN.md
 
-# 4. Check for new research
-cat RESEARCH_LOG.md
-
-# 5. Check for new issues
+# 6. Read current issues (after sync)
 cat ISSUES_INDEX.md
 ```
 

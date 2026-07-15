@@ -14,10 +14,15 @@
 # 1. Setup Rust if not available
 source ~/.cargo/env 2>/dev/null || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source ~/.cargo/env
 
-# 2. Verify build state (BLOCKS all further work until passing)
+# 2. Sync issues and PRs from GitHub (auto-updates tracking)
+./scripts/sync_issues.sh
+
+# 3. Verify build state (BLOCKS all further work until passing)
 cargo fmt --all -- --check && cargo clippy --all-features -- -D warnings && cargo test
 
-# 3. ONLY AFTER verification passes: proceed with session work
+# 4. Read current issues: cat ISSUES_INDEX.md
+
+# 5. ONLY AFTER all above pass: proceed with session work
 ```
 
 **VIOLATION CONSEQUENCE**: Pushing code without verification will result in CI failures and rejected PRs. This is non-negotiable.
@@ -33,7 +38,8 @@ See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for full checklist.
 > At the start of **every new session**:
 > 1. Run MANDATORY SESSION INITIALIZATION (see above)
 > 2. Report any failures **BEFORE making ANY changes**
-> 3. Only then proceed with new work
+> 3. Read `ISSUES_INDEX.md` for current open issues
+> 4. Only then proceed with new work
 >
 > **PATTERN VIOLATION**: Previous sessions skipped verification and made changes immediately. This caused CI failures and rejected PRs.
 >
