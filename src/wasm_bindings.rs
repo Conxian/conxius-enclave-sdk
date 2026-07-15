@@ -700,7 +700,7 @@ impl ConclaveWasmClient {
 #[wasm_bindgen]
 pub struct WasmBitVm2Orchestrator {
     #[wasm_bindgen(skip)]
-    pub inner: crate::protocol::bitvm2::BitVm2Orchestrator,
+    pub inner: Arc<std::cell::RefCell<crate::protocol::bitvm2::BitVm2Orchestrator>>,
 }
 
 #[wasm_bindgen]
@@ -714,7 +714,9 @@ impl WasmBitVm2Orchestrator {
         let ark = Arc::new(crate::protocol::ark::ArkManager::new(enclave.clone()));
         let bitvm = Arc::new(crate::protocol::bitvm::BitVmManager::new(enclave));
         WasmBitVm2Orchestrator {
-            inner: crate::protocol::bitvm2::BitVm2Orchestrator::new(ark, bitvm),
+            inner: Arc::new(std::cell::RefCell::new(
+                crate::protocol::bitvm2::BitVm2Orchestrator::new(ark, bitvm),
+            )),
         }
     }
 
@@ -742,6 +744,7 @@ impl WasmBitVm2Orchestrator {
 
         let forfeit = self
             .inner
+            .borrow()
             .create_forfeit_with_commitment(vutxo, tree, state_hash, taproot_key)
             .map_err(to_js_error)?;
 
@@ -751,7 +754,10 @@ impl WasmBitVm2Orchestrator {
     pub fn post_commitment(&self, commitment_json: &str) -> Result<String, JsValue> {
         let commitment: crate::protocol::bitvm2::BitVm2Commitment =
             serde_json::from_str(commitment_json).map_err(to_js_error)?;
-        self.inner.post_commitment(commitment).map_err(to_js_error)
+        self.inner
+            .borrow_mut()
+            .post_commitment(commitment)
+            .map_err(to_js_error)
     }
 
     pub fn challenge_commitment(
@@ -762,6 +768,7 @@ impl WasmBitVm2Orchestrator {
         let response: crate::protocol::bitvm2::BitVm2ChallengeResponse =
             serde_json::from_str(response_json).map_err(to_js_error)?;
         self.inner
+            .borrow_mut()
             .challenge_commitment(commitment_id, response)
             .map_err(to_js_error)
     }
@@ -773,6 +780,7 @@ impl WasmBitVm2Orchestrator {
         block_height: u64,
     ) -> Result<(), JsValue> {
         self.inner
+            .borrow_mut()
             .resolve_challenge(commitment_id, operator_punished, block_height)
             .map_err(to_js_error)
     }
@@ -780,6 +788,7 @@ impl WasmBitVm2Orchestrator {
     pub fn get_status(&self, commitment_id: &str) -> Result<JsValue, JsValue> {
         let status = self
             .inner
+            .borrow()
             .get_challenge_status(commitment_id)
             .map_err(to_js_error)?;
         serde_wasm_bindgen::to_value(&status).map_err(to_js_error)
@@ -791,6 +800,7 @@ impl WasmBitVm2Orchestrator {
         current_block: u64,
     ) -> Result<bool, JsValue> {
         self.inner
+            .borrow()
             .is_within_challenge_window(commitment_id, current_block)
             .map_err(to_js_error)
     }
