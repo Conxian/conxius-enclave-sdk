@@ -10,7 +10,9 @@ fn main() {
     println!("   P2PKH (Legacy):    1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2");
     println!("   P2SH (Script):     3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy");
     println!("   P2WPKH (SegWit):   bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh");
-    println!("   P2TR (Taproot):    bc1p5d7rshj3ew6xzxjyhs0s0kh0uzpv9kj0wxp0fqj2x9rq7qkw0uq7nvrgz\n");
+    println!(
+        "   P2TR (Taproot):    bc1p5d7rshj3ew6xzxjyhs0s0kh0uzpv9kj0wxp0fqj2x9rq7qkw0uq7nvrgz\n"
+    );
 
     // Example 2: Transaction Intent
     println!("2. Transaction Intent Structure");

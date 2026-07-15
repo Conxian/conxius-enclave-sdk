@@ -39,7 +39,10 @@ fn main() {
     let is_fresh = (now - attestation_time) <= freshness_window;
     println!("  Current: {}", now);
     println!("  Attestation: {}", attestation_time);
-    println!("  Fresh: {} (within {}s window)\n", is_fresh, freshness_window);
+    println!(
+        "  Fresh: {} (within {}s window)\n",
+        is_fresh, freshness_window
+    );
 
     println!("Example completed successfully!");
 }
