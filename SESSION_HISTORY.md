@@ -6,6 +6,33 @@ This document tracks what was accomplished in previous sessions so future agents
 
 ---
 
+## Session: 2026-07-15 (Cycle 6: Examples Directory)
+
+### Summary
+Created comprehensive examples directory with 6 example files demonstrating SDK usage.
+
+### Commits Pushed (Cycle 6)
+1. `examples/` - Created/updated 6 example files
+
+### Examples Created
+| Example | Description |
+|---------|-------------|
+| `basic_signing.rs` | Bitcoin address formats, transaction intents, MuSig2, BIP-322 |
+| `attestation_verification.rs` | Trust tiers, verification flow, freshness validation |
+| `ark_vutxo_derivation.rs` | vTXO key derivation, stateless recovery, tree construction |
+| `fedimint_federation.rs` | Federation join, e-cash mint/spend, threshold BLS |
+| `multi_chain_signing.rs` | 30+ chain support, cross-chain intents, ERC-7579 |
+| `wasm_integration.rs` | All 14 WASM clients, JavaScript usage examples |
+
+### Verification
+```bash
+cargo build --examples  # All 6 examples compile
+cargo run --example basic_signing  # All examples run
+cargo test --all-features  # 124 tests pass
+```
+
+---
+
 ## Session: 2026-07-15 (Cycle 5: Release & Node.js 24 Compliance)
 
 ### Summary
