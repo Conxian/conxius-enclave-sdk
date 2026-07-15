@@ -116,11 +116,17 @@ This document tracks known technical debt in the `conxius-enclave-sdk` repositor
 | TEST-001 | 2026-07-08 | v2.0.9 | ✅ Resolved | 2026-07-14 |
 | SEC-001 | 2026-07-12 | Hardened FROST | ✅ Resolved | 2026-07-14 |
 | DOC-003 | 2026-07-08 | CHANGELOG [Unreleased] | ✅ Resolved | 2026-07-14 |
+| ARCH-001 | 2026-07-14 | v2.0.10 | ✅ Resolved | 2026-07-15 |
+| DOC-002 | 2026-07-14 | v2.0.10 | ✅ Resolved | 2026-07-15 |
+| CI-001 | 2026-07-14 | v2.0.10 | ✅ Resolved | 2026-07-15 |
 
 ## Resolved Debt
 
 - **SEC-001**: Hardened FROST DKG Round 2 verification in `src/protocol/frost.rs` to validate received shares against expected polynomial commitments and identifiers (Resolved: 2026-07-12).
 - **TEST-001**: Comprehensive hardware attestation test suite in `src/enclave/hardware_attestation_tests.rs` covering trust tiers, freshness, replay protection, cryptographic verification, and trust enforcement with 25 tests (Resolved: 2026-07-14).
+- **ARCH-001**: WASM bindings completeness audit - Added 7 new WASM bindings (DLC, MMR, Business, Settlement, Stablecoin, Opportunity, A2P) (Resolved: 2026-07-15).
+- **DOC-002**: Examples directory created with 6 practical usage examples (Resolved: 2026-07-15).
+- **CI-001**: Node.js 24 compliance - Updated all GitHub Actions to compatible versions (Resolved: 2026-07-15).
 
 ## Maintenance Notes
 

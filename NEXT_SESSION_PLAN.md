@@ -44,32 +44,29 @@ cat ISSUES_INDEX.md
 
 ---
 
-## Priority 1: DOC-002 - Examples Directory
+---
 
-### Why This Matters
-Developers need working examples to adopt the SDK. No examples currently exist.
+## ✅ Completed: DOC-002 - Examples Directory
 
-### Implementation Steps
-1. Create `examples/` directory
-2. Add basic signing example
-3. Add attestation verification example
-4. Add Ark vTXO derivation example
-5. Add Fedimint federation join example
-6. Add multi-chain signing example
-7. Add WASM integration example
+### Implementation Complete (Cycle 6)
+- `examples/` directory created with 6 practical examples
+- `basic_signing.rs` - Bitcoin address formats, transaction intents, MuSig2, BIP-322
+- `attestation_verification.rs` - Trust tiers, verification flow, freshness validation
+- `ark_vutxo_derivation.rs` - vTXO key derivation, stateless recovery, tree construction
+- `fedimint_federation.rs` - Federation join, e-cash mint/spend, threshold BLS
+- `multi_chain_signing.rs` - 30+ chain support, cross-chain intents, ERC-7579
+- `wasm_integration.rs` - All 14 WASM clients, JavaScript usage examples
 
-### Files to Create
-```
-examples/
-├── Cargo.toml
-├── README.md
-├── basic_signing.rs
-├── attestation_verification.rs
-├── ark_vutxo_derivation.rs
-├── fedimint_federation.rs
-├── multi_chain_signing.rs
-└── wasm_integration.rs
-```
+---
+
+## ✅ Completed: G-002 - Ark BitVM2 Challenge Orchestration
+
+### Implementation Complete (Cycle 8)
+- `BitVm2Orchestrator` with full commitment lifecycle
+- Challenge/Response flow with SNARK proof support
+- WASM bindings (`WasmBitVm2Orchestrator`) with Arc<RefCell>
+- 3 unit tests passing
+- Documentation in `docs/architecture/BITVM2_ARK_RESEARCH.md`
 
 ---
 
@@ -95,23 +92,6 @@ k256 = "0.14.0"                 # ✅ Upgraded to stable!
 - https://crates.io/crates/bitcoin
 - https://crates.io/crates/secp256k1
 - https://crates.io/crates/k256 (✅ done)
-
----
-
-## ✅ Completed: G-002 - Ark BitVM2 Challenge Orchestration
-
-### Implementation Complete
-- `BitVm2Orchestrator` with full commitment lifecycle
-- Challenge/Response flow with SNARK proof support
-- WASM bindings (`WasmBitVm2Orchestrator`)
-- 3 unit tests passing
-- Documentation in `docs/architecture/BITVM2_ARK_RESEARCH.md`
-
-### Key Components
-- `BitVm2ChallengeStatus` - Tracks phase, txids, resolution
-- `BitVm2ForfeitTransaction` - Forfeit with challenge data
-- `BitVm2Commitment` - Optimistic commitment structure
-- `BitVm2ChallengeResponse` - SNARK proof + tap index
 
 ---
 
@@ -191,5 +171,5 @@ Per CODEOWNERS, these files require @botshelomokoka review:
 ---
 
 *Plan created: 2026-07-14*
-*Updated: 2026-07-15 (Cycle 5)*
+*Updated: 2026-07-15 (Cycle 9)*
 *Next update: After session completion*

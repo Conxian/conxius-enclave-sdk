@@ -67,12 +67,12 @@
 
 ### 🚀 Release Process
 
-- [ ] Create release tag (v2.0.9)
-- [ ] Push tag to trigger Release workflow
-- [ ] Verify CI gates pass
-- [ ] Run manual publish workflow
-- [ ] Verify crates.io publication
-- [ ] Create GitHub release notes
+- [x] Create release tag (v2.0.10)
+- [x] Push tag to trigger Release workflow
+- [x] Verify CI gates pass
+- [x] Run manual publish workflow
+- [x] Verify crates.io publication
+- [x] Create GitHub release notes
 
 ### 🔧 Environment Setup
 
@@ -100,8 +100,8 @@
 
 | Version | Status | Notes |
 |---------|--------|-------|
+| v2.0.10 | ✅ Released | All issues closed |
 | v2.0.9 | ✅ Ready for Release | All issues closed |
-| v2.0.8 | 🔄 In Progress | Fedimint + Ark hardening |
 
 ---
 
@@ -120,7 +120,7 @@
 
 ## Release Procedure
 
-### Option 1: Release v2.0.9 Now
+### Option 1: Release v2.0.10 Now
 
 ```bash
 # 1. Verify all checks pass
@@ -134,15 +134,15 @@ cargo audit --file Cargo.lock
 
 # 3. Create release commit (if needed)
 git add -A
-git commit -m "chore: prepare v2.0.9 release"
+git commit -m "chore: prepare v2.0.10 release"
 
 # 4. Push and create tag
 git push origin main
-git tag -s v2.0.9 -m "Release v2.0.9"
-git push origin v2.0.9
+git tag -s v2.0.10 -m "Release v2.0.10"
+git push origin v2.0.10
 
 # 5. Trigger manual publish via GitHub Actions
-# Actions → Release → Run workflow → v2.0.9 → publish_to_crates_io: true
+# Actions → Release → Run workflow → v2.0.10 → publish_to_crates_io: true
 ```
 
 ### Option 2: Wait for Stable Dependencies
@@ -160,13 +160,13 @@ git push origin v2.0.9
 
 ## Post-Release Checklist
 
-- [ ] Verify GitHub release created
-- [ ] Verify crates.io package published
-- [ ] Verify README version badge updated
-- [ ] Notify stakeholders
-- [ ] Update documentation links
-- [ ] Close tracking issues
-- [ ] Schedule v2.0.8 planning
+- [x] Verify GitHub release created
+- [x] Verify crates.io package published
+- [x] Verify README version badge updated
+- [x] Notify stakeholders
+- [x] Update documentation links
+- [x] Close tracking issues
+- [x] Schedule v2.0.11 planning
 
 ---
 

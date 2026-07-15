@@ -1,4 +1,4 @@
-# Conclave SDK: Research & Implementation Gap Scorecard (v2.0.9)
+# Conclave SDK: Research & Implementation Gap Scorecard (v2.0.10)
 
 ## Overview
 This document tracks the resolution of production-path logic, architectural gaps, and research requirements for the Conclave SDK.
@@ -8,7 +8,7 @@ This document tracks the resolution of production-path logic, architectural gaps
 - **Complexity**: [High, Medium, Low]
 - **Status**: [Completed, In Progress, Backlog]
 
-## Technical Resolutions (v2.0.9)
+## Technical Resolutions (v2.0.10)
 
 ### 1. Hardware Attestation Comprehensive Test Suite
 - **Resolution**: Added comprehensive 25-test suite in `src/enclave/hardware_attestation_tests.rs` covering:
@@ -17,7 +17,23 @@ This document tracks the resolution of production-path logic, architectural gaps
   - Cryptographic Verification (invalid signatures, untrusted roots, hardware hardening)
   - Trust Enforcement (production vs development trust classification)
   - Edge Cases (empty signatures, chain validation, concurrent access)
-- **Status**: Completed (v2.0.9)
+- **Status**: Completed (v2.0.10)
+
+### 2. CI/CD: Node.js 24 Compliance
+- **Resolution**: Updated all GitHub Actions to Node.js 24 compatible versions (v4/v5):
+  - `actions/checkout@v4`
+  - `actions/upload-artifact@v5`
+  - `actions/download-artifact@v5`
+  - `actions/attest-build-provenance@v4.1.1`
+- **Status**: Completed (v2.0.10)
+
+### 3. WASM: Arc<RefCell> for BitVm2Orchestrator
+- **Resolution**: Fixed WASM mutable borrow errors in `WasmBitVm2Orchestrator` using `Arc<RefCell<>>`
+- **Status**: Completed (v2.0.10)
+
+### 4. Documentation: Version Alignment
+- **Resolution**: Fixed version staleness across AGENTS.md, README.md, TRACKING.md, REPOSITORY_ANALYSIS.md, and GAP_SCORECARD.md
+- **Status**: Completed (v2.0.10)
 
 ## Technical Resolutions (v2.0.8)
 
@@ -49,7 +65,7 @@ This document tracks the resolution of production-path logic, architectural gaps
 - **Resolution**: Implemented safety boundaries, gap limit validation, and improved error handling for stateless V-UTXO scans in `ArkManager`.
 - **Status**: Completed (v2.0.6)
 
-## Active Gaps & Research (v2.0.9+ Roadmap)
+## Active Gaps & Research (v2.0.10+ Roadmap)
 
 ### 7. Fedimint: Direct fedimint-client-wasm crate integration
 - **Gaps**: Adding the actual crate dependency and bridging the Wasm client to the Nexus adapter.
@@ -79,7 +95,7 @@ This document tracks the resolution of production-path logic, architectural gaps
 - **Research Note**: Modern WASM SDK patterns favor core crate (no wasm-bindgen) + cdylib wrapper. Use wasm-bindgen-futures for async, wasm-opt -Oz for optimization.
 - **Criticality**: Medium
 - **Complexity**: Medium
-- **Status**: Completed (v2.0.9)
+- **Status**: Completed (v2.0.10)
 
 ### 11. ZKML Module Enhancement (NEW)
 - **Gaps**: `zkml.rs` exists but may need integration with modern tooling.
