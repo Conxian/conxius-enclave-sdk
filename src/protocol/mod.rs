@@ -7,6 +7,7 @@ pub mod bip322;
 pub mod bitcoin;
 pub mod bitcoin_tests;
 pub mod bitvm;
+pub mod bitvm2;
 pub mod business;
 pub mod cctp;
 pub mod chain_abstraction;

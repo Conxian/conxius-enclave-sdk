@@ -627,3 +627,119 @@ impl ConclaveWasmClient {
         }
     }
 }
+
+// ============================================================================
+// BitVM2 Orchestrator WASM Bindings
+// ============================================================================
+
+#[wasm_bindgen]
+pub struct WasmBitVm2Orchestrator {
+    #[wasm_bindgen(skip)]
+    pub inner: crate::protocol::bitvm2::BitVm2Orchestrator,
+}
+
+#[wasm_bindgen]
+impl WasmBitVm2Orchestrator {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmBitVm2Orchestrator {
+        let enclave = Arc::new(
+            crate::enclave::cloud::CloudEnclave::new("http://localhost".to_string())
+                .expect("Failed to create enclave"),
+        );
+        let ark = Arc::new(crate::protocol::ark::ArkManager::new(enclave.clone()));
+        let bitvm = Arc::new(crate::protocol::bitvm::BitVmManager::new(enclave));
+        WasmBitVm2Orchestrator {
+            inner: crate::protocol::bitvm2::BitVm2Orchestrator::new(ark, bitvm),
+        }
+    }
+
+    pub fn create_forfeit_with_commitment(
+        &self,
+        vutxo_json: &str,
+        tree_json: &str,
+        state_hash_hex: &str,
+        taproot_key_hex: &str,
+    ) -> Result<JsValue, JsValue> {
+        let vutxo: crate::protocol::ark::VUtxoDescriptor =
+            serde_json::from_str(vutxo_json).map_err(to_js_error)?;
+        let tree: crate::protocol::ark::VtxoTreeNode =
+            serde_json::from_str(tree_json).map_err(to_js_error)?;
+
+        let state_hash = hex::decode(state_hash_hex)
+            .map_err(to_js_error)?
+            .try_into()
+            .map_err(|_| JsValue::from_str("Invalid state hash length"))?;
+
+        let taproot_key = hex::decode(taproot_key_hex)
+            .map_err(to_js_error)?
+            .try_into()
+            .map_err(|_| JsValue::from_str("Invalid taproot key length"))?;
+
+        let forfeit = self
+            .inner
+            .create_forfeit_with_commitment(vutxo, tree, state_hash, taproot_key)
+            .map_err(to_js_error)?;
+
+        serde_wasm_bindgen::to_value(&forfeit).map_err(to_js_error)
+    }
+
+    pub fn post_commitment(&self, commitment_json: &str) -> Result<String, JsValue> {
+        let commitment: crate::protocol::bitvm2::BitVm2Commitment =
+            serde_json::from_str(commitment_json).map_err(to_js_error)?;
+        self.inner.post_commitment(commitment).map_err(to_js_error)
+    }
+
+    pub fn challenge_commitment(
+        &self,
+        commitment_id: &str,
+        response_json: &str,
+    ) -> Result<(), JsValue> {
+        let response: crate::protocol::bitvm2::BitVm2ChallengeResponse =
+            serde_json::from_str(response_json).map_err(to_js_error)?;
+        self.inner
+            .challenge_commitment(commitment_id, response)
+            .map_err(to_js_error)
+    }
+
+    pub fn resolve_challenge(
+        &self,
+        commitment_id: &str,
+        operator_punished: bool,
+        block_height: u64,
+    ) -> Result<(), JsValue> {
+        self.inner
+            .resolve_challenge(commitment_id, operator_punished, block_height)
+            .map_err(to_js_error)
+    }
+
+    pub fn get_status(&self, commitment_id: &str) -> Result<JsValue, JsValue> {
+        let status = self
+            .inner
+            .get_challenge_status(commitment_id)
+            .map_err(to_js_error)?;
+        serde_wasm_bindgen::to_value(&status).map_err(to_js_error)
+    }
+
+    pub fn within_challenge_window(
+        &self,
+        commitment_id: &str,
+        current_block: u64,
+    ) -> Result<bool, JsValue> {
+        self.inner
+            .is_within_challenge_window(commitment_id, current_block)
+            .map_err(to_js_error)
+    }
+}
+
+impl Default for WasmBitVm2Orchestrator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl ConclaveWasmClient {
+    pub fn bitvm2(&self) -> WasmBitVm2Orchestrator {
+        WasmBitVm2Orchestrator::new()
+    }
+}
