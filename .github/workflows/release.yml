@@ -115,7 +115,7 @@ jobs:
           syft "${{ steps.crate.outputs.path }}" -o spdx-json=sbom/release.spdx.json
 
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: release-sbom
           path: sbom/release.spdx.json
