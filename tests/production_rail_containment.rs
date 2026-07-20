@@ -67,6 +67,7 @@ async fn production_raw_broadcast_is_rejected_before_any_network_dispatch() {
         .prepare_intent("x402", request(), None)
         .expect("x402 request should prepare");
 
+    #[allow(deprecated)]
     let result = rail_proxy
         .broadcast_signed_intent(intent, "opaque-signature".to_string(), None)
         .await;
