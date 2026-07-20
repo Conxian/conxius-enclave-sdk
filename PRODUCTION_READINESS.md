@@ -41,6 +41,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [ ] Cross-chain tests with verified addresses and live/testnet evidence
 - [ ] **Hardware attestation integration tests** (P0/P1)
 - [ ] WASM runtime integration tests
+- [x] WASM private-key export path removed; provider/runtime support remains fail-closed
 - [ ] Fuzz testing for critical paths
 
 ### 📦 Dependency Requirements
@@ -53,6 +54,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 ### 🌐 Platform Integration
 
 - [x] WASM binding API surface is inventoried in the capability evidence record
+- [x] WASM secret-boundary policy and migration note are documented
 - [ ] WASM runtime/platform/hardware matrix (P1)
 - [ ] Multi-chain support with verified address provenance (P1)
 - [ ] Settlement rails implemented without placeholders and backed by integration evidence (P0)

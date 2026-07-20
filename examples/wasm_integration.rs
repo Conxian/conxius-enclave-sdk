@@ -24,12 +24,14 @@ fn main() {
 
     // JavaScript Usage
     println!("JavaScript Usage:");
-    println!("  // Create client");
-    println!("  const client = new ConclaveWasmClient('https://enclave.conxian.com');");
+    println!("  // The legacy URL constructor now fails closed; it never creates CloudEnclave.");
+    println!("  // Use check_runtime_support() before loading a provider-backed artifact.");
+    println!("  ConclaveWasmClient.check_runtime_support('browser');");
     println!();
     println!("  // Ark operations");
-    println!("  const arkClient = client.ark();");
-    println!("  const vutxoKey = arkClient.derive_vutxo_key(seedHex, 0);");
+    println!("  // Approved provider integrations are not enabled by this release.");
+    println!("  // Future clients will expose public-key/signing capabilities only.");
+    println!("  const publicKey = arkClient.derive_vutxo_public_key(0);");
     println!();
     println!("  // BitVM2 challenge");
     println!("  const bitvm2 = client.bitvm2();");
