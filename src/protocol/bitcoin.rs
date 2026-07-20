@@ -2,9 +2,12 @@ use crate::{
     enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
     ConclaveError, ConclaveResult,
 };
-use bitcoin::hashes::{sha256t, HashEngine};
-use bitcoin::taproot::TapLeafHash;
-use bitcoin::XOnlyPublicKey;
+use bitcoin::{
+    key::PublicKey,
+    secp256k1::Scalar,
+    taproot::{TapLeafHash, TapNodeHash, TapTweakHash},
+    XOnlyPublicKey,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -24,54 +27,156 @@ impl<'a> TaprootManager<'a> {
         key_id: &str,
         merkle_root: Option<[u8; 32]>,
     ) -> ConclaveResult<String> {
-        if !derivation_path.contains("86'") {
-            return Err(ConclaveError::CryptoError(
-                "Taproot requires m/86' derivation path".to_string(),
-            ));
-        }
+        Self::validate_bip86_path(derivation_path)?;
 
         let tweak = self.calculate_taproot_tweak(derivation_path, merkle_root)?;
+        Self::tweak_scalar(&tweak)?;
 
         let request = SignRequest {
             algorithm: SigningAlgorithm::SchnorrSecp256k1,
             message_hash: sighash.to_vec(),
             derivation_path: derivation_path.to_string(),
             key_id: key_id.to_string(),
-            taproot_tweak: Some(tweak),
+            taproot_tweak: Some(tweak.to_vec()),
         };
 
         let response = self.enclave.sign(request)?;
         Ok(response.signature_hex)
     }
 
+    /// Derives the BIP-341 Taproot output key from the enclave's internal key.
+    ///
+    /// The internal key may be returned as an x-only key or as a compressed or
+    /// uncompressed SEC1 public key. Full public keys are converted to their
+    /// canonical x-only representation before the tagged tweak is applied.
+    pub fn derive_taproot_output_key(
+        &self,
+        derivation_path: &str,
+        merkle_root: Option<[u8; 32]>,
+    ) -> ConclaveResult<XOnlyPublicKey> {
+        Self::validate_bip86_path(derivation_path)?;
+        let internal_key = self.internal_key(derivation_path)?;
+        let tweak_hash = Self::taproot_tweak_hash(internal_key, merkle_root);
+        let tweak = Self::tweak_scalar(&tweak_hash.to_byte_array())?;
+
+        internal_key
+            .add_tweak(&tweak)
+            .map_err(|error| ConclaveError::CryptoError(format!("Taproot tweak failed: {error}")))
+    }
+
     fn calculate_taproot_tweak(
         &self,
         derivation_path: &str,
         merkle_root: Option<[u8; 32]>,
-    ) -> ConclaveResult<Vec<u8>> {
+    ) -> ConclaveResult<[u8; 32]> {
+        Self::validate_bip86_path(derivation_path)?;
+        let internal_key = self.internal_key(derivation_path)?;
+        Ok(Self::taproot_tweak_hash(internal_key, merkle_root).to_byte_array())
+    }
+
+    fn internal_key(&self, derivation_path: &str) -> ConclaveResult<XOnlyPublicKey> {
         let pubkey_hex = self.enclave.get_public_key(derivation_path)?;
-        let internal_pubkey_bytes =
+        let public_key_bytes =
             hex::decode(pubkey_hex).map_err(|_| ConclaveError::InvalidPayload)?;
 
-        let internal_pubkey = XOnlyPublicKey::from_byte_array(
-            internal_pubkey_bytes[..32]
-                .try_into()
-                .map_err(|_| ConclaveError::InvalidPayload)?,
+        match public_key_bytes.len() {
+            32 => {
+                let key_bytes: [u8; 32] = public_key_bytes
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| ConclaveError::InvalidPayload)?;
+                XOnlyPublicKey::from_byte_array(&key_bytes).map_err(|error| {
+                    ConclaveError::CryptoError(format!("Invalid internal x-only pubkey: {error}"))
+                })
+            }
+            33 | 65 => PublicKey::from_slice(&public_key_bytes)
+                .map(XOnlyPublicKey::from)
+                .map_err(|error| {
+                    ConclaveError::CryptoError(format!("Invalid internal pubkey: {error}"))
+                }),
+            _ => Err(ConclaveError::InvalidPayload),
+        }
+    }
+
+    fn taproot_tweak_hash(
+        internal_key: XOnlyPublicKey,
+        merkle_root: Option<[u8; 32]>,
+    ) -> TapTweakHash {
+        TapTweakHash::from_key_and_merkle_root(
+            internal_key,
+            merkle_root.map(TapNodeHash::from_byte_array),
         )
-        .map_err(|e| ConclaveError::CryptoError(format!("Invalid internal pubkey: {}", e)))?;
+    }
 
-        let tweak_hash = if let Some(root) = merkle_root {
-            let mut engine = sha256t::Hash::<TapTweakTag>::engine();
-            engine.input(&internal_pubkey.serialize().0);
-            engine.input(&root);
-            sha256t::Hash::<TapTweakTag>::from_engine(engine)
-        } else {
-            let mut engine = sha256t::Hash::<TapTweakTag>::engine();
-            engine.input(&internal_pubkey.serialize().0);
-            sha256t::Hash::<TapTweakTag>::from_engine(engine)
-        };
+    fn tweak_scalar(tweak_bytes: &[u8; 32]) -> ConclaveResult<Scalar> {
+        Scalar::from_be_bytes(*tweak_bytes).map_err(|error| {
+            ConclaveError::CryptoError(format!(
+                "Taproot tweak is outside the scalar range: {error}"
+            ))
+        })
+    }
 
-        Ok(tweak_hash.to_byte_array().to_vec())
+    fn validate_bip86_path(derivation_path: &str) -> ConclaveResult<()> {
+        let components: Vec<&str> = derivation_path.split('/').collect();
+        if components.len() != 6 || components[0] != "m" || components[1] != "86'" {
+            return Err(ConclaveError::CryptoError(
+                "Taproot requires a canonical BIP-86 path m/86'/coin_type'/account'/change/index"
+                    .to_string(),
+            ));
+        }
+
+        let coin_type = Self::parse_hardened_path_component(components[2], "coin type")?;
+        let _account = Self::parse_hardened_path_component(components[3], "account")?;
+        let _change = Self::parse_unhardened_path_component(components[4], "change")?;
+        let _index = Self::parse_unhardened_path_component(components[5], "index")?;
+
+        if coin_type != 0 && coin_type != 1 {
+            return Err(ConclaveError::CryptoError(
+                "Taproot BIP-86 supports only Bitcoin mainnet (coin type 0) or testnet (coin type 1)"
+                    .to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn parse_hardened_path_component(component: &str, name: &str) -> ConclaveResult<u32> {
+        let digits = component
+            .strip_suffix('\'')
+            .ok_or_else(|| ConclaveError::CryptoError(format!("BIP-86 {name} must be hardened")))?;
+        let value = Self::parse_path_number(digits, name)?;
+        if value > 0x7fff_ffff {
+            return Err(ConclaveError::CryptoError(format!(
+                "BIP-86 {name} is outside the hardened index range"
+            )));
+        }
+        Ok(value)
+    }
+
+    fn parse_unhardened_path_component(component: &str, name: &str) -> ConclaveResult<u32> {
+        if component.ends_with('\'') {
+            return Err(ConclaveError::CryptoError(format!(
+                "BIP-86 {name} must be unhardened"
+            )));
+        }
+        let value = Self::parse_path_number(component, name)?;
+        if value > 0x7fff_ffff {
+            return Err(ConclaveError::CryptoError(format!(
+                "BIP-86 {name} is outside the unhardened index range"
+            )));
+        }
+        Ok(value)
+    }
+
+    fn parse_path_number(digits: &str, name: &str) -> ConclaveResult<u32> {
+        if digits.is_empty() || (digits.len() > 1 && digits.starts_with('0')) {
+            return Err(ConclaveError::CryptoError(format!(
+                "BIP-86 {name} must be a canonical decimal index"
+            )));
+        }
+        digits.parse::<u32>().map_err(|_| {
+            ConclaveError::CryptoError(format!("BIP-86 {name} must be a decimal index"))
+        })
     }
 
     pub fn sign_taproot_sighash(
@@ -100,18 +205,6 @@ impl<'a> TaprootManager<'a> {
     ) -> ConclaveResult<String> {
         self.sign_taproot_sighash(challenge_hash, derivation_path, key_id)
     }
-}
-
-pub struct TapTweakTag;
-impl sha256t::Tag for TapTweakTag {
-    const MIDSTATE: bitcoin::hashes::sha256::Midstate = bitcoin::hashes::sha256::Midstate::new(
-        [
-            0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab,
-            0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78,
-            0x90, 0xab, 0xcd, 0xef,
-        ],
-        0,
-    );
 }
 
 pub struct BitcoinManager {
@@ -235,6 +328,33 @@ impl OpCatHelper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::enclave::SignResponse;
+
+    struct TestEnclave {
+        public_key_hex: String,
+    }
+
+    impl EnclaveManager for TestEnclave {
+        fn initialize(&self) -> ConclaveResult<()> {
+            Ok(())
+        }
+
+        fn generate_key(&self, _key_id: &str) -> ConclaveResult<String> {
+            Err(ConclaveError::Unsupported(
+                "test enclave does not generate keys".to_string(),
+            ))
+        }
+
+        fn get_public_key(&self, _derivation_path: &str) -> ConclaveResult<String> {
+            Ok(self.public_key_hex.clone())
+        }
+
+        fn sign(&self, _request: SignRequest) -> ConclaveResult<SignResponse> {
+            Err(ConclaveError::Unsupported(
+                "test enclave does not sign".to_string(),
+            ))
+        }
+    }
 
     fn dummy_pubkey() -> XOnlyPublicKey {
         XOnlyPublicKey::from_byte_array(&[1u8; 32]).unwrap()
@@ -255,5 +375,58 @@ mod tests {
         let pubkey = dummy_pubkey();
         let script = OpCatHelper::build_sighash_external_script(&pubkey);
         assert_eq!(script[0], 0x7e);
+    }
+
+    #[test]
+    fn test_bip86_tap_tweak_matches_reference_vector() {
+        let internal_key = "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115";
+        let enclave = TestEnclave {
+            public_key_hex: internal_key.to_string(),
+        };
+        let manager = TaprootManager::new(&enclave);
+
+        let tweak = manager
+            .calculate_taproot_tweak("m/86'/0'/0'/0/0", None)
+            .expect("BIP-86 tweak derivation");
+        assert_eq!(
+            hex::encode(tweak),
+            "2ca01ed85cf6b6526f73d39a1111cd80333bfdc00ce98992859848a90a6f0258"
+        );
+
+        let output_key = manager
+            .derive_taproot_output_key("m/86'/0'/0'/0/0", None)
+            .expect("BIP-86 output key derivation");
+        let address = "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr"
+            .parse::<bitcoin::Address<bitcoin::address::NetworkUnchecked>>()
+            .expect("BIP-86 reference address")
+            .assume_checked();
+        assert_eq!(
+            &address.script_pubkey().as_bytes()[2..],
+            &output_key.serialize().0
+        );
+    }
+
+    #[test]
+    fn test_taproot_rejects_noncanonical_paths_and_keys() {
+        let enclave = TestEnclave {
+            public_key_hex: "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115"
+                .to_string(),
+        };
+        let manager = TaprootManager::new(&enclave);
+
+        assert!(manager
+            .calculate_taproot_tweak("m/186'/0'/0'/0/0", None)
+            .is_err());
+        assert!(manager
+            .calculate_taproot_tweak("m/86'/2'/0'/0/0", None)
+            .is_err());
+
+        let malformed_enclave = TestEnclave {
+            public_key_hex: "00".to_string(),
+        };
+        let malformed_manager = TaprootManager::new(&malformed_enclave);
+        assert!(malformed_manager
+            .calculate_taproot_tweak("m/86'/0'/0'/0/0", None)
+            .is_err());
     }
 }
