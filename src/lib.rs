@@ -18,6 +18,8 @@ pub enum ConclaveError {
     CryptoError(String),
     #[error("Invalid Payload provided")]
     InvalidPayload,
+    #[error("Invalid configuration: {0}")]
+    InvalidConfiguration(String),
     #[error("ISO 20022 Error: {0}")]
     IsoError(String),
     #[error("Network error: {0}")]
