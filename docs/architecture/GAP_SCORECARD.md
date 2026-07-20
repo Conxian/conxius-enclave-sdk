@@ -1,4 +1,4 @@
-# Conclave SDK: Research & Implementation Gap Scorecard (v2.0.12)
+# Conclave SDK: Research & Implementation Gap Scorecard (v2.0.13)
 
 ## Overview
 This document tracks the resolution of production-path logic, architectural gaps, and research requirements for the Conclave SDK.
@@ -7,6 +7,12 @@ This document tracks the resolution of production-path logic, architectural gaps
 - **Criticality**: [High, Medium, Low]
 - **Complexity**: [High, Medium, Low]
 - **Status**: [Completed, In Progress, Backlog]
+
+## Technical Resolutions (v2.0.13)
+
+### 1. BIP-110: Compliance & Alignment (Issue #179)
+- **Resolution**: Fully implemented the `bip110_compliant` feature flag, integrated BIP-110 validation rules into the BIP-322 construct-to-sign flow, hardened serialization with standard compact size (VarInt) encoding to prevent raw truncation hazards, and added compliance tests verifying Ark/BitVM2 commitment segmentation.
+- **Status**: Completed (v2.0.13)
 
 ## Technical Resolutions (v2.0.12)
 
@@ -71,7 +77,7 @@ This document tracks the resolution of production-path logic, architectural gaps
 - **Resolution**: Implemented safety boundaries, gap limit validation, and improved error handling for stateless V-UTXO scans in `ArkManager`.
 - **Status**: Completed (v2.0.6)
 
-## Active Gaps & Research (v2.0.12+ Roadmap)
+## Active Gaps & Research (v2.0.13+ Roadmap)
 
 ### 7. Fedimint: Direct fedimint-client-wasm crate integration
 - **Gaps**: Adding the actual crate dependency and bridging the Wasm client to the Nexus adapter.

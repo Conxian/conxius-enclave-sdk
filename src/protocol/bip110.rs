@@ -254,4 +254,24 @@ mod tests {
         assert_eq!(chunks[0].len(), 256);
         assert_eq!(chunks[1].len(), 44);
     }
+
+    #[test]
+    fn test_ark_bitvm2_commitment_segmentation() {
+        // Large state proof / commitment data (e.g. 1000 bytes)
+        let large_commitment = vec![0u8; 1000];
+
+        // Chunk it for BIP-110 with max 256 bytes pushdata limit
+        let chunks = chunk_for_bip110(&large_commitment, 256);
+
+        // Each chunk should be compliant with the 256-byte limit
+        let validator = Bip110Validator::new();
+        for chunk in &chunks {
+            assert!(validator.validate_pushdata(chunk).is_ok());
+            assert!(chunk.len() <= 256);
+        }
+
+        // Ensure total bytes are preserved
+        let reconstructed: Vec<u8> = chunks.into_iter().flatten().collect();
+        assert_eq!(reconstructed, large_commitment);
+    }
 }

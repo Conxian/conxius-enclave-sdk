@@ -28,8 +28,33 @@ impl Bip322Bridge {
         // BIP-322 uses the standard Bitcoin Signed Message prefix for the 'to_sign' transaction's output
         msg_content.extend_from_slice(b"\x18Bitcoin Signed Message:\n");
         let msg_bytes = message.as_bytes();
-        msg_content.push(msg_bytes.len() as u8);
+
+        // Hardened: Prevent length overflow hazard
+        if msg_bytes.len() > 0xFFFF {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        // Compact size (VarInt) encoding for the message length prefix to prevent raw truncation
+        if msg_bytes.len() < 253 {
+            msg_content.push(msg_bytes.len() as u8);
+        } else {
+            msg_content.push(253);
+            msg_content.extend_from_slice(&(msg_bytes.len() as u16).to_le_bytes());
+        }
         msg_content.extend_from_slice(msg_bytes);
+
+        #[cfg(feature = "bip110_compliant")]
+        {
+            let validator = crate::protocol::bip110::Bip110Validator::new();
+            if validator.requires_chunking(message) {
+                let chunks = validator.validate_message_chunking(message)?;
+                for chunk in chunks {
+                    validator.validate_pushdata(&chunk)?;
+                }
+            } else {
+                validator.validate_pushdata(&msg_content)?;
+            }
+        }
 
         let message_hash = sha256::Hash::hash(&msg_content);
 
@@ -167,5 +192,32 @@ mod tests {
             "",
         );
         assert!(result.is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "bip110_compliant")]
+    fn test_bip322_bip110_compliant_limit() {
+        let bridge = Bip322Bridge;
+        let address = "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4";
+
+        // A message within compliant limits should succeed
+        let result = bridge.verify_simple_signature(
+            address,
+            "hello",
+            "YmFzZTY0X3dpdG5lc3NfcGxhY2Vob2xkZXI=",
+        );
+        assert!(result.is_ok());
+
+        // A message that exceeds BIP-110 pushdata limit (256 bytes) and cannot fit single-push.
+        // It must fail the validation block under bip110_compliant feature.
+        let long_message = "x".repeat(300);
+        let result_long = bridge.verify_simple_signature(
+            address,
+            &long_message,
+            "YmFzZTY0X3dpdG5lc3NfcGxhY2Vob2xkZXI=",
+        );
+
+        // Ensure that validating a 300-byte message fails under bip110_compliant
+        assert!(result_long.is_err());
     }
 }

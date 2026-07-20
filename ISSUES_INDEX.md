@@ -4,16 +4,17 @@
 
 ## Summary
 - **Total Issues**: 12
-- **Open Issues**: 1
-- **Closed Issues**: 11
+- **Open Issues**: 0
+- **Closed Issues**: 12
 
 ## Open Issues
-- [ ] **#179**: [BIP-110] Add bip110_compliant feature flag
-  - Labels: enhancement, bitcoin, bip110
-  - Assigned: unassigned
-
+*None. All issues are fully resolved.*
 
 ## Closed Issues
+- [x] **#179**: [BIP-110] Add bip110_compliant feature flag
+  - Labels: enhancement, bitcoin, bip110
+  - Status: Resolved in v2.0.13
+
 - [x] **#176**: Fix: Crate version 2.0.11 already published on crates.io
   - Labels: bug, release
 
