@@ -252,6 +252,13 @@ impl Bip322Bridge {
             ));
         }
 
+        if Self::challenge_type(script_pubkey) == SimpleChallenge::Unsupported {
+            return Err(ConclaveError::Unsupported(
+                "BIP-110 simple signing supports only native P2WPKH, P2WSH, and P2TR scriptPubKeys"
+                    .to_string(),
+            ));
+        }
+
         if witness.is_empty() {
             return Ok(());
         }
@@ -891,6 +898,42 @@ mod tests {
             Bip322Bridge::construct_to_sign_tx(&to_spend, "message"),
             Err(ConclaveError::Unsupported(message)) if message.contains("P2A")
         ));
+    }
+
+    #[test]
+    #[cfg(feature = "bip110_compliant")]
+    fn test_bip322_bip110_rejects_p2pkh_p2sh_and_custom_scripts() {
+        let mut p2pkh_script = vec![0x76, 0xa9, 0x14];
+        p2pkh_script.extend_from_slice(&[0u8; 20]);
+        p2pkh_script.extend_from_slice(&[0x88, 0xac]);
+
+        let mut p2sh_script = vec![0xa9, 0x14];
+        p2sh_script.extend_from_slice(&[0u8; 20]);
+        p2sh_script.push(0x87);
+
+        for (script_type, script_bytes) in [
+            ("P2PKH", p2pkh_script),
+            ("P2SH", p2sh_script),
+            ("custom", vec![0x51]),
+        ] {
+            let to_spend = Bip322Bridge::construct_to_spend_tx(
+                ScriptPubKeyBuf::from_bytes(script_bytes),
+                "message",
+            )
+            .expect("unsupported script output creation remains structurally valid");
+            let mut witness = Witness::default();
+            witness.push([0u8; 64]);
+
+            assert!(
+                matches!(
+                    Bip322Bridge::construct_to_sign_tx_with_witness_and_message(
+                        &to_spend, "message", witness,
+                    ),
+                    Err(ConclaveError::Unsupported(_))
+                ),
+                "{script_type} must be rejected in BIP-110 mode"
+            );
+        }
     }
 
     #[test]
