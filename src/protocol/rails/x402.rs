@@ -84,6 +84,8 @@ mod tests {
     use super::*;
     use crate::protocol::asset::{AssetIdentifier, Chain};
 
+    const TEST_MERCHANT_ENDPOINT: &str = "https://merchant.invalid/x402";
+
     #[test]
     fn test_x402_rail_validation() {
         let rail = X402Rail {
@@ -101,12 +103,15 @@ mod tests {
                 symbol: "BTC".to_string(),
             },
             amount: 100,
-            recipient_address: "merchant_endpoint".to_string(),
+            recipient_address: TEST_MERCHANT_ENDPOINT.to_string(),
             attribution: None,
         };
 
         let result = rail.validate_request(&request);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().unwrap(), "X402_INTENT_v1:merchant_endpoint");
+        assert_eq!(
+            result.unwrap().unwrap(),
+            format!("X402_INTENT_v1:{TEST_MERCHANT_ENDPOINT}")
+        );
     }
 }

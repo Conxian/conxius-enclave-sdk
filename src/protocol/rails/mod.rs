@@ -126,11 +126,18 @@ impl RailProxy {
         self
     }
 
+    fn validate_request_assets(&self, request: &SwapRequest) -> ConclaveResult<()> {
+        self.registry.validate_asset(&request.from_asset)?;
+        self.registry.validate_asset(&request.to_asset)?;
+        Ok(())
+    }
+
     pub fn register_rail(&mut self, rail: Box<dyn SovereignRail>) {
         self.rails.insert(rail.name().to_string(), rail);
     }
 
     pub fn discover_best_rail(&self, request: &SwapRequest) -> ConclaveResult<String> {
+        self.validate_request_assets(request)?;
         let mut candidates = Vec::new();
 
         for rail in self.rails.values() {
@@ -237,6 +244,7 @@ impl SovereignHandshake for RailProxy {
         request: SwapRequest,
         fdc3_context: Option<crate::protocol::intent::Fdc3Context>,
     ) -> ConclaveResult<SwapIntent> {
+        self.validate_request_assets(&request)?;
         let rail = self
             .rails
             .get(rail_name)
@@ -270,6 +278,7 @@ impl SovereignHandshake for RailProxy {
         signature: String,
         attestation: Option<String>,
     ) -> ConclaveResult<SwapResponse> {
+        self.validate_request_assets(&intent.request)?;
         self.verify_hardware_integrity(&intent, &attestation)?;
 
         if let Some(telemetry) = &self.telemetry {
@@ -328,6 +337,8 @@ mod tests {
     use crate::protocol::asset::{AssetIdentifier, Chain};
     use crate::protocol::business::BusinessAttribution;
 
+    const TEST_EVM_ADDRESS: &str = "0x52908400098527886E0F7030069857D2E4169EE7";
+
     #[test]
     fn test_swap_request_hash_determinism() {
         let from_asset = AssetIdentifier {
@@ -347,7 +358,7 @@ mod tests {
             from_asset: from_asset.clone(),
             to_asset: to_asset.clone(),
             amount: 1000,
-            recipient_address: "0x123".to_string(),
+            recipient_address: TEST_EVM_ADDRESS.to_string(),
             attribution: Some(BusinessAttribution {
                 business_id: "p1".to_string(),
                 user_id: "u1".to_string(),
@@ -374,6 +385,8 @@ mod rail_proxy_tests {
     use rand_core::Rng;
     use std::sync::Arc;
 
+    const TEST_MERCHANT_ENDPOINT: &str = "https://merchant.invalid/x402";
+
     fn test_proxy() -> RailProxy {
         RailProxy::new(
             "https://gateway.conxian-labs.com".to_string(),
@@ -395,7 +408,7 @@ mod rail_proxy_tests {
                     symbol: "ETH".to_string(),
                 },
                 amount: 42,
-                recipient_address: "0xabc".to_string(),
+                recipient_address: TEST_MERCHANT_ENDPOINT.to_string(),
                 attribution: None,
             },
             signable_hash,
@@ -509,7 +522,7 @@ mod rail_proxy_tests {
                 symbol: "BTC".to_string(),
             },
             amount: 100,
-            recipient_address: "addr".to_string(),
+            recipient_address: TEST_MERCHANT_ENDPOINT.to_string(),
             attribution: None,
         };
 
@@ -552,12 +565,39 @@ mod rail_proxy_tests {
                 symbol: "ETH".to_string(),
             },
             amount: 100,
-            recipient_address: "addr".to_string(),
+            recipient_address: TEST_MERCHANT_ENDPOINT.to_string(),
             attribution: None,
         };
 
         let rail = proxy.discover_best_rail(&request).unwrap();
         assert_eq!(rail, "x402");
+    }
+
+    #[test]
+    fn test_quarantined_asset_cannot_enter_routing() {
+        let proxy = test_proxy();
+        let request = SwapRequest {
+            from_asset: AssetIdentifier {
+                chain: Chain::MEZO,
+                symbol: "BTC".to_string(),
+            },
+            to_asset: AssetIdentifier {
+                chain: Chain::ETHEREUM,
+                symbol: "ETH".to_string(),
+            },
+            amount: 100,
+            recipient_address: TEST_MERCHANT_ENDPOINT.to_string(),
+            attribution: None,
+        };
+
+        assert!(matches!(
+            proxy.discover_best_rail(&request),
+            Err(ConclaveError::Unsupported(message)) if message.contains("quarantined")
+        ));
+        assert!(matches!(
+            proxy.prepare_intent("x402", request, None),
+            Err(ConclaveError::Unsupported(message)) if message.contains("quarantined")
+        ));
     }
 
     #[test]
@@ -573,7 +613,7 @@ mod rail_proxy_tests {
                 symbol: "ETH".to_string(),
             },
             amount: 100,
-            recipient_address: "addr".to_string(),
+            recipient_address: TEST_MERCHANT_ENDPOINT.to_string(),
             attribution: None,
         };
 
@@ -592,6 +632,8 @@ mod fdc3_integration_tests {
     use crate::protocol::business::BusinessRegistry;
     use crate::protocol::intent::Fdc3Context;
     use std::sync::Arc;
+
+    const TEST_MERCHANT_ENDPOINT: &str = "https://merchant.invalid/x402";
 
     fn setup_proxy() -> RailProxy {
         RailProxy::new(
@@ -619,7 +661,7 @@ mod fdc3_integration_tests {
                 symbol: "USDC".to_string(),
             },
             amount: 1000,
-            recipient_address: "0x123".to_string(),
+            recipient_address: TEST_MERCHANT_ENDPOINT.to_string(),
             attribution: None,
         };
 

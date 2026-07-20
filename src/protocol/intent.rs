@@ -144,7 +144,8 @@ mod tests {
         assert_eq!(instrument.context_type, "fdc3.instrument");
         assert_eq!(instrument.id.get("ticker").unwrap(), "BTC");
 
-        let settlement = Fdc3Context::settlement(1000, "USDT", "0x123");
+        let settlement =
+            Fdc3Context::settlement(1000, "USDT", "0x52908400098527886E0F7030069857D2E4169EE7");
         assert_eq!(settlement.context_type, "conxian.settlement");
         assert_eq!(settlement.id.get("amount").unwrap(), "1000");
     }
