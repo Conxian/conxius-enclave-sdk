@@ -376,9 +376,13 @@ impl DeviceIntegrityReport {
         )
     }
 
-    /// Verifies at a specific timestamp using an explicit policy (for tests).
-    #[cfg(test)]
-    pub fn verify_at_time_with_policy(
+    /// Verifies at a caller-supplied timestamp using an explicit policy.
+    ///
+    /// Production callers should use [`Self::verify_with_policy`], which
+    /// samples the wall clock once. This crate-visible variant lets protocol
+    /// code share that exact timestamp with related checks and lets tests
+    /// exercise freshness boundaries without sampling the wall clock twice.
+    pub(crate) fn verify_at_time_with_policy(
         &self,
         expected_nonce: &[u8],
         now_secs: u64,

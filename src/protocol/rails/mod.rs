@@ -202,10 +202,11 @@ impl RailProxy {
         intent: &SwapIntent,
         attestation_json: &Option<String>,
     ) -> ConclaveResult<()> {
-        self.verify_hardware_integrity_with_attestation_policy(
+        self.verify_hardware_integrity_with_attestation_policy_at_time(
             intent,
             attestation_json,
             &self.attestation_policy,
+            unix_time_secs(),
         )
     }
 
@@ -216,6 +217,21 @@ impl RailProxy {
         intent: &SwapIntent,
         attestation_json: &Option<String>,
         policy: &AttestationPolicy,
+    ) -> ConclaveResult<()> {
+        self.verify_hardware_integrity_with_attestation_policy_at_time(
+            intent,
+            attestation_json,
+            policy,
+            unix_time_secs(),
+        )
+    }
+
+    fn verify_hardware_integrity_with_attestation_policy_at_time(
+        &self,
+        intent: &SwapIntent,
+        attestation_json: &Option<String>,
+        policy: &AttestationPolicy,
+        now_secs: u64,
     ) -> ConclaveResult<()> {
         let canonical_hash = intent.request.get_hash_bytes();
         if intent.signable_hash != canonical_hash {
@@ -242,7 +258,7 @@ impl RailProxy {
             ));
         }
 
-        if !report.verify_with_policy(&intent.signable_hash, policy) {
+        if !report.verify_at_time_with_policy(&intent.signable_hash, now_secs, policy) {
             return Err(ConclaveError::EnclaveFailure(
                 "Attestation report failed cryptographic or policy verification".to_string(),
             ));
@@ -251,7 +267,7 @@ impl RailProxy {
         // Replay state is consumed only after every report check succeeds.
         match self
             .replay_guard
-            .try_check_and_record(&hex::encode(&intent.signable_hash), unix_time_secs())
+            .try_check_and_record(&hex::encode(&intent.signable_hash), now_secs)
         {
             Ok(()) => Ok(()),
             Err(ReplayGuardError::Duplicate) => Err(ConclaveError::EnclaveFailure(
@@ -264,6 +280,21 @@ impl RailProxy {
                 "Attestation replay guard is unavailable".to_string(),
             )),
         }
+    }
+
+    #[cfg(test)]
+    fn verify_hardware_integrity_at_time(
+        &self,
+        intent: &SwapIntent,
+        attestation_json: &Option<String>,
+        now_secs: u64,
+    ) -> ConclaveResult<()> {
+        self.verify_hardware_integrity_with_attestation_policy_at_time(
+            intent,
+            attestation_json,
+            &self.attestation_policy,
+            now_secs,
+        )
     }
 
     /// Legacy compatibility entry point. The former boolean was a runtime
@@ -478,11 +509,6 @@ mod rail_proxy_tests {
     use crate::telemetry::TelemetryClient;
     use std::sync::Arc;
 
-    // Keep boundary fixtures away from the one-second wall-clock transition
-    // between constructing and verifying a report. The production policy
-    // intentionally allows MAX_ATTESTATION_FUTURE_SKEW_SECS of clock skew.
-    const FRESHNESS_TEST_MARGIN_SECS: u64 = 60;
-
     fn test_proxy() -> RailProxy {
         RailProxy::new(
             "https://gateway.conxian-labs.com".to_string(),
@@ -541,7 +567,11 @@ mod rail_proxy_tests {
     }
 
     fn test_attestation_json(nonce: Vec<u8>) -> String {
-        serde_json::to_string(&test_attestation_report(nonce, unix_time_secs()))
+        test_attestation_json_at(nonce, unix_time_secs())
+    }
+
+    fn test_attestation_json_at(nonce: Vec<u8>, timestamp: u64) -> String {
+        serde_json::to_string(&test_attestation_report(nonce, timestamp))
             .expect("attestation should serialize")
     }
 
@@ -674,32 +704,64 @@ mod rail_proxy_tests {
 
     #[test]
     fn test_stale_and_future_reports_are_rejected() {
-        let now = unix_time_secs();
+        const NOW_SECS: u64 = 1_000_000;
 
-        let stale_proxy = test_proxy();
-        let stale_intent = test_intent(vec![8; 32]);
-        let stale_report = test_attestation_report(
-            stale_intent.signable_hash.clone(),
-            now.saturating_sub(MAX_ATTESTATION_AGE_SECS.saturating_add(FRESHNESS_TEST_MARGIN_SECS)),
-        );
-        let stale_json = Some(serde_json::to_string(&stale_report).unwrap());
+        let future_boundary_proxy = test_proxy();
+        let future_boundary_intent = test_intent(vec![8; 32]);
+        let future_boundary_json = Some(test_attestation_json_at(
+            future_boundary_intent.signable_hash.clone(),
+            NOW_SECS + MAX_ATTESTATION_FUTURE_SKEW_SECS,
+        ));
+        assert!(future_boundary_proxy
+            .verify_hardware_integrity_at_time(
+                &future_boundary_intent,
+                &future_boundary_json,
+                NOW_SECS,
+            )
+            .is_ok());
+
+        let future_over_boundary_proxy = test_proxy();
+        let future_over_boundary_intent = test_intent(vec![9; 32]);
+        let future_over_boundary_json = Some(test_attestation_json_at(
+            future_over_boundary_intent.signable_hash.clone(),
+            NOW_SECS + MAX_ATTESTATION_FUTURE_SKEW_SECS + 1,
+        ));
         assert!(matches!(
-            stale_proxy.verify_hardware_integrity(&stale_intent, &stale_json),
+            future_over_boundary_proxy.verify_hardware_integrity_at_time(
+                &future_over_boundary_intent,
+                &future_over_boundary_json,
+                NOW_SECS,
+            ),
             Err(ConclaveError::EnclaveFailure(message))
                 if message == "Attestation report failed cryptographic or policy verification"
         ));
 
-        let future_proxy = test_proxy();
-        let future_intent = test_intent(vec![10; 32]);
-        let future_report = test_attestation_report(
-            future_intent.signable_hash.clone(),
-            now.saturating_add(
-                MAX_ATTESTATION_FUTURE_SKEW_SECS.saturating_add(FRESHNESS_TEST_MARGIN_SECS),
-            ),
-        );
-        let future_json = Some(serde_json::to_string(&future_report).unwrap());
+        let stale_boundary_proxy = test_proxy();
+        let stale_boundary_intent = test_intent(vec![10; 32]);
+        let stale_boundary_json = Some(test_attestation_json_at(
+            stale_boundary_intent.signable_hash.clone(),
+            NOW_SECS - MAX_ATTESTATION_AGE_SECS,
+        ));
+        assert!(stale_boundary_proxy
+            .verify_hardware_integrity_at_time(
+                &stale_boundary_intent,
+                &stale_boundary_json,
+                NOW_SECS,
+            )
+            .is_ok());
+
+        let stale_over_boundary_proxy = test_proxy();
+        let stale_over_boundary_intent = test_intent(vec![11; 32]);
+        let stale_over_boundary_json = Some(test_attestation_json_at(
+            stale_over_boundary_intent.signable_hash.clone(),
+            NOW_SECS - MAX_ATTESTATION_AGE_SECS - 1,
+        ));
         assert!(matches!(
-            future_proxy.verify_hardware_integrity(&future_intent, &future_json),
+            stale_over_boundary_proxy.verify_hardware_integrity_at_time(
+                &stale_over_boundary_intent,
+                &stale_over_boundary_json,
+                NOW_SECS,
+            ),
             Err(ConclaveError::EnclaveFailure(message))
                 if message == "Attestation report failed cryptographic or policy verification"
         ));
