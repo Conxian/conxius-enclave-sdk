@@ -279,10 +279,12 @@ impl EnclaveManager for CoreEnclaveManager {
 mod tests {
     use super::*;
     use crate::enclave::{EnclaveManager, SignRequest, SigningAlgorithm};
+    use rand::RngExt;
 
     fn unlocked_enclave() -> CoreEnclaveManager {
         let enclave = CoreEnclaveManager::new();
-        enclave.unlock("1234", b"test-salt").unwrap();
+        let salt = rand::rng().random::<[u8; 16]>();
+        enclave.unlock("1234", &salt).unwrap();
         enclave
     }
 
