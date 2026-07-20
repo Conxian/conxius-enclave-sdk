@@ -1,5 +1,8 @@
 use crate::{
-    enclave::{sign_value_bearing, EnclaveManager, SignRequest, SigningAlgorithm},
+    enclave::{
+        sign_value_bearing, EnclaveManager, OperationContext, SignerKeyBinding, SigningAlgorithm,
+        TrustRequirement, ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
+    },
     ConclaveError, ConclaveResult,
 };
 use serde::{Deserialize, Serialize};
@@ -38,16 +41,23 @@ impl<'a> EthereumManager<'a> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        let request = SignRequest {
-            algorithm: SigningAlgorithm::EcdsaSecp256k1,
-            message_hash: sighash.to_vec(),
-            derivation_path: derivation_path.to_string(),
-            key_id: key_id.to_string(),
-            taproot_tweak: None,
-        };
+        let public_key = hex::decode(self.enclave.get_public_key(derivation_path)?)
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let request = ValueBearingSignRequest::new(
+            OperationContext::new(
+                "conxian/ethereum/transaction",
+                ValueBearingPurpose::Transaction,
+                sighash.to_vec(),
+            )?,
+            SigningAlgorithm::EcdsaSecp256k1,
+            TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+            sighash,
+            SignerKeyBinding::new(key_id, derivation_path, public_key)?,
+            None,
+        )?;
 
         let response = sign_value_bearing(self.enclave, request)?;
-        Ok(response.signature_hex)
+        Ok(response.sign_response().signature_hex.clone())
     }
 
     /// Prepares an ERC-20 transfer calldata.
@@ -80,17 +90,23 @@ impl<'a> EthereumManager<'a> {
         let mut hasher = sha2::Sha256::new();
         hasher.update(prefix.as_bytes());
         hasher.update(message.as_bytes());
-        let message_hash = hasher.finalize().to_vec();
-
-        let request = SignRequest {
-            algorithm: SigningAlgorithm::EcdsaSecp256k1,
+        let message_hash: [u8; 32] = hasher.finalize().into();
+        let public_key = hex::decode(self.enclave.get_public_key(derivation_path)?)
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let request = ValueBearingSignRequest::new(
+            OperationContext::new(
+                "conxian/ethereum/message",
+                ValueBearingPurpose::Authorization,
+                message_hash.to_vec(),
+            )?,
+            SigningAlgorithm::EcdsaSecp256k1,
+            TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
             message_hash,
-            derivation_path: derivation_path.to_string(),
-            key_id: key_id.to_string(),
-            taproot_tweak: None,
-        };
+            SignerKeyBinding::new(key_id, derivation_path, public_key)?,
+            None,
+        )?;
 
         let response = sign_value_bearing(self.enclave, request)?;
-        Ok(response.signature_hex)
+        Ok(response.sign_response().signature_hex.clone())
     }
 }

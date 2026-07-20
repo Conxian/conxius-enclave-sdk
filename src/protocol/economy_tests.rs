@@ -4,7 +4,7 @@ mod tests {
     use crate::protocol::economy::{DualStackIntent, YieldEngine};
 
     #[test]
-    fn test_dual_stack_generation() {
+    fn test_dual_stack_generation_fails_closed_without_provider() {
         let enclave = CloudEnclave::new("https://vault.conxian-labs.com".to_string()).unwrap();
         let engine = YieldEngine::new(&enclave);
 
@@ -14,13 +14,11 @@ mod tests {
             lock_period: 10,
         };
 
-        let (sig, post_conditions) = engine.dual_stack(intent).unwrap();
-        assert!(!sig.is_empty());
-        assert_eq!(post_conditions.len(), 2);
+        assert!(engine.dual_stack(intent).is_err());
     }
 
     #[test]
-    fn test_gas_sponsored_tx_generation() {
+    fn test_gas_sponsored_tx_generation_fails_closed_without_provider() {
         let enclave = CloudEnclave::new("https://vault.conxian-labs.com".to_string()).unwrap();
         let engine = YieldEngine::new(&enclave);
 
@@ -29,7 +27,6 @@ mod tests {
             estimated_fee_sbtc: 100,
         };
 
-        let sig = engine.prepare_gas_sponsored_tx(intent).unwrap();
-        assert!(!sig.is_empty());
+        assert!(engine.prepare_gas_sponsored_tx(intent).is_err());
     }
 }

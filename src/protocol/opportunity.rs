@@ -1,4 +1,7 @@
-use crate::enclave::{sign_value_bearing, EnclaveManager, SignRequest, SigningAlgorithm};
+use crate::enclave::{
+    sign_value_bearing, EnclaveManager, OperationContext, SignerKeyBinding, SigningAlgorithm,
+    TrustRequirement, ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
+};
 use crate::protocol::asset::Chain;
 use crate::protocol::economy::{DualStackIntent, YieldEngine};
 use crate::protocol::intent::SwapRequest;
@@ -110,24 +113,38 @@ impl<'a> OpportunityDispatcher<'a> {
                     ),
                 };
 
+                let message_digest: [u8; 32] = intent
+                    .signable_hash
+                    .clone()
+                    .try_into()
+                    .map_err(|_| ConclaveError::InvalidPayload)?;
+                let public_key = hex::decode(self.enclave.get_public_key(&derivation_path)?)
+                    .map_err(|_| ConclaveError::InvalidPayload)?;
+                let operation_domain = format!("conxian/opportunity/{from_chain:?}");
                 let sign_resp = sign_value_bearing(
                     self.enclave,
-                    SignRequest {
-                        algorithm: algo,
-                        message_hash: intent.signable_hash.clone(),
-                        derivation_path,
-                        key_id: "opportunity_key".to_string(),
-                        taproot_tweak: None,
-                    },
+                    ValueBearingSignRequest::new(
+                        OperationContext::new(
+                            operation_domain,
+                            ValueBearingPurpose::Transaction,
+                            message_digest.to_vec(),
+                        )?,
+                        algo,
+                        TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+                        message_digest,
+                        SignerKeyBinding::new("opportunity_key", derivation_path, public_key)?,
+                        None,
+                    )?,
                 )?;
+                let sign_response = sign_resp.sign_response();
 
                 #[allow(deprecated)]
                 let resp = self
                     .rail_proxy
                     .broadcast_signed_intent(
                         intent,
-                        sign_resp.signature_hex,
-                        sign_resp.device_attestation,
+                        sign_response.signature_hex.clone(),
+                        sign_response.device_attestation.clone(),
                     )
                     .await?;
 

@@ -1,5 +1,8 @@
 use crate::{
-    enclave::{sign_value_bearing, EnclaveManager, SignRequest, SigningAlgorithm},
+    enclave::{
+        sign_value_bearing, EnclaveManager, OperationContext, SignerKeyBinding, SigningAlgorithm,
+        TrustRequirement, ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
+    },
     ConclaveError, ConclaveResult,
 };
 use bitcoin::hashes::{sha256t, HashEngine};
@@ -32,16 +35,42 @@ impl<'a> TaprootManager<'a> {
 
         let tweak = self.calculate_taproot_tweak(derivation_path, merkle_root)?;
 
-        let request = SignRequest {
-            algorithm: SigningAlgorithm::SchnorrSecp256k1,
-            message_hash: sighash.to_vec(),
-            derivation_path: derivation_path.to_string(),
-            key_id: key_id.to_string(),
-            taproot_tweak: Some(tweak),
-        };
+        let internal_pubkey_hex = self.enclave.get_public_key(derivation_path)?;
+        let internal_pubkey_bytes: [u8; 32] = hex::decode(internal_pubkey_hex)
+            .map_err(|_| ConclaveError::InvalidPayload)?
+            .try_into()
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let internal_pubkey = XOnlyPublicKey::from_byte_array(&internal_pubkey_bytes)
+            .map_err(|e| ConclaveError::CryptoError(format!("Invalid internal pubkey: {e}")))?;
+        let tweak_scalar = secp256k1::Scalar::from_be_bytes(
+            tweak
+                .as_slice()
+                .try_into()
+                .map_err(|_| ConclaveError::InvalidPayload)?,
+        )
+        .map_err(|e| ConclaveError::CryptoError(format!("Invalid taproot tweak: {e}")))?;
+        let operation_pubkey = internal_pubkey
+            .add_tweak(&tweak_scalar)
+            .map_err(|e| ConclaveError::CryptoError(format!("Taproot key tweak failed: {e}")))?;
+        let request = ValueBearingSignRequest::new(
+            OperationContext::new(
+                "conxian/bitcoin/taproot",
+                ValueBearingPurpose::Transaction,
+                sighash.to_vec(),
+            )?,
+            SigningAlgorithm::SchnorrSecp256k1,
+            TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+            sighash,
+            SignerKeyBinding::new(
+                key_id,
+                derivation_path,
+                operation_pubkey.serialize().0.to_vec(),
+            )?,
+            Some(tweak),
+        )?;
 
         let response = sign_value_bearing(self.enclave, request)?;
-        Ok(response.signature_hex)
+        Ok(response.sign_response().signature_hex.clone())
     }
 
     fn calculate_taproot_tweak(
@@ -53,12 +82,11 @@ impl<'a> TaprootManager<'a> {
         let internal_pubkey_bytes =
             hex::decode(pubkey_hex).map_err(|_| ConclaveError::InvalidPayload)?;
 
-        let internal_pubkey = XOnlyPublicKey::from_byte_array(
-            internal_pubkey_bytes[..32]
-                .try_into()
-                .map_err(|_| ConclaveError::InvalidPayload)?,
-        )
-        .map_err(|e| ConclaveError::CryptoError(format!("Invalid internal pubkey: {}", e)))?;
+        let internal_pubkey_bytes: [u8; 32] = internal_pubkey_bytes
+            .try_into()
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let internal_pubkey = XOnlyPublicKey::from_byte_array(&internal_pubkey_bytes)
+            .map_err(|e| ConclaveError::CryptoError(format!("Invalid internal pubkey: {}", e)))?;
 
         let tweak_hash = if let Some(root) = merkle_root {
             let mut engine = sha256t::Hash::<TapTweakTag>::engine();

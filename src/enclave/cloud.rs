@@ -115,6 +115,7 @@ impl CloudEnclave {
         &self,
         challenge: &[u8],
         algorithm: &SigningAlgorithm,
+        operation_public_key: &[u8],
     ) -> ConclaveResult<DeviceIntegrityReport> {
         let timestamp = unix_time_secs();
         let algorithm_token = match algorithm {
@@ -160,6 +161,7 @@ impl CloudEnclave {
             level,
             challenge_nonce: challenge.to_vec(),
             signature: Vec::new(),
+            attested_operation_public_key: operation_public_key.to_vec(),
             certificate_chain,
             timestamp,
             extension_data,
@@ -231,8 +233,13 @@ impl EnclaveManager for CloudEnclave {
             }
         };
 
-        let attestation =
-            self.generate_attestation_report(&request.message_hash, &request.algorithm)?;
+        let operation_public_key = hex::decode(&public_key_hex)
+            .map_err(|_| ConclaveError::CryptoError("Invalid operation public key".to_string()))?;
+        let attestation = self.generate_attestation_report(
+            &request.message_hash,
+            &request.algorithm,
+            &operation_public_key,
+        )?;
         let attestation_json = serde_json::to_string(&attestation)
             .map_err(|e| ConclaveError::CryptoError(format!("Serialization error: {}", e)))?;
 

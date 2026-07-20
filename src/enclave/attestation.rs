@@ -20,7 +20,7 @@ pub const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
 const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
 
 /// Version of the canonical signed attestation envelope.
-pub const ATTESTATION_ENVELOPE_VERSION: u16 = 1;
+pub const ATTESTATION_ENVELOPE_VERSION: u16 = 2;
 
 fn unix_time_secs() -> u64 {
     SystemTime::now()
@@ -463,6 +463,10 @@ pub struct DeviceIntegrityReport {
     pub level: AttestationLevel,
     pub challenge_nonce: Vec<u8>,
     pub signature: Vec<u8>,
+    /// Public key used for the value-bearing operation. This field is covered
+    /// by the attestation-leaf signature and is checked against the provider's
+    /// operation signature key at the typed signing boundary.
+    pub attested_operation_public_key: Vec<u8>,
     /// Full certificate/identity chain. The first entry is the leaf public key
     /// as hex in the currently supported software/test envelope.
     pub certificate_chain: Vec<String>,
@@ -518,7 +522,11 @@ impl DeviceIntegrityReport {
         now_secs: u64,
         policy: &AttestationPolicy,
     ) -> bool {
-        if self.signature.is_empty() || !self.certificate_chain_is_well_formed() {
+        if self.signature.is_empty()
+            || self.attested_operation_public_key.is_empty()
+            || self.attested_operation_public_key.len() > 65
+            || !self.certificate_chain_is_well_formed()
+        {
             return false;
         }
 
@@ -619,6 +627,7 @@ impl DeviceIntegrityReport {
         output.push(1); // DeviceIntegrity report type
         output.push(level_tag(self.level));
         append_len_prefixed(&mut output, &self.challenge_nonce)?;
+        append_len_prefixed(&mut output, &self.attested_operation_public_key)?;
         output.extend_from_slice(&self.timestamp.to_be_bytes());
 
         let extension_count = u32::try_from(self.extensions.len()).ok()?;
@@ -717,6 +726,7 @@ impl DeviceIntegrityReport {
         for cert in &self.certificate_chain {
             hasher.update(cert.as_bytes());
         }
+        hasher.update(&self.attested_operation_public_key);
         for extension in &self.extensions {
             let (tag, value) = extension.canonical_parts();
             hasher.update([tag]);
@@ -757,6 +767,7 @@ mod tests {
             level,
             challenge_nonce: nonce,
             signature: Vec::new(),
+            attested_operation_public_key: signing_key.verifying_key().to_bytes().to_vec(),
             certificate_chain: vec![pubkey_hex, "CONCLAVE_ROOT_CA_V1".to_string()],
             timestamp,
             extension_data,

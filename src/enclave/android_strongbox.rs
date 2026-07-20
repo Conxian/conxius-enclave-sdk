@@ -109,6 +109,7 @@ impl CoreEnclaveManager {
         challenge: &[u8],
         report_key_bytes: &[u8],
         algorithm: &SigningAlgorithm,
+        operation_public_key: &[u8],
     ) -> ConclaveResult<DeviceIntegrityReport> {
         #[cfg(test)]
         let _ = report_key_bytes;
@@ -159,6 +160,7 @@ impl CoreEnclaveManager {
             level,
             challenge_nonce: challenge.to_vec(),
             signature: Vec::new(),
+            attested_operation_public_key: operation_public_key.to_vec(),
             certificate_chain,
             timestamp,
             extension_data,
@@ -203,6 +205,7 @@ impl CoreEnclaveManager {
             message_hash,
             priv_key_bytes,
             &SigningAlgorithm::EcdsaSecp256k1,
+            &public_key.serialize(),
         )?;
         let attestation_json = serde_json::to_string(&attestation)
             .map_err(|e| ConclaveError::CryptoError(format!("Serialization error: {}", e)))?;
@@ -249,6 +252,7 @@ impl CoreEnclaveManager {
             message_hash,
             priv_key_bytes,
             &SigningAlgorithm::SchnorrSecp256k1,
+            &verify_key.serialize(),
         )?;
         let attestation_json = serde_json::to_string(&attestation)
             .map_err(|e| ConclaveError::CryptoError(format!("Serialization error: {}", e)))?;

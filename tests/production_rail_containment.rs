@@ -116,6 +116,6 @@ fn development_cloud_cannot_sign_through_production_protocol_boundary() {
     assert!(matches!(
         result,
         Err(ConclaveError::Unsupported(message))
-            if message.contains("verified hardware provider")
+            if message.contains("software-only")
     ));
 }

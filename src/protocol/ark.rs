@@ -1,5 +1,8 @@
 use crate::{
-    enclave::{sign_value_bearing, EnclaveManager},
+    enclave::{
+        sign_value_bearing, EnclaveManager, OperationContext, SignerKeyBinding, SigningAlgorithm,
+        TrustRequirement, ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
+    },
     ConclaveError, ConclaveResult,
 };
 use blake2::{Blake2s256, Digest};
@@ -175,18 +178,23 @@ impl ArkManager {
         tx_hash: [u8; 32],
         derivation_path: &str,
     ) -> ConclaveResult<String> {
-        let pubkey = self.enclave.get_public_key(derivation_path)?;
-
-        let request = crate::enclave::SignRequest {
-            algorithm: crate::enclave::SigningAlgorithm::EcdsaSecp256k1,
-            message_hash: tx_hash.to_vec(),
-            derivation_path: derivation_path.to_string(),
-            key_id: pubkey,
-            taproot_tweak: None,
-        };
+        let public_key = hex::decode(self.enclave.get_public_key(derivation_path)?)
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let request = ValueBearingSignRequest::new(
+            OperationContext::new(
+                "conxian/ark/forfeit",
+                ValueBearingPurpose::Transaction,
+                tx_hash.to_vec(),
+            )?,
+            SigningAlgorithm::EcdsaSecp256k1,
+            TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+            tx_hash,
+            SignerKeyBinding::new("ark_forfeit_key", derivation_path, public_key)?,
+            None,
+        )?;
 
         let response = sign_value_bearing(self.enclave.as_ref(), request)?;
-        Ok(response.signature_hex)
+        Ok(response.sign_response().signature_hex.clone())
     }
 }
 

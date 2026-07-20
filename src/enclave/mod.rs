@@ -8,17 +8,19 @@ pub mod replay_guard;
 #[cfg(test)]
 mod hardware_attestation_tests;
 
-use crate::enclave::attestation::{
-    AttestationAlgorithm, AttestationExtension, AttestationLevel, AttestationPolicy,
-    DeviceIntegrityReport,
-};
+use crate::enclave::attestation::{AttestationAlgorithm, AttestationPolicy, DeviceIntegrityReport};
+#[cfg(test)]
+use crate::enclave::attestation::{AttestationExtension, AttestationLevel};
+use crate::enclave::replay_guard::{ReplayGuard, ReplayGuardError};
 use crate::{ConclaveError, ConclaveResult};
 use ed25519_dalek::Verifier as _;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Domain separator for all value-bearing signing request bindings.
 pub const VALUE_BEARING_SIGNING_DOMAIN: &str = "CONXIAN-VALUE-BEARING-SIGNING/v1";
+pub const VALUE_BEARING_POLICY_ID: &str = "conxian.production.signing.v1";
 
 const MAX_CONTEXT_BYTES: usize = 4096;
 const MAX_IDENTIFIER_BYTES: usize = 256;
@@ -506,34 +508,21 @@ impl ValueBearingSignResponse {
             })?;
         let report: DeviceIntegrityReport = serde_json::from_str(attestation_json)
             .map_err(|_| crate::ConclaveError::InvalidPayload)?;
-        let algorithm_evidence = report
-            .extensions
-            .iter()
-            .filter_map(AttestationExtension::algorithm)
-            .collect::<Vec<_>>();
-        if report.level == AttestationLevel::Software
-            || report.challenge_nonce != request.message_digest
-            || report.signature.is_empty()
-            || report.certificate_chain.len() < 2
-            || !report
-                .extensions
-                .contains(&AttestationExtension::PurposeSign)
-            || algorithm_evidence.len() != 1
-            || algorithm_evidence[0] != request.algorithm.attestation_algorithm()
-        {
+        let policy = value_bearing_attestation_policy(request)?;
+        if !report.verify_with_policy(request.message_digest(), &policy) {
             return Err(crate::ConclaveError::Unsupported(
-                "provider response is missing required value-bearing evidence".to_string(),
+                "provider response failed complete value-bearing attestation policy verification"
+                    .to_string(),
             ));
         }
 
-        let legacy_request = SignRequest {
-            algorithm: request.algorithm,
-            message_hash: request.message_digest.to_vec(),
-            derivation_path: request.key_binding.derivation_path.clone(),
-            key_id: request.key_binding.key_id.clone(),
-            taproot_tweak: request.taproot_tweak.clone(),
-        };
-        verify_operation_signature(&legacy_request, &response)?;
+        if report.attested_operation_public_key != public_key {
+            return Err(crate::ConclaveError::Unsupported(
+                "attestation leaf is not bound to the operation signing key".to_string(),
+            ));
+        }
+
+        verify_operation_signature(request, &response)?;
 
         Ok(Self {
             response,
@@ -579,6 +568,24 @@ pub trait EnclaveManager: Send + Sync {
         SignerCapability::software_unverified()
     }
 
+    /// Returns manager-owned replay state for the typed value-bearing boundary.
+    /// A provider that cannot supply safe in-process replay containment must
+    /// leave this unavailable so signing fails closed.
+    fn value_bearing_replay_guard(&self) -> Option<&ReplayGuard> {
+        None
+    }
+
+    /// Provider-only operation. Implementations must return a response for the
+    /// exact typed request and must never route through [`Self::sign`].
+    fn sign_value_bearing_provider(
+        &self,
+        _request: &ValueBearingSignRequest,
+    ) -> ConclaveResult<SignResponse> {
+        Err(crate::ConclaveError::Unsupported(
+            "value-bearing signing provider contract is unavailable".to_string(),
+        ))
+    }
+
     /// Value-bearing unlock never falls back to legacy unlock or software state.
     fn unlock_value_bearing(
         &self,
@@ -612,9 +619,20 @@ pub trait EnclaveManager: Send + Sync {
             ));
         }
 
-        Err(crate::ConclaveError::Unsupported(
-            "value-bearing signing provider contract is unavailable".to_string(),
-        ))
+        let response = self.sign_value_bearing_provider(&request)?;
+        let verified =
+            ValueBearingSignResponse::from_provider(&request, response, self.signer_capability())?;
+        let replay_guard = self.value_bearing_replay_guard().ok_or_else(|| {
+            crate::ConclaveError::Unsupported(
+                "value-bearing replay protection is unavailable".to_string(),
+            )
+        })?;
+        let replay_key = hex::encode(verified.operation_binding());
+        replay_guard
+            .try_check_and_record(&replay_key, unix_time_secs())
+            .map_err(map_replay_guard_error)?;
+
+        Ok(verified)
     }
 }
 
@@ -651,85 +669,43 @@ impl EnclaveManager for UnavailableEnclave {
 
 /// Signs a value-bearing operation through the common fail-closed boundary.
 ///
-/// Raw `EnclaveManager::sign` remains available for explicitly isolated
-/// development/test drivers, but every protocol wrapper that can produce a
-/// transaction or settlement signature must use this helper. Production uses
-/// the unavailable provider policy until a real provider verifier is wired in.
+/// Legacy `EnclaveManager::sign` remains available only for explicitly isolated
+/// development/test drivers. This helper calls the typed provider-only method
+/// and never bridges a typed request through raw signing.
 pub(crate) fn sign_value_bearing(
     enclave: &dyn EnclaveManager,
-    request: SignRequest,
-) -> ConclaveResult<SignResponse> {
-    let response = enclave.sign(request.clone())?;
-    let required_algorithm = match request.algorithm {
-        SigningAlgorithm::EcdsaSecp256k1 => AttestationAlgorithm::EcdsaSecp256k1,
-        SigningAlgorithm::SchnorrSecp256k1 => AttestationAlgorithm::SchnorrSecp256k1,
-        SigningAlgorithm::Ed25519 => AttestationAlgorithm::Ed25519,
-    };
-    let policy = value_bearing_policy().with_required_algorithm(required_algorithm);
-    validate_value_bearing_response(&request, &response, &policy)?;
-    Ok(response)
+    request: ValueBearingSignRequest,
+) -> ConclaveResult<ValueBearingSignResponse> {
+    enclave.sign_value_bearing(request)
 }
 
-fn value_bearing_policy() -> AttestationPolicy {
-    #[cfg(test)]
-    {
-        AttestationPolicy::test_fixture()
-    }
-
-    #[cfg(not(test))]
-    {
-        AttestationPolicy::production()
-    }
-}
-
-pub(crate) fn validate_value_bearing_response(
-    request: &SignRequest,
-    response: &SignResponse,
-    policy: &AttestationPolicy,
-) -> ConclaveResult<()> {
-    if response.signature_hex.is_empty() || response.public_key_hex.is_empty() {
-        return Err(ConclaveError::EnclaveFailure(
-            "value-bearing signer returned an incomplete signature".to_string(),
-        ));
-    }
-
-    let attestation_json = response.device_attestation.as_ref().ok_or_else(|| {
-        ConclaveError::EnclaveFailure(
-            "value-bearing signing requires device attestation".to_string(),
-        )
-    })?;
-    let report: DeviceIntegrityReport = serde_json::from_str(attestation_json).map_err(|e| {
-        ConclaveError::EnclaveFailure(format!("invalid value-bearing attestation: {e}"))
-    })?;
-
-    if report.challenge_nonce != request.message_hash {
-        return Err(ConclaveError::EnclaveFailure(
-            "value-bearing attestation is not bound to the signing request".to_string(),
-        ));
-    }
-
-    if !report.verify_with_policy(&request.message_hash, policy) {
+fn value_bearing_attestation_policy(
+    request: &ValueBearingSignRequest,
+) -> ConclaveResult<AttestationPolicy> {
+    if request.trust_requirement().policy_id() != VALUE_BEARING_POLICY_ID {
         return Err(ConclaveError::Unsupported(
-            "value-bearing signing requires a verified hardware provider".to_string(),
+            "value-bearing policy identity is unavailable".to_string(),
         ));
     }
 
-    let expected_algorithm_extension = match request.algorithm {
-        SigningAlgorithm::EcdsaSecp256k1 => AttestationExtension::AlgorithmEcdsaSecp256k1,
-        SigningAlgorithm::SchnorrSecp256k1 => AttestationExtension::AlgorithmSchnorrSecp256k1,
-        SigningAlgorithm::Ed25519 => AttestationExtension::AlgorithmEd25519,
+    let policy = {
+        #[cfg(test)]
+        {
+            AttestationPolicy::test_fixture()
+        }
+
+        #[cfg(not(test))]
+        {
+            AttestationPolicy::production()
+        }
     };
-    if !report.extensions.contains(&expected_algorithm_extension) {
-        return Err(ConclaveError::EnclaveFailure(
-            "attestation algorithm does not match the signing request".to_string(),
-        ));
-    }
-
-    verify_operation_signature(request, response)
+    Ok(policy
+        .with_required_purpose(crate::enclave::attestation::AttestationPurpose::Sign)
+        .with_required_algorithm(request.algorithm.attestation_algorithm()))
 }
 
 fn verify_operation_signature(
-    request: &SignRequest,
+    request: &ValueBearingSignRequest,
     response: &SignResponse,
 ) -> ConclaveResult<()> {
     let signature_bytes = hex::decode(&response.signature_hex)
@@ -749,13 +725,7 @@ fn verify_operation_signature(
                 match (signature, public_key) {
                     (Ok(signature), Ok(public_key)) => secp256k1::ecdsa::verify(
                         &signature,
-                        secp256k1::Message::from_digest(
-                            request
-                                .message_hash
-                                .as_slice()
-                                .try_into()
-                                .map_err(|_| ConclaveError::InvalidPayload)?,
-                        ),
+                        secp256k1::Message::from_digest(*request.message_digest()),
                         &public_key,
                     )
                     .is_ok(),
@@ -785,12 +755,7 @@ fn verify_operation_signature(
                 secp256k1::XOnlyPublicKey::from_byte_array(public_key_array).map_err(|_| {
                     ConclaveError::CryptoError("invalid Schnorr public key".to_string())
                 })?;
-            let message: [u8; 32] = request
-                .message_hash
-                .as_slice()
-                .try_into()
-                .map_err(|_| ConclaveError::InvalidPayload)?;
-            secp256k1::schnorr::verify(&signature, &message, &public_key).is_ok()
+            secp256k1::schnorr::verify(&signature, request.message_digest(), &public_key).is_ok()
         }
         SigningAlgorithm::Ed25519 => {
             let public_key_array: [u8; 32] = match public_key_bytes.try_into() {
@@ -807,7 +772,9 @@ fn verify_operation_signature(
                 })?;
             let signature = ed25519_dalek::Signature::from_slice(&signature_bytes)
                 .map_err(|_| ConclaveError::CryptoError("invalid Ed25519 signature".to_string()))?;
-            public_key.verify(&request.message_hash, &signature).is_ok()
+            public_key
+                .verify(request.message_digest(), &signature)
+                .is_ok()
         }
     };
 
@@ -820,13 +787,34 @@ fn verify_operation_signature(
     }
 }
 
+fn unix_time_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+fn map_replay_guard_error(error: ReplayGuardError) -> ConclaveError {
+    ConclaveError::Unsupported(format!(
+        "value-bearing replay protection rejected operation: {error}"
+    ))
+}
+
 #[cfg(test)]
 mod enclave_tests {
     use super::*;
     use crate::enclave::android_strongbox::CoreEnclaveManager;
     use crate::enclave::cloud::CloudEnclave;
+    use ed25519_dalek::{Signer as _, SigningKey};
+    use std::collections::VecDeque;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Mutex,
+    };
 
-    struct DefaultMockEnclave;
+    struct DefaultMockEnclave {
+        raw_sign_calls: AtomicUsize,
+    }
 
     impl EnclaveManager for DefaultMockEnclave {
         fn initialize(&self) -> ConclaveResult<()> {
@@ -842,9 +830,126 @@ mod enclave_tests {
         }
 
         fn sign(&self, _request: SignRequest) -> ConclaveResult<SignResponse> {
+            self.raw_sign_calls.fetch_add(1, Ordering::Relaxed);
             Err(crate::ConclaveError::EnclaveFailure(
                 "legacy sign path was invoked".to_string(),
             ))
+        }
+    }
+
+    struct FixtureProvider {
+        operation_key: SigningKey,
+        replay_guard: ReplayGuard,
+        queued_responses: Mutex<VecDeque<SignResponse>>,
+    }
+
+    impl FixtureProvider {
+        fn new(max_entries: usize) -> Self {
+            Self {
+                operation_key: SigningKey::from_bytes(&[7u8; 32]),
+                replay_guard: ReplayGuard::new(300, max_entries),
+                queued_responses: Mutex::new(VecDeque::new()),
+            }
+        }
+
+        fn queue_response(&self, response: SignResponse) {
+            self.queued_responses.lock().unwrap().push_back(response);
+        }
+
+        fn response_for(&self, request: &ValueBearingSignRequest) -> SignResponse {
+            let attestation_key = attestation::test_signing_key();
+            let operation_public_key = self.operation_key.verifying_key().to_bytes();
+            let extension_data =
+                "PURPOSE_SIGN|ALGORITHM_ED25519|TEE_ENABLED|HARDWARE_ROOT_OF_TRUST|OS_VERSION_14"
+                    .to_string();
+            let extensions = attestation::parse_extension_data(&extension_data)
+                .expect("fixture extensions should parse");
+            let mut report = DeviceIntegrityReport {
+                report_version: attestation::ATTESTATION_ENVELOPE_VERSION,
+                report_type: attestation::AttestationReportType::DeviceIntegrity,
+                level: AttestationLevel::TEE,
+                challenge_nonce: request.message_digest().to_vec(),
+                signature: Vec::new(),
+                attested_operation_public_key: operation_public_key.to_vec(),
+                certificate_chain: vec![
+                    hex::encode(attestation_key.verifying_key().to_bytes()),
+                    "CONCLAVE_ROOT_CA_V1".to_string(),
+                ],
+                timestamp: unix_time_secs(),
+                extension_data,
+                extensions,
+            };
+            report
+                .sign_with_ed25519_key(&attestation_key)
+                .expect("fixture report should sign");
+
+            SignResponse {
+                signature_hex: hex::encode(
+                    self.operation_key.sign(request.message_digest()).to_bytes(),
+                ),
+                public_key_hex: hex::encode(operation_public_key),
+                device_attestation: Some(
+                    serde_json::to_string(&report).expect("fixture report should serialize"),
+                ),
+            }
+        }
+
+        fn response_with_report(
+            &self,
+            request: &ValueBearingSignRequest,
+            mut report: DeviceIntegrityReport,
+        ) -> SignResponse {
+            report
+                .sign_with_ed25519_key(&attestation::test_signing_key())
+                .expect("fixture report should sign");
+            SignResponse {
+                signature_hex: hex::encode(
+                    self.operation_key.sign(request.message_digest()).to_bytes(),
+                ),
+                public_key_hex: hex::encode(self.operation_key.verifying_key().to_bytes()),
+                device_attestation: Some(
+                    serde_json::to_string(&report).expect("fixture report should serialize"),
+                ),
+            }
+        }
+    }
+
+    impl EnclaveManager for FixtureProvider {
+        fn initialize(&self) -> ConclaveResult<()> {
+            Ok(())
+        }
+
+        fn generate_key(&self, key_id: &str) -> ConclaveResult<String> {
+            Ok(key_id.to_string())
+        }
+
+        fn get_public_key(&self, _derivation_path: &str) -> ConclaveResult<String> {
+            Ok(hex::encode(self.operation_key.verifying_key().to_bytes()))
+        }
+
+        fn sign(&self, _request: SignRequest) -> ConclaveResult<SignResponse> {
+            Err(ConclaveError::EnclaveFailure(
+                "fixture provider raw sign must not be called".to_string(),
+            ))
+        }
+
+        fn signer_capability(&self) -> SignerCapability {
+            SignerCapability::provider_verified(VALUE_BEARING_POLICY_ID).unwrap()
+        }
+
+        fn value_bearing_replay_guard(&self) -> Option<&ReplayGuard> {
+            Some(&self.replay_guard)
+        }
+
+        fn sign_value_bearing_provider(
+            &self,
+            request: &ValueBearingSignRequest,
+        ) -> ConclaveResult<SignResponse> {
+            if let Some(response) = self.queued_responses.lock().unwrap().pop_front() {
+                Ok(response)
+            } else {
+                Ok(self.response_for(request))
+            }
         }
     }
 
@@ -865,6 +970,33 @@ mod enclave_tests {
             SigningAlgorithm::EcdsaSecp256k1,
             trust_requirement,
             [7u8; 32],
+            key_binding,
+            None,
+        )
+        .unwrap()
+    }
+
+    fn ed25519_value_request(digest: [u8; 32]) -> ValueBearingSignRequest {
+        let operation_context = OperationContext::new(
+            "conxian.test/ed25519",
+            ValueBearingPurpose::Transaction,
+            digest.to_vec(),
+        )
+        .unwrap();
+        let trust_requirement = TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID).unwrap();
+        let operation_key = SigningKey::from_bytes(&[7u8; 32]);
+        let key_binding = SignerKeyBinding::new(
+            "fixture-key",
+            "m/44'/501'/0'/0/0",
+            operation_key.verifying_key().to_bytes().to_vec(),
+        )
+        .unwrap();
+
+        ValueBearingSignRequest::new(
+            operation_context,
+            SigningAlgorithm::Ed25519,
+            trust_requirement,
+            digest,
             key_binding,
             None,
         )
@@ -949,7 +1081,9 @@ mod enclave_tests {
 
     #[test]
     fn default_manager_cannot_pass_value_bearing_boundary() {
-        let manager = DefaultMockEnclave;
+        let manager = DefaultMockEnclave {
+            raw_sign_calls: AtomicUsize::new(0),
+        };
         let capability = manager.signer_capability();
         assert_eq!(capability.provenance(), SignerProvenance::Software);
         assert_eq!(capability.verification(), SignerVerification::Unverified);
@@ -969,6 +1103,7 @@ mod enclave_tests {
             Err(crate::ConclaveError::Unsupported(message))
                 if message.contains("value-bearing")
         ));
+        assert_eq!(manager.raw_sign_calls.load(Ordering::Relaxed), 0);
     }
 
     #[test]
@@ -990,6 +1125,23 @@ mod enclave_tests {
     }
 
     #[test]
+    fn malformed_provider_response_is_rejected_before_signature_use() {
+        let request = value_request();
+        let capability =
+            SignerCapability::provider_verified(request.trust_requirement().policy_id()).unwrap();
+        let response = SignResponse {
+            signature_hex: "01".to_string(),
+            public_key_hex: hex::encode(request.key_binding().public_key()),
+            device_attestation: Some("{".to_string()),
+        };
+
+        assert!(matches!(
+            ValueBearingSignResponse::from_provider(&request, response, capability),
+            Err(ConclaveError::InvalidPayload)
+        ));
+    }
+
+    #[test]
     fn software_attestation_cannot_be_promoted_to_value_bearing() {
         let request = value_request();
         let capability =
@@ -1000,6 +1152,7 @@ mod enclave_tests {
             level: AttestationLevel::Software,
             challenge_nonce: request.message_digest().to_vec(),
             signature: vec![1u8; 64],
+            attested_operation_public_key: request.key_binding().public_key().to_vec(),
             certificate_chain: vec![hex::encode([0x11u8; 32]), "software-root".to_string()],
             timestamp: 1,
             extension_data: "PURPOSE_SIGN|ALGORITHM_ECDSA_SECP256K1".to_string(),
@@ -1017,7 +1170,7 @@ mod enclave_tests {
         assert!(matches!(
             ValueBearingSignResponse::from_provider(&request, response, capability),
             Err(crate::ConclaveError::Unsupported(message))
-                if message.contains("evidence")
+                if message.contains("attestation")
         ));
     }
 
@@ -1066,43 +1219,247 @@ mod enclave_tests {
         };
         let response = enclave.sign(request.clone()).unwrap();
 
-        let result =
-            validate_value_bearing_response(&request, &response, &AttestationPolicy::production());
+        let attestation = response
+            .device_attestation
+            .expect("simulated fixture evidence");
+        let report: DeviceIntegrityReport = serde_json::from_str(&attestation).unwrap();
+        assert!(!report.verify_with_policy(&request.message_hash, &AttestationPolicy::production()));
+    }
+
+    #[test]
+    fn typed_provider_response_requires_attestation_leaf_operation_key_binding() {
+        let provider = FixtureProvider::new(16);
+        let request = ed25519_value_request([0xA5; 32]);
+        let response = provider.response_for(&request);
+        let capability = provider.signer_capability();
+        let verified = ValueBearingSignResponse::from_provider(&request, response, capability)
+            .expect("matching typed fixture should verify");
+
+        assert_eq!(
+            verified.sign_response().public_key_hex,
+            hex::encode(request.key_binding().public_key())
+        );
+    }
+
+    #[test]
+    fn valid_report_and_signature_from_different_operation_key_are_rejected() {
+        let provider = FixtureProvider::new(16);
+        let request = ed25519_value_request([0xA5; 32]);
+        let other_key = SigningKey::from_bytes(&[8u8; 32]);
+        let other_binding = SignerKeyBinding::new(
+            "different-key",
+            "m/44'/501'/0'/0/0",
+            other_key.verifying_key().to_bytes().to_vec(),
+        )
+        .unwrap();
+        let different_request = ValueBearingSignRequest::new(
+            OperationContext::new(
+                "conxian.test/ed25519",
+                ValueBearingPurpose::Transaction,
+                [0xA5; 32].to_vec(),
+            )
+            .unwrap(),
+            SigningAlgorithm::Ed25519,
+            TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID).unwrap(),
+            [0xA5; 32],
+            other_binding,
+            None,
+        )
+        .unwrap();
+
         assert!(matches!(
-            result,
+            ValueBearingSignResponse::from_provider(
+                &different_request,
+                provider.response_for(&request),
+                provider.signer_capability(),
+            ),
             Err(ConclaveError::Unsupported(message))
-                if message.contains("verified hardware provider")
+                if message.contains("requested signing key")
         ));
     }
 
     #[test]
-    fn test_fixture_value_signing_requires_matching_typed_algorithm() {
-        let enclave = CloudEnclave::new("https://kms.test".to_string()).unwrap();
+    fn attestation_leaf_operation_key_mismatch_is_rejected_after_report_verification() {
+        let provider = FixtureProvider::new(16);
+        let request = ed25519_value_request([0xA5; 32]);
+        let valid_response = provider.response_for(&request);
+        let mut report: DeviceIntegrityReport = serde_json::from_str(
+            valid_response
+                .device_attestation
+                .as_deref()
+                .expect("fixture attestation"),
+        )
+        .unwrap();
+        report.attested_operation_public_key = SigningKey::from_bytes(&[8u8; 32])
+            .verifying_key()
+            .to_bytes()
+            .to_vec();
 
-        for algorithm in [SigningAlgorithm::EcdsaSecp256k1, SigningAlgorithm::Ed25519] {
-            let request = SignRequest {
-                algorithm,
-                message_hash: vec![0xA5; 32],
-                derivation_path: "m/44'/501'/0'/0'".to_string(),
-                key_id: "test-key".to_string(),
-                taproot_tweak: None,
-            };
-
-            let response = enclave.sign(request.clone()).unwrap();
-            sign_value_bearing(&enclave, request).expect("typed fixture must verify");
-            assert!(!response.signature_hex.is_empty());
-        }
-
-        let schnorr_request = SignRequest {
-            algorithm: SigningAlgorithm::SchnorrSecp256k1,
-            message_hash: vec![0xA5; 32],
-            derivation_path: "m/44'/501'/0'/0'".to_string(),
-            key_id: "test-key".to_string(),
-            taproot_tweak: None,
-        };
         assert!(matches!(
-            enclave.sign(schnorr_request),
-            Err(ConclaveError::Unsupported(message)) if message.contains("Schnorr")
+            ValueBearingSignResponse::from_provider(
+                &request,
+                provider.response_with_report(&request, report),
+                provider.signer_capability(),
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("attestation leaf")
         ));
+    }
+
+    #[test]
+    fn complete_attestation_policy_rejects_wrong_root_purpose_algorithm_nonce_and_stale_report() {
+        let provider = FixtureProvider::new(16);
+        let request = ed25519_value_request([0xA5; 32]);
+        let valid_response = provider.response_for(&request);
+        let valid_report: DeviceIntegrityReport = serde_json::from_str(
+            valid_response
+                .device_attestation
+                .as_deref()
+                .expect("fixture attestation"),
+        )
+        .unwrap();
+
+        let mut wrong_root = valid_report.clone();
+        wrong_root.certificate_chain[1] = "UNTRUSTED_ROOT".to_string();
+        assert!(ValueBearingSignResponse::from_provider(
+            &request,
+            provider.response_with_report(&request, wrong_root),
+            provider.signer_capability(),
+        )
+        .is_err());
+
+        let mut wrong_purpose = valid_report.clone();
+        wrong_purpose.extension_data =
+            "PURPOSE_VERIFY|ALGORITHM_ED25519|TEE_ENABLED|HARDWARE_ROOT_OF_TRUST|OS_VERSION_14"
+                .to_string();
+        wrong_purpose.extensions =
+            attestation::parse_extension_data(&wrong_purpose.extension_data).unwrap();
+        assert!(ValueBearingSignResponse::from_provider(
+            &request,
+            provider.response_with_report(&request, wrong_purpose),
+            provider.signer_capability(),
+        )
+        .is_err());
+
+        let mut wrong_algorithm = valid_report.clone();
+        wrong_algorithm.extension_data =
+            "PURPOSE_SIGN|ALGORITHM_ECDSA_SECP256K1|TEE_ENABLED|HARDWARE_ROOT_OF_TRUST|OS_VERSION_14"
+                .to_string();
+        wrong_algorithm.extensions =
+            attestation::parse_extension_data(&wrong_algorithm.extension_data).unwrap();
+        assert!(ValueBearingSignResponse::from_provider(
+            &request,
+            provider.response_with_report(&request, wrong_algorithm),
+            provider.signer_capability(),
+        )
+        .is_err());
+
+        let mut wrong_nonce = valid_report.clone();
+        wrong_nonce.challenge_nonce = vec![0xFF; 32];
+        assert!(ValueBearingSignResponse::from_provider(
+            &request,
+            provider.response_with_report(&request, wrong_nonce),
+            provider.signer_capability(),
+        )
+        .is_err());
+
+        let mut stale = valid_report;
+        stale.timestamp = unix_time_secs()
+            .saturating_sub(attestation::MAX_ATTESTATION_AGE_SECS.saturating_add(1));
+        assert!(ValueBearingSignResponse::from_provider(
+            &request,
+            provider.response_with_report(&request, stale),
+            provider.signer_capability(),
+        )
+        .is_err());
+
+        let production_report: DeviceIntegrityReport = serde_json::from_str(
+            provider
+                .response_for(&request)
+                .device_attestation
+                .as_deref()
+                .expect("fixture attestation"),
+        )
+        .unwrap();
+        assert!(!production_report
+            .verify_with_policy(request.message_digest(), &AttestationPolicy::production(),));
+    }
+
+    #[test]
+    fn invalid_provider_evidence_does_not_consume_replay_state_and_valid_replay_is_rejected() {
+        let provider = FixtureProvider::new(16);
+        let request = ed25519_value_request([0xA5; 32]);
+        let mut invalid = provider.response_for(&request);
+        invalid.device_attestation = None;
+        provider.queue_response(invalid);
+
+        assert!(provider.sign_value_bearing(request.clone()).is_err());
+        assert!(provider.sign_value_bearing(request.clone()).is_ok());
+        assert!(matches!(
+            provider.sign_value_bearing(request),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("replay protection") && message.contains("already")
+        ));
+    }
+
+    #[test]
+    fn value_bearing_replay_saturation_fails_closed_without_live_eviction() {
+        let provider = FixtureProvider::new(1);
+        let first = ed25519_value_request([1u8; 32]);
+        let second = ed25519_value_request([2u8; 32]);
+
+        assert!(provider.sign_value_bearing(first.clone()).is_ok());
+        assert!(matches!(
+            provider.sign_value_bearing(second),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("replay protection") && message.contains("saturated")
+        ));
+        assert!(matches!(
+            provider.sign_value_bearing(first),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("replay protection") && message.contains("already")
+        ));
+    }
+
+    #[test]
+    fn migrated_primary_signers_never_call_legacy_raw_sign_when_typed_signing_rejects() {
+        let manager = DefaultMockEnclave {
+            raw_sign_calls: AtomicUsize::new(0),
+        };
+        let ethereum = crate::protocol::ethereum::EthereumManager::new(&manager);
+
+        assert!(ethereum
+            .sign_transaction_hash([0x11; 32], "m/44'/60'/0'/0/0", "legacy-mock")
+            .is_err());
+        assert_eq!(manager.raw_sign_calls.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn software_manager_cannot_satisfy_migrated_primary_signers() {
+        let cloud = std::sync::Arc::new(CloudEnclave::new("https://kms.test".to_string()).unwrap());
+        let bitcoin = crate::protocol::bitcoin::BitcoinManager::new(cloud.clone());
+        let ethereum = crate::protocol::ethereum::EthereumManager::new(cloud.as_ref());
+        let solana = crate::protocol::solana::SolanaManager::new(cloud.as_ref());
+        let stacks = crate::protocol::stacks::StacksManager::new(cloud.as_ref());
+
+        assert!(bitcoin
+            .taproot()
+            .sign_taproot_sighash([0x22; 32], "m/86'/0'/0'/0/0", "btc-key")
+            .is_err());
+        assert!(ethereum
+            .sign_transaction_hash([0x22; 32], "m/44'/60'/0'/0/0", "eth-key")
+            .is_err());
+        assert!(solana
+            .sign_transaction_hash([0x22; 32], "m/44'/501'/0'/0/0", "sol-key")
+            .is_err());
+        assert!(stacks
+            .sign_prepared_transaction(
+                crate::protocol::stacks::StacksTransactionIntent {
+                    payload: vec![1],
+                    message_hash: vec![0x22; 32],
+                },
+                "stx-key",
+            )
+            .is_err());
     }
 }

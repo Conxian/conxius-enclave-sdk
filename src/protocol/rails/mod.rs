@@ -625,6 +625,7 @@ mod rail_proxy_tests {
             level: AttestationLevel::TEE,
             challenge_nonce: nonce,
             signature: Vec::new(),
+            attested_operation_public_key: signing_key.verifying_key().to_bytes().to_vec(),
             certificate_chain: vec![pubkey_hex, "CONCLAVE_ROOT_CA_V1".to_string()],
             timestamp,
             extension_data,
