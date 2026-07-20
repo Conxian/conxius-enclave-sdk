@@ -1,7 +1,9 @@
+use der::Decode;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
+use x509_cert::Certificate;
 
 use crate::{ConclaveError, ConclaveResult};
 
@@ -38,6 +40,26 @@ pub enum AttestationReportType {
     DeviceIntegrity,
 }
 
+/// Purpose bound into attestation evidence.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum AttestationPurpose {
+    Sign,
+    Verify,
+}
+
+/// Algorithm bound into attestation evidence.
+///
+/// The current evidence envelope is signed with Ed25519. The other variants
+/// are retained as typed policy vocabulary for provider implementations that
+/// will be added in a later checkpoint; production policy still requires the
+/// exact algorithm declared by its configuration.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum AttestationAlgorithm {
+    Ed25519,
+    EcdsaSecp256k1,
+    SchnorrSecp256k1,
+}
+
 /// Typed extension tokens used by the signed envelope and policy checks.
 ///
 /// Unknown provider tokens are retained as `Opaque` so they remain covered by
@@ -45,8 +67,10 @@ pub enum AttestationReportType {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AttestationExtension {
     PurposeSign,
+    PurposeVerify,
     AlgorithmEd25519,
     AlgorithmEcdsaSecp256k1,
+    AlgorithmSchnorrSecp256k1,
     HardwareBacked,
     SecureBootEnabled,
     TeeEnabled,
@@ -66,8 +90,10 @@ impl AttestationExtension {
 
         Some(match token {
             "PURPOSE_SIGN" => Self::PurposeSign,
+            "PURPOSE_VERIFY" => Self::PurposeVerify,
             "ALGORITHM_ED25519" => Self::AlgorithmEd25519,
             "ALGORITHM_EC" | "ALGORITHM_ECDSA_SECP256K1" => Self::AlgorithmEcdsaSecp256k1,
+            "ALGORITHM_SCHNORR_SECP256K1" => Self::AlgorithmSchnorrSecp256k1,
             "HARDWARE_BACKED" => Self::HardwareBacked,
             "SECURE_BOOT_ENABLED" => Self::SecureBootEnabled,
             "TEE_ENABLED" => Self::TeeEnabled,
@@ -95,8 +121,39 @@ impl AttestationExtension {
             Self::SimulatedSoftwareOnly => (9, None),
             Self::PlatformCloud => (10, None),
             Self::OsVersion(version) => (11, Some(version.as_str())),
+            Self::AlgorithmSchnorrSecp256k1 => (12, None),
+            Self::PurposeVerify => (13, None),
             Self::Opaque(token) => (255, Some(token.as_str())),
         }
+    }
+
+    pub fn purpose(&self) -> Option<AttestationPurpose> {
+        match self {
+            Self::PurposeSign => Some(AttestationPurpose::Sign),
+            Self::PurposeVerify => Some(AttestationPurpose::Verify),
+            _ => None,
+        }
+    }
+
+    pub fn algorithm(&self) -> Option<AttestationAlgorithm> {
+        match self {
+            Self::AlgorithmEd25519 => Some(AttestationAlgorithm::Ed25519),
+            Self::AlgorithmEcdsaSecp256k1 => Some(AttestationAlgorithm::EcdsaSecp256k1),
+            Self::AlgorithmSchnorrSecp256k1 => Some(AttestationAlgorithm::SchnorrSecp256k1),
+            _ => None,
+        }
+    }
+}
+
+impl From<String> for AttestationExtension {
+    fn from(token: String) -> Self {
+        Self::from_token(&token).unwrap_or(Self::Opaque(token))
+    }
+}
+
+impl From<&str> for AttestationExtension {
+    fn from(token: &str) -> Self {
+        Self::from_token(token).unwrap_or_else(|| Self::Opaque(token.to_string()))
     }
 }
 
@@ -161,6 +218,8 @@ pub struct AttestationPolicy {
     allowed_levels: Vec<AttestationLevel>,
     max_age_secs: u64,
     max_future_skew_secs: u64,
+    required_purpose: AttestationPurpose,
+    required_algorithm: AttestationAlgorithm,
     required_extensions: Vec<AttestationExtension>,
     provider_verifier: ProviderVerifier,
 }
@@ -180,6 +239,8 @@ impl AttestationPolicy {
             allowed_levels: vec![AttestationLevel::StrongBox, AttestationLevel::CloudTEE],
             max_age_secs: MAX_ATTESTATION_AGE_SECS,
             max_future_skew_secs: MAX_ATTESTATION_FUTURE_SKEW_SECS,
+            required_purpose: AttestationPurpose::Sign,
+            required_algorithm: AttestationAlgorithm::Ed25519,
             required_extensions: vec![AttestationExtension::PurposeSign],
             provider_verifier: ProviderVerifier::Unavailable,
         }
@@ -195,6 +256,8 @@ impl AttestationPolicy {
             ],
             max_age_secs: MAX_ATTESTATION_AGE_SECS,
             max_future_skew_secs: MAX_ATTESTATION_FUTURE_SKEW_SECS,
+            required_purpose: AttestationPurpose::Sign,
+            required_algorithm: AttestationAlgorithm::Ed25519,
             required_extensions: vec![AttestationExtension::PurposeSign],
             provider_verifier: ProviderVerifier::TestFixture {
                 trusted_roots: vec![
@@ -243,13 +306,57 @@ impl AttestationPolicy {
         Ok(self)
     }
 
+    /// Compatibility wrapper for the former string-root configuration API.
+    ///
+    /// Production builds deliberately reject arbitrary roots because a string
+    /// label is not an authenticated provider verifier. Unit-test builds route
+    /// this legacy shape to the explicitly test-only fixture instead.
+    pub fn with_trusted_roots(self, trusted_roots: Vec<String>) -> ConclaveResult<Self> {
+        #[cfg(test)]
+        {
+            return self.with_test_trusted_roots(trusted_roots);
+        }
+
+        #[cfg(not(test))]
+        {
+            let _ = trusted_roots;
+            Err(ConclaveError::Unsupported(
+                "arbitrary attestation roots require an unavailable provider verifier".to_string(),
+            ))
+        }
+    }
+
+    pub fn with_required_purpose(mut self, purpose: AttestationPurpose) -> Self {
+        self.required_purpose = purpose;
+        self.required_extensions
+            .retain(|extension| extension.purpose().is_none());
+        self.required_extensions.push(match purpose {
+            AttestationPurpose::Sign => AttestationExtension::PurposeSign,
+            AttestationPurpose::Verify => AttestationExtension::PurposeVerify,
+        });
+        self
+    }
+
+    pub fn with_required_algorithm(mut self, algorithm: AttestationAlgorithm) -> Self {
+        self.required_algorithm = algorithm;
+        self
+    }
+
     /// Returns a policy requiring exact typed extension tokens in addition to
     /// the mandatory signing-purpose marker.
-    pub fn with_required_extensions(
+    pub fn with_required_extensions<T>(
         mut self,
-        required_extensions: Vec<AttestationExtension>,
-    ) -> ConclaveResult<Self> {
+        required_extensions: Vec<T>,
+    ) -> ConclaveResult<Self>
+    where
+        T: Into<AttestationExtension>,
+    {
         for extension in required_extensions {
+            let extension = extension.into();
+            if matches!(&extension, AttestationExtension::Opaque(token) if token.trim().is_empty())
+            {
+                return Err(ConclaveError::InvalidPayload);
+            }
             if !self.required_extensions.contains(&extension) {
                 self.required_extensions.push(extension);
             }
@@ -286,6 +393,14 @@ impl AttestationPolicy {
         self.max_future_skew_secs
     }
 
+    pub fn required_purpose(&self) -> AttestationPurpose {
+        self.required_purpose
+    }
+
+    pub fn required_algorithm(&self) -> AttestationAlgorithm {
+        self.required_algorithm
+    }
+
     pub fn required_extensions(&self) -> &[AttestationExtension] {
         &self.required_extensions
     }
@@ -318,6 +433,10 @@ impl AttestationPolicy {
                 trusted_roots,
                 leaf_public_key,
             } => {
+                if !_report.certificate_chain_is_well_formed() {
+                    return false;
+                }
+
                 let leaf_matches = _report
                     .certificate_chain
                     .first()
@@ -397,7 +516,7 @@ impl DeviceIntegrityReport {
         now_secs: u64,
         policy: &AttestationPolicy,
     ) -> bool {
-        if self.signature.is_empty() || self.certificate_chain.len() < 2 {
+        if self.signature.is_empty() || !self.certificate_chain_is_well_formed() {
             return false;
         }
 
@@ -412,11 +531,16 @@ impl DeviceIntegrityReport {
             return false;
         }
 
-        if self.timestamp > now_secs.saturating_add(policy.max_future_skew_secs) {
-            return false;
-        }
-
-        if now_secs > self.timestamp.saturating_add(policy.max_age_secs) {
+        let is_fresh = if self.timestamp > now_secs {
+            self.timestamp
+                .checked_sub(now_secs)
+                .is_some_and(|future_skew| future_skew <= policy.max_future_skew_secs)
+        } else {
+            now_secs
+                .checked_sub(self.timestamp)
+                .is_some_and(|age| age <= policy.max_age_secs)
+        };
+        if !is_fresh {
             return false;
         }
 
@@ -456,15 +580,22 @@ impl DeviceIntegrityReport {
             AttestationLevel::Software => false,
         };
 
-        let has_valid_purpose = self.extensions.contains(&AttestationExtension::PurposeSign)
-            && (self
-                .extensions
-                .contains(&AttestationExtension::AlgorithmEcdsaSecp256k1)
-                || self
-                    .extensions
-                    .contains(&AttestationExtension::AlgorithmEd25519));
+        let purposes = self
+            .extensions
+            .iter()
+            .filter_map(AttestationExtension::purpose)
+            .collect::<Vec<_>>();
+        let algorithms = self
+            .extensions
+            .iter()
+            .filter_map(AttestationExtension::algorithm)
+            .collect::<Vec<_>>();
+        let has_expected_purpose =
+            purposes.len() == 1 && purposes.first().copied() == Some(policy.required_purpose);
+        let has_expected_algorithm =
+            algorithms.len() == 1 && algorithms.first().copied() == Some(policy.required_algorithm);
 
-        is_hardened && has_valid_purpose
+        is_hardened && has_expected_purpose && has_expected_algorithm
     }
 
     fn canonical_signed_bytes(&self) -> Option<Vec<u8>> {
@@ -507,6 +638,40 @@ impl DeviceIntegrityReport {
         }
 
         Some(output)
+    }
+
+    fn certificate_chain_is_well_formed(&self) -> bool {
+        if self.certificate_chain.len() < 2
+            || self.certificate_chain.iter().any(|entry| entry.is_empty())
+        {
+            return false;
+        }
+
+        let leaf = match self
+            .certificate_chain
+            .first()
+            .and_then(|entry| hex::decode(entry).ok())
+        {
+            Some(leaf) => leaf,
+            None => return false,
+        };
+        if leaf.len() != 32 {
+            return false;
+        }
+
+        if self.certificate_chain.len() > 2 {
+            for intermediate in &self.certificate_chain[1..self.certificate_chain.len() - 1] {
+                let der = match hex::decode(intermediate) {
+                    Ok(der) => der,
+                    Err(_) => return false,
+                };
+                if Certificate::from_der(&der).is_err() {
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 
     fn verify_signature(&self, canonical: &[u8]) -> bool {
@@ -631,6 +796,31 @@ mod tests {
     }
 
     #[test]
+    fn typed_policy_rejects_wrong_purpose_and_algorithm() {
+        let now_secs: u64 = 1_000_000;
+        let signing_key = test_signing_key();
+
+        let mut wrong_purpose = valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
+        wrong_purpose.extension_data = "PURPOSE_VERIFY|ALGORITHM_ED25519|OS_VERSION_14".to_string();
+        wrong_purpose.extensions =
+            parse_extension_data(&wrong_purpose.extension_data).expect("valid extensions");
+        wrong_purpose
+            .sign_with_ed25519_key(&signing_key)
+            .expect("fixture should sign");
+        assert!(!wrong_purpose.verify_at_time(&[1, 2, 3, 4], now_secs));
+
+        let mut wrong_algorithm = valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
+        wrong_algorithm.extension_data =
+            "PURPOSE_SIGN|ALGORITHM_ECDSA_SECP256K1|OS_VERSION_14".to_string();
+        wrong_algorithm.extensions =
+            parse_extension_data(&wrong_algorithm.extension_data).expect("valid extensions");
+        wrong_algorithm
+            .sign_with_ed25519_key(&signing_key)
+            .expect("fixture should sign");
+        assert!(!wrong_algorithm.verify_at_time(&[1, 2, 3, 4], now_secs));
+    }
+
+    #[test]
     fn verify_rejects_stale_report() {
         let now_secs: u64 = 1_000_000;
         let stale_timestamp = now_secs.saturating_sub(MAX_ATTESTATION_AGE_SECS + 1);
@@ -692,6 +882,15 @@ mod tests {
             .certificate_chain
             .push("SWAPPED_CHAIN_ENTRY".to_string());
         assert!(!chain_changed.verify_at_time(&[1, 2, 3, 4], now_secs));
+    }
+
+    #[test]
+    fn malformed_certificate_chain_is_rejected() {
+        let now_secs: u64 = 1_000_000;
+        let mut report = valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
+        report.certificate_chain.insert(1, String::new());
+
+        assert!(!report.verify_at_time(&[1, 2, 3, 4], now_secs));
     }
 
     #[test]
