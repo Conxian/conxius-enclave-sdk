@@ -5,6 +5,12 @@
 > **Priority Order**: P1 → P2 → P3
 > **Knowledge Base**: v0.4.2
 
+## Current Follow-up
+
+The machine-first capability evidence follow-up to merged PR #193 is recorded in `docs/architecture/capability-evidence.json` and generated into `docs/architecture/CAPABILITY_MATRIX.md`. The next session must continue with evidence work, not infer production support from API rows, unit tests, WASM builds, or historical closed issues.
+
+Remaining gates are already tracked by GitHub #195–#202. Prioritize hardware-backed signing/attestation, canonical cryptographic verification, placeholder quarantine, reproducible release artifacts, and WASM runtime/secret-boundary evidence. Do not create duplicate issues.
+
 ---
 
 ## Session Startup Checklist
