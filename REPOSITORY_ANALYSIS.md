@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-The SDK (`conxius-enclave-sdk`) is a Rust-based security-primitives library for the Conxian ecosystem. It provides signing, attestation, and key-management interfaces across multiple blockchain platforms; capability completeness and production support are tracked separately in the [capability matrix](docs/architecture/CAPABILITY_MATRIX.md).
+The SDK (`conxius-enclave-sdk`) is a Rust-based security-primitives library for the Conxian ecosystem. It provides signing, attestation, and key-management interfaces across multiple blockchain platforms; capability completeness and production support are tracked separately in the [capability matrix](docs/architecture/CAPABILITY_MATRIX.md) and its canonical [machine-readable evidence](docs/architecture/capability-evidence.json).
 
 > The inventory labels below are historical implementation notes. They do not override the capability matrix, the production-enablement audit, or the requirement for independent evidence for production support.
 
@@ -44,17 +44,18 @@ The SDK (`conxius-enclave-sdk`) is a Rust-based security-primitives library for 
 ```
 bitcoin = "0.33.0-beta"        # ⚠️ Beta - needs stable release
 secp256k1 = "0.32.0-beta.2"    # ⚠️ Beta - needs stable release
-k256 = "0.14.0-rc.9"           # ⚠️ RC - needs stable release
+k256 = "0.14.0"                 # Stable dependency; release evidence is tracked separately
 alloy = "2.1.0"                # ✅ Ethereum RPC
 musig2 = "0.4.1"               # ✅ Multi-sig
 frost = "0.4.x"                 # ⚠️ Dependency present; production integration is not implemented
 ```
 
-### API Surface (348 public items)
+### API surface and evidence boundary
 
-- 57 Rust source files
-- 12 WASM client types exposed
-- Multi-platform support (native + WASM)
+- The repository exposes a broad native and WASM API surface across the modules listed above.
+- Exact source-item and binding counts are inventory observations, not readiness evidence and are intentionally not used as support claims.
+- The canonical JSON records each material capability, including explicit WASM sub-clients, across API, implementation, integration, independent-review, and production-support axes.
+- Native/WASM compilation or unit tests do not establish runtime, provider, hardware, secret-boundary, or exact-artifact support.
 
 ---
 
@@ -67,7 +68,8 @@ frost = "0.4.x"                 # ⚠️ Dependency present; production integrat
 | #191 | Production enablement | P0 | Open; tracked by CON-1506 |
 | #154 | [P1] Publish First Stable Release | P1 | ✅ Closed |
 | #146 | Reduce technical debt and code-quality hardening | P1 | ✅ Closed |
-| #145 | Enforce strict CI/CD baseline | P1 | ✅ Closed |
+| #145 | Enforce strict CI/CD baseline | P1 | ✅ Historical baseline; residual release evidence is tracked by #199 |
+| #195–#202 | Production-enablement implementation and acceptance gates | P0/P1 | Open; do not duplicate |
 | #104 | Normalize default branch to main | - | ✅ Closed |
 | #92 | Investigate CI baseline failures | - | ✅ Closed |
 
@@ -79,7 +81,7 @@ frost = "0.4.x"                 # ⚠️ Dependency present; production integrat
 | DOC-001 | Documentation | No published releases (issue #154) | P1 | ✅ Closed |
 | DEP-002 | Dependency | Unmaintained crates with exceptions | P2 | 📋 Planned |
 | TEST-001 | Testing | Hardware attestation integration gaps | P1 | ⚠️ Open |
-| ARCH-001 | Architecture | WASM/runtime/platform matrix | P1 | 📋 Planned |
+| ARCH-001 | Architecture | WASM API coverage versus runtime/platform matrix | P1 | API inventory recorded; #200 open |
 | DOC-002 | Documentation | Missing examples and runbooks | P2 | 📋 Planned |
 | TOOL-001 | Tooling | Cargo.lock/toolchain reproducibility | P1 | ⚠️ Open |
 | DOC-003 | Documentation | CHANGELOG [Unreleased] section | P4 | ✅ Resolved |
@@ -92,11 +94,11 @@ frost = "0.4.x"                 # ⚠️ Dependency present; production integrat
 
 1. ✅ **BitVM2 Static Tree Root** - Made `calculate_tree_root` method static for clarity
 
-### Completed Items (v2.0.11)
+### Historical implementation notes (not production-support evidence)
 1. ✅ **Hardware Attestation Test Suite** - Comprehensive 25-test suite in `src/enclave/hardware_attestation_tests.rs`
 2. ⚠️ **FROST status correction** - `src/protocol/frost.rs` contains structural/hash placeholder checks; production RFC 9591-compatible DKG, signing, secure share storage, and real aggregation remain open. See [`docs/guides/FROST_TREASURY_INTEGRATION.md`](docs/guides/FROST_TREASURY_INTEGRATION.md).
-3. ✅ **Fedimint Invite Code & WASM** - Implemented join_federation
-4. ✅ **Ark vTXO Tree Construction** - Binary tree logic in ArkManager
+3. ✅ **Fedimint Invite Code & WASM** - `join_federation` API exists; cryptographic and provider evidence remains open in #197
+4. ✅ **Ark vTXO Tree Construction** - Binary tree logic exists; protocol and settlement evidence remains open in #197
 
 ### Backlog Items
 
@@ -105,44 +107,16 @@ frost = "0.4.x"                 # ⚠️ Dependency present; production integrat
 | G-001 | Fedimint Wasm Crate Integration | Medium | High | Fedimint |
 | G-002 | Ark BitVM2 Challenge Orchestration | High | Urgent | Ark v3 |
 | G-003 | Fedimint Cryptographic Blinding | Medium | High | Fedimint |
-| G-010 | WASM Bindings Completeness | Medium | Medium | Web Integration |
+| G-010 | WASM runtime, platform, and secret-boundary evidence | Medium | High | Web Integration |
 | G-011 | ZKML Enhancement | Low | High | Advanced Features |
 
 ---
 
-## WASM Binding Analysis
+## WASM binding analysis
 
-### Current Coverage (12 types)
-| Client | Public Methods | Status |
-|--------|----------------|--------|
-| WasmArkClient | 3 | ✅ Complete |
-| WasmBitVmClient | 2 | ✅ Complete |
-| WasmEthereumManager | 1 | ✅ Complete |
-| WasmSolanaManager | 1 | ✅ Complete |
-| WasmFedimintClient | 5 | ✅ Complete |
-| WasmFrostClient | 1 | ⚠️ Structural API only; not production FROST signing |
-| WasmCovenantClient | 2 | ✅ Complete |
-| WasmIntentClient | 2 | ✅ Complete |
-| WasmAccountClient | 1 | ✅ Complete |
-| WasmCctpClient | 1 | ✅ Complete |
-| Iso20022Wrapper | 1 | ✅ Complete |
-| ConclaveWasmClient | 5 (factories) | ✅ Complete |
+The repository contains WASM binding APIs for the required sub-client families. This is an **API-surface statement only**, not a claim that bindings are complete for every consumer, secure at the JavaScript boundary, tested in supported runtimes, connected to real providers, or backed by hardware. The explicit records are `wasm-lightning`, `wasm-settlement-service`, `wasm-solver`, `wasm-swap-router`, `wasm-zkml`, `wasm-dlc`, `wasm-stablecoin`, `wasm-job-card-iso20022`, `wasm-mmr`, `wasm-opportunity`, `wasm-business`, and `wasm-a2p` in [`capability-evidence.json`](docs/architecture/capability-evidence.json).
 
-### Missing Bindings (11 modules)
-
-| Module | File | Public APIs | Priority |
-|--------|------|-------------|----------|
-| Lightning | `lightning.rs` | LND integration | High |
-| Swap Router | `swap_router.rs` | Cross-chain swaps | High |
-| Settlement Service | `settlement_service.rs` | Service orchestration | Medium |
-| Solver | `solver.rs` | Intent resolution | Medium |
-| ZKML | `zkml.rs` | ML verification | Low |
-| DLC | `dlc.rs` | Discreet logging | Low |
-| Stablecoin Orchestrator | `stablecoin_orchestrator.rs` | Multi-stablecoin | Low |
-| MMR | `mmr.rs` | Merkle mountain ranges | Low |
-| Opportunity | `opportunity.rs` | Market opportunities | Low |
-| Business | `business.rs` | Business logic | Low |
-| A2P | `a2p.rs` | Application-to-protocol | Low |
+Open runtime, platform, secret-boundary, and hardware evidence is tracked by [issue #200](https://github.com/Conxian/conxius-enclave-sdk/issues/200). The prior “missing bindings” language described an earlier audit state and must not be read as current evidence or as proof of production support.
 
 ---
 
@@ -192,11 +166,11 @@ From `conxius-platform#1136`:
 
 ### Short-term Actions (P2)
 
-2. **WASM Bindings Audit (ARCH-001)**
-   - Map all public APIs to WASM exports
-   - Add missing bindings for Lightning, Swap Router, Solver
-   - Add FDC3 context type bindings
-   - Follow modern WASM patterns (wasm-bindgen-futures, wasm-opt)
+2. **WASM evidence follow-up (ARCH-001 / #200)**
+   - Keep explicit API rows synchronized with the canonical JSON
+   - Add browser, Node, bundler, worker, provider, hardware, and secret-boundary evidence
+   - Preserve typed fail-closed behavior for unsupported adapters and runtimes
+   - Follow the runtime testing and secret-boundary requirements without treating build success as support
 
 3. **Review Unmaintained Dependencies**
    - Address DEP-002 exceptions in audit.toml/deny.toml
@@ -233,7 +207,7 @@ From `conxius-platform#1136`:
 ### Strengths
 - ✅ Clean module separation
 - ✅ Zero-dependency error handling
-- ✅ WASM-ready architecture (12 client types)
+- ✅ WASM API surface is present and explicitly inventoried; runtime/platform support remains open
 - ✅ Comprehensive settlement rails
 - ⚠️ FROST structural/hash placeholder validation only; production DKG, signing, share storage, and aggregation remain unimplemented
 - ✅ Comprehensive test suite (121 tests)
@@ -241,7 +215,7 @@ From `conxius-platform#1136`:
 
 ### Areas for Improvement
 - ⚠️ Beta dependency exposure (DEP-001)
-- ⚠️ WASM bindings completeness (11 modules missing)
+- ⚠️ WASM runtime/platform/secret-boundary evidence remains open (#200)
 - ⚠️ Example documentation (DOC-002)
 - ⚠️ CHANGELOG discipline
 
@@ -292,10 +266,10 @@ From `conxius-platform#1136`:
 The SDK is **Beta / conditional**. The production-enablement audit found P0 blockers and P1 evidence gaps; the primary remaining items are recorded in the [audit](docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) and matrix. The previously broad completion language in this document must not be read as production-support evidence. Remaining items include:
 
 1. **Dependencies**: Awaiting stable versions of critical crypto crates (DEP-001)
-2. **WASM**: 11 modules missing bindings (ARCH-001/G-010)
+2. **WASM**: explicit API rows exist; runtime/platform/secret-boundary evidence remains open (#200)
 3. **Documentation**: Missing examples (DOC-002)
 4. **Ark BitVM2**: Critical integration for Ark v3 (G-002)
-5. **BIP-110**: Add compliance feature flag for new Bitcoin softfork (Issue #179)
+5. **BIP-110**: API/partial compliance work is recorded; canonical verification and release evidence remain conditional (Issue #179 / #196)
 
 The SDK remains a useful 2.x development foundation, but the roadmap is conditional on protocol correctness, hardware-backed evidence, independent review, reproducible release artifacts, monitoring, and rollback controls.
 

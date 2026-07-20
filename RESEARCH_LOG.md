@@ -1,13 +1,30 @@
 # Conclave SDK Research Log
 
 > External research findings, technology monitoring, and industry analysis
-> **Version**: v1.0.0 | **Last Updated**: 2026-07-15
+> **Version**: v1.1.0 | **Last Updated**: 2026-07-20
 
 ---
 
 ## Overview
 
 This document captures external research findings relevant to the Conclave SDK's development trajectory. Each entry includes source links and applicability notes for future reference.
+
+---
+
+## Production-enablement evidence schema research (2026-07-20)
+
+### Artifact provenance
+- GitHub's [artifact attestation documentation](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations) describes attestations as build-provenance evidence that establishes where and how software was built and supports offline verification.
+- The [SLSA provenance specification](https://slsa.dev/spec/v1.1/provenance) defines provenance around the build definition, resolved inputs, builder, execution metadata, and produced subjects. The stable predicate URI is `https://slsa.dev/provenance/v1`.
+- **Applicability**: A workflow definition or a passing local command is not an exact release artifact. The capability evidence record therefore keeps `artifact` as a separate stage and leaves it empty until a reviewed ref, artifact digest, provenance, SBOM, and release decision are durably attached.
+
+### WASM runtime evidence
+- The [wasm-bindgen-test usage guide](https://wasm-bindgen.github.io/wasm-bindgen/wasm-bindgen-test/usage.html) distinguishes writing Rust-side tests from executing them through `wasm-pack test`, including Node.js and headless-browser runners.
+- **Applicability**: A successful `wasm32-unknown-unknown` build or generated binding demonstrates an API/build surface only. Browser, Node, bundler, worker, provider, hardware, lifecycle, and unsupported-platform behavior must be evidenced separately under #200.
+
+### Deterministic evidence schemas
+- [NIST SP 800-218](https://csrc.nist.gov/pubs/sp/800/218/final) describes the SSDF as a common vocabulary for secure software development and includes provenance collection among its practices. The [NIST SSDF project](https://csrc.nist.gov/Projects/ssdf) emphasizes outcome-based, risk-aware evidence rather than an unqualified checklist.
+- **Applicability**: `docs/architecture/capability-evidence.json` uses `schemaVersion`, a full `reviewedRef`, controlled status values, stable capability IDs, repository-path references, and an ordered requirement → code → test → CI → artifact chain. The dependency-free validator rejects duplicate IDs, missing paths, drift, incomplete blocker/exclusion coverage, and production claims without prerequisite evidence.
 
 ---
 
@@ -264,6 +281,9 @@ workspace/
 | 2026-07-15 | BitVM3 | Garbled circuits, 56kB assertions, Clementine/BOB/Bitlayer | Consider BitVM3 integration path |
 | 2026-07-15 | Fedimint v0.4 | DKG, AlephBFT consensus, LN gateway integration | Review v0.4 API changes |
 | 2026-07-15 | BIP-110 | Reduced Data Softfork: 256B pushdata, 83B OP_RETURN, 34B ScriptPubKey | Implement bip110_compliant feature |
+| 2026-07-20 | Artifact provenance | GitHub attestations and SLSA provenance separate build intent from exact artifact evidence | Keep artifact stage empty until exact release evidence exists |
+| 2026-07-20 | WASM runtime evidence | wasm-bindgen-test uses wasm-pack runners for Node/headless-browser execution; build output is not runtime support | Track browser/Node/bundler/worker/provider/hardware evidence in #200 |
+| 2026-07-20 | Evidence schemas | NIST SSDF provides a common secure-development vocabulary and provenance-oriented practices | Validate deterministic capability JSON and ordered evidence chain |
 
 ---
 
@@ -317,5 +337,5 @@ BIP-110 is a temporary softfork that moves Bitcoin policy limits into consensus 
 ---
 
 *Research log initiated: 2026-07-15*
-*Updated: 2026-07-15 (Cycle 10)*
+*Updated: 2026-07-20 (Capability evidence follow-up)*
 *Maintained by: SDK Team*
