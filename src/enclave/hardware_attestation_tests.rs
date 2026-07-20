@@ -10,10 +10,11 @@
 //! - T2 (TEE): Software simulation with attestation structure
 //! - T3 (Software): Development only, blocked for production
 
-use crate::enclave::attestation::{AttestationLevel, DeviceIntegrityReport};
+use crate::enclave::attestation::{
+    parse_extension_data, test_signing_key, AttestationLevel, AttestationReportType,
+    DeviceIntegrityReport, ATTESTATION_ENVELOPE_VERSION,
+};
 use crate::enclave::replay_guard::ReplayGuard;
-use ed25519_dalek::{Signer, SigningKey};
-use rand_core::Rng;
 
 /// Mock attestation generator for different trust tiers
 struct MockAttestationGenerator {
@@ -27,9 +28,7 @@ impl MockAttestationGenerator {
 
     /// Generates a valid attestation report for the given trust tier
     fn generate_valid_report(&self, nonce: &[u8], timestamp: u64) -> DeviceIntegrityReport {
-        let mut seed = [0u8; 32];
-        rand::rng().fill_bytes(&mut seed);
-        let signing_key = SigningKey::from_bytes(&seed);
+        let signing_key = test_signing_key();
         let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
 
         let mut extension_data = "PURPOSE_SIGN|ALGORITHM_ED25519|OS_VERSION_14".to_string();
@@ -47,12 +46,7 @@ impl MockAttestationGenerator {
             }
         }
 
-        let mut data_to_verify = Vec::new();
-        data_to_verify.extend_from_slice(nonce);
-        data_to_verify.extend_from_slice(extension_data.as_bytes());
-        data_to_verify.extend_from_slice(&timestamp.to_le_bytes());
-
-        let signature = signing_key.sign(&data_to_verify).to_bytes().to_vec();
+        let extensions = parse_extension_data(&extension_data).expect("valid extensions");
 
         let root_ca = match self.level {
             AttestationLevel::CloudTEE => "CONCLAVE_CLOUD_ROOT_CA_V1".to_string(),
@@ -61,14 +55,21 @@ impl MockAttestationGenerator {
             AttestationLevel::Software => "CONCLAVE_SIM_ROOT_V1".to_string(),
         };
 
-        DeviceIntegrityReport {
+        let mut report = DeviceIntegrityReport {
+            report_version: ATTESTATION_ENVELOPE_VERSION,
+            report_type: AttestationReportType::DeviceIntegrity,
             level: self.level,
             challenge_nonce: nonce.to_vec(),
-            signature,
+            signature: Vec::new(),
             certificate_chain: vec![pubkey_hex, root_ca],
             timestamp,
             extension_data,
-        }
+            extensions,
+        };
+        report
+            .sign_with_ed25519_key(&signing_key)
+            .expect("fixture should sign");
+        report
     }
 
     /// Generates an expired attestation report
@@ -121,6 +122,7 @@ impl MockAttestationGenerator {
         let mut report = self.generate_valid_report(nonce, timestamp);
         // Remove hardware-backed signals
         report.extension_data = "PURPOSE_SIGN|ALGORITHM_ED25519|SIMULATED".to_string();
+        report.extensions = parse_extension_data(&report.extension_data).expect("valid extensions");
         report
     }
 }
@@ -494,12 +496,16 @@ mod edge_case_tests {
     #[test]
     fn test_empty_signature_rejected() {
         let report = DeviceIntegrityReport {
+            report_version: ATTESTATION_ENVELOPE_VERSION,
+            report_type: AttestationReportType::DeviceIntegrity,
             level: AttestationLevel::TEE,
             challenge_nonce: vec![1, 2, 3, 4],
             signature: vec![], // Empty signature
             certificate_chain: vec!["key".to_string(), "CONCLAVE_ROOT_CA_V1".to_string()],
             timestamp: 1_000_000,
             extension_data: "PURPOSE_SIGN|ALGORITHM_ED25519".to_string(),
+            extensions: parse_extension_data("PURPOSE_SIGN|ALGORITHM_ED25519")
+                .expect("valid extensions"),
         };
 
         // Empty signature should fail verification (signature is empty)

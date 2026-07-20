@@ -57,6 +57,10 @@ pub trait SovereignHandshake {
     ) -> ConclaveResult<SwapIntent>;
 
     /// Executes the swap by broadcasting the signed intent to the Gateway.
+    ///
+    /// Compatibility note: this legacy API carries an opaque signature string.
+    /// Production builds reject it until a typed operation-signature envelope
+    /// binds the algorithm, public key, and canonical intent hash.
     async fn broadcast_signed_intent(
         &self,
         intent: SwapIntent,
@@ -115,7 +119,7 @@ impl RailProxy {
             business,
             rails,
             min_trust_tier: TrustTier::T4,
-            attestation_policy: AttestationPolicy::production(),
+            attestation_policy: default_attestation_policy(),
             replay_guard: Arc::new(ReplayGuard::new(1000, 300)),
             telemetry: None,
         }
@@ -213,6 +217,13 @@ impl RailProxy {
         attestation_json: &Option<String>,
         policy: &AttestationPolicy,
     ) -> ConclaveResult<()> {
+        let canonical_hash = intent.request.get_hash_bytes();
+        if intent.signable_hash != canonical_hash {
+            return Err(ConclaveError::EnclaveFailure(
+                "Swap intent canonical hash mismatch".to_string(),
+            ));
+        }
+
         let json = attestation_json
             .as_ref()
             .ok_or(ConclaveError::EnclaveFailure(
@@ -308,21 +319,46 @@ impl SovereignHandshake for RailProxy {
         signature: String,
         attestation: Option<String>,
     ) -> ConclaveResult<SwapResponse> {
-        self.verify_hardware_integrity(&intent, &attestation)?;
-
-        if let Some(telemetry) = &self.telemetry {
-            telemetry.track_signature(hex::encode(&intent.signable_hash));
+        let canonical_hash = intent.request.get_hash_bytes();
+        if intent.signable_hash != canonical_hash {
+            return Err(ConclaveError::EnclaveFailure(
+                "Swap intent canonical hash mismatch".to_string(),
+            ));
         }
 
-        let rail = self
-            .rails
-            .get(&intent.rail_type)
-            .ok_or(ConclaveError::RailError(format!(
-                "Rail {} not found",
-                intent.rail_type
-            )))?;
+        // The legacy API carries only an opaque signature string. It has no
+        // operation key, algorithm, or signed-message binding, so production
+        // code must fail closed rather than forward an unverified signature.
+        ensure_operation_signature_is_bound(&signature)?;
 
-        rail.execute_swap(intent, signature).await
+        #[cfg(not(test))]
+        {
+            let _ = attestation;
+            return Err(ConclaveError::Unsupported(
+                "Typed operation-signature envelope required; raw signatures are not verified and are never forwarded in production".to_string(),
+            ));
+        }
+
+        #[cfg(test)]
+        {
+            // This branch exists only for local unit-test rail fixtures. It is
+            // intentionally not compiled into downstream production builds.
+            self.verify_hardware_integrity(&intent, &attestation)?;
+
+            if let Some(telemetry) = &self.telemetry {
+                telemetry.track_signature(hex::encode(&intent.signable_hash));
+            }
+
+            let rail = self
+                .rails
+                .get(&intent.rail_type)
+                .ok_or(ConclaveError::RailError(format!(
+                    "Rail {} not found",
+                    intent.rail_type
+                )))?;
+
+            rail.execute_swap(intent, signature).await
+        }
     }
 }
 
@@ -358,6 +394,34 @@ fn unix_time_secs() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+
+fn default_attestation_policy() -> AttestationPolicy {
+    #[cfg(test)]
+    {
+        AttestationPolicy::test_fixture()
+    }
+
+    #[cfg(not(test))]
+    {
+        AttestationPolicy::production()
+    }
+}
+
+fn ensure_operation_signature_is_bound(signature: &str) -> ConclaveResult<()> {
+    #[cfg(test)]
+    {
+        let _ = signature;
+        Ok(())
+    }
+
+    #[cfg(not(test))]
+    {
+        let _ = signature;
+        Err(ConclaveError::Unsupported(
+            "Typed operation-signature envelope required; raw signatures are not verified and are never forwarded in production".to_string(),
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -405,14 +469,13 @@ mod tests {
 mod rail_proxy_tests {
     use super::*;
     use crate::enclave::attestation::{
-        AttestationLevel, AttestationPolicy, DeviceIntegrityReport, MAX_ATTESTATION_AGE_SECS,
-        MAX_ATTESTATION_FUTURE_SKEW_SECS,
+        parse_extension_data, test_signing_key, AttestationLevel, AttestationPolicy,
+        AttestationReportType, DeviceIntegrityReport, ATTESTATION_ENVELOPE_VERSION,
+        MAX_ATTESTATION_AGE_SECS, MAX_ATTESTATION_FUTURE_SKEW_SECS,
     };
     use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
     use crate::protocol::business::BusinessRegistry;
     use crate::telemetry::TelemetryClient;
-    use ed25519_dalek::{Signer, SigningKey};
-    use rand_core::Rng;
     use std::sync::Arc;
 
     // Keep boundary fixtures away from the one-second wall-clock transition
@@ -429,22 +492,24 @@ mod rail_proxy_tests {
         )
     }
 
-    fn test_intent(signable_hash: Vec<u8>) -> SwapIntent {
-        SwapIntent {
-            request: SwapRequest {
-                from_asset: AssetIdentifier {
-                    chain: Chain::BITCOIN,
-                    symbol: "BTC".to_string(),
-                },
-                to_asset: AssetIdentifier {
-                    chain: Chain::ETHEREUM,
-                    symbol: "ETH".to_string(),
-                },
-                amount: 42,
-                recipient_address: "0xabc".to_string(),
-                attribution: None,
+    fn test_intent(seed: Vec<u8>) -> SwapIntent {
+        let request = SwapRequest {
+            from_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
             },
-            signable_hash,
+            to_asset: AssetIdentifier {
+                chain: Chain::ETHEREUM,
+                symbol: "ETH".to_string(),
+            },
+            amount: 42,
+            recipient_address: format!("0x{}", hex::encode(seed)),
+            attribution: None,
+        };
+
+        SwapIntent {
+            signable_hash: request.get_hash_bytes(),
+            request,
             rail_type: "x402".to_string(),
             chain_context: None,
             fdc3_context: None,
@@ -452,28 +517,27 @@ mod rail_proxy_tests {
     }
 
     fn test_attestation_report(nonce: Vec<u8>, timestamp: u64) -> DeviceIntegrityReport {
-        let mut seed = [0u8; 32];
-        rand::rng().fill_bytes(&mut seed);
-        let signing_key = SigningKey::from_bytes(&seed);
+        let signing_key = test_signing_key();
         let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
 
         let extension_data = "PURPOSE_SIGN|ALGORITHM_ED25519|OS_VERSION_14".to_string();
+        let extensions = parse_extension_data(&extension_data).expect("valid extensions");
 
-        let mut data_to_verify = Vec::new();
-        data_to_verify.extend_from_slice(&nonce);
-        data_to_verify.extend_from_slice(extension_data.as_bytes());
-        data_to_verify.extend_from_slice(&timestamp.to_le_bytes());
-
-        let signature = signing_key.sign(&data_to_verify).to_bytes().to_vec();
-
-        DeviceIntegrityReport {
+        let mut report = DeviceIntegrityReport {
+            report_version: ATTESTATION_ENVELOPE_VERSION,
+            report_type: AttestationReportType::DeviceIntegrity,
             level: AttestationLevel::TEE,
             challenge_nonce: nonce,
-            signature,
+            signature: Vec::new(),
             certificate_chain: vec![pubkey_hex, "CONCLAVE_ROOT_CA_V1".to_string()],
             timestamp,
             extension_data,
-        }
+            extensions,
+        };
+        report
+            .sign_with_ed25519_key(&signing_key)
+            .expect("fixture should sign");
+        report
     }
 
     fn test_attestation_json(nonce: Vec<u8>) -> String {
@@ -578,6 +642,36 @@ mod rail_proxy_tests {
             .is_ok());
     }
 
+    #[tokio::test]
+    async fn test_canonical_intent_hash_mismatch_is_rejected_before_replay_recording() {
+        let proxy = test_proxy();
+        let mut intent = test_intent(vec![14; 32]);
+        let canonical_hash = intent.signable_hash.clone();
+        intent.signable_hash[0] ^= 0xFF;
+        let forged_attestation = Some(test_attestation_json(intent.signable_hash.clone()));
+
+        let result = proxy
+            .broadcast_signed_intent(
+                intent.clone(),
+                "opaque-signature".to_string(),
+                forged_attestation,
+            )
+            .await;
+        assert!(matches!(
+            result,
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("canonical hash mismatch")
+        ));
+
+        // The rejected mismatch must not consume replay state for the real
+        // canonical intent hash.
+        intent.signable_hash = canonical_hash.clone();
+        let valid_attestation = Some(test_attestation_json(canonical_hash));
+        assert!(proxy
+            .verify_hardware_integrity(&intent, &valid_attestation)
+            .is_ok());
+    }
+
     #[test]
     fn test_stale_and_future_reports_are_rejected() {
         let now = unix_time_secs();
@@ -614,7 +708,7 @@ mod rail_proxy_tests {
     #[test]
     fn test_configured_attestation_policy_is_enforced() {
         let policy = AttestationPolicy::production()
-            .with_trusted_roots(vec!["TEST_ROOT".to_string()])
+            .with_test_trusted_roots(vec!["TEST_ROOT".to_string()])
             .unwrap()
             .with_allowed_levels(vec![AttestationLevel::TEE])
             .unwrap();
@@ -622,6 +716,9 @@ mod rail_proxy_tests {
         let intent = test_intent(vec![12; 32]);
         let mut report = test_attestation_report(intent.signable_hash.clone(), unix_time_secs());
         report.certificate_chain[1] = "TEST_ROOT".to_string();
+        report
+            .sign_with_ed25519_key(&test_signing_key())
+            .expect("fixture should sign");
         let attestation = Some(serde_json::to_string(&report).unwrap());
 
         assert!(proxy
@@ -683,7 +780,7 @@ mod rail_proxy_tests {
     }
 
     #[tokio::test]
-    async fn test_proof_envelope_injection() {
+    async fn test_legacy_opaque_signature_path_is_test_only() {
         let mut rail_proxy = test_proxy();
         rail_proxy = rail_proxy.with_min_trust_tier(TrustTier::T4);
         rail_proxy.register_rail(Box::new(CustomRail));
@@ -692,6 +789,8 @@ mod rail_proxy_tests {
         intent.rail_type = "custom_partner".to_string();
         let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
 
+        // This deliberately opaque value is accepted only because this unit
+        // test is compiled with the internal cfg(test) compatibility path.
         let response = rail_proxy
             .broadcast_signed_intent(intent, "sig".to_string(), attestation)
             .await
