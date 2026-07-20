@@ -3,8 +3,6 @@ name: SBOM
 on:
   push:
     branches: [ main, master ]
-    tags:
-      - "v*.*.*"
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
@@ -23,13 +21,24 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: 1.97.1
 
       - name: Install cargo-sbom
-        run: cargo install cargo-sbom
+        uses: taiki-e/install-action@a6b2e2dcd845ddd7f509ce4f3ed3d922b80cc5d9 # v2
+        with:
+          tool: cargo-sbom@0.10.0
 
       - name: Generate SBOM
-        run: cargo sbom
+        run: |
+          cargo metadata --locked --format-version 1
+          # cargo-sbom 0.10.0 does not expose Cargo's --locked flag; the
+          # explicit metadata gate above rejects a stale or missing lockfile.
+          cargo sbom --output-format spdx_json_2_3 > sbom.spdx.json
+          cargo sbom --output-format cyclone_dx_json_1_6 > sbom.cdx.json
+          python3 -m json.tool sbom.spdx.json >/dev/null
+          python3 -m json.tool sbom.cdx.json >/dev/null
 
       - name: Upload SBOM artifacts
         if: github.event_name != 'schedule'

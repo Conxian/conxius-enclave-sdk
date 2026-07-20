@@ -1,0 +1,22 @@
+title = "Conxius repository secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Protocol prose that is not credential material"
+regexTarget = "match"
+paths = [
+  '''^prs/0190\.md$''',
+  '''^docs/guides/FROST_TREASURY_INTEGRATION\.md$''',
+]
+regexes = ['''complaints?/abort''']
+
+[[allowlists]]
+description = "Public BIP-86 x-only key test vector in the historical Bitcoin validation branch"
+condition = "AND"
+targetRules = ["generic-api-key"]
+commits = ["4ddbb8c70ee19475c60edda28ec7a3d07b1c6e25"]
+paths = ["^src/protocol/bitcoin\\.rs$"]
+regexTarget = "secret"
+regexes = ['''(?i)^[0-9a-f]{64}$''']
