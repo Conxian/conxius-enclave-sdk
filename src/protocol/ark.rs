@@ -272,4 +272,19 @@ mod tests {
         assert!(mgr.recovery_scan(seed, 0, "http://mock").await.is_err());
         assert!(mgr.recovery_scan(seed, 10, "invalid-url").await.is_err());
     }
+
+    #[test]
+    #[cfg(feature = "bip110_compliant")]
+    fn test_bip110_ordered_ark_commitment_segmentation() {
+        let commitment: Vec<u8> = (0..777).map(|index| (index % 251) as u8).collect();
+        let chunks = crate::protocol::bip110::try_chunk_for_bip110(&commitment, 256)
+            .expect("strict chunking succeeds");
+
+        assert_eq!(
+            chunks.iter().map(|chunk| chunk.len()).collect::<Vec<_>>(),
+            vec![256, 256, 256, 9]
+        );
+        let reconstructed: Vec<u8> = chunks.into_iter().flatten().collect();
+        assert_eq!(reconstructed, commitment);
+    }
 }
