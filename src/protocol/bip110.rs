@@ -424,7 +424,7 @@ mod tests {
             .validate_taproot_control_block(&vec![0u8; 258])
             .is_err());
         assert!(validator
-            .validate_taproot_control_block(&vec![0u8; 34])
+            .validate_taproot_control_block(&[0u8; 34])
             .is_err());
     }
 
