@@ -3,6 +3,8 @@ use crate::protocol::ark::ArkManager;
 use crate::protocol::bitvm::BitVmManager;
 use crate::protocol::ethereum::EthereumManager;
 use crate::protocol::solana::SolanaManager;
+use crate::wasm_support::{self, WasmRuntime};
+use crate::ConclaveError;
 use hex;
 use serde_wasm_bindgen;
 use std::sync::Arc;
@@ -16,12 +18,32 @@ pub struct ConclaveWasmClient {
 #[wasm_bindgen]
 impl ConclaveWasmClient {
     #[wasm_bindgen(constructor)]
-    pub fn new(enclave_url: &str) -> Result<ConclaveWasmClient, JsValue> {
-        let enclave = Arc::new(
-            crate::enclave::cloud::CloudEnclave::new(enclave_url.to_string())
-                .map_err(to_js_error)?,
-        );
-        Ok(ConclaveWasmClient { enclave })
+    pub fn new(_enclave_url: &str) -> Result<ConclaveWasmClient, JsValue> {
+        Err(unsupported_provider(
+            "URL-backed CloudEnclave construction is disabled for WASM; use an approved provider-backed capability",
+        ))
+    }
+
+    /// Check the support decision for a documented runtime before loading an
+    /// artifact. All current runtimes fail closed until exact runtime and
+    /// provider evidence is attached.
+    pub fn check_runtime_support(runtime: &str) -> Result<(), JsValue> {
+        let runtime = WasmRuntime::parse(runtime).map_err(conclave_error_to_js)?;
+        wasm_support::reject_unverified_runtime(runtime).map_err(conclave_error_to_js)
+    }
+
+    /// Compatibility entry point for the future provider-backed constructor.
+    /// It deliberately does not retain or inspect a JavaScript key object.
+    pub fn new_with_provider(
+        runtime: &str,
+        _provider: JsValue,
+    ) -> Result<ConclaveWasmClient, JsValue> {
+        let _runtime = WasmRuntime::parse(runtime).map_err(conclave_error_to_js)?;
+        wasm_support::reject_unapproved_provider("external-provider")
+            .map_err(conclave_error_to_js)?;
+        Err(unsupported_provider(
+            "no verified opaque-key provider adapter is registered",
+        ))
     }
 
     pub fn ark(&self) -> WasmArkClient {
@@ -45,29 +67,32 @@ pub struct WasmArkClient {
 
 #[wasm_bindgen]
 impl WasmArkClient {
-    pub fn derive_vutxo_key(&self, seed_hex: &str, index: u32) -> Result<String, JsValue> {
-        let seed = hex::decode(seed_hex).map_err(to_js_error)?;
-        let key = self.inner.derive_vutxo_key(&seed, index);
-        Ok(hex::encode(key))
+    /// Retrieve a provider-owned public key without accepting or returning a
+    /// seed/private key.
+    pub fn derive_vutxo_public_key(&self, index: u32) -> Result<String, JsValue> {
+        self.inner
+            .derive_vutxo_public_key(index)
+            .map_err(conclave_error_to_js)
     }
 
-    pub async fn recovery_scan(
-        &self,
-        master_seed_hex: &str,
-        gap_limit: u32,
-        asp_url: &str,
-    ) -> Result<JsValue, JsValue> {
-        let seed_bytes = hex::decode(master_seed_hex).map_err(to_js_error)?;
-        let seed: [u8; 32] = seed_bytes
+    /// Ask the provider to sign a V-UTXO operation. The private key remains
+    /// behind the provider boundary; only the signature is returned.
+    pub fn sign_vutxo(&self, tx_hash_hex: &str, index: u32) -> Result<String, JsValue> {
+        let tx_hash: [u8; 32] = hex::decode(tx_hash_hex)
+            .map_err(to_js_error)?
             .try_into()
-            .map_err(|_| JsValue::from_str("Invalid seed length"))?;
+            .map_err(|_| wasm_error("INVALID_INPUT", "transaction hash must be 32 bytes"))?;
 
-        let found = self
-            .inner
-            .recovery_scan(seed, gap_limit, asp_url)
-            .await
-            .map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&found).map_err(to_js_error)
+        self.inner
+            .sign_vutxo(tx_hash, index)
+            .map_err(conclave_error_to_js)
+    }
+
+    pub async fn recovery_scan(&self, gap_limit: u32, asp_url: &str) -> Result<JsValue, JsValue> {
+        let _ = (gap_limit, asp_url);
+        Err(unsupported_provider(
+            "seed-based Ark recovery is not available in WASM; use an approved opaque provider capability",
+        ))
     }
 
     pub fn construct_vtxo_tree(&self, leaves: JsValue) -> Result<JsValue, JsValue> {
@@ -370,7 +395,36 @@ impl ConclaveWasmClient {
 }
 
 fn to_js_error<E: std::fmt::Display>(e: E) -> JsValue {
-    JsValue::from_str(&e.to_string())
+    wasm_error("CONXIAN_ERROR", &e.to_string())
+}
+
+fn conclave_error_to_js(error: ConclaveError) -> JsValue {
+    let code = match &error {
+        ConclaveError::UnsupportedRuntime(_) => "UNSUPPORTED_RUNTIME",
+        ConclaveError::UnsupportedProvider(_) => "UNSUPPORTED_PROVIDER",
+        ConclaveError::SecretExportForbidden => "SECRET_EXPORT_FORBIDDEN",
+        ConclaveError::InvalidPayload => "INVALID_INPUT",
+        _ => "CONXIAN_ERROR",
+    };
+    wasm_error(code, &error.to_string())
+}
+
+fn wasm_error(code: &str, message: &str) -> JsValue {
+    let error = js_sys::Error::new(&format!("{code}: {message}"));
+    let _ = js_sys::Reflect::set(
+        error.as_ref(),
+        &JsValue::from_str("code"),
+        &JsValue::from_str(code),
+    );
+    error.into()
+}
+
+fn unsupported_provider(message: &str) -> JsValue {
+    wasm_error("UNSUPPORTED_PROVIDER", message)
+}
+
+fn secret_export_forbidden(message: &str) -> JsValue {
+    wasm_error("SECRET_EXPORT_FORBIDDEN", message)
 }
 
 #[wasm_bindgen]
@@ -397,19 +451,10 @@ impl WasmFedimintClient {
         amount_sats: u64,
         secrets: JsValue,
     ) -> Result<JsValue, JsValue> {
-        let secrets_vec: Vec<String> =
-            serde_wasm_bindgen::from_value(secrets).map_err(to_js_error)?;
-        let secrets_refs: Vec<&str> = secrets_vec.iter().map(|s| s.as_str()).collect();
-        let (intent, bf) = self
-            .inner
-            .prepare_mint_intent(federation_id, amount_sats, secrets_refs)
-            .map_err(to_js_error)?;
-
-        let res = serde_json::json!({
-            "intent": intent,
-            "blinding_factors": bf
-        });
-        serde_wasm_bindgen::to_value(&res).map_err(to_js_error)
+        let _ = (federation_id, amount_sats, secrets);
+        Err(secret_export_forbidden(
+            "Fedimint secrets and blinding factors must remain provider-owned",
+        ))
     }
 
     pub fn issue_ecash(
@@ -418,15 +463,10 @@ impl WasmFedimintClient {
         blinding_factors: JsValue,
         original_secrets: JsValue,
     ) -> Result<JsValue, JsValue> {
-        let intent_obj = serde_wasm_bindgen::from_value(intent).map_err(to_js_error)?;
-        let bf_obj = serde_wasm_bindgen::from_value(blinding_factors).map_err(to_js_error)?;
-        let secrets_obj = serde_wasm_bindgen::from_value(original_secrets).map_err(to_js_error)?;
-
-        let ecash = self
-            .inner
-            .issue_ecash(intent_obj, bf_obj, secrets_obj)
-            .map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&ecash).map_err(to_js_error)
+        let _ = (intent, blinding_factors, original_secrets);
+        Err(secret_export_forbidden(
+            "Fedimint secret material cannot be issued through the WASM boundary",
+        ))
     }
 
     pub fn verify_note(&self, note: JsValue) -> Result<bool, JsValue> {
@@ -706,18 +746,10 @@ pub struct WasmBitVm2Orchestrator {
 #[wasm_bindgen]
 impl WasmBitVm2Orchestrator {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> WasmBitVm2Orchestrator {
-        let enclave = Arc::new(
-            crate::enclave::cloud::CloudEnclave::new("http://localhost".to_string())
-                .expect("Failed to create enclave"),
-        );
-        let ark = Arc::new(crate::protocol::ark::ArkManager::new(enclave.clone()));
-        let bitvm = Arc::new(crate::protocol::bitvm::BitVmManager::new(enclave));
-        WasmBitVm2Orchestrator {
-            inner: Arc::new(std::cell::RefCell::new(
-                crate::protocol::bitvm2::BitVm2Orchestrator::new(ark, bitvm),
-            )),
-        }
+    pub fn new() -> Result<WasmBitVm2Orchestrator, JsValue> {
+        Err(unsupported_provider(
+            "BitVM2 WASM construction requires an approved provider; localhost/software mocks are test-only",
+        ))
     }
 
     pub fn create_forfeit_with_commitment(
@@ -725,7 +757,7 @@ impl WasmBitVm2Orchestrator {
         vutxo_json: &str,
         tree_json: &str,
         state_hash_hex: &str,
-        taproot_key_hex: &str,
+        taproot_internal_key_hex: &str,
     ) -> Result<JsValue, JsValue> {
         let vutxo: crate::protocol::ark::VUtxoDescriptor =
             serde_json::from_str(vutxo_json).map_err(to_js_error)?;
@@ -737,15 +769,15 @@ impl WasmBitVm2Orchestrator {
             .try_into()
             .map_err(|_| JsValue::from_str("Invalid state hash length"))?;
 
-        let taproot_key = hex::decode(taproot_key_hex)
+        let taproot_internal_key = hex::decode(taproot_internal_key_hex)
             .map_err(to_js_error)?
             .try_into()
-            .map_err(|_| JsValue::from_str("Invalid taproot key length"))?;
+            .map_err(|_| JsValue::from_str("Invalid taproot internal public key length"))?;
 
         let forfeit = self
             .inner
             .borrow()
-            .create_forfeit_with_commitment(vutxo, tree, state_hash, taproot_key)
+            .create_forfeit_with_commitment(vutxo, tree, state_hash, taproot_internal_key)
             .map_err(to_js_error)?;
 
         serde_wasm_bindgen::to_value(&forfeit).map_err(to_js_error)
@@ -806,15 +838,9 @@ impl WasmBitVm2Orchestrator {
     }
 }
 
-impl Default for WasmBitVm2Orchestrator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[wasm_bindgen]
 impl ConclaveWasmClient {
-    pub fn bitvm2(&self) -> WasmBitVm2Orchestrator {
+    pub fn bitvm2(&self) -> Result<WasmBitVm2Orchestrator, JsValue> {
         WasmBitVm2Orchestrator::new()
     }
 }
