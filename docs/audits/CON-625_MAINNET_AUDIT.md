@@ -1,5 +1,7 @@
 # CON-625: Mainnet Readiness Audit (Fail-Open & Simulated Behavior)
 
+> **Historical record.** The current repository-wide production-enablement status is **Beta / conditional**. See [PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md](./PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) and [CAPABILITY_MATRIX.md](../architecture/CAPABILITY_MATRIX.md). The earlier conditional “GO” below must not be treated as current approval.
+
 ## Overview
 Audit of `conxius-enclave-sdk` for fail-open logic, placeholder persistence, and simulated behavior that could compromise mainnet safety.
 
@@ -8,11 +10,11 @@ Audit of `conxius-enclave-sdk` for fail-open logic, placeholder persistence, and
 ### 1. Enclave Simulation
 - **Status**: **IDENTIFIED & LABELED**.
 - **Details**: `CloudEnclave` and `CoreEnclaveManager` currently default to `AttestationLevel::Software` and are development-oriented software drivers, not production hardware-bound implementations.
-- **Mainnet Safety**: The code correctly prevents high-value operations if `AttestationLevel::Software` is reported and `enforce_attestation` is true in `RailProxy`.
+- **Mainnet Safety**: This historical conclusion covered the intended software-tier check only; the current production-enablement audit found a P0 gap because rail policy does not call the full report verifier and can be configured to bypass enforcement.
 - **Remediation**: Production builds must use hardware-bound drivers that report `AttestationLevel::TEE`, `StrongBox`, or `CloudTEE`.
 
 ### 2. Rail Implementation
-- **Status**: **PRODUCTION READY**.
+- **Status**: **Historical implementation review; current support is not established**.
 - **Details**: `ChangellyRail`, `BisqRail`, etc., have been updated to use real `reqwest` calls to the Gateway API. Mock responses have been removed.
 - **Fail-Open Check**: No "fail-open" logic found in the request broadcasting layer. If the Gateway is down, the operation fails.
 

@@ -1,7 +1,9 @@
-# Production Readiness Checklist
+# Production Enablement Checklist
 
-> Comprehensive checklist for deploying Conclave SDK to production
-> Version: 1.0.0 | Last Updated: 2026-07-13
+> This is a gated checklist, not a production-readiness claim.
+> Status: Beta / conditional | Last Updated: 2026-07-20
+
+The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) and [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.11`; `Cargo.toml` declaring `2.0.12` does not establish a supported release.
 
 ---
 
@@ -9,10 +11,10 @@
 
 ### 📋 Documentation Requirements
 
-- [x] README.md updated with production status
+- [x] README.md updated with conditional status
 - [x] CHANGELOG.md has `[Unreleased]` section
 - [x] SECURITY.md policy documented
-- [x] LICENSE is production-ready (MIT)
+- [x] LICENSE is present (MIT)
 - [x] GOVERNANCE.md defined
 - [x] RELEASING.md documented
 - [x] AGENTS.md for AI assistant context
@@ -22,9 +24,9 @@
 
 - [x] CI/CD baseline hardened (issue #145)
 - [x] Code quality hardening complete (issue #146)
-- [x] Hardware attestation implemented
-- [x] Replay attack protection in place
-- [x] Zero-dependency error handling (ConclaveResult)
+- [ ] Hardware-backed attestation integration and vendor evidence (P0)
+- [ ] Replay protection verified on every value-bearing path (P0/P1)
+- [x] Typed error surface exists (`ConclaveResult`); production fail-closed behavior remains gated
 - [ ] FROST treasury DKG and signing production readiness (issue #180; current `src/protocol/frost.rs` is a structural/hash placeholder, not production FROST cryptography)
 - [ ] Independent security audit (for >= 1.0.0)
 - [ ] Dependency audit passes (cargo audit)
@@ -32,34 +34,30 @@
 
 ### 🧪 Testing Requirements
 
-- [x] Unit tests for core modules
-- [x] Integration tests for protocol flows
-- [x] Cross-chain tests (30+ assets)
-- [ ] **Hardware attestation tests** (TEST-001 - P2)
-- [ ] WASM integration tests
+- [x] Unit/structural tests for core modules (scope-limited)
+- [ ] Integration tests against real protocol and vendor boundaries
+- [ ] Cross-chain tests with verified addresses and live/testnet evidence
+- [ ] **Hardware attestation integration tests** (P0/P1)
+- [ ] WASM runtime integration tests
 - [ ] Fuzz testing for critical paths
 
 ### 📦 Dependency Requirements
 
-- [x] All dependencies declared in Cargo.toml
-- [x] Cargo.lock generated (ephemeral per RELEASING.md)
-- [x] No yanked dependencies
-- [ ] **Stable versions for beta deps** (DEP-001 - P1)
-  - [ ] bitcoin 0.33.x stable
-  - [ ] secp256k1 0.32.x stable
-  - [ ] k256 0.14.x stable
-- [ ] Unmaintained crate review (DEP-002 - P2)
+- [x] Dependencies are declared in Cargo.toml
+- [ ] Cargo.lock and the release dependency graph are reproducible and durably evidenced (P1)
+- [ ] Toolchain/MSRV is pinned and compatible with the resolved graph (P1)
+- [ ] Unmaintained and security-sensitive dependency review (P1/P2)
 
 ### 🌐 Platform Integration
 
-- [x] WASM bindings generated
-- [ ] WASM bindings completeness audit (ARCH-001 - P3)
-- [x] Multi-chain support (30+ assets)
-- [x] Settlement rails implemented
+- [x] WASM binding surface is present
+- [ ] WASM runtime/platform/hardware matrix (P1)
+- [ ] Multi-chain support with verified address provenance (P1)
+- [ ] Settlement rails implemented without placeholders and backed by integration evidence (P0)
 
 ### 📚 Examples & Documentation
 
-- [ ] `examples/` directory (DOC-002 - P3)
+- [ ] `examples/` and operational runbooks aligned with the matrix (DOC-002 - P2)
 - [x] API documentation via rustdoc
 - [x] Architecture documentation
 - [x] Gap scorecard maintained
@@ -67,12 +65,10 @@
 
 ### 🚀 Release Process
 
-- [x] Create release tag (v2.0.12)
-- [x] Push tag to trigger Release workflow
-- [x] Verify CI gates pass
-- [x] Run manual publish workflow
-- [x] Verify crates.io publication
-- [x] Create GitHub release notes
+- [ ] Reconcile package metadata with a verified release tag (latest visible: `v2.0.11`)
+- [ ] Select one authoritative release/publish workflow (P1)
+- [ ] Verify CI gates and retain their results for the exact artifact
+- [ ] Attach registry, SBOM, provenance, and release-note evidence
 
 ### 🔧 Environment Setup
 
@@ -85,14 +81,14 @@
 
 ## CI/CD Gates Status
 
-| Gate | Status | Workflow |
-|------|--------|----------|
-| Tests | ✅ Pass | `CI.yml` |
-| Lint/Format | ✅ Pass | `CI.yml` |
-| WASM Build | ✅ Pass | `CI.yml` |
-| Security Audit | ✅ Pass | `Security.yml` |
-| CodeQL | ✅ Pass | `CodeQL.yml` |
-| Release Validation | ✅ Pass | `Release.yml` |
+| Gate | Repository evidence | Production decision |
+|------|----------------------|---------------------|
+| Tests | CI definitions and unit/structural tests exist | Not sufficient without protocol/vendor integration evidence |
+| Lint/Format | CI definitions exist; local format check is separate | Required, but not a production gate by itself |
+| WASM Build | `ci.yml` and `ci-strict.yml` build WASM | Runtime/platform/hardware matrix is still open |
+| Security Audit | Security workflows are defined | Independent review evidence is not attached |
+| CodeQL | Workflow is defined | Workflow presence is not a release artifact |
+| Release Validation | Multiple release workflows exist | Consolidation and durable artifact evidence are required |
 
 ---
 
@@ -100,8 +96,9 @@
 
 | Version | Status | Notes |
 |---------|--------|-------|
-| v2.0.12 | ✅ Released | All issues closed |
-| v2.0.11 | ✅ Released | All issues closed |
+| 2.x line | Beta / conditional | Production enablement remains blocked by CON-1506 P0/P1 gates |
+| v2.0.11 | Latest visible GitHub release/tag | Verify artifacts and capability scope before use |
+| 2.0.12 | Cargo metadata only at audit time | No matching visible tag/release evidence was found |
 
 ---
 
@@ -109,18 +106,18 @@
 
 | ID | Priority | Status | Blocking Release |
 |----|----------|--------|------------------|
-| DEP-001 | P1 | ⚠️ In Progress | Yes |
-| DOC-001 | P1 | ✅ Resolved | No |
-| TEST-001 | P2 | 📋 Planned | No |
-| DEP-002 | P2 | 📋 Planned | No |
-| ARCH-001 | P3 | 📋 Planned | No |
-| DOC-002 | P3 | 📋 Planned | No |
+| CON-1506 / P0 | P0 | Open — production claim and value-bearing paths blocked | Yes |
+| CON-1506 / P1 | P1 | Open — supply chain, release, matrix, privacy, and operations evidence | Yes |
+| TEST-001 | P2 | Planned — broader hardware/runtime evidence | Yes for affected capability |
+| DEP-002 | P2 | Planned — unmaintained crate review | Conditional |
+| ARCH-001 | P2 | Planned — WASM/runtime matrix | Yes for WASM support |
+| DOC-002 | P2 | Planned — examples and runbooks | No, but public claims must remain accurate |
 
 ---
 
 ## Release Procedure
 
-### Option 1: Release v2.0.12 Now
+No release procedure below authorizes production enablement by itself. A candidate release must pass the audit gates and attach evidence for the exact tag, target, runtime, and deployment scope.
 
 ```bash
 # 1. Verify all checks pass
@@ -129,44 +126,28 @@ cargo clippy -- -D warnings
 cargo test
 cargo audit --file Cargo.lock
 
-# 2. Update CHANGELOG (already done)
-# Ensure [Unreleased] section is current
+# 2. Reconcile Cargo.toml, Cargo.lock, the tag, CHANGELOG, and registry state
 
-# 3. Create release commit (if needed)
+# 3. Create a release commit only after the capability matrix and independent review are current
 git add -A
-git commit -m "chore: prepare v2.0.12 release"
+git commit -m "chore: prepare reviewed 2.x release"
 
 # 4. Push and create tag
 git push origin main
-git tag -s v2.0.12 -m "Release v2.0.12"
-git push origin v2.0.12
+git tag -s vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
 
-# 5. Trigger manual publish via GitHub Actions
-# Actions → Release → Run workflow → v2.0.12 → publish_to_crates_io: true
+# 5. Trigger the single authoritative release workflow only after artifact review
 ```
-
-### Option 2: Wait for Stable Dependencies
-
-```bash
-# Monitor upstream releases:
-# - https://crates.io/crates/bitcoin
-# - https://crates.io/crates/secp256k1
-# - https://crates.io/crates/k256
-
-# When stable versions available, update Cargo.toml and create v2.0.8
-```
-
----
 
 ## Post-Release Checklist
 
-- [x] Verify GitHub release created
-- [x] Verify crates.io package published
-- [x] Verify README version badge updated
-- [x] Notify stakeholders
-- [x] Update documentation links
-- [x] Close tracking issues
-- [x] Schedule v2.0.12 planning
+- [ ] Verify the exact GitHub release and tag
+- [ ] Verify registry publication for the exact package/version
+- [ ] Retain CI, SBOM, provenance, and independent-review artifacts
+- [ ] Verify README, SECURITY, matrix, and changelog scope
+- [ ] Publish only public-safe operational notes
+- [ ] Record rollback owner and tested rollback procedure
 
 ---
 
@@ -182,4 +163,4 @@ git push origin v2.0.12
 ---
 
 *Checklist maintained by: SDK Team*
-*Last reviewed: 2026-07-13*
+*Last reviewed: 2026-07-20*

@@ -1,14 +1,16 @@
-# Conclave SDK Repository Tracking
+# `conxius-enclave-sdk` Repository Tracking
 
-> **✅ PRODUCTION READY** - v2.0.12
+> **BETA / CONDITIONAL** - 2.x production support is capability- and artifact-specific.
 
-This document provides a comprehensive overview of the Conclave SDK repository status, including issues, pull requests, and branches.
+This document provides a comprehensive overview of the repository status, including issues, pull requests, branches, and production-enablement evidence.
 
 ## Quick Links
 
 | Document | Purpose |
 |----------|---------|
 | [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) | **Release checklist** |
+| [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) | Findings, gates, unknowns, and public-safe evidence |
+| [Capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) | API, implementation, integration, review, and support status |
 | [REPOSITORY_ANALYSIS.md](./REPOSITORY_ANALYSIS.md) | Capabilities, gaps, roadmap |
 | [ISSUES_INDEX.md](./ISSUES_INDEX.md) | GitHub issues (synced) |
 | [PRS_INDEX.md](./PRS_INDEX.md) | Pull requests (synced) |
@@ -23,11 +25,11 @@ This document provides a comprehensive overview of the Conclave SDK repository s
 | **Repository** | Conxian/conxius-enclave-sdk |
 | **Default Branch** | main |
 | **Language** | Rust |
-| **Latest Tag** | v2.0.12 |
-| **Current Version** | v2.0.12 |
-| **Production Status** | ✅ Production Ready |
-| **Test Coverage** | 121 tests (25 hardware attestation) |
-| **Last Updated** | 2026-07-14 |
+| **Latest visible release/tag** | v2.0.11 (as of 2026-07-20) |
+| **Cargo package metadata** | 2.0.12 (not release evidence by itself) |
+| **Production Status** | Beta / conditional; value-bearing enablement blocked by CON-1506 gates |
+| **Test Coverage** | Historical source count; not an independent release gate |
+| **Last Updated** | 2026-07-20 |
 
 ## Related Repositories
 

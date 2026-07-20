@@ -1,8 +1,18 @@
-# Conclave SDK: Agent Directives (v0.4.2)
+# `conxius-enclave-sdk`: Agent Directives (v0.4.2)
 
 ## Production Status
 
-**✅ PRODUCTION READY** - v2.0.12
+**BETA / CONDITIONAL** - 2.x interfaces are available for development and integration, but production support is capability- and artifact-specific. Do not claim repository-wide production readiness.
+
+See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md), the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), and the [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) before describing maturity or support.
+
+## Production-claim guardrails
+
+- Never describe a simulated, mock, software-only, structural, or placeholder path as production-supported.
+- Require a traceable **requirement → code → test → CI → artifact** evidence chain before making a security, readiness, compatibility, or release claim.
+- Fail closed for value-bearing signing, settlement, attestation, policy, and release decisions when evidence or configuration is missing.
+- Keep public documentation ZSE-safe: never expose private endpoints, credentials, privileged identifiers, custody procedures, key-recovery details, or incident operational secrets.
+- Use `conxius-enclave-sdk` when a stable technical identifier is required and “the SDK” otherwise. Do not invent or revive a deprecated public product name. Use “Conclave” only for the secure hardware layer where an existing canonical document requires it.
 
 ---
 
@@ -81,13 +91,13 @@ cat RESEARCH_LOG.md
 ```
 
 ### Key Accomplishments (2026-07-15 - Cycle 10):
-- ✅ Released v2.0.12 with BitVM2 static method fix
-- ✅ Updated all documentation to v2.0.12
+- Cargo metadata currently declares 2.0.12; the latest visible GitHub release/tag evidence is v2.0.11
+- Documentation must distinguish package metadata from a verified release
 - ✅ Researched BIP-110 Reduced Data Softfork
 - ✅ Fixed CI failures: Rust 2024 let chains, missing struct fields, WASM mutable borrow
-- ✅ Updated all GitHub Actions to Node.js 24 compatible versions (v4/v5)
-- ✅ WASM bindings completeness (12+ modules covered)
-- ✅ Comprehensive hardware attestation test suite (25 tests)
+- Action pins were updated historically; verify current workflow/toolchain compatibility before making a release claim
+- WASM bindings expose multiple module surfaces; runtime/platform/hardware support remains conditional
+- Hardware attestation unit suite includes 25 simulated tests; vendor coverage remains open
 
 ---
 
@@ -171,7 +181,7 @@ For comprehensive tracking of issues, pull requests, and branches:
 ---
 
 ## Core Ethos
-The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native Bitcoin applications. We prioritize hardware-backed security (TEE, StrongBox), non-custodial orchestration, and universal asset support.
+The SDK provides a secure foundation for hardware-backed security (TEE, StrongBox), non-custodial orchestration, and multi-chain integrations. These are goals and interfaces, not blanket production-support claims.
 
 ## Coding Standards
 - **SDK-First**: Prioritize modularity and clear boundaries between enclave, protocol, and bindings.
@@ -194,16 +204,16 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 - Hardware-backed logic should be tested with both simulated and software attestation (for CI) but blocked for production-level Trust Tiers.
 
 ## WASM Binding Requirements
-- ✅ Lightning, Settlement Service, Solver, Swap Router, ZKML, DLC
-- ✅ Stablecoin Orchestrator, Job Card (ISO20022), MMR, Opportunity, Business logic
 
-## GitHub Actions Node.js 24 Compliance
-All workflows updated to support Node.js 24 (mandatory since Sept 2026):
-- `actions/checkout@v4`
-- `actions/upload-artifact@v5`
-- `actions/download-artifact@v5`
-- `actions/attest-build-provenance@v4.1.1`
+The following surfaces are exposed or planned; each requires a row in the capability matrix before production support is claimed:
+
+- Lightning, Settlement Service, Solver, Swap Router, ZKML, DLC
+- Stablecoin Orchestrator, Job Card (ISO20022), MMR, Opportunity, Business logic
+
+## CI and release claims
+
+Workflow definitions are not evidence of a successful release. Verify the exact workflow run, artifact, provenance, and support decision before making a CI or release claim. Do not modify workflows as part of a documentation-only audit correction unless the task explicitly requires it.
 
 ---
 
-*Knowledge Base Version: v0.4.2 | Last Updated: 2026-07-15*
+*Knowledge Base Version: v0.4.2 | Last Updated: 2026-07-20*
