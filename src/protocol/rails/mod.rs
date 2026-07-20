@@ -415,6 +415,11 @@ mod rail_proxy_tests {
     use rand_core::Rng;
     use std::sync::Arc;
 
+    // Keep boundary fixtures away from the one-second wall-clock transition
+    // between constructing and verifying a report. The production policy
+    // intentionally allows MAX_ATTESTATION_FUTURE_SKEW_SECS of clock skew.
+    const FRESHNESS_TEST_MARGIN_SECS: u64 = 60;
+
     fn test_proxy() -> RailProxy {
         RailProxy::new(
             "https://gateway.conxian-labs.com".to_string(),
@@ -581,24 +586,28 @@ mod rail_proxy_tests {
         let stale_intent = test_intent(vec![8; 32]);
         let stale_report = test_attestation_report(
             stale_intent.signable_hash.clone(),
-            now.saturating_sub(MAX_ATTESTATION_AGE_SECS + 1),
+            now.saturating_sub(MAX_ATTESTATION_AGE_SECS.saturating_add(FRESHNESS_TEST_MARGIN_SECS)),
         );
         let stale_json = Some(serde_json::to_string(&stale_report).unwrap());
         assert!(matches!(
             stale_proxy.verify_hardware_integrity(&stale_intent, &stale_json),
-            Err(ConclaveError::EnclaveFailure(message)) if message.contains("cryptographic")
+            Err(ConclaveError::EnclaveFailure(message))
+                if message == "Attestation report failed cryptographic or policy verification"
         ));
 
         let future_proxy = test_proxy();
         let future_intent = test_intent(vec![10; 32]);
         let future_report = test_attestation_report(
             future_intent.signable_hash.clone(),
-            now.saturating_add(MAX_ATTESTATION_FUTURE_SKEW_SECS + 1),
+            now.saturating_add(
+                MAX_ATTESTATION_FUTURE_SKEW_SECS.saturating_add(FRESHNESS_TEST_MARGIN_SECS),
+            ),
         );
         let future_json = Some(serde_json::to_string(&future_report).unwrap());
         assert!(matches!(
             future_proxy.verify_hardware_integrity(&future_intent, &future_json),
-            Err(ConclaveError::EnclaveFailure(message)) if message.contains("cryptographic")
+            Err(ConclaveError::EnclaveFailure(message))
+                if message == "Attestation report failed cryptographic or policy verification"
         ));
     }
 
