@@ -12,7 +12,11 @@ use crate::enclave::attestation::{
     ATTESTATION_ENVELOPE_VERSION,
 };
 use crate::{
-    enclave::{EnclaveManager, SignRequest, SignResponse, SigningAlgorithm},
+    enclave::{
+        EnclaveManager, SignRequest, SignResponse, SignerCapability, SigningAlgorithm,
+        ValueBearingSession, ValueBearingSignRequest, ValueBearingSignResponse,
+        ValueBearingUnlockRequest,
+    },
     ConclaveError, ConclaveResult,
 };
 
@@ -47,6 +51,13 @@ impl CoreEnclaveManager {
         Self {
             session_key: Mutex::new(None),
         }
+    }
+
+    /// This manager is permanently software-backed and development-only.
+    pub const SOFTWARE_ONLY: bool = true;
+
+    pub const fn is_software_only() -> bool {
+        Self::SOFTWARE_ONLY
     }
 
     /// Constructs the software-backed fixture used by this crate's unit tests.
@@ -90,6 +101,9 @@ impl CoreEnclaveManager {
         Ok(Zeroizing::new(key))
     }
 
+    // Test builds use a deterministic fixture; development-simulator builds
+    // emit explicitly software-only evidence. Neither path is production
+    // hardware attestation.
     fn generate_attestation(
         &self,
         challenge: &[u8],
@@ -252,6 +266,10 @@ impl EnclaveManager for CoreEnclaveManager {
         Ok(())
     }
 
+    fn signer_capability(&self) -> SignerCapability {
+        SignerCapability::software_unverified()
+    }
+
     fn unlock(&self, pin: &str, salt: &[u8]) -> ConclaveResult<()> {
         if pin.len() < 4 {
             return Err(ConclaveError::CryptoError("PIN too short".to_string()));
@@ -320,6 +338,26 @@ impl EnclaveManager for CoreEnclaveManager {
 
         derived_priv_key.zeroize();
         response
+    }
+
+    fn unlock_value_bearing(
+        &self,
+        _request: ValueBearingUnlockRequest,
+    ) -> ConclaveResult<ValueBearingSession> {
+        Err(ConclaveError::Unsupported(
+            "CoreEnclaveManager is software-only and cannot unlock value-bearing operations"
+                .to_string(),
+        ))
+    }
+
+    fn sign_value_bearing(
+        &self,
+        _request: ValueBearingSignRequest,
+    ) -> ConclaveResult<ValueBearingSignResponse> {
+        Err(ConclaveError::Unsupported(
+            "CoreEnclaveManager is software-only and cannot sign value-bearing operations"
+                .to_string(),
+        ))
     }
 }
 
