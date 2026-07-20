@@ -12,7 +12,6 @@ repository = "https://github.com/Conxian/conxius-enclave-sdk"
 [features]
 default = []
 mock-cloud-enclave = []
-dev-attestation-bypass = []
 bip110_compliant = []
 
 [dependencies]

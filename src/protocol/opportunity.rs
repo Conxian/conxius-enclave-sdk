@@ -116,6 +116,7 @@ impl<'a> OpportunityDispatcher<'a> {
                     taproot_tweak: None,
                 })?;
 
+                #[allow(deprecated)]
                 let resp = self
                     .rail_proxy
                     .broadcast_signed_intent(
