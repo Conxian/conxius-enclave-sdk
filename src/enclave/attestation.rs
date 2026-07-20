@@ -5,6 +5,8 @@ use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
 use x509_cert::Certificate;
 
+use crate::{ConclaveError, ConclaveResult};
+
 #[cfg(test)]
 pub const MAX_ATTESTATION_AGE_SECS: u64 = 300;
 #[cfg(not(test))]
@@ -15,7 +17,7 @@ pub const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
 #[cfg(not(test))]
 const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
 
-const TRUSTED_ROOTS: &[&str] = &[
+const DEFAULT_TRUSTED_ROOTS: &[&str] = &[
     "CONCLAVE_ROOT_CA_V1",
     "CONCLAVE_CLOUD_ROOT_CA_V1",
     "GOOGLE_STRONGBOX_ROOT_V1",
@@ -29,12 +31,139 @@ fn unix_time_secs() -> u64 {
         .as_secs()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AttestationLevel {
     Software,
     TEE,
     StrongBox,
     CloudTEE,
+}
+
+/// Verification policy for production attestation evidence.
+///
+/// The policy deliberately cannot be configured to accept software-only
+/// attestation. Development and provider-specific implementations must use a
+/// separate test fixture instead of weakening this production policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttestationPolicy {
+    allowed_levels: Vec<AttestationLevel>,
+    trusted_roots: Vec<String>,
+    max_age_secs: u64,
+    max_future_skew_secs: u64,
+    required_extensions: Vec<String>,
+}
+
+impl Default for AttestationPolicy {
+    fn default() -> Self {
+        Self::production()
+    }
+}
+
+impl AttestationPolicy {
+    /// Returns the default fail-closed production policy.
+    pub fn production() -> Self {
+        Self {
+            allowed_levels: vec![
+                AttestationLevel::TEE,
+                AttestationLevel::StrongBox,
+                AttestationLevel::CloudTEE,
+            ],
+            trusted_roots: DEFAULT_TRUSTED_ROOTS
+                .iter()
+                .map(|root| (*root).to_string())
+                .collect(),
+            max_age_secs: MAX_ATTESTATION_AGE_SECS,
+            max_future_skew_secs: MAX_ATTESTATION_FUTURE_SKEW_SECS,
+            required_extensions: vec!["PURPOSE_SIGN".to_string()],
+        }
+    }
+
+    /// Returns a policy using an explicit, non-empty trust-root set.
+    pub fn with_trusted_roots(mut self, trusted_roots: Vec<String>) -> ConclaveResult<Self> {
+        if trusted_roots.is_empty() || trusted_roots.iter().any(|root| root.trim().is_empty()) {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        self.trusted_roots = trusted_roots;
+        Ok(self)
+    }
+
+    /// Returns a policy restricted to the supplied hardware-backed levels.
+    pub fn with_allowed_levels(
+        mut self,
+        allowed_levels: Vec<AttestationLevel>,
+    ) -> ConclaveResult<Self> {
+        if allowed_levels.is_empty() || allowed_levels.contains(&AttestationLevel::Software) {
+            return Err(ConclaveError::Unsupported(
+                "software-only attestation cannot satisfy production policy".to_string(),
+            ));
+        }
+
+        self.allowed_levels = allowed_levels;
+        Ok(self)
+    }
+
+    /// Returns a policy using explicit freshness limits.
+    pub fn with_freshness_window(
+        mut self,
+        max_age_secs: u64,
+        max_future_skew_secs: u64,
+    ) -> ConclaveResult<Self> {
+        if max_age_secs > MAX_ATTESTATION_AGE_SECS
+            || max_future_skew_secs > MAX_ATTESTATION_FUTURE_SKEW_SECS
+        {
+            return Err(ConclaveError::Unsupported(
+                "attestation freshness limits cannot be weaker than production defaults"
+                    .to_string(),
+            ));
+        }
+
+        self.max_age_secs = max_age_secs;
+        self.max_future_skew_secs = max_future_skew_secs;
+        Ok(self)
+    }
+
+    /// Returns a policy requiring the supplied extension markers in addition to
+    /// the mandatory signing-purpose marker.
+    pub fn with_required_extensions(
+        mut self,
+        required_extensions: Vec<String>,
+    ) -> ConclaveResult<Self> {
+        if required_extensions
+            .iter()
+            .any(|extension| extension.trim().is_empty())
+        {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        for extension in required_extensions {
+            if !self.required_extensions.contains(&extension) {
+                self.required_extensions.push(extension);
+            }
+        }
+
+        Ok(self)
+    }
+
+    pub fn allowed_levels(&self) -> &[AttestationLevel] {
+        &self.allowed_levels
+    }
+
+    pub fn trusted_roots(&self) -> &[String] {
+        &self.trusted_roots
+    }
+
+    pub fn max_age_secs(&self) -> u64 {
+        self.max_age_secs
+    }
+
+    pub fn max_future_skew_secs(&self) -> u64 {
+        self.max_future_skew_secs
+    }
+
+    pub fn required_extensions(&self) -> &[String] {
+        &self.required_extensions
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,17 +179,38 @@ pub struct DeviceIntegrityReport {
 impl DeviceIntegrityReport {
     /// Verifies the integrity report using a realistic hardware attestation model.
     pub fn verify(&self, expected_nonce: &[u8]) -> bool {
-        self.verify_at_time_impl(expected_nonce, unix_time_secs())
+        self.verify_with_policy(expected_nonce, &AttestationPolicy::production())
+    }
+
+    /// Verifies this report against an explicit fail-closed policy.
+    pub fn verify_with_policy(&self, expected_nonce: &[u8], policy: &AttestationPolicy) -> bool {
+        self.verify_at_time_impl(expected_nonce, unix_time_secs(), policy)
     }
 
     /// Verifies at a specific timestamp (for testing).
     #[cfg(test)]
     pub fn verify_at_time(&self, expected_nonce: &[u8], now_secs: u64) -> bool {
-        self.verify_at_time_impl(expected_nonce, now_secs)
+        self.verify_at_time_with_policy(expected_nonce, now_secs, &AttestationPolicy::production())
+    }
+
+    /// Verifies at a specific timestamp using an explicit policy (for testing).
+    #[cfg(test)]
+    pub fn verify_at_time_with_policy(
+        &self,
+        expected_nonce: &[u8],
+        now_secs: u64,
+        policy: &AttestationPolicy,
+    ) -> bool {
+        self.verify_at_time_impl(expected_nonce, now_secs, policy)
     }
 
     #[cfg_attr(test, allow(dead_code))]
-    fn verify_at_time_impl(&self, expected_nonce: &[u8], now_secs: u64) -> bool {
+    fn verify_at_time_impl(
+        &self,
+        expected_nonce: &[u8],
+        now_secs: u64,
+        policy: &AttestationPolicy,
+    ) -> bool {
         if self.signature.is_empty() || self.certificate_chain.len() < 2 {
             return false;
         }
@@ -70,11 +220,11 @@ impl DeviceIntegrityReport {
             return false;
         }
 
-        if self.timestamp > now_secs.saturating_add(MAX_ATTESTATION_FUTURE_SKEW_SECS) {
+        if self.timestamp > now_secs.saturating_add(policy.max_future_skew_secs) {
             return false;
         }
 
-        if now_secs > self.timestamp.saturating_add(MAX_ATTESTATION_AGE_SECS) {
+        if now_secs > self.timestamp.saturating_add(policy.max_age_secs) {
             return false;
         }
 
@@ -88,11 +238,23 @@ impl DeviceIntegrityReport {
         }
 
         // 3. Hardened Certificate Chain Verification
-        if !self.verify_certificate_chain() {
+        if !self.verify_certificate_chain(policy) {
             return false;
         }
 
-        // 4. Hardware-backed verification hardening
+        // 4. Policy and hardware-backed verification hardening
+        if !policy.allowed_levels.contains(&self.level) {
+            return false;
+        }
+
+        if policy
+            .required_extensions
+            .iter()
+            .any(|required| !self.extension_data.contains(required))
+        {
+            return false;
+        }
+
         let is_hardened = match self.level {
             AttestationLevel::StrongBox | AttestationLevel::CloudTEE => {
                 // High Trust levels require explicit hardware-backed signaling
@@ -100,7 +262,7 @@ impl DeviceIntegrityReport {
                     && self.extension_data.contains("SECURE_BOOT_ENABLED")
             }
             AttestationLevel::TEE => true,
-            AttestationLevel::Software => false, // Software attestation blocked for production paths
+            AttestationLevel::Software => false,
         };
 
         let has_valid_purpose = self.extension_data.contains("PURPOSE_SIGN")
@@ -140,7 +302,7 @@ impl DeviceIntegrityReport {
         Some(verifying_key.verify(&data_to_verify, &sig).is_ok())
     }
 
-    fn verify_certificate_chain(&self) -> bool {
+    fn verify_certificate_chain(&self, policy: &AttestationPolicy) -> bool {
         let last_entry = match self.certificate_chain.last() {
             Some(entry) => entry,
             None => return false,
@@ -152,12 +314,17 @@ impl DeviceIntegrityReport {
                 // For hardening, check if the certificate is structurally sound
                 // and its subject matches our trusted root list.
                 let subject_str = format!("{:?}", cert.tbs_certificate().subject());
-                return TRUSTED_ROOTS.iter().any(|&root| subject_str.contains(root));
+                return policy
+                    .trusted_roots
+                    .iter()
+                    .any(|root| subject_str.contains(root));
             }
         }
 
-        // Fallback to string matching for legacy/simulated roots (e.g. "CONCLAVE_ROOT_CA_V1")
-        TRUSTED_ROOTS.iter().any(|&root| last_entry.contains(root))
+        // Fallback to exact matching for legacy/simulated roots. Prefix or
+        // suffix matches would allow an untrusted root label to masquerade as
+        // a configured root.
+        policy.trusted_roots.iter().any(|root| last_entry == root)
     }
 
     /// Generates a hardware-bound fingerprint for this device.
@@ -200,7 +367,7 @@ mod tests {
             level,
             challenge_nonce: nonce,
             signature,
-            certificate_chain: vec![pubkey_hex, "CONCLAVE_ROOT_CA_V1_01".to_string()],
+            certificate_chain: vec![pubkey_hex, "CONCLAVE_ROOT_CA_V1".to_string()],
             timestamp,
             extension_data,
         }

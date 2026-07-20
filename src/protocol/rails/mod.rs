@@ -5,8 +5,8 @@ pub mod ntt;
 pub mod wormhole;
 pub mod x402;
 
-use crate::enclave::attestation::DeviceIntegrityReport;
-use crate::enclave::replay_guard::ReplayGuard;
+use crate::enclave::attestation::{AttestationPolicy, DeviceIntegrityReport};
+use crate::enclave::replay_guard::{ReplayGuard, ReplayGuardError};
 use crate::protocol::asset::AssetRegistry;
 use crate::protocol::business::BusinessRegistry;
 use crate::protocol::intent::{SwapIntent, SwapRequest, SwapResponse};
@@ -71,9 +71,9 @@ pub struct RailProxy {
     pub registry: Arc<AssetRegistry>,
     pub business: Arc<BusinessRegistry>,
     pub rails: HashMap<String, Box<dyn SovereignRail>>,
-    pub min_trust_tier: TrustTier,
-    pub enforce_attestation: bool,
-    pub replay_guard: Arc<ReplayGuard>,
+    min_trust_tier: TrustTier,
+    attestation_policy: AttestationPolicy,
+    replay_guard: Arc<ReplayGuard>,
     pub telemetry: Option<Arc<TelemetryClient>>,
 }
 
@@ -115,7 +115,7 @@ impl RailProxy {
             business,
             rails,
             min_trust_tier: TrustTier::T4,
-            enforce_attestation: true,
+            attestation_policy: AttestationPolicy::production(),
             replay_guard: Arc::new(ReplayGuard::new(1000, 300)),
             telemetry: None,
         }
@@ -123,6 +123,31 @@ impl RailProxy {
 
     pub fn with_telemetry(mut self, telemetry: Arc<TelemetryClient>) -> Self {
         self.telemetry = Some(telemetry);
+        self
+    }
+
+    pub fn with_min_trust_tier(mut self, min_trust_tier: TrustTier) -> Self {
+        self.min_trust_tier = min_trust_tier;
+        self
+    }
+
+    pub fn min_trust_tier(&self) -> TrustTier {
+        self.min_trust_tier
+    }
+
+    /// Replaces the attestation policy without ever disabling attestation.
+    pub fn with_attestation_policy(mut self, attestation_policy: AttestationPolicy) -> Self {
+        self.attestation_policy = attestation_policy;
+        self
+    }
+
+    pub fn attestation_policy(&self) -> &AttestationPolicy {
+        &self.attestation_policy
+    }
+
+    /// Configures replay storage while preserving fail-closed saturation semantics.
+    pub fn with_replay_guard(mut self, replay_guard: Arc<ReplayGuard>) -> Self {
+        self.replay_guard = replay_guard;
         self
     }
 
@@ -173,23 +198,21 @@ impl RailProxy {
         intent: &SwapIntent,
         attestation_json: &Option<String>,
     ) -> ConclaveResult<()> {
-        self.verify_hardware_integrity_with_policy(
+        self.verify_hardware_integrity_with_attestation_policy(
             intent,
             attestation_json,
-            self.enforce_attestation,
+            &self.attestation_policy,
         )
     }
 
-    pub fn verify_hardware_integrity_with_policy(
+    /// Verifies attestation against an explicit policy. Attestation is always
+    /// required; there is no runtime bypass for value-bearing broadcasts.
+    pub fn verify_hardware_integrity_with_attestation_policy(
         &self,
         intent: &SwapIntent,
         attestation_json: &Option<String>,
-        enforce: bool,
+        policy: &AttestationPolicy,
     ) -> ConclaveResult<()> {
-        if !enforce {
-            return Ok(());
-        }
-
         let json = attestation_json
             .as_ref()
             .ok_or(ConclaveError::EnclaveFailure(
@@ -200,32 +223,47 @@ impl RailProxy {
             ConclaveError::EnclaveFailure(format!("Invalid attestation JSON: {}", e))
         })?;
 
-        // 1. Verify nonce matches the intent hash (binding attestation to the transaction)
+        // Bind the evidence to this exact intent before running the complete
+        // cryptographic, root, level, and freshness verification path.
         if report.challenge_nonce != intent.signable_hash {
             return Err(ConclaveError::EnclaveFailure(
                 "Attestation challenge does not match intent hash".to_string(),
             ));
         }
 
-        // 2. Verify replay guard
-        if !self
+        if !report.verify_with_policy(&intent.signable_hash, policy) {
+            return Err(ConclaveError::EnclaveFailure(
+                "Attestation report failed cryptographic or policy verification".to_string(),
+            ));
+        }
+
+        // Replay state is consumed only after every report check succeeds.
+        match self
             .replay_guard
-            .check_and_record(&hex::encode(&intent.signable_hash), unix_time_secs())
+            .try_check_and_record(&hex::encode(&intent.signable_hash), unix_time_secs())
         {
-            return Err(ConclaveError::EnclaveFailure(
+            Ok(()) => Ok(()),
+            Err(ReplayGuardError::Duplicate) => Err(ConclaveError::EnclaveFailure(
                 "Attestation replay detected".to_string(),
-            ));
+            )),
+            Err(ReplayGuardError::CapacitySaturated) => Err(ConclaveError::EnclaveFailure(
+                "Attestation replay guard capacity is saturated".to_string(),
+            )),
+            Err(ReplayGuardError::LockPoisoned) => Err(ConclaveError::EnclaveFailure(
+                "Attestation replay guard is unavailable".to_string(),
+            )),
         }
+    }
 
-        // 3. Verify freshness window (60 seconds)
-        let now = unix_time_secs();
-        if now > report.timestamp + 60 {
-            return Err(ConclaveError::EnclaveFailure(
-                "Attestation report has expired".to_string(),
-            ));
-        }
-
-        Ok(())
+    /// Legacy compatibility entry point. The former boolean was a runtime
+    /// bypass; it is intentionally ignored and attestation remains mandatory.
+    pub fn verify_hardware_integrity_with_policy(
+        &self,
+        intent: &SwapIntent,
+        attestation_json: &Option<String>,
+        _legacy_enforce: bool,
+    ) -> ConclaveResult<()> {
+        self.verify_hardware_integrity(intent, attestation_json)
     }
 }
 
@@ -366,7 +404,10 @@ mod tests {
 #[cfg(test)]
 mod rail_proxy_tests {
     use super::*;
-    use crate::enclave::attestation::{AttestationLevel, DeviceIntegrityReport};
+    use crate::enclave::attestation::{
+        AttestationLevel, AttestationPolicy, DeviceIntegrityReport, MAX_ATTESTATION_AGE_SECS,
+        MAX_ATTESTATION_FUTURE_SKEW_SECS,
+    };
     use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
     use crate::protocol::business::BusinessRegistry;
     use crate::telemetry::TelemetryClient;
@@ -405,14 +446,13 @@ mod rail_proxy_tests {
         }
     }
 
-    fn test_attestation_json(nonce: Vec<u8>) -> String {
+    fn test_attestation_report(nonce: Vec<u8>, timestamp: u64) -> DeviceIntegrityReport {
         let mut seed = [0u8; 32];
         rand::rng().fill_bytes(&mut seed);
         let signing_key = SigningKey::from_bytes(&seed);
         let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
 
-        let timestamp = unix_time_secs();
-        let extension_data = "PURPOSE_SIGN|ALGORITHM_EC|OS_VERSION_14".to_string();
+        let extension_data = "PURPOSE_SIGN|ALGORITHM_ED25519|OS_VERSION_14".to_string();
 
         let mut data_to_verify = Vec::new();
         data_to_verify.extend_from_slice(&nonce);
@@ -421,15 +461,19 @@ mod rail_proxy_tests {
 
         let signature = signing_key.sign(&data_to_verify).to_bytes().to_vec();
 
-        serde_json::to_string(&DeviceIntegrityReport {
+        DeviceIntegrityReport {
             level: AttestationLevel::TEE,
             challenge_nonce: nonce,
             signature,
-            certificate_chain: vec![pubkey_hex, "CONCLAVE_ROOT_CA_01".to_string()],
+            certificate_chain: vec![pubkey_hex, "CONCLAVE_ROOT_CA_V1".to_string()],
             timestamp,
             extension_data,
-        })
-        .expect("attestation should serialize")
+        }
+    }
+
+    fn test_attestation_json(nonce: Vec<u8>) -> String {
+        serde_json::to_string(&test_attestation_report(nonce, unix_time_secs()))
+            .expect("attestation should serialize")
     }
 
     #[tokio::test]
@@ -470,25 +514,134 @@ mod rail_proxy_tests {
     }
 
     #[test]
-    fn test_attestation_bypass_allowed_in_test_build() {
-        let mut proxy = test_proxy();
-        proxy.enforce_attestation = false;
-        let intent = test_intent(vec![9; 32]);
-        let no_attestation = None;
+    fn test_forged_report_is_rejected_without_consuming_replay_state() {
+        let proxy = test_proxy();
+        let intent = test_intent(vec![4; 32]);
+        let mut forged_report =
+            test_attestation_report(intent.signable_hash.clone(), unix_time_secs());
+        forged_report.signature[0] ^= 0xFF;
 
+        let forged_json = Some(serde_json::to_string(&forged_report).unwrap());
+        let forged_result = proxy.verify_hardware_integrity(&intent, &forged_json);
+        assert!(matches!(
+            forged_result,
+            Err(ConclaveError::EnclaveFailure(message)) if message.contains("cryptographic")
+        ));
+
+        let valid_json = Some(test_attestation_json(intent.signable_hash.clone()));
         assert!(proxy
-            .verify_hardware_integrity(&intent, &no_attestation)
+            .verify_hardware_integrity(&intent, &valid_json)
             .is_ok());
     }
 
     #[test]
-    fn test_attestation_bypass_fails_closed_when_policy_disallows_it() {
-        let mut proxy = test_proxy();
-        proxy.enforce_attestation = false;
+    fn test_wrong_nonce_is_rejected_before_replay_recording() {
+        let proxy = test_proxy();
+        let intent = test_intent(vec![5; 32]);
+        let report = test_attestation_report(vec![6; 32], unix_time_secs());
+        let attestation = Some(serde_json::to_string(&report).unwrap());
+
+        let result = proxy.verify_hardware_integrity(&intent, &attestation);
+        assert!(matches!(
+            result,
+            Err(ConclaveError::EnclaveFailure(message)) if message.contains("does not match")
+        ));
+
+        let valid_json = Some(test_attestation_json(intent.signable_hash.clone()));
+        assert!(proxy
+            .verify_hardware_integrity(&intent, &valid_json)
+            .is_ok());
+    }
+
+    #[test]
+    fn test_untrusted_root_is_rejected_without_consuming_replay_state() {
+        let proxy = test_proxy();
+        let intent = test_intent(vec![7; 32]);
+        let mut report = test_attestation_report(intent.signable_hash.clone(), unix_time_secs());
+        report.certificate_chain[1] = "UNTRUSTED_ROOT".to_string();
+        let attestation = Some(serde_json::to_string(&report).unwrap());
+
+        let result = proxy.verify_hardware_integrity(&intent, &attestation);
+        assert!(matches!(
+            result,
+            Err(ConclaveError::EnclaveFailure(message)) if message.contains("cryptographic")
+        ));
+
+        let valid_json = Some(test_attestation_json(intent.signable_hash.clone()));
+        assert!(proxy
+            .verify_hardware_integrity(&intent, &valid_json)
+            .is_ok());
+    }
+
+    #[test]
+    fn test_stale_and_future_reports_are_rejected() {
+        let now = unix_time_secs();
+
+        let stale_proxy = test_proxy();
+        let stale_intent = test_intent(vec![8; 32]);
+        let stale_report = test_attestation_report(
+            stale_intent.signable_hash.clone(),
+            now.saturating_sub(MAX_ATTESTATION_AGE_SECS + 1),
+        );
+        let stale_json = Some(serde_json::to_string(&stale_report).unwrap());
+        assert!(matches!(
+            stale_proxy.verify_hardware_integrity(&stale_intent, &stale_json),
+            Err(ConclaveError::EnclaveFailure(message)) if message.contains("cryptographic")
+        ));
+
+        let future_proxy = test_proxy();
+        let future_intent = test_intent(vec![10; 32]);
+        let future_report = test_attestation_report(
+            future_intent.signable_hash.clone(),
+            now.saturating_add(MAX_ATTESTATION_FUTURE_SKEW_SECS + 1),
+        );
+        let future_json = Some(serde_json::to_string(&future_report).unwrap());
+        assert!(matches!(
+            future_proxy.verify_hardware_integrity(&future_intent, &future_json),
+            Err(ConclaveError::EnclaveFailure(message)) if message.contains("cryptographic")
+        ));
+    }
+
+    #[test]
+    fn test_configured_attestation_policy_is_enforced() {
+        let policy = AttestationPolicy::production()
+            .with_trusted_roots(vec!["TEST_ROOT".to_string()])
+            .unwrap()
+            .with_allowed_levels(vec![AttestationLevel::TEE])
+            .unwrap();
+        let proxy = test_proxy().with_attestation_policy(policy);
+        let intent = test_intent(vec![12; 32]);
+        let mut report = test_attestation_report(intent.signable_hash.clone(), unix_time_secs());
+        report.certificate_chain[1] = "TEST_ROOT".to_string();
+        let attestation = Some(serde_json::to_string(&report).unwrap());
+
+        assert!(proxy
+            .verify_hardware_integrity(&intent, &attestation)
+            .is_ok());
+    }
+
+    #[test]
+    fn test_attestation_is_always_required() {
+        let proxy = test_proxy();
+        let intent = test_intent(vec![9; 32]);
+        let no_attestation = None;
+
+        let result = proxy
+            .verify_hardware_integrity(&intent, &no_attestation)
+            .expect_err("attestation must be mandatory");
+        assert!(matches!(
+            result,
+            ConclaveError::EnclaveFailure(message) if message.contains("required")
+        ));
+    }
+
+    #[test]
+    fn test_legacy_policy_flag_cannot_disable_attestation() {
+        let proxy = test_proxy();
         let intent = test_intent(vec![11; 32]);
         let no_attestation = None;
 
-        let result = proxy.verify_hardware_integrity_with_policy(&intent, &no_attestation, true);
+        let result = proxy.verify_hardware_integrity_with_policy(&intent, &no_attestation, false);
 
         assert!(matches!(
             result,
@@ -498,7 +651,7 @@ mod rail_proxy_tests {
 
     #[test]
     fn test_trust_tier_enforcement() {
-        let mut proxy = test_proxy();
+        let proxy = test_proxy();
         let request = SwapRequest {
             from_asset: AssetIdentifier {
                 chain: Chain::BITCOIN,
@@ -513,25 +666,25 @@ mod rail_proxy_tests {
             attribution: None,
         };
 
-        proxy.min_trust_tier = TrustTier::T3;
+        let proxy = proxy.with_min_trust_tier(TrustTier::T3);
         assert!(proxy.prepare_intent("x402", request.clone(), None).is_ok());
 
-        proxy.min_trust_tier = TrustTier::T1;
+        let proxy = proxy.with_min_trust_tier(TrustTier::T1);
         assert!(proxy.prepare_intent("x402", request.clone(), None).is_ok());
     }
 
     #[tokio::test]
     async fn test_proof_envelope_injection() {
         let mut rail_proxy = test_proxy();
-        rail_proxy.enforce_attestation = false;
-        rail_proxy.min_trust_tier = TrustTier::T4;
+        rail_proxy = rail_proxy.with_min_trust_tier(TrustTier::T4);
         rail_proxy.register_rail(Box::new(CustomRail));
 
         let mut intent = test_intent(vec![13; 32]);
         intent.rail_type = "custom_partner".to_string();
+        let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
 
         let response = rail_proxy
-            .broadcast_signed_intent(intent, "sig".to_string(), None)
+            .broadcast_signed_intent(intent, "sig".to_string(), attestation)
             .await
             .unwrap();
         assert!(response.proof_envelope.is_some());
@@ -539,8 +692,7 @@ mod rail_proxy_tests {
 
     #[test]
     fn test_discover_best_rail() {
-        let mut proxy = test_proxy();
-        proxy.min_trust_tier = TrustTier::T3;
+        let proxy = test_proxy().with_min_trust_tier(TrustTier::T3);
 
         let request = SwapRequest {
             from_asset: AssetIdentifier {
