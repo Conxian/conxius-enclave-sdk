@@ -47,7 +47,10 @@ pub struct WasmArkClient {
 impl WasmArkClient {
     pub fn derive_vutxo_key(&self, seed_hex: &str, index: u32) -> Result<String, JsValue> {
         let seed = hex::decode(seed_hex).map_err(to_js_error)?;
-        let key = self.inner.derive_vutxo_key(&seed, index);
+        let key = self
+            .inner
+            .derive_vutxo_key(&seed, index)
+            .map_err(to_js_error)?;
         Ok(hex::encode(key))
     }
 
@@ -431,7 +434,7 @@ impl WasmFedimintClient {
 
     pub fn verify_note(&self, note: JsValue) -> Result<bool, JsValue> {
         let note_obj = serde_wasm_bindgen::from_value(note).map_err(to_js_error)?;
-        Ok(self.inner.verify_note(&note_obj))
+        self.inner.verify_note(&note_obj).map_err(to_js_error)
     }
 }
 
