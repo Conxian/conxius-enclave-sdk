@@ -2,6 +2,8 @@
 
 This document tracks known technical debt in the `conxius-enclave-sdk` repository.
 
+The [capability evidence JSON](docs/architecture/capability-evidence.json) is the canonical cross-check for whether a debt item affects API presence, implementation, integration, independent review, or production support. Simulation and API completeness are not production evidence.
+
 ## Classification Schema
 
 | Priority | Description |
@@ -66,18 +68,18 @@ This document tracks known technical debt in the `conxius-enclave-sdk` repositor
 - **Risk**: Changes to hardware attestation may break production flows
 - **Recommendation**: Add integration tests with mock hardware; block production Trust Tiers without hardware tests
 - **AGENTS.md Reference**: "Hardware-backed logic should be tested with both simulated and software attestation"
-- **Status**: ✅ RESOLVED (2026-07-14) - Comprehensive test suite added with 25 tests covering trust tiers, freshness, replay protection, and trust enforcement
+- **Status**: Unit/simulation evidence recorded (2026-07-14); production hardware/provider evidence and caller enforcement remain open in [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) and [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202)
 
 ### P3 - Medium
 
-#### ARCH-001: WASM Bindings Completeness
+#### ARCH-001: WASM API coverage versus runtime evidence
 - **Category**: Architecture
 - **Priority**: P3
-- **Description**: WASM bindings may not cover all SDK functionality
-- **Current**: 23 WASM client types covering Ark, BitVM, Ethereum, Solana, Fedimint, FROST, Covenant, Intent, Account, CCTP, Lightning, Swap Router, Solver, ZKML, DLC, MMR, Business, Settlement, Stablecoin, Opportunity, A2P
+- **Description**: WASM API coverage must remain distinct from runtime, platform, provider, hardware, and JavaScript secret-boundary evidence
+- **Current**: Required WASM sub-client API rows are explicit in the canonical capability evidence; exact counts are not readiness evidence
 - **Risk**: Incomplete web/mobile integration surface
-- **Status**: ✅ RESOLVED (2026-07-15) - Added 7 new WASM bindings (DLC, MMR, Business, Settlement, Stablecoin, Opportunity, A2P)
-- **Related Issue**: #172 (release requirement)
+- **Status**: API inventory recorded (2026-07-15); runtime/platform/secret-boundary evidence remains open in [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200)
+- **Related Issue**: Historical #172 is context only; current evidence work is #200
 
 #### DOC-002: Missing Examples
 - **Category**: Documentation
@@ -113,10 +115,10 @@ This document tracks known technical debt in the `conxius-enclave-sdk` repositor
 | DEP-001 | 2026-07-08 | Next stable deps | In Progress | 2026-07-14 |
 | DOC-001 | 2026-07-08 | v2.0.7 release | ✅ Resolved | 2026-07-14 |
 | DEP-002 | 2026-07-08 | Q3 2026 | Planned | 2026-07-14 |
-| TEST-001 | 2026-07-08 | v2.0.9 | ✅ Resolved | 2026-07-14 |
+| TEST-001 | 2026-07-08 | Hardware/provider evidence | Reclassified — simulation/unit evidence only; #195 open | 2026-07-20 |
 | SEC-001 | 2026-07-12 | Structural FROST validation | ✅ Resolved (structural validation only; production cryptography open) | 2026-07-20 |
 | DOC-003 | 2026-07-08 | CHANGELOG [Unreleased] | ✅ Resolved | 2026-07-14 |
-| ARCH-001 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
+| ARCH-001 | 2026-07-14 | Runtime/platform/secret boundary | Reclassified — API inventory only; #200 open | 2026-07-20 |
 | DOC-002 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
 | CI-001 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
 | BIP-110 | 2026-07-15 | v2.0.13 | ✅ Resolved | 2026-07-15 |
@@ -125,8 +127,8 @@ This document tracks known technical debt in the `conxius-enclave-sdk` repositor
 
 - **BIP-110**: Added BIP-110 compliant message validation and chunking validation into BIP-322 message verification, hardened compact size serialization, and added comprehensive commitment segmentation tests (Resolved: 2026-07-15).
 - **SEC-001**: Added structural FROST DKG Round 2 verification in `src/protocol/frost.rs` to validate received shares against expected polynomial commitments and identifiers. This resolves the placeholder validation only; production RFC 9591-compatible DKG, signing, secure share storage, and real aggregation remain open (reclassified: 2026-07-20).
-- **TEST-001**: Comprehensive hardware attestation test suite in `src/enclave/hardware_attestation_tests.rs` covering trust tiers, freshness, replay protection, cryptographic verification, and trust enforcement with 25 tests (Resolved: 2026-07-14).
-- **ARCH-001**: WASM bindings completeness audit - Added 7 new WASM bindings (DLC, MMR, Business, Settlement, Stablecoin, Opportunity, A2P) (Resolved: 2026-07-15).
+- **TEST-001**: Comprehensive hardware attestation simulation/unit suite in `src/enclave/hardware_attestation_tests.rs` covering trust tiers, freshness, replay protection, cryptographic verification, and trust enforcement with 25 tests (evidence recorded: 2026-07-14; production hardware/provider gate remains open in #195).
+- **ARCH-001**: WASM API inventory updated with explicit required sub-client rows (API evidence recorded: 2026-07-15; runtime/platform/secret-boundary gate remains open in #200).
 - **DOC-002**: Examples directory created with 6 practical usage examples (Resolved: 2026-07-15).
 - **CI-001**: Node.js 24 compliance - Updated all GitHub Actions to compatible versions (Resolved: 2026-07-15).
 
