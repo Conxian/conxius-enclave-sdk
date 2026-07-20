@@ -7,6 +7,11 @@
 - Added BIP-110 validator module with limits: 256-byte pushdata, 83-byte OP_RETURN, 34-byte ScriptPubKey
 - Added message chunking utilities for BIP-322 under BIP-110 rules
 
+### Changed
+- Removed the WASM `derive_vutxo_key` private-key export and added provider-backed public-key/signing capability names.
+- Made unsupported WASM runtimes, providers, BitVM2 construction, and secret-bearing Fedimint flows fail closed with typed error codes.
+- Added the [WASM runtime/provider support matrix](docs/architecture/WASM_SUPPORT_MATRIX.md) and [key-boundary migration note](docs/migrations/wasm-key-boundary.md).
+
 ### Documentation
 
 ## [2.0.12] - 2026-07-15
