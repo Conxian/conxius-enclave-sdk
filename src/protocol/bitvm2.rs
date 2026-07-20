@@ -6,7 +6,8 @@
 //! Architecture (Q4 2025):
 //! - Permissionless challengers (existential honesty - 1-of-n)
 //! - Optimistic commitment model with fraud proofs
-//! - Script chunking for Bitcoin's 100KB block limit
+//! - Client-side proof segmentation is covered by feature-gated regression tests;
+//!   this module does not serialize those chunks into on-chain scripts.
 //!
 //! References:
 //! - BitVM2 Whitepaper: https://bitvm.org/bitvm_bridge.pdf
@@ -426,5 +427,20 @@ mod tests {
         let result = orch.challenge_commitment(&commitment_id, response);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "bip110_compliant")]
+    fn test_bip110_ordered_bitvm2_proof_segmentation() {
+        let proof: Vec<u8> = (0..513).map(|index| (index % 251) as u8).collect();
+        let chunks = crate::protocol::bip110::try_chunk_for_bip110(&proof, 256)
+            .expect("strict chunking succeeds");
+
+        assert_eq!(
+            chunks.iter().map(|chunk| chunk.len()).collect::<Vec<_>>(),
+            vec![256, 256, 1]
+        );
+        let reconstructed: Vec<u8> = chunks.into_iter().flatten().collect();
+        assert_eq!(reconstructed, proof);
     }
 }
