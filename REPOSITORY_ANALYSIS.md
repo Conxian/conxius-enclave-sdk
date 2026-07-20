@@ -231,7 +231,7 @@ From `conxius-platform#1136`:
 - ✅ Zero-dependency error handling
 - ✅ WASM-ready architecture (12 client types)
 - ✅ Comprehensive settlement rails
-- ✅ Hardened FROST implementation
+- ⚠️ FROST structural/hash placeholder validation only; production DKG, signing, share storage, and aggregation remain unimplemented
 - ✅ Comprehensive test suite (121 tests)
 - ✅ Self-evolution knowledge patterns
 
