@@ -1,13 +1,16 @@
 use crate::protocol::rails::TrustTier;
-use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
+use crate::protocol::rails::VerifiedOperation;
+use crate::protocol::rails::{SovereignRail, SwapRequest, SwapResponse};
 use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
 use serde_json::json;
 
-pub struct NTTRail {
-    pub gateway_url: String,
-    pub http_client: reqwest::Client,
+pub(crate) struct NTTRail {
+    pub(crate) gateway_url: String,
+    pub(crate) http_client: reqwest::Client,
 }
+
+impl super::sealed::SovereignRail for NTTRail {}
 
 #[async_trait(?Send)]
 impl SovereignRail for NTTRail {
@@ -28,11 +31,8 @@ impl SovereignRail for NTTRail {
         Ok(Some("NTT_WORMHOLE_V1".to_string()))
     }
 
-    async fn execute_swap(
-        &self,
-        intent: SwapIntent,
-        signature: String,
-    ) -> ConclaveResult<SwapResponse> {
+    async fn execute_swap(&self, operation: VerifiedOperation) -> ConclaveResult<SwapResponse> {
+        let (intent, signature) = operation.into_parts();
         let url = format!("{}/v1/rails/ntt/execute", self.gateway_url);
         let payload = json!({
             "intent": intent,
