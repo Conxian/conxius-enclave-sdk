@@ -370,6 +370,30 @@ mod tests {
     }
 
     #[test]
+    fn software_strongbox_schnorr_matches_bip340_known_answer() {
+        let enclave = CoreEnclaveManager::new();
+        let mut secret_key = [0u8; 32];
+        secret_key[31] = 3;
+        let message = [0u8; 32];
+
+        // `sign_no_aux_rand` uses the BIP340 deterministic zero-auxiliary-
+        // randomness path. The fixed key/message pair is the BIP340 vector.
+        let response = enclave.sign_schnorr(&secret_key, &message, None).unwrap();
+
+        assert_eq!(
+            response.signature_hex,
+            concat!(
+                "e907831f80848d1069a5371b402410364bdf1c5f8307b0084c55f1ce2dca8215",
+                "25f66a4a85ea8b71e482a74f382d2ce5ebeee8fdb2172f477df4900d310536c0"
+            )
+        );
+        assert_eq!(
+            response.public_key_hex,
+            "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
+        );
+    }
+
+    #[test]
     fn software_strongbox_ed25519_fails_closed_as_unsupported() {
         let result = unlocked_enclave().sign(request(
             SigningAlgorithm::Ed25519,

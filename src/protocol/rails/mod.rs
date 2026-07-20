@@ -1,9 +1,9 @@
-pub mod bisq;
-pub mod boltz;
-pub mod changelly;
-pub mod ntt;
-pub mod wormhole;
-pub mod x402;
+pub(crate) mod bisq;
+pub(crate) mod boltz;
+pub(crate) mod changelly;
+pub(crate) mod ntt;
+pub(crate) mod wormhole;
+pub(crate) mod x402;
 
 use crate::enclave::attestation::{AttestationPolicy, DeviceIntegrityReport};
 use crate::enclave::replay_guard::{ReplayGuard, ReplayGuardError};
@@ -18,6 +18,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+mod sealed {
+    pub(super) trait SovereignRail {}
+}
+
 /// Represents the level of trust and security of a settlement rail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum TrustTier {
@@ -31,17 +35,47 @@ pub enum TrustTier {
     T4,
 }
 
-/// Abstract representation of a settlement rail (e.g. x402, Wormhole, NTT).
+/// Internal representation of a settlement rail (e.g. x402, Wormhole, NTT).
+///
+/// This trait is deliberately private and sealed. Downstream crates cannot
+/// implement it, obtain a built-in rail, or invoke a rail with an opaque raw
+/// signature. The only execution input is the private `VerifiedOperation`
+/// created by a checked dispatcher or a `cfg(test)` fixture.
 #[async_trait(?Send)]
-pub trait SovereignRail: Send + Sync {
+#[allow(dead_code)]
+trait SovereignRail: sealed::SovereignRail + Send + Sync {
     fn name(&self) -> &'static str;
     fn trust_tier(&self) -> TrustTier;
     fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>>;
-    async fn execute_swap(
-        &self,
-        intent: SwapIntent,
-        signature: String,
-    ) -> ConclaveResult<SwapResponse>;
+    async fn execute_swap(&self, operation: VerifiedOperation) -> ConclaveResult<SwapResponse>;
+}
+
+/// Private transport for a signature that has passed the checked operation
+/// boundary. Its fields and constructor are inaccessible outside this module;
+/// production code has no constructor until typed key, algorithm, and provider
+/// evidence binding is implemented.
+#[allow(dead_code)]
+struct VerifiedOperation {
+    intent: SwapIntent,
+    signature: String,
+}
+
+#[allow(dead_code)]
+impl VerifiedOperation {
+    fn intent(&self) -> &SwapIntent {
+        &self.intent
+    }
+
+    fn into_parts(self) -> (SwapIntent, String) {
+        (self.intent, self.signature)
+    }
+
+    /// Test-only fixture constructor. This is intentionally not a production
+    /// verification path and is not compiled into downstream library builds.
+    #[cfg(test)]
+    fn from_test_fixture(intent: SwapIntent, signature: String) -> Self {
+        Self { intent, signature }
+    }
 }
 
 /// The Sovereign Handshake: A non-custodial protocol where the Gateway
@@ -58,9 +92,11 @@ pub trait SovereignHandshake {
 
     /// Executes the swap by broadcasting the signed intent to the Gateway.
     ///
-    /// Compatibility note: this legacy API carries an opaque signature string.
-    /// Production builds reject it until a typed operation-signature envelope
-    /// binds the algorithm, public key, and canonical intent hash.
+    /// Deprecated migration shim: this legacy API carries an opaque signature
+    /// string and is not a rail execution boundary. Production builds always
+    /// return `Unsupported` until a typed operation-signature envelope binds
+    /// the algorithm, operation public key, provider evidence, and complete
+    /// canonical intent hash. The old request-only hash format is rejected.
     async fn broadcast_signed_intent(
         &self,
         intent: SwapIntent,
@@ -69,12 +105,22 @@ pub trait SovereignHandshake {
     ) -> ConclaveResult<SwapResponse>;
 }
 
+/// Checked dispatcher for sovereign settlement rails.
+///
+/// Built-in rails and the internal `SovereignRail` boundary are intentionally
+/// not part of the downstream API. The old raw-signature rail surface is kept
+/// only as a deprecated, fail-closed migration shim:
+///
+/// ```compile_fail
+/// use conxius_enclave_sdk::protocol::rails::{x402::X402Rail, SovereignRail};
+/// fn main() {}
+/// ```
 pub struct RailProxy {
     pub gateway_url: String,
     pub client: reqwest::Client,
     pub registry: Arc<AssetRegistry>,
     pub business: Arc<BusinessRegistry>,
-    pub rails: HashMap<String, Box<dyn SovereignRail>>,
+    rails: HashMap<String, Box<dyn SovereignRail>>,
     min_trust_tier: TrustTier,
     attestation_policy: AttestationPolicy,
     replay_guard: Arc<ReplayGuard>,
@@ -155,7 +201,8 @@ impl RailProxy {
         self
     }
 
-    pub fn register_rail(&mut self, rail: Box<dyn SovereignRail>) {
+    #[cfg(test)]
+    fn register_rail(&mut self, rail: Box<dyn SovereignRail>) {
         self.rails.insert(rail.name().to_string(), rail);
     }
 
@@ -233,10 +280,11 @@ impl RailProxy {
         policy: &AttestationPolicy,
         now_secs: u64,
     ) -> ConclaveResult<()> {
-        let canonical_hash = intent.request.get_hash_bytes();
+        let canonical_hash = intent.canonical_hash();
         if intent.signable_hash != canonical_hash {
             return Err(ConclaveError::EnclaveFailure(
-                "Swap intent canonical hash mismatch".to_string(),
+                "Swap intent canonical hash mismatch; legacy request-only hashes are rejected"
+                    .to_string(),
             ));
         }
 
@@ -307,6 +355,41 @@ impl RailProxy {
     ) -> ConclaveResult<()> {
         self.verify_hardware_integrity(intent, attestation_json)
     }
+
+    #[allow(dead_code)]
+    async fn dispatch_verified_operation(
+        &self,
+        operation: VerifiedOperation,
+    ) -> ConclaveResult<SwapResponse> {
+        let intent = operation.intent();
+        if intent.signable_hash != intent.canonical_hash() {
+            return Err(ConclaveError::EnclaveFailure(
+                "Swap intent canonical hash mismatch; legacy request-only hashes are rejected"
+                    .to_string(),
+            ));
+        }
+
+        let rail_name = intent.rail_type.clone();
+        let rail = self
+            .rails
+            .get(&rail_name)
+            .ok_or(ConclaveError::RailError(format!(
+                "Rail {} not found",
+                rail_name
+            )))?;
+
+        if rail.name() != rail_name {
+            return Err(ConclaveError::RailError(
+                "Rail identity does not match the selected operation rail".to_string(),
+            ));
+        }
+
+        if let Some(telemetry) = &self.telemetry {
+            telemetry.track_signature(hex::encode(&intent.signable_hash));
+        }
+
+        rail.execute_swap(operation).await
+    }
 }
 
 #[async_trait(?Send)]
@@ -333,13 +416,14 @@ impl SovereignHandshake for RailProxy {
 
         let _ = rail.validate_request(&request)?;
 
-        let intent = SwapIntent {
+        let mut intent = SwapIntent {
             request: request.clone(),
-            signable_hash: request.get_hash_bytes(),
+            signable_hash: Vec::new(),
             rail_type: rail_name.to_string(),
             chain_context: None,
             fdc3_context,
         };
+        intent.signable_hash = intent.canonical_hash();
 
         Ok(intent)
     }
@@ -350,51 +434,42 @@ impl SovereignHandshake for RailProxy {
         signature: String,
         attestation: Option<String>,
     ) -> ConclaveResult<SwapResponse> {
-        let canonical_hash = intent.request.get_hash_bytes();
-        if intent.signable_hash != canonical_hash {
-            return Err(ConclaveError::EnclaveFailure(
-                "Swap intent canonical hash mismatch".to_string(),
-            ));
-        }
-
-        // The legacy API carries only an opaque signature string. It has no
-        // operation key, algorithm, or signed-message binding, so production
-        // code must fail closed rather than forward an unverified signature.
-        ensure_operation_signature_is_bound(&signature)?;
-
         #[cfg(not(test))]
         {
-            let _ = attestation;
+            let _ = (intent, signature, attestation);
             return Err(ConclaveError::Unsupported(
-                "Typed operation-signature envelope required; raw signatures are not verified and are never forwarded in production".to_string(),
+                "Typed operation-signature envelope required; raw signatures are not verified and are never forwarded in production"
+                    .to_string(),
             ));
         }
 
         #[cfg(test)]
         {
-            // This branch exists only for local unit-test rail fixtures. It is
-            // intentionally not compiled into downstream production builds.
-            self.verify_hardware_integrity(&intent, &attestation)?;
-
-            if let Some(telemetry) = &self.telemetry {
-                telemetry.track_signature(hex::encode(&intent.signable_hash));
+            let canonical_hash = intent.canonical_hash();
+            if intent.signable_hash != canonical_hash {
+                return Err(ConclaveError::EnclaveFailure(
+                    "Swap intent canonical hash mismatch; legacy request-only hashes are rejected"
+                        .to_string(),
+                ));
             }
 
-            let rail = self
-                .rails
-                .get(&intent.rail_type)
-                .ok_or(ConclaveError::RailError(format!(
-                    "Rail {} not found",
-                    intent.rail_type
-                )))?;
+            // This branch exists only for local unit-test rail fixtures. It is
+            // intentionally not compiled into downstream production builds.
+            ensure_operation_signature_is_bound(&signature)?;
+            self.verify_hardware_integrity(&intent, &attestation)?;
 
-            rail.execute_swap(intent, signature).await
+            let operation = VerifiedOperation::from_test_fixture(intent, signature);
+            self.dispatch_verified_operation(operation).await
         }
     }
 }
 
-pub struct CustomRail;
+#[cfg(test)]
+struct CustomRail;
+#[cfg(test)]
+impl sealed::SovereignRail for CustomRail {}
 #[async_trait(?Send)]
+#[cfg(test)]
 impl SovereignRail for CustomRail {
     fn name(&self) -> &'static str {
         "custom_partner"
@@ -405,11 +480,8 @@ impl SovereignRail for CustomRail {
     fn validate_request(&self, _request: &SwapRequest) -> ConclaveResult<Option<String>> {
         Ok(Some("Valid partner".to_string()))
     }
-    async fn execute_swap(
-        &self,
-        intent: SwapIntent,
-        _signature: String,
-    ) -> ConclaveResult<SwapResponse> {
+    async fn execute_swap(&self, operation: VerifiedOperation) -> ConclaveResult<SwapResponse> {
+        let (intent, _signature) = operation.into_parts();
         Ok(SwapResponse {
             proof_envelope: Some("partner_proof".to_string()),
             transaction_id: format!("PARTNER-{}", hex::encode(&intent.signable_hash[..8])),
@@ -439,19 +511,12 @@ fn default_attestation_policy() -> AttestationPolicy {
     }
 }
 
+#[cfg(test)]
 fn ensure_operation_signature_is_bound(signature: &str) -> ConclaveResult<()> {
     #[cfg(test)]
     {
         let _ = signature;
         Ok(())
-    }
-
-    #[cfg(not(test))]
-    {
-        let _ = signature;
-        Err(ConclaveError::Unsupported(
-            "Typed operation-signature envelope required; raw signatures are not verified and are never forwarded in production".to_string(),
-        ))
     }
 }
 
@@ -533,13 +598,15 @@ mod rail_proxy_tests {
             attribution: None,
         };
 
-        SwapIntent {
-            signable_hash: request.get_hash_bytes(),
+        let mut intent = SwapIntent {
+            signable_hash: Vec::new(),
             request,
             rail_type: "x402".to_string(),
             chain_context: None,
             fdc3_context: None,
-        }
+        };
+        intent.signable_hash = intent.canonical_hash();
+        intent
     }
 
     fn test_attestation_report(nonce: Vec<u8>, timestamp: u64) -> DeviceIntegrityReport {
@@ -804,6 +871,20 @@ mod rail_proxy_tests {
     }
 
     #[test]
+    fn test_legacy_request_only_hash_is_rejected() {
+        let proxy = test_proxy();
+        let mut intent = test_intent(vec![15; 32]);
+        intent.signable_hash = intent.request.get_hash_bytes();
+
+        let result = proxy.verify_hardware_integrity(&intent, &None);
+        assert!(matches!(
+            result,
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("legacy request-only hashes are rejected")
+        ));
+    }
+
+    #[test]
     fn test_legacy_policy_flag_cannot_disable_attestation() {
         let proxy = test_proxy();
         let intent = test_intent(vec![11; 32]);
@@ -849,6 +930,7 @@ mod rail_proxy_tests {
 
         let mut intent = test_intent(vec![13; 32]);
         intent.rail_type = "custom_partner".to_string();
+        intent.signable_hash = intent.canonical_hash();
         let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
 
         // This deliberately opaque value is accepted only because this unit
@@ -903,7 +985,11 @@ mod rail_proxy_tests {
         let intent = proxy.prepare_intent("x402", request, Some(fdc3)).unwrap();
 
         assert!(intent.fdc3_context.is_some());
-        assert_eq!(intent.fdc3_context.unwrap().context_type, "fdc3.instrument");
+        assert_eq!(
+            intent.fdc3_context.as_ref().unwrap().context_type,
+            "fdc3.instrument"
+        );
+        assert_eq!(intent.signable_hash, intent.canonical_hash());
     }
 }
 
