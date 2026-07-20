@@ -1,0 +1,1438 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schemaVersion": 1,
+  "repository": "Conxian/conxius-enclave-sdk",
+  "reviewedRef": "79a4a082ab2c05e5b1b30335ab56b9e6d068c7e8",
+  "lastVerified": "2026-07-20",
+  "maturity": "beta-conditional",
+  "statusVocabulary": {
+    "evidence": ["yes", "partial", "no", "not-evidenced"],
+    "productionSupport": ["unsupported", "conditional", "production-supported"]
+  },
+  "axisOrder": [
+    "api",
+    "implementation",
+    "integration",
+    "independentReview",
+    "productionSupport"
+  ],
+  "evidenceStageOrder": ["requirement", "code", "test", "ci", "artifact"],
+  "requiredWasmIds": [
+    "wasm-lightning",
+    "wasm-settlement-service",
+    "wasm-solver",
+    "wasm-swap-router",
+    "wasm-zkml",
+    "wasm-dlc",
+    "wasm-stablecoin",
+    "wasm-job-card-iso20022",
+    "wasm-mmr",
+    "wasm-opportunity",
+    "wasm-business",
+    "wasm-a2p"
+  ],
+  "capabilities": [
+    {
+      "id": "enclave-signing",
+      "name": "Enclave signing",
+      "family": "enclave",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "partial",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/enclave/mod.rs:1-67",
+        "src/enclave/android_strongbox.rs:1-250",
+        "src/enclave/cloud.rs:1-190",
+        "src/enclave/hardware_attestation_tests.rs:1-450",
+        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-80",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-80", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
+        {"stage": "code", "refs": ["src/enclave/mod.rs:1-67", "src/enclave/android_strongbox.rs:1-250", "src/enclave/cloud.rs:1-190"]},
+        {"stage": "test", "refs": ["src/enclave/hardware_attestation_tests.rs:1-450"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/security.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Software-backed and simulated signing paths are development evidence only; no value-bearing production support is claimed.",
+      "notes": "The interface and local tests exist, but hardware-backed provider enforcement and exact release evidence remain open."
+    },
+    {
+      "id": "enclave-attestation",
+      "name": "Enclave hardware attestation",
+      "family": "enclave",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/enclave/attestation.rs:1-251",
+        "src/enclave/hardware_attestation_tests.rs:1-450",
+        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-100", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
+        {"stage": "code", "refs": ["src/enclave/attestation.rs:1-251"]},
+        {"stage": "test", "refs": ["src/enclave/hardware_attestation_tests.rs:1-450"]},
+        {"stage": "ci", "refs": [".github/workflows/security.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Simulated fixtures and software attestation tests do not establish vendor-root, deployed-hardware, or release-artifact support.",
+      "notes": "Report verification has useful checks, but important callers and provider evidence are not complete."
+    },
+    {
+      "id": "replay-protection",
+      "name": "Attestation replay and freshness protection",
+      "family": "enclave",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "partial",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/enclave/replay_guard.rs:1-103",
+        "src/enclave/attestation.rs:1-251",
+        "src/enclave/hardware_attestation_tests.rs:1-450",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-100", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
+        {"stage": "code", "refs": ["src/enclave/replay_guard.rs:1-103", "src/enclave/attestation.rs:1-251"]},
+        {"stage": "test", "refs": ["src/enclave/hardware_attestation_tests.rs:1-450", "src/enclave/replay_guard.rs:1-103"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Local replay-cache tests are not a deployed-provider or exact-artifact production claim.",
+      "notes": "Freshness and replay behavior is tracked separately so a passing unit suite cannot imply complete caller enforcement."
+    },
+    {
+      "id": "rail-policy",
+      "name": "Rail policy and attestation enforcement",
+      "family": "rails",
+      "api": "yes",
+      "implementation": "no",
+      "integration": "partial",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/rails/mod.rs:1-635",
+        "src/protocol/rails/mod.rs:450-550",
+        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
+        {"stage": "code", "refs": ["src/protocol/rails/mod.rs:1-635"]},
+        {"stage": "test", "refs": ["src/protocol/rails/mod.rs:450-550"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/security.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Policy bypass tests and partial checks are not production authorization evidence.",
+      "notes": "The rail path must invoke complete attestation verification and fail closed before any value-bearing support claim."
+    },
+    {
+      "id": "rail-adapters",
+      "name": "Settlement rail adapters",
+      "family": "rails",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/rails/mod.rs:1-635",
+        "src/protocol/rails/x402.rs:1-200",
+        "src/protocol/rails/wormhole.rs:1-200",
+        "src/protocol/rails/boltz.rs:1-200",
+        "src/protocol/rails/ntt.rs:1-200",
+        "src/protocol/rails/bisq.rs:1-200",
+        "src/protocol/rails/changelly.rs:1-200",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-200", "https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/198"]},
+        {"stage": "code", "refs": ["src/protocol/rails/mod.rs:1-635", "src/protocol/rails/x402.rs:1-200", "src/protocol/rails/wormhole.rs:1-200", "src/protocol/rails/boltz.rs:1-200", "src/protocol/rails/ntt.rs:1-200", "src/protocol/rails/bisq.rs:1-200", "src/protocol/rails/changelly.rs:1-200"]},
+        {"stage": "test", "refs": ["src/protocol/rails/mod.rs:450-635"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/198", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Adapter interfaces and local tests do not establish live-network, address-provenance, or settlement support.",
+      "notes": "Rail families are inventoried together because their shared policy boundary is the production gate."
+    },
+    {
+      "id": "bitcoin-ecdsa",
+      "name": "Bitcoin ECDSA signing",
+      "family": "bitcoin",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "partial",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/protocol/bitcoin.rs:1-259",
+        "src/protocol/bitcoin_tests.rs:1-250",
+        "src/enclave/android_strongbox.rs:1-250",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/195",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/196"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150", "https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/196"]},
+        {"stage": "code", "refs": ["src/protocol/bitcoin.rs:1-259", "src/enclave/android_strongbox.rs:1-250"]},
+        {"stage": "test", "refs": ["src/protocol/bitcoin_tests.rs:1-250"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/196", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Software signer and unit-vector evidence is not hardware-backed production support.",
+      "notes": "Canonical verification and hardware-backed signing remain separate gates."
+    },
+    {
+      "id": "bitcoin-taproot",
+      "name": "Bitcoin Schnorr and Taproot",
+      "family": "bitcoin",
+      "api": "yes",
+      "implementation": "no",
+      "integration": "partial",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/bitcoin.rs:1-259",
+        "src/protocol/bitcoin_tests.rs:1-250",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/196"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:100-170", "https://github.com/Conxian/conxius-enclave-sdk/issues/196"]},
+        {"stage": "code", "refs": ["src/protocol/bitcoin.rs:1-259"]},
+        {"stage": "test", "refs": ["src/protocol/bitcoin_tests.rs:1-250"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/196", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Custom hashing and local tests do not establish canonical BIP-340/BIP-341 behavior.",
+      "notes": "Keep Taproot support disabled from production claims until canonical vectors and review are attached."
+    },
+    {
+      "id": "bitcoin-bip322",
+      "name": "BIP-322 message verification",
+      "family": "bitcoin",
+      "api": "yes",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/bip322.rs:1-222",
+        "src/protocol/bip322.rs:130-222",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/196"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:100-170", "https://github.com/Conxian/conxius-enclave-sdk/issues/196"]},
+        {"stage": "code", "refs": ["src/protocol/bip322.rs:1-222"]},
+        {"stage": "test", "refs": ["src/protocol/bip322.rs:130-222"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/196", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Acceptance-only parsing and placeholder signatures are not ownership proof or production authorization evidence.",
+      "notes": "BIP-110 chunking work is tracked separately and does not close cryptographic BIP-322 verification."
+    },
+    {
+      "id": "bitcoin-bip110",
+      "name": "BIP-110 reduced-data compliance",
+      "family": "bitcoin",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/protocol/bip110.rs:1-240",
+        "src/protocol/bip322.rs:1-222",
+        "docs/architecture/GAP_SCORECARD.md:1-80",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/179"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/GAP_SCORECARD.md:1-80", "https://github.com/Conxian/conxius-enclave-sdk/issues/179"]},
+        {"stage": "code", "refs": ["src/protocol/bip110.rs:1-240", "src/protocol/bip322.rs:1-222"]},
+        {"stage": "test", "refs": ["src/protocol/bip110.rs:1-240"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/179", "https://github.com/Conxian/conxius-enclave-sdk/issues/196", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Local compliance and chunking tests do not prove complete canonical Bitcoin signing or release support.",
+      "notes": "The feature is recorded as an API/implementation aid, not as a production release decision."
+    },
+    {
+      "id": "ethereum",
+      "name": "Ethereum address and signed-message handling",
+      "family": "chains",
+      "api": "yes",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/ethereum.rs:1-96",
+        "src/protocol/universal_tests.rs:1-260",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/196"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:100-170", "https://github.com/Conxian/conxius-enclave-sdk/issues/196"]},
+        {"stage": "code", "refs": ["src/protocol/ethereum.rs:1-96"]},
+        {"stage": "test", "refs": ["src/protocol/universal_tests.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/196", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Address and message API tests do not establish canonical Keccak/EIP behavior or production support.",
+      "notes": "Canonical derivation and negative vectors are required before any Ethereum authorization claim."
+    },
+    {
+      "id": "solana",
+      "name": "Solana address and transfer preparation",
+      "family": "chains",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/protocol/solana.rs:1-220",
+        "src/protocol/universal_tests.rs:1-260",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/196",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:170-230", "https://github.com/Conxian/conxius-enclave-sdk/issues/196", "https://github.com/Conxian/conxius-enclave-sdk/issues/198"]},
+        {"stage": "code", "refs": ["src/protocol/solana.rs:1-220"]},
+        {"stage": "test", "refs": ["src/protocol/universal_tests.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/196", "https://github.com/Conxian/conxius-enclave-sdk/issues/198", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Local address/transfer preparation is not live-network or asset-provenance evidence.",
+      "notes": "Solana is inventoried independently from generic chain abstraction."
+    },
+    {
+      "id": "stacks",
+      "name": "Stacks address and transaction handling",
+      "family": "chains",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/protocol/stacks.rs:1-220",
+        "src/protocol/universal_tests.rs:1-260",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/196",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:170-230", "https://github.com/Conxian/conxius-enclave-sdk/issues/196", "https://github.com/Conxian/conxius-enclave-sdk/issues/198"]},
+        {"stage": "code", "refs": ["src/protocol/stacks.rs:1-220"]},
+        {"stage": "test", "refs": ["src/protocol/universal_tests.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/196", "https://github.com/Conxian/conxius-enclave-sdk/issues/198", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "API and local tests do not prove canonical address provenance or executable asset support.",
+      "notes": "Stacks remains conditional until chain-specific vectors and metadata evidence are attached."
+    },
+    {
+      "id": "chain-abstraction",
+      "name": "Multi-chain intent and chain abstraction",
+      "family": "chains",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "partial",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/protocol/chain_abstraction.rs:1-260",
+        "src/protocol/universal_tests.rs:1-260",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/196",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:170-230", "https://github.com/Conxian/conxius-enclave-sdk/issues/196", "https://github.com/Conxian/conxius-enclave-sdk/issues/198"]},
+        {"stage": "code", "refs": ["src/protocol/chain_abstraction.rs:1-260"]},
+        {"stage": "test", "refs": ["src/protocol/universal_tests.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/196", "https://github.com/Conxian/conxius-enclave-sdk/issues/198", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Cross-chain API tests are not proof of canonical per-chain authorization, routing, or settlement.",
+      "notes": "Chain abstraction is kept distinct from each chain's cryptographic and metadata evidence."
+    },
+    {
+      "id": "asset-registry",
+      "name": "Asset registry and chain metadata",
+      "family": "chains",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "partial",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/asset.rs:1-280",
+        "src/protocol/asset_tests.rs:1-260",
+        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:230-280",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:230-280", "https://github.com/Conxian/conxius-enclave-sdk/issues/198"]},
+        {"stage": "code", "refs": ["src/protocol/asset.rs:1-280"]},
+        {"stage": "test", "refs": ["src/protocol/asset_tests.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/198", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Catalog/API completeness and registry tests do not validate executable address provenance or settlement safety.",
+      "notes": "Display/catalog metadata must remain distinct from active, verified executable assets."
+    },
+    {
+      "id": "frost",
+      "name": "FROST threshold signing",
+      "family": "threshold-cryptography",
+      "api": "yes",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/frost.rs:1-330",
+        "docs/guides/FROST_TREASURY_INTEGRATION.md:1-220",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/guides/FROST_TREASURY_INTEGRATION.md:1-220", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
+        {"stage": "code", "refs": ["src/protocol/frost.rs:1-330"]},
+        {"stage": "test", "refs": ["src/protocol/frost.rs:1-330"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Structural/hash checks and a treasury runbook are not RFC-compatible FROST cryptography or production signing evidence.",
+      "notes": "Historical issue #180 and related documentation remain context only."
+    },
+    {
+      "id": "musig2",
+      "name": "MuSig2 multi-signature aggregation",
+      "family": "threshold-cryptography",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/musig2.rs:1-260",
+        "src/protocol/bitcoin_tests.rs:1-250",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-220", "https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
+        {"stage": "code", "refs": ["src/protocol/musig2.rs:1-260"]},
+        {"stage": "test", "refs": ["src/protocol/bitcoin_tests.rs:1-250"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Wrapper/API evidence and local aggregation tests do not establish independent protocol review or production key custody.",
+      "notes": "MuSig2 is tracked separately from FROST because the protocol and evidence requirements differ."
+    },
+    {
+      "id": "fedimint-nexus",
+      "name": "Fedimint and Nexus federation adapter",
+      "family": "federation",
+      "api": "yes",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/nexus/fedimint.rs:1-500",
+        "src/protocol/nexus/mod.rs:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-220", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
+        {"stage": "code", "refs": ["src/protocol/nexus/fedimint.rs:1-500", "src/protocol/nexus/mod.rs:1-100"]},
+        {"stage": "test", "refs": ["src/protocol/nexus/fedimint.rs:1-500"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Federation adapters, simulated keys, structural DLEQ checks, and local tests are not production Fedimint cryptographic evidence.",
+      "notes": "The Nexus boundary is inventoried with Fedimint because the current material implementation is the federation adapter."
+    },
+    {
+      "id": "ark",
+      "name": "Ark vTXO and recovery orchestration",
+      "family": "bitcoin-l2",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/ark.rs:1-360",
+        "src/protocol/ark.rs:1-360",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/GAP_SCORECARD.md:70-150", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
+        {"stage": "code", "refs": ["src/protocol/ark.rs:1-360"]},
+        {"stage": "test", "refs": ["src/protocol/ark.rs:1-360"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "vTXO construction and recovery tests are structural/simulated evidence, not live Ark interoperability or settlement support.",
+      "notes": "Historical completion wording is retained only as implementation context."
+    },
+    {
+      "id": "bitvm",
+      "name": "BitVM challenge primitives",
+      "family": "bitcoin-l2",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/bitvm.rs:1-320",
+        "src/protocol/bitvm2.rs:1-320",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/GAP_SCORECARD.md:70-150", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
+        {"stage": "code", "refs": ["src/protocol/bitvm.rs:1-320", "src/protocol/bitvm2.rs:1-320"]},
+        {"stage": "test", "refs": ["src/protocol/bitvm.rs:1-320", "src/protocol/bitvm2.rs:1-320"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Challenge/commitment APIs and structural tests do not prove SNARK verification, Bitcoin interoperability, or production settlement.",
+      "notes": "BitVM and BitVM2 remain separate records while sharing the threshold/settlement blocker."
+    },
+    {
+      "id": "bitvm2",
+      "name": "BitVM2 challenge orchestration",
+      "family": "bitcoin-l2",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/bitvm2.rs:1-320",
+        "src/wasm_bindings.rs:700-820",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/GAP_SCORECARD.md:70-150", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
+        {"stage": "code", "refs": ["src/protocol/bitvm2.rs:1-320", "src/wasm_bindings.rs:700-820"]},
+        {"stage": "test", "refs": ["src/protocol/bitvm2.rs:1-320"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "WASM and Rust orchestration builds do not prove challenge-window correctness, proof verification, or provider/runtime support.",
+      "notes": "Merged implementation history is not a substitute for protocol-conformant evidence."
+    },
+    {
+      "id": "cctp",
+      "name": "CCTP transfer and attestation",
+      "family": "cross-chain",
+      "api": "yes",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/cctp.rs:1-180",
+        "src/wasm_bindings.rs:217-256",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-220", "https://github.com/Conxian/conxius-enclave-sdk/issues/198"]},
+        {"stage": "code", "refs": ["src/protocol/cctp.rs:1-180", "src/wasm_bindings.rs:217-256"]},
+        {"stage": "test", "refs": ["src/protocol/cctp.rs:1-180"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/198", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Empty payload and non-empty-attestation acceptance behavior is explicitly not production CCTP support.",
+      "notes": "CCTP remains disabled pending canonical message and attestation validation."
+    },
+    {
+      "id": "account-abstraction",
+      "name": "Account abstraction",
+      "family": "account-and-policy",
+      "api": "yes",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/account_abstraction.rs:1-180",
+        "src/wasm_bindings.rs:202-216",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-220", "https://github.com/Conxian/conxius-enclave-sdk/issues/198"]},
+        {"stage": "code", "refs": ["src/protocol/account_abstraction.rs:1-180", "src/wasm_bindings.rs:202-216"]},
+        {"stage": "test", "refs": ["src/protocol/account_abstraction.rs:1-180"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/198", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Structural batch preparation and non-empty module validation are not canonical account-abstraction execution evidence.",
+      "notes": "Unsupported modules must fail closed before production enablement."
+    },
+    {
+      "id": "covenant",
+      "name": "Bitcoin covenant and OP_CAT helpers",
+      "family": "bitcoin",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/covenant.rs:1-300",
+        "src/wasm_bindings.rs:310-375",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/196",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/GAP_SCORECARD.md:40-90", "https://github.com/Conxian/conxius-enclave-sdk/issues/196", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
+        {"stage": "code", "refs": ["src/protocol/covenant.rs:1-300", "src/wasm_bindings.rs:310-375"]},
+        {"stage": "test", "refs": ["src/protocol/covenant.rs:1-300"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/196", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Structural script generation and local invariant tests do not prove consensus activation, vectors, or production covenant support.",
+      "notes": "Covenant APIs remain conditional on canonical Bitcoin evidence."
+    },
+    {
+      "id": "job-card-iso20022",
+      "name": "Job Card and ISO 20022",
+      "family": "settlement",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/job_card.rs:1-360",
+        "src/protocol/settlement.rs:1-320",
+        "src/wasm_bindings.rs:140-152",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-250", "https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/protocol/job_card.rs:1-360", "src/protocol/settlement.rs:1-320", "src/wasm_bindings.rs:140-152"]},
+        {"stage": "test", "refs": ["src/protocol/job_card.rs:1-360", "src/protocol/settlement.rs:1-320"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "XML/unit and WASM build evidence is not partner, settlement-network, runtime, or production artifact evidence.",
+      "notes": "The Job Card record covers the ISO 20022 wrapper and the native validation boundary."
+    },
+    {
+      "id": "lightning",
+      "name": "Lightning payment intent",
+      "family": "settlement",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/lightning.rs:1-280",
+        "src/protocol/lightning.rs:1-280",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-250", "https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/protocol/lightning.rs:1-280"]},
+        {"stage": "test", "refs": ["src/protocol/lightning.rs:1-280"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Payment state-machine tests and WASM build surfaces are not LND/provider, runtime, hardware, or production settlement evidence.",
+      "notes": "Lightning remains conditional despite the presence of a public API and local lifecycle tests."
+    },
+    {
+      "id": "dlc",
+      "name": "Discreet Log Contracts",
+      "family": "settlement",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/dlc.rs:1-260",
+        "src/protocol/dlc.rs:1-260",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-250", "https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/protocol/dlc.rs:1-260"]},
+        {"stage": "test", "refs": ["src/protocol/dlc.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Contract lifecycle API tests and a WASM wrapper are not oracle, adaptor, Bitcoin, or production DLC evidence.",
+      "notes": "DLC is explicit in the matrix even though its runtime/provider lane is not present."
+    },
+    {
+      "id": "mmr-state",
+      "name": "MMR and state proofs",
+      "family": "state",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/mmr.rs:1-260",
+        "src/state/mod.rs:1-260",
+        "src/protocol/mmr.rs:1-260",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/GAP_SCORECARD.md:100-170", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
+        {"stage": "code", "refs": ["src/protocol/mmr.rs:1-260", "src/state/mod.rs:1-260"]},
+        {"stage": "test", "refs": ["src/protocol/mmr.rs:1-260", "src/state/mod.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Local MMR/state tests and API wrappers do not establish deployed state-service, runtime, or artifact support.",
+      "notes": "MMR/state evidence is distinct from the Opportunity and Business records that consume it."
+    },
+    {
+      "id": "business",
+      "name": "Business registry and profiles",
+      "family": "business",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/business.rs:1-260",
+        "src/wasm_bindings.rs:861-910",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
+        {"stage": "code", "refs": ["src/protocol/business.rs:1-260", "src/wasm_bindings.rs:861-910"]},
+        {"stage": "test", "refs": ["src/protocol/business.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "In-memory registry/API and WASM build evidence do not establish consumer integration, runtime, or production support.",
+      "notes": "Business is recorded as an API surface, not as a verified operational registry."
+    },
+    {
+      "id": "settlement-service",
+      "name": "Settlement service orchestration",
+      "family": "settlement",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/settlement_service.rs:1-320",
+        "src/protocol/settlement.rs:1-320",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-250", "https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/protocol/settlement_service.rs:1-320", "src/protocol/settlement.rs:1-320"]},
+        {"stage": "test", "refs": ["src/protocol/settlement_service.rs:1-320", "src/protocol/settlement.rs:1-320"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Service orchestration and unit tests do not establish live settlement, hardware, partner, or exact-artifact evidence.",
+      "notes": "Settlement remains blocked by the shared protocol, attestation, runtime, and acceptance gates."
+    },
+    {
+      "id": "stablecoin",
+      "name": "Stablecoin orchestration",
+      "family": "settlement",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/stablecoin_orchestrator.rs:1-280",
+        "src/wasm_bindings.rs:980-1045",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/198",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:170-250", "https://github.com/Conxian/conxius-enclave-sdk/issues/198", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/protocol/stablecoin_orchestrator.rs:1-280", "src/wasm_bindings.rs:980-1045"]},
+        {"stage": "test", "refs": ["src/protocol/stablecoin_orchestrator.rs:1-280"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/198", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Stablecoin API and WASM compilation are not issuer, asset, runtime, or settlement evidence.",
+      "notes": "The explicit stablecoin record prevents an aggregate WASM row from implying provider support."
+    },
+    {
+      "id": "opportunity",
+      "name": "Opportunity discovery",
+      "family": "business",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/opportunity.rs:1-280",
+        "src/wasm_bindings.rs:950-980",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
+        {"stage": "code", "refs": ["src/protocol/opportunity.rs:1-280", "src/wasm_bindings.rs:950-980"]},
+        {"stage": "test", "refs": ["src/protocol/opportunity.rs:1-280"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Dispatcher/API and WASM build evidence do not establish market, counterparty, or production decision support.",
+      "notes": "Opportunity is explicit because it is a named WASM sub-client and business-facing API."
+    },
+    {
+      "id": "solver",
+      "name": "Solver bid ranking",
+      "family": "business",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/solver.rs:1-260",
+        "src/wasm_bindings.rs:622-656",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
+        {"stage": "code", "refs": ["src/protocol/solver.rs:1-260", "src/wasm_bindings.rs:622-656"]},
+        {"stage": "test", "refs": ["src/protocol/solver.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Local ranking and WASM compilation do not establish solver network, economic, or production support evidence.",
+      "notes": "Solver is explicit and separate from swap routing and settlement orchestration."
+    },
+    {
+      "id": "swap-router",
+      "name": "Swap router",
+      "family": "business",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/swap_router.rs:1-280",
+        "src/wasm_bindings.rs:518-617",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-250", "https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/protocol/swap_router.rs:1-280", "src/wasm_bindings.rs:518-617"]},
+        {"stage": "test", "refs": ["src/protocol/swap_router.rs:1-280"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Gateway URL/client construction and WASM build evidence do not establish live rail routing or production settlement.",
+      "notes": "Swap routing remains disabled from production claims until adapter and boundary evidence exists."
+    },
+    {
+      "id": "zkml",
+      "name": "Zero-knowledge machine learning",
+      "family": "advanced-compute",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/zkml.rs:1-260",
+        "src/wasm_bindings.rs:662-695",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
+        {"stage": "code", "refs": ["src/protocol/zkml.rs:1-260", "src/wasm_bindings.rs:662-695"]},
+        {"stage": "test", "refs": ["src/protocol/zkml.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Service construction and WASM build evidence do not establish proof-system, model, runtime, or production evidence.",
+      "notes": "ZKML is inventoried even though current work is API-level and research-oriented."
+    },
+    {
+      "id": "identity",
+      "name": "Identity profiles",
+      "family": "identity-and-risk",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/protocol/identity.rs:1-240",
+        "src/protocol/intent.rs:1-260",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
+        {"stage": "code", "refs": ["src/protocol/identity.rs:1-240", "src/protocol/intent.rs:1-260"]},
+        {"stage": "test", "refs": ["src/protocol/identity.rs:1-240", "src/protocol/intent.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Identity API and local serialization tests are not identity-provider, privacy, or exact-artifact support evidence.",
+      "notes": "No dedicated identity blocker exists in the current backlog; final acceptance remains the explicit exclusion."
+    },
+    {
+      "id": "credit",
+      "name": "Credit and vouch intents",
+      "family": "identity-and-risk",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/protocol/credit.rs:1-240",
+        "src/protocol/credit.rs:1-240",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
+        {"stage": "code", "refs": ["src/protocol/credit.rs:1-240"]},
+        {"stage": "test", "refs": ["src/protocol/credit.rs:1-240"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Deterministic intent preparation is not credit-provider, underwriting, compliance, or production evidence.",
+      "notes": "Credit remains a conditional API family with no independent review or provider integration record."
+    },
+    {
+      "id": "fiat",
+      "name": "Fiat session preparation",
+      "family": "fiat-and-economy",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/protocol/fiat.rs:1-240",
+        "src/protocol/fiat.rs:1-240",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
+        {"stage": "code", "refs": ["src/protocol/fiat.rs:1-240"]},
+        {"stage": "test", "refs": ["src/protocol/fiat.rs:1-240"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Fiat session API tests are not payment-provider, compliance, banking, or production artifact evidence.",
+      "notes": "No fiat provider integration or independent review is established in this repository."
+    },
+    {
+      "id": "economy",
+      "name": "Economy and incentive helpers",
+      "family": "fiat-and-economy",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/protocol/economy.rs:1-260",
+        "src/protocol/economy_tests.rs:1-260",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
+        {"stage": "code", "refs": ["src/protocol/economy.rs:1-260"]},
+        {"stage": "test", "refs": ["src/protocol/economy_tests.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Local incentive/helper tests do not establish economic model review, external integration, or production support.",
+      "notes": "Economy is recorded as a material source family but has no current production evidence chain."
+    },
+    {
+      "id": "sidl",
+      "name": "SIDL governance and voting",
+      "family": "governance",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/protocol/sidl.rs:1-260",
+        "src/protocol/sidl.rs:1-260",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
+        {"stage": "code", "refs": ["src/protocol/sidl.rs:1-260"]},
+        {"stage": "test", "refs": ["src/protocol/sidl.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Serialization and local voting tests are not governance deployment, quorum, or production support evidence.",
+      "notes": "SIDL remains a conditional API family with no independent review or external governance artifact."
+    },
+    {
+      "id": "a2p",
+      "name": "Application-to-protocol (A2P)",
+      "family": "application-boundary",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/protocol/a2p.rs:1-240",
+        "src/wasm_bindings.rs:1020-1049",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
+        {"stage": "code", "refs": ["src/protocol/a2p.rs:1-240", "src/wasm_bindings.rs:1020-1049"]},
+        {"stage": "test", "refs": ["src/protocol/a2p.rs:1-240"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "OTP/intention API and an empty WASM client are not application integration, secret-boundary, or production evidence.",
+      "notes": "A2P is explicit because it is named by repository analysis and the WASM requirements."
+    },
+    {
+      "id": "telemetry",
+      "name": "Telemetry and observability",
+      "family": "operations",
+      "api": "yes",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        "src/telemetry.rs:1-180",
+        "src/protocol/rails/mod.rs:1-635",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/201"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:250-320", "https://github.com/Conxian/conxius-enclave-sdk/issues/201"]},
+        {"stage": "code", "refs": ["src/telemetry.rs:1-180", "src/protocol/rails/mod.rs:1-635"]},
+        {"stage": "test", "refs": ["src/telemetry.rs:1-180"]},
+        {"stage": "ci", "refs": [".github/workflows/security.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/201", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Current telemetry behavior is not a public-safe privacy, monitoring, retention, or operational support record.",
+      "notes": "Telemetry must not become a hidden dependency for signing or other security decisions."
+    },
+    {
+      "id": "ci-release-evidence",
+      "name": "CI, release, SBOM, and provenance evidence",
+      "family": "release",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": [
+        ".github/workflows/ci.yml:1-100",
+        ".github/workflows/ci-strict.yml:1-100",
+        ".github/workflows/sbom.yml:1-100",
+        ".github/workflows/provenance.yml:1-100",
+        ".github/workflows/release.yml:1-160",
+        ".github/workflows/release-strict.yml:1-160",
+        "PRODUCTION_READINESS.md:1-180",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/199"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["PRODUCTION_READINESS.md:1-180", "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:250-360", "https://github.com/Conxian/conxius-enclave-sdk/issues/199"]},
+        {"stage": "code", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100", ".github/workflows/sbom.yml:1-100", ".github/workflows/provenance.yml:1-100", ".github/workflows/release.yml:1-160", ".github/workflows/release-strict.yml:1-160"]},
+        {"stage": "test", "refs": ["PRODUCTION_READINESS.md:1-180"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/security.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/199", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Workflow definitions and package metadata are not durable exact-artifact, provenance, SBOM, scanning, or release-support evidence.",
+      "notes": "Issue #145 is historical CI baseline context; residual toolchain/release/scanning/artifact work is tracked by #199."
+    },
+    {
+      "id": "wasm-lightning",
+      "name": "WASM Lightning client",
+      "family": "wasm",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/wasm_bindings.rs:451-512",
+        "src/protocol/lightning.rs:1-280",
+        ".github/workflows/ci.yml:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/wasm_bindings.rs:451-512", "src/protocol/lightning.rs:1-280"]},
+        {"stage": "test", "refs": ["src/protocol/lightning.rs:1-280"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "WASM compilation/build evidence is not Lightning provider, runtime, secret-boundary, hardware, or production evidence.",
+      "notes": "The explicit row records the binding without promoting it beyond the open WASM evidence gate."
+    },
+    {
+      "id": "wasm-settlement-service",
+      "name": "WASM Settlement Service client",
+      "family": "wasm",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/wasm_bindings.rs:913-976",
+        "src/protocol/settlement_service.rs:1-320",
+        ".github/workflows/ci.yml:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/wasm_bindings.rs:913-976", "src/protocol/settlement_service.rs:1-320"]},
+        {"stage": "test", "refs": ["src/protocol/settlement_service.rs:1-320"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "WASM compilation/build evidence is not settlement provider, runtime, hardware, partner, or production evidence.",
+      "notes": "The binding is explicit while the native settlement gates remain open."
+    },
+    {
+      "id": "wasm-solver",
+      "name": "WASM Solver client",
+      "family": "wasm",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/wasm_bindings.rs:622-656",
+        "src/protocol/solver.rs:1-260",
+        ".github/workflows/ci.yml:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/wasm_bindings.rs:622-656", "src/protocol/solver.rs:1-260"]},
+        {"stage": "test", "refs": ["src/protocol/solver.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "WASM compilation/build evidence is not solver runtime, network, economic, secret-boundary, or production evidence.",
+      "notes": "The explicit row prevents a complete binding from being read as a supported solver."
+    },
+    {
+      "id": "wasm-swap-router",
+      "name": "WASM Swap Router client",
+      "family": "wasm",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/wasm_bindings.rs:518-617",
+        "src/protocol/swap_router.rs:1-280",
+        ".github/workflows/ci.yml:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/wasm_bindings.rs:518-617", "src/protocol/swap_router.rs:1-280"]},
+        {"stage": "test", "refs": ["src/protocol/swap_router.rs:1-280"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "WASM compilation/build evidence is not live swap routing, rail, runtime, hardware, or production evidence.",
+      "notes": "The constructor and gateway URL surface are recorded without treating them as live integration."
+    },
+    {
+      "id": "wasm-zkml",
+      "name": "WASM ZKML client",
+      "family": "wasm",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/wasm_bindings.rs:662-695",
+        "src/protocol/zkml.rs:1-260",
+        ".github/workflows/ci.yml:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/wasm_bindings.rs:662-695", "src/protocol/zkml.rs:1-260"]},
+        {"stage": "test", "refs": ["src/protocol/zkml.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "WASM compilation/build evidence is not proof-system, model, runtime, hardware, or production evidence.",
+      "notes": "ZKML remains a conditional client surface pending runtime and proof-system evidence."
+    },
+    {
+      "id": "wasm-dlc",
+      "name": "WASM DLC client",
+      "family": "wasm",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/wasm_bindings.rs:528-587",
+        "src/protocol/dlc.rs:1-260",
+        ".github/workflows/ci.yml:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/wasm_bindings.rs:528-587", "src/protocol/dlc.rs:1-260"]},
+        {"stage": "test", "refs": ["src/protocol/dlc.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "WASM compilation/build evidence is not oracle, adaptor, Bitcoin, runtime, or production DLC evidence.",
+      "notes": "DLC binding completeness is tracked separately from native protocol readiness."
+    },
+    {
+      "id": "wasm-stablecoin",
+      "name": "WASM Stablecoin client",
+      "family": "wasm",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/wasm_bindings.rs:980-1045",
+        "src/protocol/stablecoin_orchestrator.rs:1-280",
+        ".github/workflows/ci.yml:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/wasm_bindings.rs:980-1045", "src/protocol/stablecoin_orchestrator.rs:1-280"]},
+        {"stage": "test", "refs": ["src/protocol/stablecoin_orchestrator.rs:1-280"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "WASM compilation/build evidence is not issuer, asset, runtime, hardware, or production settlement evidence.",
+      "notes": "The explicit client row preserves the distinction between binding presence and stablecoin support."
+    },
+    {
+      "id": "wasm-job-card-iso20022",
+      "name": "WASM Job Card / ISO 20022 client",
+      "family": "wasm",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/wasm_bindings.rs:140-152",
+        "src/protocol/job_card.rs:1-360",
+        ".github/workflows/ci.yml:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/wasm_bindings.rs:140-152", "src/protocol/job_card.rs:1-360"]},
+        {"stage": "test", "refs": ["src/protocol/job_card.rs:1-360"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "WASM compilation/build evidence is not ISO 20022 partner, settlement-network, runtime, or production evidence.",
+      "notes": "The record is named Job Card / ISO 20022 to match the repository's wrapper surface and requirements."
+    },
+    {
+      "id": "wasm-mmr",
+      "name": "WASM MMR client",
+      "family": "wasm",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/wasm_bindings.rs:827-858",
+        "src/protocol/mmr.rs:1-260",
+        ".github/workflows/ci.yml:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/wasm_bindings.rs:827-858", "src/protocol/mmr.rs:1-260"]},
+        {"stage": "test", "refs": ["src/protocol/mmr.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "WASM compilation/build evidence is not state-service, runtime, platform, or production proof evidence.",
+      "notes": "MMR binding completeness does not establish deployment or state-service support."
+    },
+    {
+      "id": "wasm-opportunity",
+      "name": "WASM Opportunity client",
+      "family": "wasm",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/wasm_bindings.rs:950-980",
+        "src/protocol/opportunity.rs:1-280",
+        ".github/workflows/ci.yml:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/wasm_bindings.rs:950-980", "src/protocol/opportunity.rs:1-280"]},
+        {"stage": "test", "refs": ["src/protocol/opportunity.rs:1-280"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "WASM compilation/build evidence is not market, counterparty, runtime, or production decision support evidence.",
+      "notes": "Opportunity is explicit to prevent the previous aggregate WASM row from hiding a narrow surface."
+    },
+    {
+      "id": "wasm-business",
+      "name": "WASM Business client",
+      "family": "wasm",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/wasm_bindings.rs:861-910",
+        "src/protocol/business.rs:1-260",
+        ".github/workflows/ci.yml:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/wasm_bindings.rs:861-910", "src/protocol/business.rs:1-260"]},
+        {"stage": "test", "refs": ["src/protocol/business.rs:1-260"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "WASM compilation/build evidence is not business integration, runtime, secret-boundary, or production evidence.",
+      "notes": "The explicit row records the in-memory profile API without a support claim."
+    },
+    {
+      "id": "wasm-a2p",
+      "name": "WASM A2P client",
+      "family": "wasm",
+      "api": "yes",
+      "implementation": "partial",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "conditional",
+      "evidenceRefs": [
+        "src/wasm_bindings.rs:1020-1049",
+        "src/protocol/a2p.rs:1-240",
+        ".github/workflows/ci.yml:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
+      ],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
+        {"stage": "code", "refs": ["src/wasm_bindings.rs:1020-1049", "src/protocol/a2p.rs:1-240"]},
+        {"stage": "test", "refs": ["src/protocol/a2p.rs:1-240"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "WASM compilation/build evidence is not application integration, secret-boundary, runtime, or production evidence.",
+      "notes": "A2P remains explicit and conditional as required by the repository analysis and WASM requirements."
+    }
+  ]
+}

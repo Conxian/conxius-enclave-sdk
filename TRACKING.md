@@ -11,6 +11,7 @@ This document provides a comprehensive overview of the repository status, includ
 | [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) | **Release checklist** |
 | [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) | Findings, gates, unknowns, and public-safe evidence |
 | [Capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) | API, implementation, integration, review, and support status |
+| [Capability evidence JSON](./docs/architecture/capability-evidence.json) | Canonical machine-readable capability inventory and evidence chain |
 | [REPOSITORY_ANALYSIS.md](./REPOSITORY_ANALYSIS.md) | Capabilities, gaps, roadmap |
 | [ISSUES_INDEX.md](./ISSUES_INDEX.md) | GitHub issues (synced) |
 | [PRS_INDEX.md](./PRS_INDEX.md) | Pull requests (synced) |
@@ -30,6 +31,23 @@ This document provides a comprehensive overview of the repository status, includ
 | **Production Status** | Beta / conditional; value-bearing enablement blocked by CON-1506 gates |
 | **Test Coverage** | Historical source count; not an independent release gate |
 | **Last Updated** | 2026-07-20 |
+
+## Production-enablement backlog map
+
+The current implementation and acceptance backlog already exists as GitHub issues [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) through [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202). This map is a navigation aid only; it does not create, reopen, or duplicate issues.
+
+| GitHub issue | Evidence gate |
+| --- | --- |
+| [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) | Hardware-backed signing and mandatory attestation |
+| [#196](https://github.com/Conxian/conxius-enclave-sdk/issues/196) | Canonical Bitcoin and Ethereum verification/derivation |
+| [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197) | Threshold and settlement placeholder quarantine |
+| [#198](https://github.com/Conxian/conxius-enclave-sdk/issues/198) | CCTP, account abstraction, and asset metadata fail-closed behavior |
+| [#199](https://github.com/Conxian/conxius-enclave-sdk/issues/199) | Reproducible toolchain, dependencies, release, SBOM, and provenance evidence |
+| [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200) | WASM secret boundary and runtime/platform evidence |
+| [#201](https://github.com/Conxian/conxius-enclave-sdk/issues/201) | Telemetry privacy, monitoring, and public-safe runbooks |
+| [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) | Independent security review and exact release acceptance |
+
+Closed issues #145, #154, #172, #173, #174, and #180 remain historical context. Their closure or documentation does not prove current production support, and the capability evidence record must not cite them as a substitute for the open gates above.
 
 ## Related Repositories
 

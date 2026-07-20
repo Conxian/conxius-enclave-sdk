@@ -6,6 +6,21 @@ This document tracks what was accomplished in previous sessions so future agents
 
 ---
 
+## Session: 2026-07-20 (Capability Evidence Follow-up)
+
+### Summary
+Started the focused follow-up to merged PR #193. The canonical capability inventory now lives in `docs/architecture/capability-evidence.json`, with explicit evidence axes, blocker/exclusion mapping, and separate WASM sub-client rows. A dependency-free validator/test suite renders the Markdown matrix deterministically and keeps production claims fail-closed.
+
+### Scope
+- Documentation, machine-readable evidence, validator, and focused tests only.
+- No runtime code, workflows, dependencies, release metadata, or generated issue/PR snapshots changed.
+- Historical issue #145 and closed implementation issues remain context; residual release/toolchain evidence is tracked by #199 and WASM runtime/secret-boundary evidence by #200.
+
+### Next Evidence Work
+- Implement and independently verify the open gates #195–#202 without treating this documentation follow-up as production enablement.
+
+---
+
 ## Session: 2026-07-15 (Cycle 11: Session Init Enforcement & Issue Sync)
 
 ### Summary
