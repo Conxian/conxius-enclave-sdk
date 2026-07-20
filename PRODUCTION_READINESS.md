@@ -3,7 +3,9 @@
 > This is a gated checklist, not a production-readiness claim.
 > Status: Beta / conditional | Last Updated: 2026-07-20
 
-The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) and [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.11`; `Cargo.toml` declaring `2.0.12` does not establish a supported release.
+The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), and [machine-readable evidence](./docs/architecture/capability-evidence.json) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.11`; `Cargo.toml` declaring `2.0.12` does not establish a supported release.
+
+Issue #145 is a **historical CI/CD baseline**, not current release-acceptance evidence. Residual toolchain, dependency, publisher, scanning, SBOM, provenance, and exact-artifact work is tracked by [issue #199](https://github.com/Conxian/conxius-enclave-sdk/issues/199). Historical issues #145, #154, #169, #172, #173, #174, and #180 provide context only and must not be used as current production proof.
 
 ---
 
@@ -22,7 +24,7 @@ The 2.x line is not approved for unqualified production signing or settlement. U
 
 ### 🔒 Security Requirements
 
-- [x] CI/CD baseline hardened (issue #145)
+- [x] Historical CI/CD baseline recorded (issue #145); residual release evidence remains open in [#199](https://github.com/Conxian/conxius-enclave-sdk/issues/199)
 - [x] Code quality hardening complete (issue #146)
 - [ ] Hardware-backed attestation integration and vendor evidence (P0)
 - [ ] Replay protection verified on every value-bearing path (P0/P1)
@@ -50,7 +52,7 @@ The 2.x line is not approved for unqualified production signing or settlement. U
 
 ### 🌐 Platform Integration
 
-- [x] WASM binding surface is present
+- [x] WASM binding API surface is inventoried in the capability evidence record
 - [ ] WASM runtime/platform/hardware matrix (P1)
 - [ ] Multi-chain support with verified address provenance (P1)
 - [ ] Settlement rails implemented without placeholders and backed by integration evidence (P0)
@@ -88,7 +90,7 @@ The 2.x line is not approved for unqualified production signing or settlement. U
 | WASM Build | `ci.yml` and `ci-strict.yml` build WASM | Runtime/platform/hardware matrix is still open |
 | Security Audit | Security workflows are defined | Independent review evidence is not attached |
 | CodeQL | Workflow is defined | Workflow presence is not a release artifact |
-| Release Validation | Multiple release workflows exist | Consolidation and durable artifact evidence are required |
+| Release Validation | Multiple release workflows exist | Consolidation and durable artifact evidence remain open in #199; workflow presence is not a release artifact |
 
 ---
 
@@ -107,10 +109,10 @@ The 2.x line is not approved for unqualified production signing or settlement. U
 | ID | Priority | Status | Blocking Release |
 |----|----------|--------|------------------|
 | CON-1506 / P0 | P0 | Open — production claim and value-bearing paths blocked | Yes |
-| CON-1506 / P1 | P1 | Open — supply chain, release, matrix, privacy, and operations evidence | Yes |
+| CON-1506 / P1 | P1 | Open — supply chain, release, matrix, privacy, and operations evidence; implementation tracking is #199–#201 | Yes |
 | TEST-001 | P2 | Planned — broader hardware/runtime evidence | Yes for affected capability |
 | DEP-002 | P2 | Planned — unmaintained crate review | Conditional |
-| ARCH-001 | P2 | Planned — WASM/runtime matrix | Yes for WASM support |
+| ARCH-001 | P2 | Planned — WASM API coverage is recorded; runtime/platform/secret-boundary evidence is tracked by #200 | Yes for WASM support |
 | DOC-002 | P2 | Planned — examples and runbooks | No, but public claims must remain accurate |
 
 ---

@@ -2,44 +2,104 @@
 
 > **Canonical status:** Beta / conditional as of 2026-07-20.
 >
-> This matrix records evidence maturity, not marketing status. API presence does not imply implementation completeness, interoperability, independent review, or production support. See [the production-enablement audit](../audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) for findings, gates, and unknowns.
+> [`capability-evidence.json`](./capability-evidence.json) is the canonical machine-readable source. This Markdown table is generated from it and must not be edited inside the generated markers.
 
-## Evidence levels
+## Evidence model
 
-| Column | Meaning |
+Every capability is evaluated independently across five axes:
+
+| Axis | Meaning |
 | --- | --- |
-| API present | A public type, function, trait, or WASM binding exists. |
-| Implementation complete | The declared semantics are implemented without simulated, structural-only, or placeholder behavior. |
-| Integration-tested | The capability is tested against real protocol vectors, vendor/platform boundaries, or a live testnet integration as appropriate. Unit tests alone are insufficient. |
-| Independently reviewed | An external security, cryptographic, or protocol review is attached to the exact implementation/release under consideration. |
-| Production-supported | The capability has passed the release, operational, monitoring, rollback, and support gates for a specific artifact. |
+| **API** | A public type, function, trait, or WASM binding exists. |
+| **Implementation** | The declared semantics are implemented without simulated, structural-only, placeholder, mock, or development-only behavior being presented as the real path. |
+| **Integration** | Evidence exists against real protocol vectors, vendor/platform boundaries, or a live testnet integration appropriate to the capability. Unit tests alone are insufficient. |
+| **Independent review** | An external security, cryptographic, protocol, or release review is attached to the exact implementation and artifact under consideration. |
+| **Production support** | The exact artifact, target, runtime, hardware, operational controls, rollback path, and support decision are evidenced. |
 
-`Yes` means evidence was found for the stated scope. `Partial` means only part of the scope is evidenced. `No` means the repository evidence shows the gate is not met. `Not evidenced` means this repository does not establish the claim.
+The controlled evidence vocabulary is `yes`, `partial`, `no`, and `not-evidenced`. Production support uses `unsupported`, `conditional`, and `production-supported`. `production-supported` is fail-closed: all prerequisite axes and every stage of the requirement → code → test → CI → artifact chain must be evidenced for the same scope. The current inventory intentionally contains no production-supported record.
 
-## Matrix
+Build or compilation evidence, including WASM compilation, is not runtime, provider, hardware, secret-boundary, integration, independent-review, or production-artifact evidence.
 
-| Capability | API present | Implementation complete | Integration-tested | Independently reviewed | Production-supported | Evidence and boundary |
-| --- | --- | --- | --- | --- | --- | --- |
-| Enclave abstraction and signing interface | Yes | Partial — production provider unavailable | Partial — software/test fixtures only | Not evidenced | No | `src/enclave/mod.rs` routes value-bearing protocol signing through a fail-closed verifier; software drivers are gated behind `development-simulators`/test configuration. |
-| Hardware-backed attestation | Yes | Partial — provider verifier unavailable | No — simulated fixtures | Not evidenced | No | `DeviceIntegrityReport` verifies canonical bytes, nonce, freshness, signature, roots, levels, purpose, and typed algorithm markers, but vendor roots, deployed hardware, and provider evidence are not present. |
-| Rail attestation and trust-tier policy | Yes | Partial — strict boundary, no provider evidence | Partial — negative and deterministic boundary tests | Not evidenced | No | `RailProxy` requires canonical intent binding and complete typed report verification; replay state is consumed only after successful verification and the legacy boolean cannot disable enforcement. |
-| Bitcoin ECDSA signing | Yes | No — production boundary rejects unavailable/software providers | Partial — unit paths | Not evidenced | No | `src/protocol/bitcoin.rs` uses the common value-bearing signer boundary; no real hardware/provider release evidence exists. |
-| Schnorr/Taproot signing | Yes | No | Partial — unit paths | Not evidenced | No | `src/protocol/bitcoin.rs` contains a custom TapTweak tag; canonical BIP-340/BIP-341 vectors are not evidenced. |
-| BIP-322 message verification | Yes | No | No — acceptance-only tests | Not evidenced | No | `src/protocol/bip322.rs` decodes input and returns success without cryptographic signature verification. |
-| Ethereum addresses and signed messages | Yes | No | No — implementation mismatch | Not evidenced | No | `src/protocol/ethereum.rs` uses SHA-256 for operations that require canonical Ethereum hashing. |
-| FROST threshold signing | Yes | No — structural/hash placeholder | No — structural tests | Not evidenced | No | `src/protocol/frost.rs` derives labels/shares by hashing and returns an `R` placeholder. |
-| Fedimint blind/threshold flows | Yes | No — simulated threshold path | No — structural tests | Not evidenced | No | `src/protocol/nexus/fedimint.rs` uses simulated federation keys, structural DLEQ checks, and hash-based aggregation. |
-| Ark / BitVM2 orchestration | Yes | No — simulated/partial | No — structural tests | Not evidenced | No | `src/protocol/ark.rs` and `src/protocol/bitvm2.rs` include simulated IDs and an always-true challenge-window branch. |
-| CCTP transfer and attestation | Yes | No — placeholder | No | Not evidenced | No | `src/protocol/cctp.rs` returns an empty burn payload and treats any non-empty attestation as valid. |
-| ERC-7579/account abstraction | Yes | No — structural only | No | Not evidenced | No | `src/protocol/account_abstraction.rs` creates an example batch mode and validates only non-empty module addresses. |
-| Asset registry and chain catalog | Yes | Partial | Partial — registry tests | Not evidenced | No | `src/protocol/asset.rs` exposes many active assets without contract addresses; executable address provenance is incomplete. |
-| WASM bindings | Yes | Partial — signing provider unavailable by default | No — build-only evidence | Not evidenced | No | `src/wasm_bindings.rs` rejects the default software-enclave constructor and uses an error-only unavailable provider until a real hardware/runtime integration is supplied. |
-| Telemetry and observability | Yes | No — privacy/operations gaps | No | Not evidenced | No | `src/telemetry.rs` sends API key and signature hash in a detached request with undocumented consent/retention/failure policy. |
-| Release, SBOM, and provenance | Yes | Partial — workflow definitions | No — durable artifact set not evidenced | Not evidenced | No | `.github/workflows/release*.yml`, `.github/workflows/provenance.yml`, and package metadata exist, but workflows are duplicated and `2.0.12` release evidence is not reconciled with visible `v2.0.11`. |
+## Generated capability inventory
+
+Run the dependency-free validator from the repository root:
+
+```bash
+# Validate JSON and fail if the generated table drifts.
+python3 scripts/validate_capability_evidence.py --check
+
+# Explicitly regenerate only the marked table section, after reviewing JSON changes.
+python3 scripts/validate_capability_evidence.py --write
+```
+
+The validator also checks the schema version, full reviewed commit, unique IDs, controlled statuses, repository paths with optional line suffixes, required WASM rows, blocker/exclusion coverage, and fail-closed production evidence ordering.
+
+<!-- capability-evidence:generated:start -->
+## Generated capability evidence
+
+| ID | Capability | Family | API | Implementation | Integration | Independent review | Production support | Blocker / exclusion |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| account-abstraction | Account abstraction | account-and-policy | Yes | No | No | Not evidenced | No | [#198](https://github.com/Conxian/conxius-enclave-sdk/issues/198), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| zkml | Zero-knowledge machine learning | advanced-compute | Yes | Partial | No | Not evidenced | No | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| a2p | Application-to-protocol (A2P) | application-boundary | Yes | Partial | No | Not evidenced | No | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| bitcoin-bip110 | BIP-110 reduced-data compliance | bitcoin | Yes | Partial | No | Not evidenced | Conditional | [#179](https://github.com/Conxian/conxius-enclave-sdk/issues/179), [#196](https://github.com/Conxian/conxius-enclave-sdk/issues/196), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| bitcoin-bip322 | BIP-322 message verification | bitcoin | Yes | No | No | Not evidenced | No | [#196](https://github.com/Conxian/conxius-enclave-sdk/issues/196), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| bitcoin-ecdsa | Bitcoin ECDSA signing | bitcoin | Yes | Partial | Partial | Not evidenced | Conditional | [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#196](https://github.com/Conxian/conxius-enclave-sdk/issues/196), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| bitcoin-taproot | Bitcoin Schnorr and Taproot | bitcoin | Yes | No | Partial | Not evidenced | No | [#196](https://github.com/Conxian/conxius-enclave-sdk/issues/196), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| covenant | Bitcoin covenant and OP_CAT helpers | bitcoin | Yes | Partial | No | Not evidenced | No | [#196](https://github.com/Conxian/conxius-enclave-sdk/issues/196), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| ark | Ark vTXO and recovery orchestration | bitcoin-l2 | Yes | Partial | No | Not evidenced | No | [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| bitvm | BitVM challenge primitives | bitcoin-l2 | Yes | Partial | No | Not evidenced | No | [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| bitvm2 | BitVM2 challenge orchestration | bitcoin-l2 | Yes | Partial | No | Not evidenced | No | [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197), [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| business | Business registry and profiles | business | Yes | Partial | No | Not evidenced | No | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| opportunity | Opportunity discovery | business | Yes | Partial | No | Not evidenced | No | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| solver | Solver bid ranking | business | Yes | Partial | No | Not evidenced | No | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| swap-router | Swap router | business | Yes | Partial | No | Not evidenced | No | [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197), [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| asset-registry | Asset registry and chain metadata | chains | Yes | Partial | Partial | Not evidenced | No | [#198](https://github.com/Conxian/conxius-enclave-sdk/issues/198), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| ethereum | Ethereum address and signed-message handling | chains | Yes | No | No | Not evidenced | No | [#196](https://github.com/Conxian/conxius-enclave-sdk/issues/196), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| chain-abstraction | Multi-chain intent and chain abstraction | chains | Yes | Partial | Partial | Not evidenced | Conditional | [#196](https://github.com/Conxian/conxius-enclave-sdk/issues/196), [#198](https://github.com/Conxian/conxius-enclave-sdk/issues/198), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| solana | Solana address and transfer preparation | chains | Yes | Partial | No | Not evidenced | Conditional | [#196](https://github.com/Conxian/conxius-enclave-sdk/issues/196), [#198](https://github.com/Conxian/conxius-enclave-sdk/issues/198), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| stacks | Stacks address and transaction handling | chains | Yes | Partial | No | Not evidenced | Conditional | [#196](https://github.com/Conxian/conxius-enclave-sdk/issues/196), [#198](https://github.com/Conxian/conxius-enclave-sdk/issues/198), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| cctp | CCTP transfer and attestation | cross-chain | Yes | No | No | Not evidenced | No | [#198](https://github.com/Conxian/conxius-enclave-sdk/issues/198), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| replay-protection | Attestation replay and freshness protection | enclave | Yes | Partial | Partial | Not evidenced | Conditional | [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| enclave-attestation | Enclave hardware attestation | enclave | Yes | Partial | No | Not evidenced | Conditional | [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| enclave-signing | Enclave signing | enclave | Yes | Partial | Partial | Not evidenced | Conditional | [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| fedimint-nexus | Fedimint and Nexus federation adapter | federation | Yes | No | No | Not evidenced | No | [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| economy | Economy and incentive helpers | fiat-and-economy | Yes | Partial | No | Not evidenced | Conditional | [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| fiat | Fiat session preparation | fiat-and-economy | Yes | Partial | No | Not evidenced | Conditional | [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| sidl | SIDL governance and voting | governance | Yes | Partial | No | Not evidenced | Conditional | [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| credit | Credit and vouch intents | identity-and-risk | Yes | Partial | No | Not evidenced | Conditional | [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| identity | Identity profiles | identity-and-risk | Yes | Partial | No | Not evidenced | Conditional | [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| telemetry | Telemetry and observability | operations | Yes | No | No | Not evidenced | No | [#201](https://github.com/Conxian/conxius-enclave-sdk/issues/201), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| rail-policy | Rail policy and attestation enforcement | rails | Yes | No | Partial | Not evidenced | No | [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| rail-adapters | Settlement rail adapters | rails | Yes | Partial | No | Not evidenced | No | [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197), [#198](https://github.com/Conxian/conxius-enclave-sdk/issues/198), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| ci-release-evidence | CI, release, SBOM, and provenance evidence | release | Yes | Partial | No | Not evidenced | No | [#199](https://github.com/Conxian/conxius-enclave-sdk/issues/199), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| dlc | Discreet Log Contracts | settlement | Yes | Partial | No | Not evidenced | No | [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197), [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| job-card-iso20022 | Job Card and ISO 20022 | settlement | Yes | Partial | No | Not evidenced | No | [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197), [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| lightning | Lightning payment intent | settlement | Yes | Partial | No | Not evidenced | No | [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197), [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| settlement-service | Settlement service orchestration | settlement | Yes | Partial | No | Not evidenced | No | [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197), [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| stablecoin | Stablecoin orchestration | settlement | Yes | Partial | No | Not evidenced | No | [#198](https://github.com/Conxian/conxius-enclave-sdk/issues/198), [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| mmr-state | MMR and state proofs | state | Yes | Partial | No | Not evidenced | No | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| frost | FROST threshold signing | threshold-cryptography | Yes | No | No | Not evidenced | No | [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| musig2 | MuSig2 multi-signature aggregation | threshold-cryptography | Yes | Partial | No | Not evidenced | No | [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| wasm-a2p | WASM A2P client | wasm | Yes | Partial | No | Not evidenced | Conditional | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| wasm-business | WASM Business client | wasm | Yes | Partial | No | Not evidenced | Conditional | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| wasm-dlc | WASM DLC client | wasm | Yes | Partial | No | Not evidenced | Conditional | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| wasm-job-card-iso20022 | WASM Job Card / ISO 20022 client | wasm | Yes | Partial | No | Not evidenced | Conditional | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| wasm-lightning | WASM Lightning client | wasm | Yes | Partial | No | Not evidenced | Conditional | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| wasm-mmr | WASM MMR client | wasm | Yes | Partial | No | Not evidenced | Conditional | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| wasm-opportunity | WASM Opportunity client | wasm | Yes | Partial | No | Not evidenced | Conditional | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| wasm-settlement-service | WASM Settlement Service client | wasm | Yes | Partial | No | Not evidenced | Conditional | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| wasm-solver | WASM Solver client | wasm | Yes | Partial | No | Not evidenced | Conditional | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| wasm-stablecoin | WASM Stablecoin client | wasm | Yes | Partial | No | Not evidenced | Conditional | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| wasm-swap-router | WASM Swap Router client | wasm | Yes | Partial | No | Not evidenced | Conditional | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| wasm-zkml | WASM ZKML client | wasm | Yes | Partial | No | Not evidenced | Conditional | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+
+<!-- capability-evidence:generated:end -->
 
 ## Promotion rules
 
-1. A row cannot be marked **production-supported** unless all preceding evidence columns are `Yes` for the same artifact and deployment scope.
+1. A row cannot be marked **production-supported** unless all preceding evidence columns are `Yes` for the same artifact and deployment scope, with non-empty requirement, code, test, CI, and artifact references in that order.
 2. `Simulation only`, `structural`, `placeholder`, `mock`, and `development-only` behavior must remain explicitly labeled and must not be used as production evidence.
 3. A capability may be supported for one artifact/platform and unsupported for another; promotion must name the exact tag, target, runtime, hardware, and integration boundary.
 4. Any unknown or missing evidence is a gate failure for value-bearing signing or settlement, not an implicit pass.
+5. The open production-enablement backlog is already tracked by GitHub issues [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) through [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202); this matrix does not create or duplicate those issues.

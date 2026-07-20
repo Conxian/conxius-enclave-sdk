@@ -3,6 +3,8 @@
 ## Overview
 This document tracks the resolution of production-path logic, architectural gaps, and research requirements for the Conclave SDK.
 
+The [machine-readable capability evidence](./capability-evidence.json) and generated [capability matrix](./CAPABILITY_MATRIX.md) are authoritative for the distinction between API presence, implementation, integration, independent review, and production support. A completed structural/API task below does not promote a capability to production support.
+
 ## Scorecard Criteria
 - **Criticality**: [High, Medium, Low]
 - **Complexity**: [High, Medium, Low]
@@ -12,13 +14,13 @@ This document tracks the resolution of production-path logic, architectural gaps
 
 ### 1. BIP-110: Compliance & Alignment (Issue #179)
 - **Resolution**: Fully implemented the `bip110_compliant` feature flag, integrated BIP-110 validation rules into the BIP-322 construct-to-sign flow, hardened serialization with standard compact size (VarInt) encoding to prevent raw truncation hazards, and added compliance tests verifying Ark/BitVM2 commitment segmentation.
-- **Status**: Completed (v2.0.13)
+- **Status**: API/structural implementation recorded (v2.0.13); canonical Bitcoin verification, integration, review, and artifact evidence remain open in #196 and #202.
 
 ## Technical Resolutions (v2.0.12)
 
 ### 1. BitVM2: Static Tree Root Helper
 - **Resolution**: Made `calculate_tree_root` method static since it doesn't use `self`, improving code clarity and enabling static dispatch optimization.
-- **Status**: Completed (v2.0.12)
+- **Status**: Structural code cleanup completed (v2.0.12); this is not BitVM2 protocol, proof, integration, or production evidence.
 
 ## Technical Resolutions (v2.0.11)
 
@@ -29,7 +31,7 @@ This document tracks the resolution of production-path logic, architectural gaps
   - Cryptographic Verification (invalid signatures, untrusted roots, hardware hardening)
   - Trust Enforcement (production vs development trust classification)
   - Edge Cases (empty signatures, chain validation, concurrent access)
-- **Status**: Completed (v2.0.11)
+- **Status**: Simulation/unit evidence completed (v2.0.11); vendor-backed integration and production caller enforcement remain open in #195 and #202.
 
 ### 2. CI/CD: Node.js 24 Compliance
 - **Resolution**: Updated all GitHub Actions to Node.js 24 compatible versions (v4/v5):
@@ -37,11 +39,11 @@ This document tracks the resolution of production-path logic, architectural gaps
   - `actions/upload-artifact@v5`
   - `actions/download-artifact@v5`
   - `actions/attest-build-provenance@v4.1.1`
-- **Status**: Completed (v2.0.11)
+- **Status**: Historical workflow maintenance completed (v2.0.11); reproducible toolchain, release, scan, SBOM, provenance, and exact-artifact evidence remains open in #199.
 
 ### 3. WASM: Arc<RefCell> for BitVm2Orchestrator
 - **Resolution**: Fixed WASM mutable borrow errors in `WasmBitVm2Orchestrator` using `Arc<RefCell<>>`
-- **Status**: Completed (v2.0.11)
+- **Status**: Build/structural fix completed (v2.0.11); runtime, platform, secret-boundary, and hardware evidence remains open in #200.
 
 ### 4. Documentation: Version Alignment
 - **Resolution**: Fixed version staleness across AGENTS.md, README.md, TRACKING.md, REPOSITORY_ANALYSIS.md, and GAP_SCORECARD.md
@@ -56,14 +58,16 @@ This document tracks the resolution of production-path logic, architectural gaps
 ## Technical Resolutions (v2.0.7)
 
 ### 2. Fedimint: Invite Code & Wasm Readiness
-- **Resolution**: Implemented `join_federation` via invite code and aligned Secp256k1 primitives for `fedimint-client-wasm` compatibility.
-- **Status**: Completed (v2.0.7)
+- **Resolution**: Implemented the `join_federation` API via invite code and aligned primitives for the existing WASM surface.
+- **Status**: API/structural completion only (v2.0.7); real threshold blinding, provider interoperability, independent review, and production support remain open in #197 and #202.
 
 ### 3. Ark: vTXO Tree Construction
-- **Resolution**: Implemented binary transaction tree logic in `ArkManager` for multi-party exits.
-- **Status**: Completed (v2.0.7)
+- **Resolution**: Implemented binary transaction tree logic in `ArkManager` for multi-party exit API paths.
+- **Status**: Structural/API completion only (v2.0.7); live Ark interoperability, settlement evidence, and independent review remain open in #197 and #202.
 
 ## Technical Resolutions (v2.0.6)
+
+The Ark, Fedimint, and related BitVM entries below record API/structural implementation history only. They do not close the protocol-conformance, live integration, independent-review, or production-support gates in the capability evidence record.
 
 ### 4. OP_CAT: Recursive Vault Verification
 - **Resolution**: Implemented structural verification for BIP-347 recursive invariants in `CovenantManager`.
@@ -100,14 +104,14 @@ This document tracks the resolution of production-path logic, architectural gaps
 - **Complexity**: High
 - **Status**: Backlog
 
-### 10. WASM Bindings Completeness Audit (RESOLVED)
-- **Gaps**: 12+ modules lack WASM bindings despite being public APIs.
-- **Resolution**: Added WASM bindings for 7 missing modules: DLC, MMR, Business, Settlement, Stablecoin, Opportunity, A2P
-- **Current Coverage**: 23 WASM client types covering all major protocol modules
-- **Research Note**: Modern WASM SDK patterns favor core crate (no wasm-bindgen) + cdylib wrapper. Use wasm-bindgen-futures for async, wasm-opt -Oz for optimization.
+### 10. WASM API coverage versus runtime evidence
+- **API coverage**: The required WASM sub-client API rows are explicit in [`capability-evidence.json`](./capability-evidence.json), including Lightning, Settlement Service, Solver, Swap Router, ZKML, DLC, Stablecoin, Job Card/ISO20022, MMR, Opportunity, Business, and A2P.
+- **Runtime/platform evidence**: Browser, Node, bundler, worker, provider, hardware, secret-boundary, and unsupported-platform evidence is not established by compilation or binding presence; track it in [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200).
+- **Security boundary**: Hardware mocks and build-only lanes must not satisfy production trust requirements; the current status remains Beta / conditional.
+- **Research Note**: Modern WASM SDK patterns favor a core crate plus a `cdylib` wrapper, but architecture guidance is not runtime or production evidence.
 - **Criticality**: Medium
 - **Complexity**: Medium
-- **Status**: Completed (v2.0.11)
+- **Status**: API inventory recorded; runtime/platform/secret-boundary evidence open (#200)
 
 ### 11. ZKML Module Enhancement (NEW)
 - **Gaps**: `zkml.rs` exists but may need integration with modern tooling.
