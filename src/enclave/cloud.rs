@@ -1,10 +1,12 @@
-use crate::enclave::attestation::{AttestationLevel, DeviceIntegrityReport};
+use crate::enclave::attestation::{
+    parse_extension_data, AttestationLevel, AttestationReportType, DeviceIntegrityReport,
+    ATTESTATION_ENVELOPE_VERSION,
+};
 use crate::{
     enclave::{EnclaveManager, SignRequest, SignResponse, SigningAlgorithm},
     ConclaveError, ConclaveResult,
 };
 use ed25519_dalek::{Signer as _, SigningKey};
-use k256::schnorr::SigningKey as SchnorrSigningKey;
 use rand::Rng;
 use secp256k1::{Message, SecretKey};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -79,12 +81,10 @@ impl CloudEnclave {
             .map_err(|e| ConclaveError::CryptoError(format!("SEC1 Error: {e}")))
     }
 
-    fn get_active_schnorr_key(&self) -> ConclaveResult<SchnorrSigningKey> {
-        SchnorrSigningKey::from_slice(self.get_active_key_bytes())
-            .map_err(|_| ConclaveError::CryptoError("Invalid Schnorr secret key".to_string()))
-    }
-
-    fn generate_attestation_report(&self, challenge: &[u8]) -> DeviceIntegrityReport {
+    fn generate_attestation_report(
+        &self,
+        challenge: &[u8],
+    ) -> ConclaveResult<DeviceIntegrityReport> {
         let key_bytes = self.get_active_key_bytes();
         let signing_key = SigningKey::from_bytes(key_bytes);
         let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
@@ -92,26 +92,29 @@ impl CloudEnclave {
         let timestamp = unix_time_secs();
         let extension_data =
             "SIMULATED_SOFTWARE_ONLY|PURPOSE_SIGN|ALGORITHM_ED25519|PLATFORM_CLOUD".to_string();
+        let extensions = parse_extension_data(&extension_data).ok_or_else(|| {
+            ConclaveError::CryptoError("Invalid simulated attestation extensions".to_string())
+        })?;
 
-        // Hardened: Sign the report fields
-        let mut data_to_verify = Vec::new();
-        data_to_verify.extend_from_slice(challenge);
-        data_to_verify.extend_from_slice(extension_data.as_bytes());
-        data_to_verify.extend_from_slice(&timestamp.to_le_bytes());
-
-        let signature = signing_key.sign(&data_to_verify).to_bytes().to_vec();
-
-        DeviceIntegrityReport {
+        let mut report = DeviceIntegrityReport {
+            report_version: ATTESTATION_ENVELOPE_VERSION,
+            report_type: AttestationReportType::DeviceIntegrity,
             // This implementation is a local software simulation. It must not
             // present itself as provider-backed hardware before a real provider
             // integration exists.
             level: AttestationLevel::Software,
             challenge_nonce: challenge.to_vec(),
-            signature,
-            certificate_chain: vec![pubkey_hex, "CONCLAVE_SIM_ROOT_V1".to_string()],
+            signature: Vec::new(),
+            // No provider certificate chain exists for this software-only
+            // simulation. The single leaf identity is intentionally rejected
+            // by all production verification paths.
+            certificate_chain: vec![pubkey_hex],
             timestamp,
             extension_data,
-        }
+            extensions,
+        };
+        report.sign_with_ed25519_key(&signing_key)?;
+        Ok(report)
     }
 }
 
@@ -158,10 +161,17 @@ impl EnclaveManager for CloudEnclave {
                 signature_hex = hex::encode(sig.serialize_compact());
             }
             SigningAlgorithm::SchnorrSecp256k1 => {
-                let signing_key = self.get_active_schnorr_key()?;
-                public_key_hex = hex::encode(signing_key.verifying_key().to_bytes());
-                let signature = signing_key.sign(&request.message_hash);
-                signature_hex = hex::encode(signature.to_bytes());
+                let message: [u8; 32] = request
+                    .message_hash
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| ConclaveError::InvalidPayload)?;
+                let secret_key = self.get_active_secp_key()?;
+                let keypair = secret_key.keypair();
+                let (x_only_public_key, _) = keypair.x_only_public_key();
+                public_key_hex = hex::encode(x_only_public_key.serialize());
+                let signature = secp256k1::schnorr::sign_no_aux_rand(&message, &keypair);
+                signature_hex = hex::encode(signature.to_byte_array());
             }
             SigningAlgorithm::Ed25519 => {
                 let key_bytes = self.get_active_key_bytes();
@@ -172,7 +182,7 @@ impl EnclaveManager for CloudEnclave {
             }
         };
 
-        let attestation = self.generate_attestation_report(&request.message_hash);
+        let attestation = self.generate_attestation_report(&request.message_hash)?;
         let attestation_json = serde_json::to_string(&attestation)
             .map_err(|e| ConclaveError::CryptoError(format!("Serialization error: {}", e)))?;
 
@@ -189,7 +199,6 @@ mod tests {
     use super::*;
     use crate::enclave::{EnclaveManager, SignRequest, SigningAlgorithm};
     use ed25519_dalek::{Signature as Ed25519Signature, Verifier as _, VerifyingKey};
-    use k256::schnorr::{Signature as SchnorrSignature, VerifyingKey as SchnorrVerifyingKey};
 
     fn enclave() -> CloudEnclave {
         CloudEnclave::new("https://kms.test".to_string())
@@ -228,7 +237,7 @@ mod tests {
 
     #[test]
     fn cloud_schnorr_signature_is_verifiable_and_nonzero() {
-        let message = b"cloud schnorr message";
+        let message = [0x31u8; 32];
         let response = enclave()
             .sign(request(
                 SigningAlgorithm::SchnorrSecp256k1,
@@ -237,12 +246,44 @@ mod tests {
             .unwrap();
         let signature_bytes = hex::decode(response.signature_hex).unwrap();
         let public_key_bytes = hex::decode(response.public_key_hex).unwrap();
-        let verifying_key = SchnorrVerifyingKey::from_slice(&public_key_bytes).unwrap();
-        let signature = SchnorrSignature::try_from(signature_bytes.as_slice()).unwrap();
+        let signature_array: [u8; 64] = signature_bytes.as_slice().try_into().unwrap();
+        let signature = secp256k1::schnorr::Signature::from_byte_array(signature_array);
+        let public_key =
+            secp256k1::XOnlyPublicKey::from_byte_array(public_key_bytes.try_into().unwrap())
+                .unwrap();
 
         assert!(signature_bytes.iter().any(|byte| *byte != 0));
-        assert!(
-            k256::schnorr::signature::Verifier::verify(&verifying_key, message, &signature).is_ok()
+        assert!(secp256k1::schnorr::verify(&signature, &message, &public_key).is_ok());
+    }
+
+    #[test]
+    fn cloud_schnorr_matches_bip340_reference_vector() {
+        let mut vector_secret_key = [0u8; 32];
+        vector_secret_key[31] = 3;
+        let enclave = CloudEnclave::new("https://kms.test".to_string())
+            .unwrap()
+            .with_dev_key(vector_secret_key)
+            .unwrap();
+        let message = [0u8; 32];
+        let response = enclave
+            .sign(request(
+                SigningAlgorithm::SchnorrSecp256k1,
+                message.to_vec(),
+            ))
+            .unwrap();
+
+        let expected_signature = hex::decode(
+            "E907831F80848D1069A5371B402410364BDF1C5F8307B0084C55F1CE2DCA8215\
+             25F66A4A85EA8B71E482A74F382D2CE5EBEEE8FDB2172F477DF4900D310536C0",
+        )
+        .unwrap();
+        assert_eq!(
+            hex::decode(response.signature_hex).unwrap(),
+            expected_signature
+        );
+        assert_eq!(
+            response.public_key_hex,
+            "F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9".to_lowercase()
         );
     }
 

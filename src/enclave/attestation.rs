@@ -1,9 +1,7 @@
-use der::Decode;
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
-use x509_cert::Certificate;
 
 use crate::{ConclaveError, ConclaveResult};
 
@@ -17,12 +15,8 @@ pub const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
 #[cfg(not(test))]
 const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
 
-const DEFAULT_TRUSTED_ROOTS: &[&str] = &[
-    "CONCLAVE_ROOT_CA_V1",
-    "CONCLAVE_CLOUD_ROOT_CA_V1",
-    "GOOGLE_STRONGBOX_ROOT_V1",
-    "AWS_NITRO_ROOT_V1",
-];
+/// Version of the canonical signed attestation envelope.
+pub const ATTESTATION_ENVELOPE_VERSION: u16 = 1;
 
 fn unix_time_secs() -> u64 {
     SystemTime::now()
@@ -31,7 +25,7 @@ fn unix_time_secs() -> u64 {
         .as_secs()
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum AttestationLevel {
     Software,
     TEE,
@@ -39,18 +33,136 @@ pub enum AttestationLevel {
     CloudTEE,
 }
 
-/// Verification policy for production attestation evidence.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum AttestationReportType {
+    DeviceIntegrity,
+}
+
+/// Typed extension tokens used by the signed envelope and policy checks.
 ///
-/// The policy deliberately cannot be configured to accept software-only
-/// attestation. Development and provider-specific implementations must use a
-/// separate test fixture instead of weakening this production policy.
+/// Unknown provider tokens are retained as `Opaque` so they remain covered by
+/// the signature, but they can never satisfy a production policy requirement.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum AttestationExtension {
+    PurposeSign,
+    AlgorithmEd25519,
+    AlgorithmEcdsaSecp256k1,
+    HardwareBacked,
+    SecureBootEnabled,
+    TeeEnabled,
+    HardwareRootOfTrust,
+    Simulated,
+    SimulatedSoftwareOnly,
+    PlatformCloud,
+    OsVersion(String),
+    Opaque(String),
+}
+
+impl AttestationExtension {
+    fn from_token(token: &str) -> Option<Self> {
+        if token.is_empty() || token.contains('|') || token.chars().any(char::is_control) {
+            return None;
+        }
+
+        Some(match token {
+            "PURPOSE_SIGN" => Self::PurposeSign,
+            "ALGORITHM_ED25519" => Self::AlgorithmEd25519,
+            "ALGORITHM_EC" | "ALGORITHM_ECDSA_SECP256K1" => Self::AlgorithmEcdsaSecp256k1,
+            "HARDWARE_BACKED" => Self::HardwareBacked,
+            "SECURE_BOOT_ENABLED" => Self::SecureBootEnabled,
+            "TEE_ENABLED" => Self::TeeEnabled,
+            "HARDWARE_ROOT_OF_TRUST" => Self::HardwareRootOfTrust,
+            "SIMULATED" => Self::Simulated,
+            "SIMULATED_SOFTWARE_ONLY" => Self::SimulatedSoftwareOnly,
+            "PLATFORM_CLOUD" => Self::PlatformCloud,
+            value if value.starts_with("OS_VERSION_") && value.len() > "OS_VERSION_".len() => {
+                Self::OsVersion(value["OS_VERSION_".len()..].to_string())
+            }
+            value => Self::Opaque(value.to_string()),
+        })
+    }
+
+    fn canonical_parts(&self) -> (u8, Option<&str>) {
+        match self {
+            Self::PurposeSign => (1, None),
+            Self::AlgorithmEd25519 => (2, None),
+            Self::AlgorithmEcdsaSecp256k1 => (3, None),
+            Self::HardwareBacked => (4, None),
+            Self::SecureBootEnabled => (5, None),
+            Self::TeeEnabled => (6, None),
+            Self::HardwareRootOfTrust => (7, None),
+            Self::Simulated => (8, None),
+            Self::SimulatedSoftwareOnly => (9, None),
+            Self::PlatformCloud => (10, None),
+            Self::OsVersion(version) => (11, Some(version.as_str())),
+            Self::Opaque(token) => (255, Some(token.as_str())),
+        }
+    }
+}
+
+pub(crate) fn parse_extension_data(data: &str) -> Option<Vec<AttestationExtension>> {
+    if data.is_empty() {
+        return None;
+    }
+
+    data.split('|')
+        .map(AttestationExtension::from_token)
+        .collect()
+}
+
+fn append_len_prefixed(output: &mut Vec<u8>, value: &[u8]) -> Option<()> {
+    let length = u32::try_from(value.len()).ok()?;
+    output.extend_from_slice(&length.to_be_bytes());
+    output.extend_from_slice(value);
+    Some(())
+}
+
+fn level_tag(level: AttestationLevel) -> u8 {
+    match level {
+        AttestationLevel::Software => 0,
+        AttestationLevel::TEE => 1,
+        AttestationLevel::StrongBox => 2,
+        AttestationLevel::CloudTEE => 3,
+    }
+}
+
+/// Status of the provider-specific verifier behind an attestation policy.
+///
+/// `Unavailable` is the only production status in this release. Real Android,
+/// Nitro, DCAP, and SEV verification are intentionally not simulated here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProviderVerifierStatus {
+    Unavailable,
+    #[cfg(test)]
+    TestOnly,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ProviderVerifier {
+    Unavailable,
+    #[cfg(test)]
+    TestFixture {
+        trusted_roots: Vec<String>,
+        leaf_public_key: [u8; 32],
+    },
+}
+
+/// Verification policy for attestation evidence.
+///
+/// Production policy configuration cannot install arbitrary string trust roots.
+/// Until a provider-specific verifier is implemented, production verification
+/// remains unavailable and fails closed.
+///
+/// Compatibility note: the former public string-root builder was intentionally
+/// removed. A future provider implementation must expose typed authenticated
+/// verifier configuration instead of restoring that API.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AttestationPolicy {
     allowed_levels: Vec<AttestationLevel>,
-    trusted_roots: Vec<String>,
     max_age_secs: u64,
     max_future_skew_secs: u64,
-    required_extensions: Vec<String>,
+    required_extensions: Vec<AttestationExtension>,
+    provider_verifier: ProviderVerifier,
 }
 
 impl Default for AttestationPolicy {
@@ -63,29 +175,37 @@ impl AttestationPolicy {
     /// Returns the default fail-closed production policy.
     pub fn production() -> Self {
         Self {
+            // Generic TEE labels are not sufficient hardware evidence. Real
+            // provider verification is still required for these levels too.
+            allowed_levels: vec![AttestationLevel::StrongBox, AttestationLevel::CloudTEE],
+            max_age_secs: MAX_ATTESTATION_AGE_SECS,
+            max_future_skew_secs: MAX_ATTESTATION_FUTURE_SKEW_SECS,
+            required_extensions: vec![AttestationExtension::PurposeSign],
+            provider_verifier: ProviderVerifier::Unavailable,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_fixture() -> Self {
+        Self {
             allowed_levels: vec![
                 AttestationLevel::TEE,
                 AttestationLevel::StrongBox,
                 AttestationLevel::CloudTEE,
             ],
-            trusted_roots: DEFAULT_TRUSTED_ROOTS
-                .iter()
-                .map(|root| (*root).to_string())
-                .collect(),
             max_age_secs: MAX_ATTESTATION_AGE_SECS,
             max_future_skew_secs: MAX_ATTESTATION_FUTURE_SKEW_SECS,
-            required_extensions: vec!["PURPOSE_SIGN".to_string()],
+            required_extensions: vec![AttestationExtension::PurposeSign],
+            provider_verifier: ProviderVerifier::TestFixture {
+                trusted_roots: vec![
+                    "CONCLAVE_ROOT_CA_V1".to_string(),
+                    "CONCLAVE_CLOUD_ROOT_CA_V1".to_string(),
+                    "GOOGLE_STRONGBOX_ROOT_V1".to_string(),
+                    "AWS_NITRO_ROOT_V1".to_string(),
+                ],
+                leaf_public_key: test_signing_key().verifying_key().to_bytes(),
+            },
         }
-    }
-
-    /// Returns a policy using an explicit, non-empty trust-root set.
-    pub fn with_trusted_roots(mut self, trusted_roots: Vec<String>) -> ConclaveResult<Self> {
-        if trusted_roots.is_empty() || trusted_roots.iter().any(|root| root.trim().is_empty()) {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
-        self.trusted_roots = trusted_roots;
-        Ok(self)
     }
 
     /// Returns a policy restricted to the supplied hardware-backed levels.
@@ -123,19 +243,12 @@ impl AttestationPolicy {
         Ok(self)
     }
 
-    /// Returns a policy requiring the supplied extension markers in addition to
+    /// Returns a policy requiring exact typed extension tokens in addition to
     /// the mandatory signing-purpose marker.
     pub fn with_required_extensions(
         mut self,
-        required_extensions: Vec<String>,
+        required_extensions: Vec<AttestationExtension>,
     ) -> ConclaveResult<Self> {
-        if required_extensions
-            .iter()
-            .any(|extension| extension.trim().is_empty())
-        {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
         for extension in required_extensions {
             if !self.required_extensions.contains(&extension) {
                 self.required_extensions.push(extension);
@@ -145,12 +258,24 @@ impl AttestationPolicy {
         Ok(self)
     }
 
-    pub fn allowed_levels(&self) -> &[AttestationLevel] {
-        &self.allowed_levels
+    #[cfg(test)]
+    pub(crate) fn with_test_trusted_roots(
+        mut self,
+        trusted_roots: Vec<String>,
+    ) -> ConclaveResult<Self> {
+        if trusted_roots.is_empty() || trusted_roots.iter().any(|root| root.trim().is_empty()) {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        self.provider_verifier = ProviderVerifier::TestFixture {
+            trusted_roots,
+            leaf_public_key: test_signing_key().verifying_key().to_bytes(),
+        };
+        Ok(self)
     }
 
-    pub fn trusted_roots(&self) -> &[String] {
-        &self.trusted_roots
+    pub fn allowed_levels(&self) -> &[AttestationLevel] {
+        &self.allowed_levels
     }
 
     pub fn max_age_secs(&self) -> u64 {
@@ -161,23 +286,76 @@ impl AttestationPolicy {
         self.max_future_skew_secs
     }
 
-    pub fn required_extensions(&self) -> &[String] {
+    pub fn required_extensions(&self) -> &[AttestationExtension] {
         &self.required_extensions
+    }
+
+    pub fn provider_verifier_status(&self) -> ProviderVerifierStatus {
+        match self.provider_verifier {
+            ProviderVerifier::Unavailable => ProviderVerifierStatus::Unavailable,
+            #[cfg(test)]
+            ProviderVerifier::TestFixture { .. } => ProviderVerifierStatus::TestOnly,
+        }
+    }
+
+    fn is_test_fixture(&self) -> bool {
+        #[cfg(test)]
+        {
+            return matches!(self.provider_verifier, ProviderVerifier::TestFixture { .. });
+        }
+
+        #[cfg(not(test))]
+        {
+            false
+        }
+    }
+
+    fn verify_provider_evidence(&self, _report: &DeviceIntegrityReport) -> bool {
+        match &self.provider_verifier {
+            ProviderVerifier::Unavailable => false,
+            #[cfg(test)]
+            ProviderVerifier::TestFixture {
+                trusted_roots,
+                leaf_public_key,
+            } => {
+                let leaf_matches = _report
+                    .certificate_chain
+                    .first()
+                    .and_then(|entry| hex::decode(entry).ok())
+                    .and_then(|key| <[u8; 32]>::try_from(key).ok())
+                    .is_some_and(|key| key == *leaf_public_key);
+                let root_matches = _report
+                    .certificate_chain
+                    .last()
+                    .is_some_and(|root| trusted_roots.iter().any(|trusted| trusted == root));
+
+                leaf_matches && root_matches
+            }
+        }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceIntegrityReport {
+    pub report_version: u16,
+    pub report_type: AttestationReportType,
     pub level: AttestationLevel,
     pub challenge_nonce: Vec<u8>,
     pub signature: Vec<u8>,
-    pub certificate_chain: Vec<String>, // First element is the device pubkey (as hex) or DER cert
+    /// Full certificate/identity chain. The first entry is the leaf public key
+    /// as hex in the currently supported software/test envelope.
+    pub certificate_chain: Vec<String>,
     pub timestamp: u64,
+    /// Legacy transport representation retained for compatibility. It is
+    /// parsed exactly and signed alongside `extensions`; it is not trusted by
+    /// substring matching.
     pub extension_data: String,
+    /// Exact typed extension tokens covered by the signed envelope.
+    pub extensions: Vec<AttestationExtension>,
 }
 
 impl DeviceIntegrityReport {
-    /// Verifies the integrity report using a realistic hardware attestation model.
+    /// Verifies the integrity report with the production policy.
     pub fn verify(&self, expected_nonce: &[u8]) -> bool {
         self.verify_with_policy(expected_nonce, &AttestationPolicy::production())
     }
@@ -187,13 +365,18 @@ impl DeviceIntegrityReport {
         self.verify_at_time_impl(expected_nonce, unix_time_secs(), policy)
     }
 
-    /// Verifies at a specific timestamp (for testing).
+    /// Verifies at a specific timestamp using the internal test-only fixture
+    /// policy. This convenience method is not available to downstream users.
     #[cfg(test)]
     pub fn verify_at_time(&self, expected_nonce: &[u8], now_secs: u64) -> bool {
-        self.verify_at_time_with_policy(expected_nonce, now_secs, &AttestationPolicy::production())
+        self.verify_at_time_with_policy(
+            expected_nonce,
+            now_secs,
+            &AttestationPolicy::test_fixture(),
+        )
     }
 
-    /// Verifies at a specific timestamp using an explicit policy (for testing).
+    /// Verifies at a specific timestamp using an explicit policy (for tests).
     #[cfg(test)]
     pub fn verify_at_time_with_policy(
         &self,
@@ -204,7 +387,6 @@ impl DeviceIntegrityReport {
         self.verify_at_time_impl(expected_nonce, now_secs, policy)
     }
 
-    #[cfg_attr(test, allow(dead_code))]
     fn verify_at_time_impl(
         &self,
         expected_nonce: &[u8],
@@ -215,7 +397,13 @@ impl DeviceIntegrityReport {
             return false;
         }
 
-        // 1. Freshness & Nonce Check
+        // The canonical envelope rejects missing/unknown versions, malformed
+        // typed extensions, and any field mismatch before cryptographic use.
+        let canonical = match self.canonical_signed_bytes() {
+            Some(canonical) => canonical,
+            None => return false,
+        };
+
         if self.challenge_nonce != expected_nonce {
             return false;
         }
@@ -228,21 +416,16 @@ impl DeviceIntegrityReport {
             return false;
         }
 
-        // 2. Cryptographic Verification of the Report Signature
-        if let Some(result) = self.verify_signature() {
-            if !result {
-                return false;
-            }
-        } else {
+        if !self.verify_signature(&canonical) {
             return false;
         }
 
-        // 3. Hardened Certificate Chain Verification
-        if !self.verify_certificate_chain(policy) {
+        // This is the provider-verifier boundary. There is deliberately no
+        // generic DER subject parser or string-root fallback in production.
+        if !policy.verify_provider_evidence(self) {
             return false;
         }
 
-        // 4. Policy and hardware-backed verification hardening
         if !policy.allowed_levels.contains(&self.level) {
             return false;
         }
@@ -250,127 +433,167 @@ impl DeviceIntegrityReport {
         if policy
             .required_extensions
             .iter()
-            .any(|required| !self.extension_data.contains(required))
+            .any(|required| !self.extensions.contains(required))
         {
             return false;
         }
 
         let is_hardened = match self.level {
             AttestationLevel::StrongBox | AttestationLevel::CloudTEE => {
-                // High Trust levels require explicit hardware-backed signaling
-                self.extension_data.contains("HARDWARE_BACKED")
-                    && self.extension_data.contains("SECURE_BOOT_ENABLED")
+                self.extensions
+                    .contains(&AttestationExtension::HardwareBacked)
+                    && self
+                        .extensions
+                        .contains(&AttestationExtension::SecureBootEnabled)
             }
-            AttestationLevel::TEE => true,
+            // Generic TEE is accepted only by the crate-internal test fixture;
+            // the default production policy excludes it and has no verifier.
+            AttestationLevel::TEE => policy.is_test_fixture(),
             AttestationLevel::Software => false,
         };
 
-        let has_valid_purpose = self.extension_data.contains("PURPOSE_SIGN")
-            && (self.extension_data.contains("ALGORITHM_EC")
-                || self.extension_data.contains("ALGORITHM_ED25519"));
+        let has_valid_purpose = self.extensions.contains(&AttestationExtension::PurposeSign)
+            && (self
+                .extensions
+                .contains(&AttestationExtension::AlgorithmEcdsaSecp256k1)
+                || self
+                    .extensions
+                    .contains(&AttestationExtension::AlgorithmEd25519));
 
         is_hardened && has_valid_purpose
     }
 
-    fn verify_signature(&self) -> Option<bool> {
-        let pubkey_entry = hex::decode(&self.certificate_chain[0]).ok()?;
-
-        // Attempt to parse as X.509 first to extract the raw public key
-        let raw_pubkey = if let Ok(cert) = Certificate::from_der(&pubkey_entry) {
-            // Extract from SubjectPublicKeyInfo
-            cert.tbs_certificate()
-                .subject_public_key_info()
-                .subject_public_key
-                .as_bytes()?
-                .to_vec()
-        } else {
-            pubkey_entry
-        };
-
-        if raw_pubkey.len() != 32 {
+    fn canonical_signed_bytes(&self) -> Option<Vec<u8>> {
+        if self.report_version != ATTESTATION_ENVELOPE_VERSION
+            || self.report_type != AttestationReportType::DeviceIntegrity
+            || self.certificate_chain.is_empty()
+        {
             return None;
         }
-        let bytes: [u8; 32] = raw_pubkey.try_into().ok()?;
-        let verifying_key = VerifyingKey::from_bytes(&bytes).ok()?;
-        let sig = Signature::from_slice(&self.signature).ok()?;
 
-        let mut data_to_verify = Vec::new();
-        data_to_verify.extend_from_slice(&self.challenge_nonce);
-        data_to_verify.extend_from_slice(self.extension_data.as_bytes());
-        data_to_verify.extend_from_slice(&self.timestamp.to_le_bytes());
-
-        Some(verifying_key.verify(&data_to_verify, &sig).is_ok())
-    }
-
-    fn verify_certificate_chain(&self, policy: &AttestationPolicy) -> bool {
-        let last_entry = match self.certificate_chain.last() {
-            Some(entry) => entry,
-            None => return false,
-        };
-
-        // Try to parse as DER hex
-        if let Ok(cert_bytes) = hex::decode(last_entry) {
-            if let Ok(cert) = Certificate::from_der(&cert_bytes) {
-                // For hardening, check if the certificate is structurally sound
-                // and its subject matches our trusted root list.
-                let subject_str = format!("{:?}", cert.tbs_certificate().subject());
-                return policy
-                    .trusted_roots
-                    .iter()
-                    .any(|root| subject_str.contains(root));
-            }
+        let parsed_extensions = parse_extension_data(&self.extension_data)?;
+        if parsed_extensions != self.extensions {
+            return None;
         }
 
-        // Fallback to exact matching for legacy/simulated roots. Prefix or
-        // suffix matches would allow an untrusted root label to masquerade as
-        // a configured root.
-        policy.trusted_roots.iter().any(|root| last_entry == root)
+        let mut output = Vec::new();
+        output.extend_from_slice(b"CONXIAN-ATTESTATION-ENVELOPE\0");
+        output.extend_from_slice(&self.report_version.to_be_bytes());
+        output.push(1); // DeviceIntegrity report type
+        output.push(level_tag(self.level));
+        append_len_prefixed(&mut output, &self.challenge_nonce)?;
+        output.extend_from_slice(&self.timestamp.to_be_bytes());
+
+        let extension_count = u32::try_from(self.extensions.len()).ok()?;
+        output.extend_from_slice(&extension_count.to_be_bytes());
+        for extension in &self.extensions {
+            let (tag, value) = extension.canonical_parts();
+            output.push(tag);
+            append_len_prefixed(&mut output, value.unwrap_or_default().as_bytes())?;
+        }
+
+        // Include the exact legacy field too, so every serialized report field
+        // remains covered even when a caller mutates representation details.
+        append_len_prefixed(&mut output, self.extension_data.as_bytes())?;
+
+        let chain_count = u32::try_from(self.certificate_chain.len()).ok()?;
+        output.extend_from_slice(&chain_count.to_be_bytes());
+        for chain_entry in &self.certificate_chain {
+            append_len_prefixed(&mut output, chain_entry.as_bytes())?;
+        }
+
+        Some(output)
     }
 
-    /// Generates a hardware-bound fingerprint for this device.
+    fn verify_signature(&self, canonical: &[u8]) -> bool {
+        let raw_pubkey = match self
+            .certificate_chain
+            .first()
+            .and_then(|entry| hex::decode(entry).ok())
+        {
+            Some(raw_pubkey) if raw_pubkey.len() == 32 => raw_pubkey,
+            _ => return false,
+        };
+
+        let bytes: [u8; 32] = match raw_pubkey.try_into() {
+            Ok(bytes) => bytes,
+            Err(_) => return false,
+        };
+        let verifying_key = match VerifyingKey::from_bytes(&bytes) {
+            Ok(verifying_key) => verifying_key,
+            Err(_) => return false,
+        };
+        let signature = match Signature::from_slice(&self.signature) {
+            Ok(signature) => signature,
+            Err(_) => return false,
+        };
+
+        verifying_key.verify(canonical, &signature).is_ok()
+    }
+
+    pub(crate) fn sign_with_ed25519_key(&mut self, signing_key: &SigningKey) -> ConclaveResult<()> {
+        let canonical = self
+            .canonical_signed_bytes()
+            .ok_or(ConclaveError::InvalidPayload)?;
+        self.signature = signing_key.sign(&canonical).to_bytes().to_vec();
+        Ok(())
+    }
+
+    /// Generates a hardware-bound fingerprint for this device identity.
     pub fn get_device_fingerprint(&self) -> String {
         let mut hasher = Sha256::new();
         for cert in &self.certificate_chain {
             hasher.update(cert.as_bytes());
         }
-        hasher.update(self.extension_data.as_bytes());
+        for extension in &self.extensions {
+            let (tag, value) = extension.canonical_parts();
+            hasher.update([tag]);
+            if let Some(value) = value {
+                hasher.update(value.as_bytes());
+            }
+        }
         hex::encode(hasher.finalize())
     }
 }
 
 #[cfg(test)]
+pub(crate) fn test_signing_key() -> SigningKey {
+    SigningKey::from_bytes(&[0x42; 32])
+}
+
+#[cfg(test)]
 mod tests {
-    use super::{AttestationLevel, DeviceIntegrityReport, MAX_ATTESTATION_AGE_SECS};
-    use ed25519_dalek::{Signer, SigningKey};
-    use rand_core::Rng;
+    use super::{
+        parse_extension_data, test_signing_key, AttestationExtension, AttestationLevel,
+        AttestationPolicy, AttestationReportType, DeviceIntegrityReport, MAX_ATTESTATION_AGE_SECS,
+    };
+    use ed25519_dalek::SigningKey;
 
     fn valid_report(timestamp: u64, level: AttestationLevel) -> DeviceIntegrityReport {
-        let mut seed = [0u8; 32];
-        rand::rng().fill_bytes(&mut seed);
-        let signing_key = SigningKey::from_bytes(&seed);
+        let signing_key = test_signing_key();
         let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
-
         let nonce = vec![1, 2, 3, 4];
         let mut extension_data = "PURPOSE_SIGN|ALGORITHM_ED25519|OS_VERSION_14".to_string();
         if level == AttestationLevel::StrongBox || level == AttestationLevel::CloudTEE {
             extension_data.push_str("|HARDWARE_BACKED|SECURE_BOOT_ENABLED");
         }
+        let extensions = parse_extension_data(&extension_data).expect("valid extensions");
 
-        let mut data_to_verify = Vec::new();
-        data_to_verify.extend_from_slice(&nonce);
-        data_to_verify.extend_from_slice(extension_data.as_bytes());
-        data_to_verify.extend_from_slice(&timestamp.to_le_bytes());
-
-        let signature = signing_key.sign(&data_to_verify).to_bytes().to_vec();
-
-        DeviceIntegrityReport {
+        let mut report = DeviceIntegrityReport {
+            report_version: super::ATTESTATION_ENVELOPE_VERSION,
+            report_type: AttestationReportType::DeviceIntegrity,
             level,
             challenge_nonce: nonce,
-            signature,
+            signature: Vec::new(),
             certificate_chain: vec![pubkey_hex, "CONCLAVE_ROOT_CA_V1".to_string()],
             timestamp,
             extension_data,
-        }
+            extensions,
+        };
+        report
+            .sign_with_ed25519_key(&signing_key)
+            .expect("fixture should sign");
+        report
     }
 
     #[test]
@@ -390,6 +613,20 @@ mod tests {
     }
 
     #[test]
+    fn production_policy_rejects_generic_tee_and_is_unavailable() {
+        let now_secs: u64 = 1_000_000;
+        let report = valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
+        let policy = AttestationPolicy::production();
+
+        assert!(!report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
+        assert_eq!(
+            policy.provider_verifier_status(),
+            super::ProviderVerifierStatus::Unavailable
+        );
+        assert!(!policy.allowed_levels().contains(&AttestationLevel::TEE));
+    }
+
+    #[test]
     fn verify_rejects_stale_report() {
         let now_secs: u64 = 1_000_000;
         let stale_timestamp = now_secs.saturating_sub(MAX_ATTESTATION_AGE_SECS + 1);
@@ -402,7 +639,7 @@ mod tests {
     fn verify_rejects_invalid_signature() {
         let now_secs: u64 = 1_000_000;
         let mut report = valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
-        report.signature[0] ^= 0xFF; // Corrupt signature
+        report.signature[0] ^= 0xFF;
 
         assert!(!report.verify_at_time(&[1, 2, 3, 4], now_secs));
     }
@@ -413,6 +650,67 @@ mod tests {
         let mut report = valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
         report.certificate_chain[1] = "UNKNOWN_ROOT".to_string();
 
+        assert!(!report.verify_at_time(&[1, 2, 3, 4], now_secs));
+    }
+
+    #[test]
+    fn attacker_key_with_trusted_label_is_rejected() {
+        let now_secs: u64 = 1_000_000;
+        let attacker_key = SigningKey::from_bytes(&[0x24; 32]);
+        let mut report = valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
+        report.certificate_chain[0] = hex::encode(attacker_key.verifying_key().to_bytes());
+        report
+            .sign_with_ed25519_key(&attacker_key)
+            .expect("attacker can sign its forged envelope");
+
+        assert!(!report.verify_at_time(&[1, 2, 3, 4], now_secs));
+    }
+
+    #[test]
+    fn changing_signed_security_fields_invalidates_report() {
+        let now_secs: u64 = 1_000_000;
+
+        let mut level_changed = valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
+        level_changed.level = AttestationLevel::StrongBox;
+        assert!(!level_changed.verify_at_time(&[1, 2, 3, 4], now_secs));
+
+        let mut extension_changed =
+            valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
+        extension_changed.extensions[0] = AttestationExtension::HardwareBacked;
+        assert!(!extension_changed.verify_at_time(&[1, 2, 3, 4], now_secs));
+
+        let mut leaf_changed = valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
+        leaf_changed.certificate_chain[0] = hex::encode([0x11; 32]);
+        assert!(!leaf_changed.verify_at_time(&[1, 2, 3, 4], now_secs));
+
+        let mut chain_changed = valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
+        chain_changed
+            .certificate_chain
+            .push("SWAPPED_CHAIN_ENTRY".to_string());
+        assert!(!chain_changed.verify_at_time(&[1, 2, 3, 4], now_secs));
+    }
+
+    #[test]
+    fn extension_matching_is_exact_not_substring_based() {
+        let now_secs: u64 = 1_000_000;
+        let signing_key = test_signing_key();
+        let mut report = valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox);
+        report.extension_data =
+            "PURPOSE_SIGNED|ALGORITHM_ED25519|HARDWARE_BACKED_EXTRA|SECURE_BOOT_ENABLED_EXTRA"
+                .to_string();
+        report.extensions = parse_extension_data(&report.extension_data).expect("opaque tokens");
+        report
+            .sign_with_ed25519_key(&signing_key)
+            .expect("fixture should sign");
+
+        assert!(!report.verify_at_time(&[1, 2, 3, 4], now_secs));
+    }
+
+    #[test]
+    fn report_type_and_version_are_signed() {
+        let now_secs: u64 = 1_000_000;
+        let mut report = valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
+        report.report_version = 99;
         assert!(!report.verify_at_time(&[1, 2, 3, 4], now_secs));
     }
 }

@@ -23,7 +23,10 @@ impl ReplayGuard {
         Self {
             entries: Mutex::new(HashMap::new()),
             ttl_secs,
-            max_entries: max_entries.max(1),
+            // A zero-capacity guard is intentionally unusable. Keep the zero
+            // value so every insertion fails closed instead of silently
+            // becoming a one-entry guard.
+            max_entries,
         }
     }
 
@@ -129,5 +132,16 @@ mod tests {
 
         // Once both entries expire, a new key can be admitted.
         assert!(guard.check_and_record("attestation-3", 112));
+    }
+
+    #[test]
+    fn zero_capacity_rejects_every_new_key() {
+        let guard = ReplayGuard::new(300, 0);
+
+        assert_eq!(
+            guard.try_check_and_record("attestation-1", 100),
+            Err(super::ReplayGuardError::CapacitySaturated)
+        );
+        assert!(!guard.check_and_record("attestation-2", 101));
     }
 }
