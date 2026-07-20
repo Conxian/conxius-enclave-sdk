@@ -11,7 +11,7 @@ use crate::protocol::asset::AssetRegistry;
 use crate::protocol::business::BusinessRegistry;
 use crate::protocol::intent::{SwapIntent, SwapRequest, SwapResponse};
 use crate::protocol::solver::{SolverBid, SolverManager};
-use crate::telemetry::TelemetryClient;
+use crate::telemetry::{TelemetryClient, TelemetryEvent};
 use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -273,7 +273,7 @@ impl SovereignHandshake for RailProxy {
         self.verify_hardware_integrity(&intent, &attestation)?;
 
         if let Some(telemetry) = &self.telemetry {
-            telemetry.track_signature(hex::encode(&intent.signable_hash));
+            let _ = telemetry.track_event(TelemetryEvent::SignedIntent);
         }
 
         let rail = self
@@ -437,7 +437,7 @@ mod rail_proxy_tests {
         let registry = Arc::new(AssetRegistry::new());
         let business = Arc::new(BusinessRegistry::new());
         let telemetry = Arc::new(TelemetryClient::new(
-            "http://localhost".to_string(),
+            "https://telemetry.invalid".to_string(),
             "test_key".to_string(),
         ));
 
