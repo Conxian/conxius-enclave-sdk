@@ -1,5 +1,6 @@
 use crate::protocol::asset::AssetIdentifier;
 use crate::protocol::rails::TrustTier;
+use crate::protocol::rails::VerifiedOperation;
 use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
 use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
@@ -7,19 +8,22 @@ use serde::{Deserialize, Serialize};
 
 /// Implementation of the x402 (Payment-Required) protocol for industrial intent.
 /// This rail handles autonomous payments triggered by HTTP 402 headers or ERP intents.
-pub struct X402Rail {
-    pub gateway_url: String,
-    pub http_client: reqwest::Client,
+pub(crate) struct X402Rail {
+    pub(crate) gateway_url: String,
+    pub(crate) http_client: reqwest::Client,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct X402Intent {
-    pub invoice_id: String,
-    pub amount_due: u64,
-    pub asset: AssetIdentifier,
-    pub merchant_address: String,
-    pub fallback_url: Option<String>,
+#[allow(dead_code)]
+struct X402Intent {
+    invoice_id: String,
+    amount_due: u64,
+    asset: AssetIdentifier,
+    merchant_address: String,
+    fallback_url: Option<String>,
 }
+
+impl super::sealed::SovereignRail for X402Rail {}
 
 #[async_trait(?Send)]
 impl SovereignRail for X402Rail {
@@ -42,11 +46,8 @@ impl SovereignRail for X402Rail {
         )))
     }
 
-    async fn execute_swap(
-        &self,
-        intent: SwapIntent,
-        signature: String,
-    ) -> ConclaveResult<SwapResponse> {
+    async fn execute_swap(&self, operation: VerifiedOperation) -> ConclaveResult<SwapResponse> {
+        let (intent, signature) = operation.into_parts();
         let url = format!("{}/v1/rails/x402/settle", self.gateway_url);
 
         #[derive(Serialize)]

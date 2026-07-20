@@ -1,19 +1,22 @@
 use crate::protocol::rails::TrustTier;
+use crate::protocol::rails::VerifiedOperation;
 use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
 use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-pub struct BisqRail {
-    pub gateway_url: String,
-    pub http_client: reqwest::Client,
+pub(crate) struct BisqRail {
+    pub(crate) gateway_url: String,
+    pub(crate) http_client: reqwest::Client,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct BroadcastSwapRequest {
-    pub intent: SwapIntent,
-    pub signature: String,
+    intent: SwapIntent,
+    signature: String,
 }
+
+impl super::sealed::SovereignRail for BisqRail {}
 
 #[async_trait(?Send)]
 impl SovereignRail for BisqRail {
@@ -34,11 +37,8 @@ impl SovereignRail for BisqRail {
         Ok(Some("BISQ_P2P_V2".to_string()))
     }
 
-    async fn execute_swap(
-        &self,
-        intent: SwapIntent,
-        signature: String,
-    ) -> ConclaveResult<SwapResponse> {
+    async fn execute_swap(&self, operation: VerifiedOperation) -> ConclaveResult<SwapResponse> {
+        let (intent, signature) = operation.into_parts();
         let url = format!("{}/v1/swap/execute", self.gateway_url);
         let payload = BroadcastSwapRequest { intent, signature };
 
