@@ -75,7 +75,7 @@ mod tests {
         let enclave = CloudEnclave::new("test".to_string()).unwrap();
         let eth_mgr = EthereumManager::new(&enclave);
         let transfer = crate::protocol::ethereum::Erc20Transfer {
-            to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eb48".to_string(),
+            to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".to_string(),
             amount: 1000000,
             contract_address: "0x0000000000000000000000000000000000000123".to_string(),
         };

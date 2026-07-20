@@ -2,7 +2,7 @@ use crate::enclave::{
     sign_value_bearing, EnclaveManager, OperationContext, SignerKeyBinding, SigningAlgorithm,
     TrustRequirement, ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
 };
-use crate::protocol::asset::Chain;
+use crate::protocol::asset::{AssetIdentifier, Chain};
 use crate::protocol::economy::{DualStackIntent, YieldEngine};
 use crate::protocol::intent::SwapRequest;
 use crate::protocol::rails::{RailProxy, SovereignHandshake};
@@ -67,18 +67,16 @@ impl<'a> OpportunityDispatcher<'a> {
                 rail,
             } => {
                 let registry = &self.rail_proxy.registry;
-                let from_asset = registry
-                    .list_assets()
-                    .into_iter()
-                    .find(|(id, _)| id.chain == from_chain && id.symbol == from_symbol)
-                    .ok_or(ConclaveError::InvalidPayload)?
-                    .0;
-                let to_asset = registry
-                    .list_assets()
-                    .into_iter()
-                    .find(|(id, _)| id.chain == to_chain && id.symbol == to_symbol)
-                    .ok_or(ConclaveError::InvalidPayload)?
-                    .0;
+                let from_asset = AssetIdentifier {
+                    chain: from_chain,
+                    symbol: from_symbol,
+                };
+                let to_asset = AssetIdentifier {
+                    chain: to_chain,
+                    symbol: to_symbol,
+                };
+                registry.validate_asset(&from_asset)?;
+                registry.validate_asset(&to_asset)?;
 
                 let request = SwapRequest {
                     from_asset,
@@ -162,6 +160,8 @@ mod tests {
     use crate::protocol::business::BusinessRegistry;
     use std::sync::Arc;
 
+    const TEST_EVM_ADDRESS: &str = "0x52908400098527886E0F7030069857D2E4169EE7";
+
     #[tokio::test]
     async fn test_opportunity_dispatcher_dynamic_rail() {
         let enclave = CloudEnclave::new("http://localhost".to_string()).unwrap();
@@ -182,7 +182,7 @@ mod tests {
             to_chain: Chain::ETHEREUM,
             to_symbol: "ETH".to_string(),
             amount: 100,
-            recipient: "0x123".to_string(),
+            recipient: TEST_EVM_ADDRESS.to_string(),
             rail: None,
         };
 
