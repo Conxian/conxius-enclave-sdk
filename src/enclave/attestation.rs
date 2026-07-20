@@ -314,7 +314,7 @@ impl AttestationPolicy {
     pub fn with_trusted_roots(self, trusted_roots: Vec<String>) -> ConclaveResult<Self> {
         #[cfg(test)]
         {
-            return self.with_test_trusted_roots(trusted_roots);
+            self.with_test_trusted_roots(trusted_roots)
         }
 
         #[cfg(not(test))]
@@ -416,7 +416,7 @@ impl AttestationPolicy {
     fn is_test_fixture(&self) -> bool {
         #[cfg(test)]
         {
-            return matches!(self.provider_verifier, ProviderVerifier::TestFixture { .. });
+            matches!(self.provider_verifier, ProviderVerifier::TestFixture { .. })
         }
 
         #[cfg(not(test))]

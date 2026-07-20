@@ -97,6 +97,9 @@ pub trait SovereignHandshake {
     /// return `Unsupported` until a typed operation-signature envelope binds
     /// the algorithm, operation public key, provider evidence, and complete
     /// canonical intent hash. The old request-only hash format is rejected.
+    #[deprecated(
+        note = "Use the future typed operation-signature API; raw signatures are rejected."
+    )]
     async fn broadcast_signed_intent(
         &self,
         intent: SwapIntent,
@@ -747,6 +750,7 @@ mod rail_proxy_tests {
         intent.signable_hash[0] ^= 0xFF;
         let forged_attestation = Some(test_attestation_json(intent.signable_hash.clone()));
 
+        #[allow(deprecated)]
         let result = proxy
             .broadcast_signed_intent(
                 intent.clone(),
@@ -935,6 +939,7 @@ mod rail_proxy_tests {
 
         // This deliberately opaque value is accepted only because this unit
         // test is compiled with the internal cfg(test) compatibility path.
+        #[allow(deprecated)]
         let response = rail_proxy
             .broadcast_signed_intent(intent, "sig".to_string(), attestation)
             .await
