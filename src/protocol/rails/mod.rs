@@ -889,17 +889,62 @@ mod rail_proxy_tests {
     }
 
     #[test]
+    fn test_malformed_attestation_is_rejected_without_consuming_replay_state() {
+        let proxy = test_proxy();
+        let intent = test_intent(vec![15; 32]);
+        let malformed = Some("{not-json".to_string());
+
+        let result = proxy.verify_hardware_integrity(&intent, &malformed);
+        assert!(matches!(
+            result,
+            Err(ConclaveError::EnclaveFailure(message)) if message.contains("Invalid attestation JSON")
+        ));
+
+        let valid = Some(test_attestation_json(intent.signable_hash.clone()));
+        assert!(proxy.verify_hardware_integrity(&intent, &valid).is_ok());
+    }
+
+    #[test]
+    fn test_wrong_purpose_is_rejected_without_consuming_replay_state() {
+        let proxy = test_proxy();
+        let intent = test_intent(vec![16; 32]);
+        let mut report = test_attestation_report(intent.signable_hash.clone(), unix_time_secs());
+        report.extension_data =
+            "PURPOSE_VIEW|ALGORITHM_ED25519|TEE_ENABLED|HARDWARE_ROOT_OF_TRUST".to_string();
+        report.extensions = parse_extension_data(&report.extension_data).expect("valid extensions");
+        report
+            .sign_with_ed25519_key(&test_signing_key())
+            .expect("fixture should sign");
+        let wrong_purpose = Some(serde_json::to_string(&report).unwrap());
+
+        let result = proxy.verify_hardware_integrity(&intent, &wrong_purpose);
+        assert!(matches!(
+            result,
+            Err(ConclaveError::EnclaveFailure(message)) if message.contains("cryptographic")
+        ));
+
+        let valid = Some(test_attestation_json(intent.signable_hash.clone()));
+        assert!(proxy.verify_hardware_integrity(&intent, &valid).is_ok());
+    }
+
+    #[test]
     fn test_legacy_policy_flag_cannot_disable_attestation() {
         let proxy = test_proxy();
         let intent = test_intent(vec![11; 32]);
         let no_attestation = None;
 
-        let result = proxy.verify_hardware_integrity_with_policy(&intent, &no_attestation, false);
+        for legacy_enforce in [false, true] {
+            let result = proxy.verify_hardware_integrity_with_policy(
+                &intent,
+                &no_attestation,
+                legacy_enforce,
+            );
 
-        assert!(matches!(
-            result,
-            Err(ConclaveError::EnclaveFailure(message)) if message.contains("required")
-        ));
+            assert!(matches!(
+                result,
+                Err(ConclaveError::EnclaveFailure(message)) if message.contains("required")
+            ));
+        }
     }
 
     #[test]

@@ -1,7 +1,10 @@
 #[allow(unused_imports)]
 use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 use crate::protocol::intent::{AssetAmount, CrossChainIntent, ResolvedCrossChainOrder};
-use crate::{enclave::EnclaveManager, ConclaveError, ConclaveResult};
+use crate::{
+    enclave::{sign_value_bearing, EnclaveManager},
+    ConclaveError, ConclaveResult,
+};
 use alloy::primitives::{Address as EthAddress, Keccak256};
 use bitcoin::address::Address;
 use bitcoin::key::PublicKey;
@@ -86,7 +89,7 @@ impl ChainAbstractionService {
             taproot_tweak: None,
         };
 
-        let response = self.enclave.sign(sign_request)?;
+        let response = sign_value_bearing(self.enclave.as_ref(), sign_request)?;
 
         let public_key_bytes = hex::decode(&response.public_key_hex)
             .map_err(|e| ConclaveError::CryptoError(format!("Invalid public key hex: {}", e)))?;

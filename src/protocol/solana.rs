@@ -1,5 +1,5 @@
 use crate::{
-    enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
+    enclave::{sign_value_bearing, EnclaveManager, SignRequest, SigningAlgorithm},
     ConclaveResult,
 };
 use serde::{Deserialize, Serialize};
@@ -40,7 +40,7 @@ impl<'a> SolanaManager<'a> {
             taproot_tweak: None,
         };
 
-        let response = self.enclave.sign(request)?;
+        let response = sign_value_bearing(self.enclave, request)?;
         Ok(response.signature_hex)
     }
 

@@ -1,5 +1,5 @@
 use crate::{
-    enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
+    enclave::{sign_value_bearing, EnclaveManager, SignRequest, SigningAlgorithm},
     ConclaveError, ConclaveResult,
 };
 use rand::Rng;
@@ -185,7 +185,7 @@ impl<'a> BusinessManager<'a> {
             taproot_tweak: None,
         };
 
-        let response = self.enclave.sign(request)?;
+        let response = sign_value_bearing(self.enclave, request)?;
         attribution.signature = response.signature_hex;
 
         Ok(attribution)

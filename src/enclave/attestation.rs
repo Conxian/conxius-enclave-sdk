@@ -1,5 +1,7 @@
 use der::Decode;
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+#[cfg(any(test, feature = "development-simulators"))]
+use ed25519_dalek::{Signer, SigningKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -700,6 +702,7 @@ impl DeviceIntegrityReport {
         verifying_key.verify(canonical, &signature).is_ok()
     }
 
+    #[cfg(any(test, feature = "development-simulators"))]
     pub(crate) fn sign_with_ed25519_key(&mut self, signing_key: &SigningKey) -> ConclaveResult<()> {
         let canonical = self
             .canonical_signed_bytes()

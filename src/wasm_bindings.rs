@@ -16,9 +16,16 @@ pub struct ConclaveWasmClient {
 #[wasm_bindgen]
 impl ConclaveWasmClient {
     #[wasm_bindgen(constructor)]
-    pub fn new(enclave_url: &str) -> Result<ConclaveWasmClient, JsValue> {
+    pub fn new(_enclave_url: &str) -> Result<ConclaveWasmClient, JsValue> {
+        Err(JsValue::from_str(
+            "hardware-backed enclave provider is unavailable; software simulators are not a production WASM signing path",
+        ))
+    }
+
+    #[cfg(feature = "development-simulators")]
+    pub fn new_for_development(enclave_url: &str) -> Result<ConclaveWasmClient, JsValue> {
         let enclave = Arc::new(
-            crate::enclave::cloud::CloudEnclave::new(enclave_url.to_string())
+            crate::enclave::cloud::CloudEnclave::new_for_development(enclave_url.to_string())
                 .map_err(to_js_error)?,
         );
         Ok(ConclaveWasmClient { enclave })
@@ -705,12 +712,7 @@ pub struct WasmBitVm2Orchestrator {
 
 #[wasm_bindgen]
 impl WasmBitVm2Orchestrator {
-    #[wasm_bindgen(constructor)]
-    pub fn new() -> WasmBitVm2Orchestrator {
-        let enclave = Arc::new(
-            crate::enclave::cloud::CloudEnclave::new("http://localhost".to_string())
-                .expect("Failed to create enclave"),
-        );
+    fn from_enclave(enclave: Arc<dyn EnclaveManager>) -> WasmBitVm2Orchestrator {
         let ark = Arc::new(crate::protocol::ark::ArkManager::new(enclave.clone()));
         let bitvm = Arc::new(crate::protocol::bitvm::BitVmManager::new(enclave));
         WasmBitVm2Orchestrator {
@@ -718,6 +720,22 @@ impl WasmBitVm2Orchestrator {
                 crate::protocol::bitvm2::BitVm2Orchestrator::new(ark, bitvm),
             )),
         }
+    }
+
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmBitVm2Orchestrator {
+        Self::from_enclave(Arc::new(crate::enclave::UnavailableEnclave))
+    }
+
+    #[cfg(feature = "development-simulators")]
+    pub fn new_for_development() -> Result<WasmBitVm2Orchestrator, JsValue> {
+        let enclave = Arc::new(
+            crate::enclave::cloud::CloudEnclave::new_for_development(
+                "http://localhost".to_string(),
+            )
+            .map_err(to_js_error)?,
+        );
+        Ok(Self::from_enclave(enclave))
     }
 
     pub fn create_forfeit_with_commitment(

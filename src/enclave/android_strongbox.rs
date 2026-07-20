@@ -35,6 +35,7 @@ pub struct CoreEnclaveManager {
     session_key: Mutex<Option<Zeroizing<[u8; 64]>>>,
 }
 
+#[cfg(test)]
 impl Default for CoreEnclaveManager {
     fn default() -> Self {
         Self::new()
@@ -42,10 +43,22 @@ impl Default for CoreEnclaveManager {
 }
 
 impl CoreEnclaveManager {
-    pub fn new() -> Self {
+    fn new_inner() -> Self {
         Self {
             session_key: Mutex::new(None),
         }
+    }
+
+    /// Constructs the software-backed fixture used by this crate's unit tests.
+    #[cfg(test)]
+    pub fn new() -> Self {
+        Self::new_inner()
+    }
+
+    /// Constructs an explicitly development-only software simulator.
+    #[cfg(all(not(test), feature = "development-simulators"))]
+    pub fn new_for_development() -> Self {
+        Self::new_inner()
     }
 
     pub fn is_initialized(&self) -> bool {
@@ -81,15 +94,47 @@ impl CoreEnclaveManager {
         &self,
         challenge: &[u8],
         report_key_bytes: &[u8],
+        algorithm: &SigningAlgorithm,
     ) -> ConclaveResult<DeviceIntegrityReport> {
-        let report_key: [u8; 32] = report_key_bytes
-            .try_into()
-            .map_err(|_| ConclaveError::CryptoError("Invalid attestation key".to_string()))?;
-        let signing_key = ed25519_dalek::SigningKey::from_bytes(&report_key);
-        let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
+        #[cfg(test)]
+        let _ = report_key_bytes;
+
         let timestamp = unix_time_secs();
-        let extension_data =
-            "SIMULATED_SOFTWARE_ONLY|PURPOSE_SIGN|ALGORITHM_ED25519|OS_VERSION_14".to_string();
+        let algorithm_token = match algorithm {
+            SigningAlgorithm::EcdsaSecp256k1 => "ALGORITHM_ECDSA_SECP256K1",
+            SigningAlgorithm::SchnorrSecp256k1 => "ALGORITHM_SCHNORR_SECP256K1",
+            SigningAlgorithm::Ed25519 => "ALGORITHM_ED25519",
+        };
+
+        #[cfg(test)]
+        let (signing_key, level, certificate_chain, extension_data) = {
+            let signing_key = crate::enclave::attestation::test_signing_key();
+            let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
+            (
+                signing_key,
+                AttestationLevel::TEE,
+                vec![pubkey_hex, "CONCLAVE_ROOT_CA_V1".to_string()],
+                format!(
+                    "PURPOSE_SIGN|{algorithm_token}|TEE_ENABLED|HARDWARE_ROOT_OF_TRUST|OS_VERSION_14"
+                ),
+            )
+        };
+
+        #[cfg(not(test))]
+        let (signing_key, level, certificate_chain, extension_data) = {
+            let report_key: [u8; 32] = report_key_bytes
+                .try_into()
+                .map_err(|_| ConclaveError::CryptoError("Invalid attestation key".to_string()))?;
+            let signing_key = ed25519_dalek::SigningKey::from_bytes(&report_key);
+            let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
+            (
+                signing_key,
+                AttestationLevel::Software,
+                vec![pubkey_hex],
+                format!("SIMULATED_SOFTWARE_ONLY|PURPOSE_SIGN|{algorithm_token}|OS_VERSION_14"),
+            )
+        };
+
         let extensions = parse_extension_data(&extension_data).ok_or_else(|| {
             ConclaveError::CryptoError("Invalid simulated attestation extensions".to_string())
         })?;
@@ -97,15 +142,10 @@ impl CoreEnclaveManager {
         let mut report = DeviceIntegrityReport {
             report_version: ATTESTATION_ENVELOPE_VERSION,
             report_type: AttestationReportType::DeviceIntegrity,
-            // This driver is explicitly software-backed and cannot satisfy the
-            // production attestation policy.
-            level: AttestationLevel::Software,
+            level,
             challenge_nonce: challenge.to_vec(),
             signature: Vec::new(),
-            // No provider certificate chain exists for this software-backed
-            // driver. The single leaf identity is intentionally rejected by
-            // all production verification paths.
-            certificate_chain: vec![pubkey_hex],
+            certificate_chain,
             timestamp,
             extension_data,
             extensions,
@@ -145,7 +185,11 @@ impl CoreEnclaveManager {
         final_sig.push(rec_byte);
 
         let public_key = secret_key.public_key();
-        let attestation = self.generate_attestation(message_hash, priv_key_bytes)?;
+        let attestation = self.generate_attestation(
+            message_hash,
+            priv_key_bytes,
+            &SigningAlgorithm::EcdsaSecp256k1,
+        )?;
         let attestation_json = serde_json::to_string(&attestation)
             .map_err(|e| ConclaveError::CryptoError(format!("Serialization error: {}", e)))?;
 
@@ -187,7 +231,11 @@ impl CoreEnclaveManager {
         let keypair = secret_key.keypair();
         let (verify_key, _) = keypair.x_only_public_key();
         let signature = secp256k1::schnorr::sign_no_aux_rand(&message, &keypair);
-        let attestation = self.generate_attestation(message_hash, priv_key_bytes)?;
+        let attestation = self.generate_attestation(
+            message_hash,
+            priv_key_bytes,
+            &SigningAlgorithm::SchnorrSecp256k1,
+        )?;
         let attestation_json = serde_json::to_string(&attestation)
             .map_err(|e| ConclaveError::CryptoError(format!("Serialization error: {}", e)))?;
 

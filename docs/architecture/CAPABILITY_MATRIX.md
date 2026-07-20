@@ -20,10 +20,10 @@
 
 | Capability | API present | Implementation complete | Integration-tested | Independently reviewed | Production-supported | Evidence and boundary |
 | --- | --- | --- | --- | --- | --- | --- |
-| Enclave abstraction and signing interface | Yes | Partial | Partial | Not evidenced | No | `src/enclave/mod.rs`; software-backed `CoreEnclaveManager` and simulated cloud path are present. |
-| Hardware-backed attestation | Yes | Partial | No — simulated fixtures | Not evidenced | No | `DeviceIntegrityReport::verify()` exists, but vendor roots, deployed hardware, and caller enforcement are not evidenced; see `src/enclave/attestation.rs` and `src/enclave/hardware_attestation_tests.rs`. |
-| Rail attestation and trust-tier policy | Yes | No | Partial — bypass tests | Not evidenced | No | `RailProxy::verify_hardware_integrity_with_policy` checks nonce/replay/freshness but does not call the full report verifier and accepts `enforce = false`. |
-| Bitcoin ECDSA signing | Yes | Partial — software signer | Partial — unit paths | Not evidenced | No | `src/protocol/bitcoin.rs`, `src/enclave/android_strongbox.rs`; no hardware-backed release evidence. |
+| Enclave abstraction and signing interface | Yes | Partial — production provider unavailable | Partial — software/test fixtures only | Not evidenced | No | `src/enclave/mod.rs` routes value-bearing protocol signing through a fail-closed verifier; software drivers are gated behind `development-simulators`/test configuration. |
+| Hardware-backed attestation | Yes | Partial — provider verifier unavailable | No — simulated fixtures | Not evidenced | No | `DeviceIntegrityReport` verifies canonical bytes, nonce, freshness, signature, roots, levels, purpose, and typed algorithm markers, but vendor roots, deployed hardware, and provider evidence are not present. |
+| Rail attestation and trust-tier policy | Yes | Partial — strict boundary, no provider evidence | Partial — negative and deterministic boundary tests | Not evidenced | No | `RailProxy` requires canonical intent binding and complete typed report verification; replay state is consumed only after successful verification and the legacy boolean cannot disable enforcement. |
+| Bitcoin ECDSA signing | Yes | No — production boundary rejects unavailable/software providers | Partial — unit paths | Not evidenced | No | `src/protocol/bitcoin.rs` uses the common value-bearing signer boundary; no real hardware/provider release evidence exists. |
 | Schnorr/Taproot signing | Yes | No | Partial — unit paths | Not evidenced | No | `src/protocol/bitcoin.rs` contains a custom TapTweak tag; canonical BIP-340/BIP-341 vectors are not evidenced. |
 | BIP-322 message verification | Yes | No | No — acceptance-only tests | Not evidenced | No | `src/protocol/bip322.rs` decodes input and returns success without cryptographic signature verification. |
 | Ethereum addresses and signed messages | Yes | No | No — implementation mismatch | Not evidenced | No | `src/protocol/ethereum.rs` uses SHA-256 for operations that require canonical Ethereum hashing. |
@@ -33,7 +33,7 @@
 | CCTP transfer and attestation | Yes | No — placeholder | No | Not evidenced | No | `src/protocol/cctp.rs` returns an empty burn payload and treats any non-empty attestation as valid. |
 | ERC-7579/account abstraction | Yes | No — structural only | No | Not evidenced | No | `src/protocol/account_abstraction.rs` creates an example batch mode and validates only non-empty module addresses. |
 | Asset registry and chain catalog | Yes | Partial | Partial — registry tests | Not evidenced | No | `src/protocol/asset.rs` exposes many active assets without contract addresses; executable address provenance is incomplete. |
-| WASM bindings | Yes | Partial | No — build-only evidence | Not evidenced | No | `src/wasm_bindings.rs` and CI expose/build bindings, but browser/runtime/platform/hardware matrices are absent. |
+| WASM bindings | Yes | Partial — signing provider unavailable by default | No — build-only evidence | Not evidenced | No | `src/wasm_bindings.rs` rejects the default software-enclave constructor and uses an error-only unavailable provider until a real hardware/runtime integration is supplied. |
 | Telemetry and observability | Yes | No — privacy/operations gaps | No | Not evidenced | No | `src/telemetry.rs` sends API key and signature hash in a detached request with undocumented consent/retention/failure policy. |
 | Release, SBOM, and provenance | Yes | Partial — workflow definitions | No — durable artifact set not evidenced | Not evidenced | No | `.github/workflows/release*.yml`, `.github/workflows/provenance.yml`, and package metadata exist, but workflows are duplicated and `2.0.12` release evidence is not reconciled with visible `v2.0.11`. |
 

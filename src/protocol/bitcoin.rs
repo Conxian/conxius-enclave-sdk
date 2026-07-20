@@ -1,5 +1,5 @@
 use crate::{
-    enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
+    enclave::{sign_value_bearing, EnclaveManager, SignRequest, SigningAlgorithm},
     ConclaveError, ConclaveResult,
 };
 use bitcoin::hashes::{sha256t, HashEngine};
@@ -40,7 +40,7 @@ impl<'a> TaprootManager<'a> {
             taproot_tweak: Some(tweak),
         };
 
-        let response = self.enclave.sign(request)?;
+        let response = sign_value_bearing(self.enclave, request)?;
         Ok(response.signature_hex)
     }
 
