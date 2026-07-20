@@ -77,10 +77,10 @@ mod tests {
         let transfer = crate::protocol::ethereum::Erc20Transfer {
             to: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eb48".to_string(),
             amount: 1000000,
-            contract_address: "0x123".to_string(),
+            contract_address: "0x0000000000000000000000000000000000000123".to_string(),
         };
 
-        let data = eth_mgr.prepare_erc20_transfer(transfer);
+        let data = eth_mgr.prepare_erc20_transfer(transfer).unwrap();
         assert_eq!(data.len(), 4 + 32 + 32);
         assert_eq!(&data[0..4], &[0xa9, 0x05, 0x9c, 0xbb]);
     }

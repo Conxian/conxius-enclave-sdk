@@ -3,6 +3,7 @@ pub mod enclave;
 pub mod protocol;
 pub mod state;
 pub mod telemetry;
+pub mod wasm_support;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm_bindings;
@@ -25,6 +26,12 @@ pub enum ConclaveError {
     RailError(String),
     #[error("Unsupported Chain or Feature: {0}")]
     Unsupported(String),
+    #[error("Unsupported WASM runtime: {0}")]
+    UnsupportedRuntime(String),
+    #[error("Unsupported WASM provider: {0}")]
+    UnsupportedProvider(String),
+    #[error("WASM secret export is forbidden")]
+    SecretExportForbidden,
 }
 
 #[cfg(target_arch = "wasm32")]

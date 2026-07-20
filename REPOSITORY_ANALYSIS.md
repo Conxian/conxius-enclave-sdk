@@ -114,9 +114,9 @@ frost = "0.4.x"                 # ⚠️ Dependency present; production integrat
 
 ## WASM binding analysis
 
-The repository contains WASM binding APIs for the required sub-client families. This is an **API-surface statement only**, not a claim that bindings are complete for every consumer, secure at the JavaScript boundary, tested in supported runtimes, connected to real providers, or backed by hardware. The explicit records are `wasm-lightning`, `wasm-settlement-service`, `wasm-solver`, `wasm-swap-router`, `wasm-zkml`, `wasm-dlc`, `wasm-stablecoin`, `wasm-job-card-iso20022`, `wasm-mmr`, `wasm-opportunity`, `wasm-business`, and `wasm-a2p` in [`capability-evidence.json`](docs/architecture/capability-evidence.json).
+The repository contains WASM binding APIs for the required sub-client families. This is an **API-surface statement only**, not a claim that bindings are complete for every consumer, secure at the JavaScript boundary, tested in supported runtimes, connected to real providers, or backed by hardware. The explicit records are `wasm-lightning`, `wasm-settlement-service`, `wasm-solver`, `wasm-swap-router`, `wasm-zkml`, `wasm-dlc`, `wasm-stablecoin`, `wasm-job-card-iso20022`, `wasm-mmr`, `wasm-opportunity`, `wasm-business`, and `wasm-a2p` in [`capability-evidence.json`](docs/architecture/capability-evidence.json). The key-boundary remediation and unsupported runtime matrix are recorded in [`WASM_SUPPORT_MATRIX.md`](docs/architecture/WASM_SUPPORT_MATRIX.md).
 
-Open runtime, platform, secret-boundary, and hardware evidence is tracked by [issue #200](https://github.com/Conxian/conxius-enclave-sdk/issues/200). The prior “missing bindings” language described an earlier audit state and must not be read as current evidence or as proof of production support.
+Open runtime, platform, provider, and hardware evidence is tracked by [issue #200](https://github.com/Conxian/conxius-enclave-sdk/issues/200). The JavaScript private-key export path is now removed and unsupported lanes fail closed; this does not establish production support. The prior “missing bindings” language described an earlier audit state and must not be read as current evidence or as proof of production support.
 
 ---
 
