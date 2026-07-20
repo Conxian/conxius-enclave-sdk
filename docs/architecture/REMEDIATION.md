@@ -37,7 +37,7 @@
 - **Ark**: Implemented `ArkManager` with Blake2s-based V-UTXO derivation and stateless recovery scan (CON-1282).
 - **OP_CAT**: Implemented `CovenantManager` (src/protocol/covenant.rs) for BIP-347 recursive covenants (CON-1303).
 - **BIP-322**: Implemented `Bip322Bridge` (src/protocol/bip322.rs) for universal message signing (CON-1266).
-- **FROST**: Implemented foundational `FrostManager` (src/protocol/frost.rs) for RFC 9591 threshold signatures (CON-1302).
+- **FROST**: `FrostManager` (src/protocol/frost.rs) is a structural/hash placeholder, not an RFC 9591 production threshold-signature implementation. See [`docs/guides/FROST_TREASURY_INTEGRATION.md`](../guides/FROST_TREASURY_INTEGRATION.md) for the required implementation and audit scope.
 
 ### 8. Fail-Closed Admin & Pipeline Hardening
 - **Status**: COMPLETED.

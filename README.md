@@ -1,27 +1,26 @@
-# Conclave SDK
+# conxius-enclave-sdk
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
-[![Version](https://img.shields.io/badge/version-2.0.12-blue.svg)](CHANGELOG.md)
-[![Status](https://img.shields.io/badge/status-production%20ready-green.svg)](PRODUCTION_READINESS.md)
+[![Version](https://img.shields.io/badge/version-2.x-blue.svg)](CHANGELOG.md)
+[![Status](https://img.shields.io/badge/status-beta%20%2F%20conditional-yellow.svg)](PRODUCTION_READINESS.md)
 
 **Hardware-backed security primitives for the broader Conxian ecosystem.**
 
-The Conclave SDK provides a high-integrity root of trust for security-sensitive wallet, signing, attestation, and policy flows.
+The SDK provides a high-integrity root of trust for security-sensitive wallet, signing, attestation, and policy flows.
 
 ## Status
 
-**✅ Production Ready** - The SDK is at **v2.0.12** with all P1 issues resolved. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for the full readiness checklist.
+**Beta / conditional.** The 2.x line exposes the interfaces needed for development and integration work, but the [2026-07-20 production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) found P0 evidence gaps. Do **not** enable value-bearing production signing or settlement from this tree.
+
+The latest visible GitHub release/tag is `v2.0.11` as of 2026-07-20. `Cargo.toml` declares package version `2.0.12`, but package metadata is not release or production-support evidence. Review the [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) for the boundary of each surface.
 
 ## Quick Start
 
 ```bash
-# Add to your Cargo.toml
+# Pin a reviewed 2.x artifact only after checking its release evidence.
 [dependencies]
-conxius-enclave-sdk = "2.0.12"
-
-# Or from git
-conxius-enclave-sdk = { git = "https://github.com/Conxian/conxius-enclave-sdk", tag = "v2.0.12" }
+conxius-enclave-sdk = { git = "https://github.com/Conxian/conxius-enclave-sdk", tag = "v2.0.11" }
 ```
 
 ## Purpose
@@ -50,14 +49,14 @@ This repository does **not** act as a complete wallet, DAO-facing governance sur
 
 | Feature | Status | Description |
 |---------|--------|-------------|
-| Hardware Attestation | ✅ | TEE, StrongBox, Secure Enclave support |
-| FROST DKG | ✅ v2.0.12 | Distributed key generation |
-| Fedimint | ✅ v2.0.7 | Federation adapter with blinding |
-| Ark | ✅ v2.0.7 | vTXO tree construction |
-| BitVM2 | ✅ | Optimistic challenge-response |
-| MuSig2 | ✅ | Multi-signature aggregation |
-| 30+ Chains | ✅ | Multi-chain asset support |
-| WASM | ✅ | WebAssembly bindings |
+| Hardware Attestation | API present; simulated evidence | Vendor-backed production support is not established |
+| FROST DKG | Design/structural only | Production DKG and signing are not implemented. See the [treasury integration guide](docs/guides/FROST_TREASURY_INTEGRATION.md). |
+| Fedimint | Adapter present; threshold path simulated | Production threshold/BLS evidence is not established |
+| Ark / BitVM2 | API present; partial/simulated | Production challenge and settlement evidence is not established |
+| CCTP / account abstraction | API present; placeholder behavior | Production protocol integrations are not established |
+| Ethereum / Taproot / BIP-322 | API present; correctness gates open | Canonical hashing and cryptographic verification require remediation |
+| 30+ Chains | Registry surface present | Address provenance and integration evidence are incomplete |
+| WASM | Bindings present | Runtime, platform, and hardware matrices are incomplete |
 
 ## Development
 
@@ -89,6 +88,9 @@ cargo clippy -- -D warnings
 ## Documentation
 
 - [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) - Release checklist
+- [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) - Findings, gates, unknowns, and public-safe evidence
+- [Capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) - API/evidence/support status by capability
+- [FROST Treasury Integration Guide](./docs/guides/FROST_TREASURY_INTEGRATION.md) - Design/runbook; production implementation is not yet available
 - [TRACKING.md](./TRACKING.md) - Issue and PR tracking
 - [REPOSITORY_ANALYSIS.md](./REPOSITORY_ANALYSIS.md) - Capabilities and gaps
 - [docs/architecture/](docs/architecture/) - Architecture documentation

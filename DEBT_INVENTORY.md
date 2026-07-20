@@ -114,7 +114,7 @@ This document tracks known technical debt in the `conxius-enclave-sdk` repositor
 | DOC-001 | 2026-07-08 | v2.0.7 release | ✅ Resolved | 2026-07-14 |
 | DEP-002 | 2026-07-08 | Q3 2026 | Planned | 2026-07-14 |
 | TEST-001 | 2026-07-08 | v2.0.9 | ✅ Resolved | 2026-07-14 |
-| SEC-001 | 2026-07-12 | Hardened FROST | ✅ Resolved | 2026-07-14 |
+| SEC-001 | 2026-07-12 | Structural FROST validation | ✅ Resolved (structural validation only; production cryptography open) | 2026-07-20 |
 | DOC-003 | 2026-07-08 | CHANGELOG [Unreleased] | ✅ Resolved | 2026-07-14 |
 | ARCH-001 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
 | DOC-002 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
@@ -124,7 +124,7 @@ This document tracks known technical debt in the `conxius-enclave-sdk` repositor
 ## Resolved Debt
 
 - **BIP-110**: Added BIP-110 compliant message validation and chunking validation into BIP-322 message verification, hardened compact size serialization, and added comprehensive commitment segmentation tests (Resolved: 2026-07-15).
-- **SEC-001**: Hardened FROST DKG Round 2 verification in `src/protocol/frost.rs` to validate received shares against expected polynomial commitments and identifiers (Resolved: 2026-07-12).
+- **SEC-001**: Added structural FROST DKG Round 2 verification in `src/protocol/frost.rs` to validate received shares against expected polynomial commitments and identifiers. This resolves the placeholder validation only; production RFC 9591-compatible DKG, signing, secure share storage, and real aggregation remain open (reclassified: 2026-07-20).
 - **TEST-001**: Comprehensive hardware attestation test suite in `src/enclave/hardware_attestation_tests.rs` covering trust tiers, freshness, replay protection, cryptographic verification, and trust enforcement with 25 tests (Resolved: 2026-07-14).
 - **ARCH-001**: WASM bindings completeness audit - Added 7 new WASM bindings (DLC, MMR, Business, Settlement, Stablecoin, Opportunity, A2P) (Resolved: 2026-07-15).
 - **DOC-002**: Examples directory created with 6 practical usage examples (Resolved: 2026-07-15).

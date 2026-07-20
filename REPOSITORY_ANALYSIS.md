@@ -1,40 +1,43 @@
-# Conclave SDK Repository Analysis
+# `conxius-enclave-sdk` Repository Analysis
 
 > Comprehensive analysis of capabilities, gaps, and implementation roadmap
-> Generated: 2026-07-14 | Updated: 2026-07-15 (Cycle 10) | v2.0.12
+> Generated: 2026-07-14 | Updated: 2026-07-20 | Package metadata: 2.0.12; latest visible release/tag: v2.0.11
 
 ---
 
 ## Executive Summary
 
-The **Conclave SDK** (`conxius-enclave-sdk`) is a Rust-based hardware-backed security primitives library for the Conxian ecosystem. Currently at **v2.0.12**, it provides signing, attestation, and key management capabilities across multiple blockchain platforms.
+The SDK (`conxius-enclave-sdk`) is a Rust-based security-primitives library for the Conxian ecosystem. It provides signing, attestation, and key-management interfaces across multiple blockchain platforms; capability completeness and production support are tracked separately in the [capability matrix](docs/architecture/CAPABILITY_MATRIX.md).
+
+> The inventory labels below are historical implementation notes. They do not override the capability matrix, the production-enablement audit, or the requirement for independent evidence for production support.
 
 ### Repository Status
-- **Health**: Excellent (all issues closed, CI/CD hardened, testing comprehensive)
-- **Tech Debt**: Moderate (P1 dependencies on beta crates)
-- **Open PRs**: 0 (all merged)
-- **Test Coverage**: ✅ Comprehensive (121 tests including 25 hardware attestation tests)
+- **Maturity**: Beta / conditional; production enablement is blocked by CON-1506 P0/P1 gates
+- **Tech Debt**: Material (protocol placeholders, dependency/toolchain drift, release and integration evidence gaps)
+- **Open Issues**: Production enablement issue #191 remains open
+- **Open PRs**: 0 observed at the audit baseline; this does not establish release support
+- **Test Evidence**: Unit and structural tests exist; vendor/protocol/runtime integration evidence is incomplete
 - **Knowledge Base**: v0.4.0 with self-evolution patterns
 
 ---
 
 ## Current Capabilities
 
-### Core Primitives (Implemented)
+### Capability inventory (API surface, not support claim)
 
 | Module | Files | Description | Status |
 |--------|-------|-------------|--------|
-| **Enclave** | 6 | Hardware attestation, StrongBox, replay guards | ✅ Stable |
-| **Bitcoin** | 8 | BIP-322 signing, ECDSA/Schnorr, PSBT | ✅ Stable |
-| **Multi-Chain** | 12+ | Ethereum, Solana, Stacks, Cosmos, Polygon | ✅ Active |
-| **Lightning** | 1 | LND integration paths | ✅ Implemented |
-| **Ark** | 1 | vTXO tree construction, stateless recovery | ✅ v2.0.7 |
-| **BitVM2** | 1 | Optimistic challenge-response | ✅ Implemented |
-| **Fedimint** | 2 | Federation adapter, blinding | ✅ v2.0.7 |
-| **FROST** | 1 | DKG Round 2 verification | ✅ v2.0.8 |
-| **MuSig2** | 1 | Multi-signature aggregation | ✅ Stable |
-| **Settlement Rails** | 7 | x402, Wormhole, Boltz, NTT, Bisq | ✅ Implemented |
-| **ZKML** | 1 | Zero-knowledge machine learning | ✅ Implemented |
+| **Enclave** | 6 | Attestation, software signer, replay guards | ⚠️ Conditional; hardware evidence incomplete |
+| **Bitcoin** | 8 | BIP-322, ECDSA/Schnorr, PSBT | ⚠️ Correctness and hardware gates open |
+| **Multi-Chain** | 12+ | Ethereum, Solana, Stacks, Cosmos, Polygon | ⚠️ API surface; integration evidence incomplete |
+| **Lightning** | 1 | LND integration paths | ⚠️ API surface; support scope not established |
+| **Ark** | 1 | vTXO tree construction, stateless recovery | ⚠️ Simulated/partial; not production-supported |
+| **BitVM2** | 1 | Optimistic challenge-response | ⚠️ Structural/partial; not production-supported |
+| **Fedimint** | 2 | Federation adapter, blinding | ⚠️ Simulated threshold path; not production-supported |
+| **FROST** | 1 | Structural/hash DKG-shaped API only; production DKG and signing are not implemented | ⚠️ Design only |
+| **MuSig2** | 1 | n-of-n multi-signature aggregation wrapper | ⚠️ Not a 3-of-5 threshold implementation |
+| **Settlement Rails** | 7 | x402, Wormhole, Boltz, NTT, Bisq | ⚠️ API surface; value-bearing support blocked |
+| **ZKML** | 1 | Zero-knowledge machine learning | ⚠️ API surface; independent evidence not established |
 
 ### Key Dependencies
 
@@ -44,7 +47,7 @@ secp256k1 = "0.32.0-beta.2"    # ⚠️ Beta - needs stable release
 k256 = "0.14.0-rc.9"           # ⚠️ RC - needs stable release
 alloy = "2.1.0"                # ✅ Ethereum RPC
 musig2 = "0.4.1"               # ✅ Multi-sig
-frost = "0.4.x"                 # ✅ DKG
+frost = "0.4.x"                 # ⚠️ Dependency present; production integration is not implemented
 ```
 
 ### API Surface (348 public items)
@@ -61,6 +64,7 @@ frost = "0.4.x"                 # ✅ DKG
 
 | Issue | Title | Priority | Status |
 |-------|-------|----------|--------|
+| #191 | Production enablement | P0 | Open; tracked by CON-1506 |
 | #154 | [P1] Publish First Stable Release | P1 | ✅ Closed |
 | #146 | Reduce technical debt and code-quality hardening | P1 | ✅ Closed |
 | #145 | Enforce strict CI/CD baseline | P1 | ✅ Closed |
@@ -74,10 +78,10 @@ frost = "0.4.x"                 # ✅ DKG
 | DEP-001 | Dependency | Beta/RC dependencies (bitcoin, secp256k1, k256) | P1 | ⚠️ In Progress |
 | DOC-001 | Documentation | No published releases (issue #154) | P1 | ✅ Closed |
 | DEP-002 | Dependency | Unmaintained crates with exceptions | P2 | 📋 Planned |
-| TEST-001 | Testing | Hardware attestation testing gaps | P2 | ✅ Resolved |
-| ARCH-001 | Architecture | WASM bindings completeness | P3 | 📋 Planned |
-| DOC-002 | Documentation | Missing examples | P3 | 📋 Planned |
-| TOOL-001 | Tooling | Cargo.lock not tracked | P4 | 📋 Note |
+| TEST-001 | Testing | Hardware attestation integration gaps | P1 | ⚠️ Open |
+| ARCH-001 | Architecture | WASM/runtime/platform matrix | P1 | 📋 Planned |
+| DOC-002 | Documentation | Missing examples and runbooks | P2 | 📋 Planned |
+| TOOL-001 | Tooling | Cargo.lock/toolchain reproducibility | P1 | ⚠️ Open |
 | DOC-003 | Documentation | CHANGELOG [Unreleased] section | P4 | ✅ Resolved |
 
 ---
@@ -90,7 +94,7 @@ frost = "0.4.x"                 # ✅ DKG
 
 ### Completed Items (v2.0.11)
 1. ✅ **Hardware Attestation Test Suite** - Comprehensive 25-test suite in `src/enclave/hardware_attestation_tests.rs`
-2. ✅ **FROST DKG Round 2 Verification** - Hardened in `src/protocol/frost.rs`
+2. ⚠️ **FROST status correction** - `src/protocol/frost.rs` contains structural/hash placeholder checks; production RFC 9591-compatible DKG, signing, secure share storage, and real aggregation remain open. See [`docs/guides/FROST_TREASURY_INTEGRATION.md`](docs/guides/FROST_TREASURY_INTEGRATION.md).
 3. ✅ **Fedimint Invite Code & WASM** - Implemented join_federation
 4. ✅ **Ark vTXO Tree Construction** - Binary tree logic in ArkManager
 
@@ -116,7 +120,7 @@ frost = "0.4.x"                 # ✅ DKG
 | WasmEthereumManager | 1 | ✅ Complete |
 | WasmSolanaManager | 1 | ✅ Complete |
 | WasmFedimintClient | 5 | ✅ Complete |
-| WasmFrostClient | 1 | ✅ Complete |
+| WasmFrostClient | 1 | ⚠️ Structural API only; not production FROST signing |
 | WasmCovenantClient | 2 | ✅ Complete |
 | WasmIntentClient | 2 | ✅ Complete |
 | WasmAccountClient | 1 | ✅ Complete |
@@ -231,7 +235,7 @@ From `conxius-platform#1136`:
 - ✅ Zero-dependency error handling
 - ✅ WASM-ready architecture (12 client types)
 - ✅ Comprehensive settlement rails
-- ✅ Hardened FROST implementation
+- ⚠️ FROST structural/hash placeholder validation only; production DKG, signing, share storage, and aggregation remain unimplemented
 - ✅ Comprehensive test suite (121 tests)
 - ✅ Self-evolution knowledge patterns
 
@@ -285,7 +289,7 @@ From `conxius-platform#1136`:
 
 ## Conclusion
 
-The Conclave SDK is **production-ready** for v2.0.12 with all P1 issues resolved. The primary remaining items are:
+The SDK is **Beta / conditional**. The production-enablement audit found P0 blockers and P1 evidence gaps; the primary remaining items are recorded in the [audit](docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) and matrix. The previously broad completion language in this document must not be read as production-support evidence. Remaining items include:
 
 1. **Dependencies**: Awaiting stable versions of critical crypto crates (DEP-001)
 2. **WASM**: 11 modules missing bindings (ARCH-001/G-010)
@@ -293,10 +297,10 @@ The Conclave SDK is **production-ready** for v2.0.12 with all P1 issues resolved
 4. **Ark BitVM2**: Critical integration for Ark v3 (G-002)
 5. **BIP-110**: Add compliance feature flag for new Bitcoin softfork (Issue #179)
 
-The SDK is well-positioned for the v2.0.12+ roadmap with comprehensive testing now in place. The knowledge base has been upgraded to v0.4.1 with self-evolution patterns for continuous improvement.
+The SDK remains a useful 2.x development foundation, but the roadmap is conditional on protocol correctness, hardware-backed evidence, independent review, reproducible release artifacts, monitoring, and rollback controls.
 
 ---
 
 *Analysis generated by OpenHands AI agent*
-*Last updated: 2026-07-15*
+*Last updated: 2026-07-20*
 *Knowledge Base Version: v0.4.0*
