@@ -195,7 +195,9 @@ impl WasmEthereumManager {
             amount: amt,
             contract_address: contract.to_string(),
         };
-        Ok(EthereumManager::new(self.enclave.as_ref()).prepare_erc20_transfer(transfer))
+        EthereumManager::new(self.enclave.as_ref())
+            .prepare_erc20_transfer(transfer)
+            .map_err(to_js_error)
     }
 }
 
