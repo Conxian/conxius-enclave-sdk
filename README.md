@@ -13,6 +13,10 @@ The Conclave SDK provides a high-integrity root of trust for security-sensitive 
 
 **✅ Production Ready** - The SDK is at **v2.0.12** with all P1 issues resolved. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) for the full readiness checklist.
 
+This general SDK release status does **not** mean that the FROST treasury
+integration is production-ready; the current FROST and MuSig2 surfaces are
+documented in the [treasury integration guide](./docs/guides/FROST_TREASURY_INTEGRATION.md).
+
 ## Quick Start
 
 ```bash
@@ -51,11 +55,11 @@ This repository does **not** act as a complete wallet, DAO-facing governance sur
 | Feature | Status | Description |
 |---------|--------|-------------|
 | Hardware Attestation | ✅ | TEE, StrongBox, Secure Enclave support |
-| FROST DKG | ✅ v2.0.12 | Distributed key generation |
+| FROST DKG | ⚠️ Design only | Structural/hash placeholder; production DKG and signing are not implemented. See the [treasury integration guide](docs/guides/FROST_TREASURY_INTEGRATION.md). |
 | Fedimint | ✅ v2.0.7 | Federation adapter with blinding |
 | Ark | ✅ v2.0.7 | vTXO tree construction |
 | BitVM2 | ✅ | Optimistic challenge-response |
-| MuSig2 | ✅ | Multi-signature aggregation |
+| MuSig2 | ⚠️ n-of-n only | Existing wrapper is not a 3-of-5 threshold implementation. |
 | 30+ Chains | ✅ | Multi-chain asset support |
 | WASM | ✅ | WebAssembly bindings |
 
@@ -89,6 +93,7 @@ cargo clippy -- -D warnings
 ## Documentation
 
 - [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) - Release checklist
+- [FROST Treasury Integration Guide](./docs/guides/FROST_TREASURY_INTEGRATION.md) - Design/runbook; production implementation is not yet available
 - [TRACKING.md](./TRACKING.md) - Issue and PR tracking
 - [REPOSITORY_ANALYSIS.md](./REPOSITORY_ANALYSIS.md) - Capabilities and gaps
 - [docs/architecture/](docs/architecture/) - Architecture documentation
