@@ -49,9 +49,9 @@ This document tracks the resolution of production-path logic, architectural gaps
 
 ## Technical Resolutions (v2.0.8)
 
-### 1. FROST: Distributed Key Gen (DKG) Round 2 Verification Hardening
-- **Resolution**: Hardened the FROST implementation in `src/protocol/frost.rs` by implementing robust validation of received DKG shares against polynomial commitments and validating matching participant identifiers.
-- **Status**: Completed (v2.0.8)
+### 1. FROST: DKG status correction
+- **Resolution**: `src/protocol/frost.rs` currently provides structural/hash placeholder checks only. It is not production FROST cryptography and does not provide RFC 9591-compatible DKG, secure share storage, or real signature aggregation. See [`docs/guides/FROST_TREASURY_INTEGRATION.md`](../guides/FROST_TREASURY_INTEGRATION.md) for the implementation and acceptance plan.
+- **Status**: Open — design/runbook published; implementation and independent audit required
 
 ## Technical Resolutions (v2.0.7)
 

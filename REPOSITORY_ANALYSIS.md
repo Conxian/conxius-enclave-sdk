@@ -31,8 +31,8 @@ The **Conclave SDK** (`conxius-enclave-sdk`) is a Rust-based hardware-backed sec
 | **Ark** | 1 | vTXO tree construction, stateless recovery | ✅ v2.0.7 |
 | **BitVM2** | 1 | Optimistic challenge-response | ✅ Implemented |
 | **Fedimint** | 2 | Federation adapter, blinding | ✅ v2.0.7 |
-| **FROST** | 1 | DKG Round 2 verification | ✅ v2.0.8 |
-| **MuSig2** | 1 | Multi-signature aggregation | ✅ Stable |
+| **FROST** | 1 | Structural/hash DKG-shaped API only; production DKG and signing are not implemented | ⚠️ Design only |
+| **MuSig2** | 1 | n-of-n multi-signature aggregation wrapper | ⚠️ Not a 3-of-5 threshold implementation |
 | **Settlement Rails** | 7 | x402, Wormhole, Boltz, NTT, Bisq | ✅ Implemented |
 | **ZKML** | 1 | Zero-knowledge machine learning | ✅ Implemented |
 
@@ -44,7 +44,7 @@ secp256k1 = "0.32.0-beta.2"    # ⚠️ Beta - needs stable release
 k256 = "0.14.0-rc.9"           # ⚠️ RC - needs stable release
 alloy = "2.1.0"                # ✅ Ethereum RPC
 musig2 = "0.4.1"               # ✅ Multi-sig
-frost = "0.4.x"                 # ✅ DKG
+frost = "0.4.x"                 # ⚠️ Dependency present; production integration is not implemented
 ```
 
 ### API Surface (348 public items)
@@ -90,7 +90,7 @@ frost = "0.4.x"                 # ✅ DKG
 
 ### Completed Items (v2.0.11)
 1. ✅ **Hardware Attestation Test Suite** - Comprehensive 25-test suite in `src/enclave/hardware_attestation_tests.rs`
-2. ✅ **FROST DKG Round 2 Verification** - Hardened in `src/protocol/frost.rs`
+2. ⚠️ **FROST status correction** - `src/protocol/frost.rs` contains structural/hash placeholder checks; production RFC 9591-compatible DKG, signing, secure share storage, and real aggregation remain open. See [`docs/guides/FROST_TREASURY_INTEGRATION.md`](docs/guides/FROST_TREASURY_INTEGRATION.md).
 3. ✅ **Fedimint Invite Code & WASM** - Implemented join_federation
 4. ✅ **Ark vTXO Tree Construction** - Binary tree logic in ArkManager
 
@@ -116,7 +116,7 @@ frost = "0.4.x"                 # ✅ DKG
 | WasmEthereumManager | 1 | ✅ Complete |
 | WasmSolanaManager | 1 | ✅ Complete |
 | WasmFedimintClient | 5 | ✅ Complete |
-| WasmFrostClient | 1 | ✅ Complete |
+| WasmFrostClient | 1 | ⚠️ Structural API only; not production FROST signing |
 | WasmCovenantClient | 2 | ✅ Complete |
 | WasmIntentClient | 2 | ✅ Complete |
 | WasmAccountClient | 1 | ✅ Complete |

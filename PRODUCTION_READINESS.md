@@ -25,7 +25,7 @@
 - [x] Hardware attestation implemented
 - [x] Replay attack protection in place
 - [x] Zero-dependency error handling (ConclaveResult)
-- [x] FROST DKG Round 2 verification (issue #168)
+- [ ] FROST treasury DKG and signing production readiness (issue #180; current `src/protocol/frost.rs` is a structural/hash placeholder, not production FROST cryptography)
 - [ ] Independent security audit (for >= 1.0.0)
 - [ ] Dependency audit passes (cargo audit)
 - [x] No hardcoded secrets or credentials
@@ -150,7 +150,7 @@ git push origin v2.0.12
 ```bash
 # Monitor upstream releases:
 # - https://crates.io/crates/bitcoin
-# - https://crates.io/crates/secp256k1  
+# - https://crates.io/crates/secp256k1
 # - https://crates.io/crates/k256
 
 # When stable versions available, update Cargo.toml and create v2.0.8
