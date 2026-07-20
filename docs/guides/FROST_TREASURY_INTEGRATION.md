@@ -164,6 +164,62 @@ solve different authorization problems.
 | Current repository status | Structural/hash placeholder only | Existing wrapper is n-of-n | Neither current API is a production SAB treasury implementation. |
 | Appropriate use here | Future SAB 3-of-5 signing layer | Only an explicitly approved n-of-n policy or a different use case | Select by policy, not by the fact that both use Schnorr signatures. |
 
+### Current supported MuSig2 n-of-n workflow
+
+The current [`MuSig2Session`](../../src/protocol/musig2.rs) wrapper supports
+cooperative `n`-of-`n` signing only. Every public key in the session is a
+required participant; a subset cannot produce a valid aggregate. This is a
+supported protocol wrapper, not a FROST threshold signer, not a 3-of-5
+implementation, and not a TEE or treasury-policy integration. **Never use it
+to satisfy `SAB-TREASURY-MS` (3 of 5).**
+
+The following is exact source-aligned pseudocode for a two-participant
+instance. It is intentionally marked `ignore` and non-compiling because the
+repository does not expose a complete standalone BIP340 verification workflow
+through `MuSig2Session`, and the surrounding crate imports and x-only-key
+conversion are integration-specific. The session and method names mirror
+`src/protocol/musig2.rs`; do not infer additional APIs from the sketch:
+
+```rust,ignore
+use conxius_enclave_sdk::protocol::musig2::MuSig2Session;
+use secp256k1::{PublicKey, SecretKey};
+
+let sk1 = SecretKey::from_secret_bytes([1u8; 32])?;
+let sk2 = SecretKey::from_secret_bytes([2u8; 32])?;
+let pk1 = PublicKey::from_secret_key(&sk1);
+let pk2 = PublicKey::from_secret_key(&sk2);
+
+let pubkeys = vec![pk1, pk2];
+let session = MuSig2Session::new(&pubkeys)?;
+
+let (sec1, pub1) = session.generate_nonce(&sk1)?;
+let (sec2, pub2) = session.generate_nonce(&sk2)?;
+
+let message: [u8; 32] = canonical_bip340_message;
+let pub_nonces = vec![pub1, pub2];
+let sig1 = session.partial_sign(sec1, pub_nonces.clone(), &sk1, message)?;
+let sig2 = session.partial_sign(sec2, pub_nonces.clone(), &sk2, message)?;
+
+let signature = session.aggregate_signatures(
+    pub_nonces,
+    vec![sig1, sig2],
+    message,
+)?;
+assert_eq!(signature.len(), 64);
+
+// Use an independent, unmodified BIP340 verifier for `signature`, the exact
+// x-only aggregate key, and `message` before accepting or broadcasting it.
+```
+
+All `n` participants must contribute one public nonce and one valid partial
+signature, and each secret nonce must be consumed only once. The executable
+reference is
+`src/protocol/bitvm.rs::tests::test_bitvm_multi_party_aggregation`, which
+exercises the two-party wrapper flow and checks the serialized output length
+and tap index. That test does **not** establish BIP340 final verification, TEE
+protection, or treasury-policy integration; those remain separate acceptance
+requirements.
+
 ### Bitcoin BIP340/BIP341 compatibility caveat
 
 RFC 9591 specifies FROST signing abstractions and ciphersuite interfaces; it
@@ -175,8 +231,13 @@ an explicit profile:
   published test vectors;
 - produce the exact BIP340 x-only public key and 64-byte Schnorr signature
   encoding expected by Bitcoin verification;
-- bind the FROST group key, participant set, policy, message, and transcript to
-  the BIP340 challenge calculation; and
+- keep the BIP340 challenge encoding exactly
+  `tagged_hash("BIP0340/challenge", bytes(R) || bytes(P) || m)` (with the
+  standard integer reduction applied by BIP340); policy, participant-set,
+  session, and ceremony-transcript fields must **not** be appended to or
+  otherwise mixed into this challenge encoding. Bind that application context
+  into the canonical signed message `m` and/or the FROST signing
+  package/transcript, and verify those bindings separately; and
 - for a Taproot key-path spend, bind the signing package to the exact BIP341
   output key, optional merkle root, taproot tweak, network, transaction, input,
   and sighash. The signer must verify the resulting signature against the
@@ -947,7 +1008,7 @@ correctness, secure DKG, or Bitcoin-compatible signing.
 | Error handling | ✅ Taxonomy documented; implementation missing | Stable reason codes, fail-closed behavior, safe retry rules, redaction, and negative tests cover every listed class. |
 | Security considerations | ✅ Threat model documented here | Independent review confirms no secret egress, no software production backend, no single-admin recovery, and no full-secret reconstruction. |
 | FROST DKG functional test | ❌ Not implemented | RFC/ciphersuite vectors, DKG qualification, encrypted delivery, complaint/abort, transcript binding, and local finalization pass on five independent signers. |
-| MuSig2 signing test | ⚠️ Existing wrapper is n-of-n only | Test the supported n-of-n MuSig2 path separately; explicitly prove it is not accepted for `SAB-TREASURY-MS` 3-of-5. |
+| MuSig2 n-of-n acceptance | ⚠️ Existing wrapper and executable two-party reference; current test checks serialized length and tap index only | Require all `n` configured participants and their valid partial signatures; the final 64-byte signature must pass an unmodified BIP340 verifier for the exact x-only aggregate key and message; reject use for `SAB-TREASURY-MS` 3-of-5. |
 | TEE key storage verification | ❌ No FROST share-storage API | Share/key-package handles remain enclave-local; sealing, anti-rollback, attestation binding, zeroization, and software-backend rejection pass. |
 | Emergency recovery drill | ❌ Not implemented | Pause is veto-only; recovery quorum rotates/revokes/unpauses through the canonical recovery authority; no single admin can move value or reconstruct the secret. |
 | Independent security audit | ❌ Required before production | Audit covers DKG, ciphersuite arithmetic, nonce state, transport, attestation, storage, authority separation, Bitcoin integration, and recovery. |
@@ -1051,8 +1112,15 @@ hardware deployment:
 
 ### Conxian references
 
-- [Wallet Treasury Feasibility](https://github.com/Conxian/conxian_market/blob/main/docs/research/WALLET_TREASURY_FEASIBILITY.md)
-- [SAB Wallet Architecture and Control Matrix](https://github.com/Conxian/conxian-business/blob/main/docs/SAB_WALLET_ARCHITECTURE_AND_CONTROL_MATRIX.md)
+> **Access-controlled/internal references.** The next two links point to
+> private canonical repositories and are retained for authorized maintainers.
+> Public readers should rely on this guide's summary: custody remains with
+> contract/vault principals, while signer sets, quorums, and authority
+> boundaries are policy-controlled. This guide does not reproduce private
+> repository contents.
+
+- [Wallet Treasury Feasibility (internal, access-controlled)](https://github.com/Conxian/conxian_market/blob/main/docs/research/WALLET_TREASURY_FEASIBILITY.md)
+- [SAB Wallet Architecture and Control Matrix (internal, access-controlled)](https://github.com/Conxian/conxian-business/blob/main/docs/SAB_WALLET_ARCHITECTURE_AND_CONTROL_MATRIX.md)
 - [Current structural FROST module](../../src/protocol/frost.rs)
 - [Current n-of-n MuSig2 wrapper](../../src/protocol/musig2.rs)
 - [Production readiness checklist](../../PRODUCTION_READINESS.md)
