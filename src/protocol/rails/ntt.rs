@@ -69,6 +69,8 @@ mod tests {
     use super::*;
     use crate::protocol::asset::{AssetIdentifier, Chain};
 
+    const TEST_EVM_ADDRESS: &str = "0x52908400098527886E0F7030069857D2E4169EE7";
+
     #[tokio::test]
     async fn test_ntt_rail_name() {
         let rail = NTTRail {
@@ -88,7 +90,7 @@ mod tests {
                 symbol: "ETH".to_string(),
             },
             amount: 100,
-            recipient_address: "0x...".to_string(),
+            recipient_address: TEST_EVM_ADDRESS.to_string(),
             attribution: None,
         };
 
