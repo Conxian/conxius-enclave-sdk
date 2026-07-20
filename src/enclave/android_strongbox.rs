@@ -1,5 +1,5 @@
 use hmac::{Hmac, KeyInit, Mac};
-use k256::schnorr::signature::Signer;
+use k256::schnorr::signature::Signer as _;
 use pbkdf2::pbkdf2_hmac;
 use rand::Rng;
 use secp256k1::{ecdsa::RecoverableSignature, ecdsa::RecoveryId, Message, SecretKey};
@@ -15,8 +15,6 @@ use crate::{
 };
 
 type HmacSha512 = Hmac<Sha512>;
-const SOFTWARE_SIMULATION_EXTENSION: &str =
-    "SIMULATED_SOFTWARE_ONLY|PURPOSE_SIGN|ALGORITHM_EC|OS_VERSION_14";
 
 fn unix_time_secs() -> u64 {
     SystemTime::now()
@@ -77,18 +75,35 @@ impl CoreEnclaveManager {
         Ok(Zeroizing::new(key))
     }
 
-    fn generate_attestation(&self, challenge: &[u8]) -> DeviceIntegrityReport {
-        DeviceIntegrityReport {
+    fn generate_attestation(
+        &self,
+        challenge: &[u8],
+        report_key_bytes: &[u8],
+    ) -> ConclaveResult<DeviceIntegrityReport> {
+        let report_key: [u8; 32] = report_key_bytes
+            .try_into()
+            .map_err(|_| ConclaveError::CryptoError("Invalid attestation key".to_string()))?;
+        let signing_key = ed25519_dalek::SigningKey::from_bytes(&report_key);
+        let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
+        let timestamp = unix_time_secs();
+        let extension_data =
+            "SIMULATED_SOFTWARE_ONLY|PURPOSE_SIGN|ALGORITHM_ED25519|OS_VERSION_14".to_string();
+
+        let mut data_to_sign = Vec::new();
+        data_to_sign.extend_from_slice(challenge);
+        data_to_sign.extend_from_slice(extension_data.as_bytes());
+        data_to_sign.extend_from_slice(&timestamp.to_le_bytes());
+
+        Ok(DeviceIntegrityReport {
+            // This driver is explicitly software-backed and cannot satisfy the
+            // production attestation policy.
             level: AttestationLevel::Software,
             challenge_nonce: challenge.to_vec(),
-            signature: vec![0u8; 64],
-            certificate_chain: vec![
-                "CONCLAVE_ROOT_CA_01".to_string(),
-                "CONCLAVE_HARDWARE_BACKED_DEVICE_0x1".to_string(),
-            ],
-            timestamp: unix_time_secs(),
-            extension_data: SOFTWARE_SIMULATION_EXTENSION.to_string(),
-        }
+            signature: signing_key.sign(&data_to_sign).to_bytes().to_vec(),
+            certificate_chain: vec![pubkey_hex, "CONCLAVE_SIM_ROOT_V1".to_string()],
+            timestamp,
+            extension_data,
+        })
     }
 
     fn sign_ecdsa(
@@ -122,7 +137,7 @@ impl CoreEnclaveManager {
         final_sig.push(rec_byte);
 
         let public_key = secret_key.public_key();
-        let attestation = self.generate_attestation(message_hash);
+        let attestation = self.generate_attestation(message_hash, priv_key_bytes)?;
         let attestation_json = serde_json::to_string(&attestation)
             .map_err(|e| ConclaveError::CryptoError(format!("Serialization error: {}", e)))?;
 
@@ -164,7 +179,7 @@ impl CoreEnclaveManager {
 
         let signature: k256::schnorr::Signature = signing_key.sign(message_hash);
         let verify_key = signing_key.verifying_key();
-        let attestation = self.generate_attestation(message_hash);
+        let attestation = self.generate_attestation(message_hash, priv_key_bytes)?;
         let attestation_json = serde_json::to_string(&attestation)
             .map_err(|e| ConclaveError::CryptoError(format!("Serialization error: {}", e)))?;
 
@@ -242,20 +257,91 @@ impl EnclaveManager for CoreEnclaveManager {
                 &request.message_hash,
                 request.taproot_tweak.as_deref(),
             ),
-            SigningAlgorithm::Ed25519 => {
-                let attestation = self.generate_attestation(&request.message_hash);
-                let attestation_json = serde_json::to_string(&attestation).map_err(|e| {
-                    ConclaveError::CryptoError(format!("Serialization error: {}", e))
-                })?;
-                Ok(SignResponse {
-                    signature_hex: hex::encode(vec![0u8; 64]),
-                    public_key_hex: hex::encode(vec![0u8; 32]),
-                    device_attestation: Some(attestation_json),
-                })
-            }
+            SigningAlgorithm::Ed25519 => Err(ConclaveError::Unsupported(
+                "Ed25519 signing is unavailable in the software-backed StrongBox driver"
+                    .to_string(),
+            )),
         };
 
         derived_priv_key.zeroize();
         response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::enclave::{EnclaveManager, SignRequest, SigningAlgorithm};
+    use k256::schnorr::{Signature as SchnorrSignature, VerifyingKey as SchnorrVerifyingKey};
+
+    fn unlocked_enclave() -> CoreEnclaveManager {
+        let enclave = CoreEnclaveManager::new();
+        enclave.unlock("1234", b"test-salt").unwrap();
+        enclave
+    }
+
+    fn request(algorithm: SigningAlgorithm, message_hash: Vec<u8>) -> SignRequest {
+        SignRequest {
+            algorithm,
+            message_hash,
+            derivation_path: "m/86'/0'/0'/0/0".to_string(),
+            key_id: "test-key".to_string(),
+            taproot_tweak: None,
+        }
+    }
+
+    #[test]
+    fn software_strongbox_ecdsa_signature_is_verifiable_and_nonzero() {
+        let message = [2u8; 32];
+        let response = unlocked_enclave()
+            .sign(request(SigningAlgorithm::EcdsaSecp256k1, message.to_vec()))
+            .unwrap();
+        let signature_bytes = hex::decode(response.signature_hex).unwrap();
+        let recovery_id = RecoveryId::from_u8_masked(signature_bytes[64]);
+        let recoverable =
+            RecoverableSignature::from_compact(&signature_bytes[..64], recovery_id).unwrap();
+        let signature = recoverable.to_standard();
+        let public_key =
+            secp256k1::PublicKey::from_slice(&hex::decode(response.public_key_hex).unwrap())
+                .unwrap();
+        assert!(signature_bytes.iter().any(|byte| *byte != 0));
+        assert!(
+            secp256k1::ecdsa::verify(&signature, Message::from_digest(message), &public_key)
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn software_strongbox_schnorr_signature_is_verifiable_and_nonzero() {
+        let message = b"software schnorr message";
+        let response = unlocked_enclave()
+            .sign(request(
+                SigningAlgorithm::SchnorrSecp256k1,
+                message.to_vec(),
+            ))
+            .unwrap();
+        let signature_bytes = hex::decode(response.signature_hex).unwrap();
+        let public_key_bytes = hex::decode(response.public_key_hex).unwrap();
+        let verifying_key = SchnorrVerifyingKey::from_slice(&public_key_bytes).unwrap();
+        let signature = SchnorrSignature::try_from(signature_bytes.as_slice()).unwrap();
+
+        assert!(signature_bytes.iter().any(|byte| *byte != 0));
+        assert!(
+            k256::schnorr::signature::Verifier::verify(&verifying_key, message, &signature).is_ok()
+        );
+    }
+
+    #[test]
+    fn software_strongbox_ed25519_fails_closed_as_unsupported() {
+        let result = unlocked_enclave().sign(request(
+            SigningAlgorithm::Ed25519,
+            b"unsupported ed25519 message".to_vec(),
+        ));
+
+        assert!(matches!(
+            result,
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("Ed25519")
+        ));
     }
 }

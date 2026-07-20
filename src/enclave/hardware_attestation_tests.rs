@@ -62,7 +62,7 @@ impl MockAttestationGenerator {
         };
 
         DeviceIntegrityReport {
-            level: self.level.clone(),
+            level: self.level,
             challenge_nonce: nonce.to_vec(),
             signature,
             certificate_chain: vec![pubkey_hex, root_ca],
