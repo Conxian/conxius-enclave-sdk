@@ -31,7 +31,7 @@ This document tracks known technical debt in the `conxius-enclave-sdk` repositor
 - **Affected Dependencies**:
   - `bitcoin = "0.33.0-beta"` - Bitcoin protocol support
   - `secp256k1 = "0.32.0-beta.2"` - ECDSA/Schnorr signatures
-  - `k256 = "0.14.0-rc.9"` - K-256 elliptic curve
+  - `k256 = "0.14.0"` - K-256 elliptic curve
 - **Risk**: Breaking changes on stable release, potential compatibility issues
 - **Recommendation**: Pin to stable versions as they become available; monitor upstream releases
 - **Tracking**: Monitor RustSec advisories for these crates
@@ -119,9 +119,11 @@ This document tracks known technical debt in the `conxius-enclave-sdk` repositor
 | ARCH-001 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
 | DOC-002 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
 | CI-001 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
+| BIP-110 | 2026-07-15 | v2.0.13 | ✅ Resolved | 2026-07-15 |
 
 ## Resolved Debt
 
+- **BIP-110**: Added BIP-110 compliant message validation and chunking validation into BIP-322 message verification, hardened compact size serialization, and added comprehensive commitment segmentation tests (Resolved: 2026-07-15).
 - **SEC-001**: Hardened FROST DKG Round 2 verification in `src/protocol/frost.rs` to validate received shares against expected polynomial commitments and identifiers (Resolved: 2026-07-12).
 - **TEST-001**: Comprehensive hardware attestation test suite in `src/enclave/hardware_attestation_tests.rs` covering trust tiers, freshness, replay protection, cryptographic verification, and trust enforcement with 25 tests (Resolved: 2026-07-14).
 - **ARCH-001**: WASM bindings completeness audit - Added 7 new WASM bindings (DLC, MMR, Business, Settlement, Stablecoin, Opportunity, A2P) (Resolved: 2026-07-15).
