@@ -47,10 +47,9 @@ impl Bip322Bridge {
         {
             let validator = crate::protocol::bip110::Bip110Validator::new();
             if validator.requires_chunking(message) {
-                let chunks = validator.validate_message_chunking(message)?;
-                for chunk in chunks {
-                    validator.validate_pushdata(&chunk)?;
-                }
+                // Under BIP-110, standard BIP-322 message signing cannot exceed the pushdata limit (256 bytes)
+                // in a single push. Since standard BIP-322 simple verification is non-chunked, we must reject it.
+                return Err(ConclaveError::InvalidPayload);
             } else {
                 validator.validate_pushdata(&msg_content)?;
             }
