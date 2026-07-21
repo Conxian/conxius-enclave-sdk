@@ -1,31 +1,165 @@
-# Use the latest 2.1 version of CircleCI pipeline process engine.
-# See: https://circleci.com/docs/reference/configuration-reference
 version: 2.1
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/guides/orchestrate/jobs-steps/#jobs-overview & https://circleci.com/docs/reference/configuration-reference/#jobs
-jobs:
-  say-hello:
-    # Specify the execution environment. You can specify an image from Docker Hub or use one of our convenience images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/guides/execution-managed/executor-intro/ & https://circleci.com/docs/reference/configuration-reference/#executor-job
+# Define reusable environments and variables
+executors:
+  rust-executor:
     docker:
-      # Specify the version you desire here
-      # See: https://circleci.com/developer/images/image/cimg/base
+      - image: cimg/rust:1.77.1 # You can adjust this to your specific Rust needs
+    environment:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+
+  base-executor:
+    docker:
       - image: cimg/base:current
 
-    # Add steps to the job
-    # See: https://circleci.com/docs/guides/orchestrate/jobs-steps/#steps-overview & https://circleci.com/docs/reference/configuration-reference/#steps
+jobs:
+  test:
+    executor: rust-executor
     steps:
-      # Checkout the code as the first step.
       - checkout
       - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
+          name: Install Rust 1.97.1
+          command: |
+            rustup toolchain install 1.97.1
+            rustup default 1.97.1
+      - run:
+          name: Run tests
+          command: cargo test --locked --all-features --verbose
+          environment:
+            RUST_BACKTRACE: full
 
-# Orchestrate jobs using workflows
-# See: https://circleci.com/docs/guides/orchestrate/workflows/ & https://circleci.com/docs/reference/configuration-reference/#workflows
+  lint:
+    executor: rust-executor
+    steps:
+      - checkout
+      - run:
+          name: Install Rust 1.97.1 and components
+          command: |
+            rustup toolchain install 1.97.1
+            rustup default 1.97.1
+            rustup component add rustfmt clippy
+      - run:
+          name: Check formatting
+          command: cargo fmt --all -- --check
+      - run:
+          name: Clippy
+          command: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+  wasm:
+    executor: rust-executor
+    environment:
+      CARGO_HTTP_MULTIPLEXING: "false"
+    steps:
+      - checkout
+      - run:
+          name: Install wasm32 target and wasm-pack
+          command: |
+            rustup toolchain install 1.97.1
+            rustup default 1.97.1
+            rustup target add wasm32-unknown-unknown
+            curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - run:
+          name: Build WASM
+          command: |
+            export CFLAGS="-Dmemmove=__builtin_memmove -Dmemcpy=__builtin_memcpy -Dmemset=__builtin_memset -Dmemcmp=__builtin_memcmp"
+            wasm-pack build --release --target bundler --out-dir pkg -- --locked
+      - run:
+          name: Verify WASM output
+          command: |
+            if [ ! -f "pkg/conxius_enclave_sdk_bg.wasm" ]; then
+              echo "ERROR: WASM build failed"
+              exit 1
+            fi
+
+  hygiene:
+    executor: base-executor
+    steps:
+      - checkout
+      - run:
+          name: Check for forbidden files
+          command: |
+            FORBIDDEN=$(git ls-files | grep -E "^target/|^pkg/|^node_modules/" || true)
+            if [ -n "$FORBIDDEN" ]; then
+              echo "ERROR: Forbidden files found"
+              echo "$FORBIDDEN"
+              exit 1
+            fi
+      - run:
+          name: Check for sensitive extensions
+          command: |
+            SENSITIVE=$(git ls-files | grep -E "\.key$|\.pem$|\.p12$|\.jks$" || true)
+            if [ -n "$SENSITIVE" ]; then
+              echo "ERROR: Sensitive files found"
+              echo "$SENSITIVE"
+              exit 1
+            fi
+      - run:
+          name: Verify Mainnet Principals
+          command: |
+            if grep -rnE "ST[123456789ABCDEFGHJKMNPQRSTVWXYZ]{28,}" contracts/ src/ 2>/dev/null; then
+              echo "ERROR: Mainnet principal keys found"
+              exit 1
+            fi
+      - run:
+          name: Verify Package Name
+          command: |
+            if ! grep -q 'name = "conxius-enclave-sdk"' Cargo.toml; then
+              echo "ERROR: Wrong package name"
+              exit 1
+            fi
+
+  security-checks:
+    executor: rust-executor
+    steps:
+      - checkout
+      - run:
+          name: Install Rust 1.97.1
+          command: |
+            rustup toolchain install 1.97.1
+            rustup default 1.97.1
+      - run:
+          name: Install cargo-audit and cargo-deny
+          command: |
+            cargo install cargo-audit --version 0.22.2
+            cargo install cargo-deny --version 0.20.2
+      - run:
+          name: Run cargo audit
+          command: cargo audit --file Cargo.lock
+      - run:
+          name: Run cargo deny
+          command: cargo deny --config deny.toml --locked check advisories bans licenses sources
+
 workflows:
-  say-hello-workflow: # This is the name of the workflow, feel free to change it to better match your workflow.
-    # Inside the workflow, you define the jobs you want to run.
+  ci-strict:
     jobs:
-      - say-hello
+      - test:
+          filters:
+            branches:
+              only:
+                - main
+                - master
+      - lint:
+          filters:
+            branches:
+              only:
+                - main
+                - master
+      - wasm:
+          filters:
+            branches:
+              only:
+                - main
+                - master
+      - hygiene:
+          filters:
+            branches:
+              only:
+                - main
+                - master
+      - security-checks:
+          filters:
+            branches:
+              only:
+                - main
+                - master
