@@ -161,14 +161,14 @@ pub enum TelemetryDispatch {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum TransportError {
+pub(crate) enum TransportError {
     Timeout,
     Network,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct TransportResponse {
-    status: u16,
+pub(crate) struct TransportResponse {
+    pub(crate) status: u16,
 }
 
 #[derive(Debug, Clone)]
@@ -423,7 +423,7 @@ impl TelemetryClient {
     }
 
     #[cfg(test)]
-    fn with_test_transport(
+    pub(crate) fn with_test_transport(
         endpoint: &str,
         api_key: &str,
         policy: TelemetryPolicy,
@@ -636,20 +636,33 @@ fn record_failure(state: &Arc<Mutex<DeliveryState>>, failure: TelemetryFailure) 
 
 #[cfg(test)]
 #[derive(Clone, Default)]
-struct TestTransport {
+pub(crate) struct TestTransport {
     requests: Arc<Mutex<Vec<TransportRequest>>>,
     responses: Arc<Mutex<std::collections::VecDeque<Result<TransportResponse, TransportError>>>>,
+    delay: Option<Duration>,
 }
 
 #[cfg(test)]
 impl TestTransport {
-    fn with_responses<I>(responses: I) -> Self
+    pub(crate) fn with_responses<I>(responses: I) -> Self
     where
         I: IntoIterator<Item = Result<TransportResponse, TransportError>>,
     {
         Self {
             requests: Arc::new(Mutex::new(Vec::new())),
             responses: Arc::new(Mutex::new(responses.into_iter().collect())),
+            delay: None,
+        }
+    }
+
+    fn with_delay<I>(responses: I, delay: Duration) -> Self
+    where
+        I: IntoIterator<Item = Result<TransportResponse, TransportError>>,
+    {
+        Self {
+            requests: Arc::new(Mutex::new(Vec::new())),
+            responses: Arc::new(Mutex::new(responses.into_iter().collect())),
+            delay: Some(delay),
         }
     }
 
@@ -659,11 +672,19 @@ impl TestTransport {
             Err(poisoned) => poisoned.into_inner().clone(),
         }
     }
+
+    pub(crate) fn request_count(&self) -> usize {
+        match self.requests.lock() {
+            Ok(requests) => requests.len(),
+            Err(poisoned) => poisoned.into_inner().len(),
+        }
+    }
 }
 
 #[cfg(test)]
 impl TelemetryTransport for TestTransport {
     fn send(&self, request: TransportRequest) -> TransportFuture {
+        let delay = self.delay;
         let response = match self.responses.lock() {
             Ok(mut responses) => responses.pop_front(),
             Err(poisoned) => poisoned.into_inner().pop_front(),
@@ -675,7 +696,12 @@ impl TelemetryTransport for TestTransport {
             Err(poisoned) => poisoned.into_inner().push(request),
         }
 
-        Box::pin(async move { response })
+        Box::pin(async move {
+            if let Some(delay) = delay {
+                tokio::time::sleep(delay).await;
+            }
+            response
+        })
     }
 }
 
@@ -709,12 +735,10 @@ mod tests {
         })
         .expect("static telemetry payload should serialize");
 
-        assert!(serialized.contains("schema_version"));
-        assert!(serialized.contains("signed_intent"));
-        assert!(!serialized.contains("api_key"));
-        assert!(!serialized.contains("signature_hash"));
-        assert!(!serialized.contains("private_key"));
-        assert!(!serialized.contains("attestation"));
+        assert_eq!(
+            serialized,
+            r#"{"schema_version":1,"event":"signed_intent"}"#
+        );
     }
 
     #[tokio::test]
@@ -738,14 +762,40 @@ mod tests {
         assert_eq!(requests.len(), 1);
         let request = &requests[0];
         let body = String::from_utf8_lossy(&request.body);
-        assert!(!body.contains("test-api-key"));
-        assert!(!body.contains("signature_hash"));
+        assert_eq!(body, r#"{"schema_version":1,"event":"signed_intent"}"#);
         assert!(request
             .headers
             .get(API_KEY_HEADER)
             .and_then(|value| value.to_str().ok())
             .is_some_and(|value| value == "test-api-key"));
+        assert!(request
+            .headers
+            .get(API_KEY_HEADER)
+            .is_some_and(HeaderValue::is_sensitive));
         assert!(request.url.as_str().ends_with(TELEMETRY_PATH));
+        assert_eq!(client.delivery_status(), TelemetryDeliveryStatus::Delivered);
+    }
+
+    #[tokio::test]
+    async fn empty_api_key_omits_auth_header() {
+        let transport = Arc::new(TestTransport::with_responses([success()]));
+        let client = TelemetryClient::with_test_transport(
+            "http://telemetry.invalid",
+            "",
+            test_policy(0),
+            Arc::clone(&transport),
+        )
+        .expect("test transport should accept an HTTP test endpoint");
+
+        assert_eq!(
+            client.track_event(TelemetryEvent::SignedIntent),
+            TelemetryDispatch::Scheduled
+        );
+        wait_for_delivery(&client).await;
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].headers.get(API_KEY_HEADER).is_none());
         assert_eq!(client.delivery_status(), TelemetryDeliveryStatus::Delivered);
     }
 
@@ -797,6 +847,21 @@ mod tests {
             ),
             Err(TelemetryConfigError::InvalidRetryBackoff)
         ));
+    }
+
+    #[test]
+    fn documented_default_policy_values_are_explicit() {
+        let policy = TelemetryPolicy::default();
+
+        assert_eq!(policy.request_timeout(), Duration::from_secs(5));
+        assert_eq!(policy.max_retries(), 2);
+        assert_eq!(policy.retry_backoff(), Duration::from_millis(50));
+        assert_eq!(
+            TelemetryPolicy::MAX_REQUEST_TIMEOUT,
+            Duration::from_secs(30)
+        );
+        assert_eq!(TelemetryPolicy::MAX_RETRIES, 3);
+        assert_eq!(TelemetryPolicy::MAX_RETRY_BACKOFF, Duration::from_secs(1));
     }
 
     #[test]
@@ -863,6 +928,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn delayed_transport_exercises_request_timeout() {
+        let transport = Arc::new(TestTransport::with_delay(
+            [success()],
+            Duration::from_millis(20),
+        ));
+        let policy = TelemetryPolicy::new(Duration::from_millis(2), 0, Duration::ZERO)
+            .expect("test timeout policy should be bounded");
+        let client = TelemetryClient::with_test_transport(
+            "http://telemetry.invalid",
+            "",
+            policy,
+            Arc::clone(&transport),
+        )
+        .expect("test transport should be constructible");
+
+        assert_eq!(
+            client.track_event(TelemetryEvent::SignedIntent),
+            TelemetryDispatch::Scheduled
+        );
+        wait_for_delivery(&client).await;
+
+        assert_eq!(transport.request_count(), 1);
+        assert_eq!(client.delivery_status(), TelemetryDeliveryStatus::Failed);
+        assert_eq!(
+            client.last_failure(),
+            Some(TelemetryFailure {
+                kind: TelemetryFailureKind::Timeout,
+                status_code: None,
+                retries_exhausted: false,
+            })
+        );
+    }
+
+    #[tokio::test]
     async fn retryable_http_failure_can_recover_without_blocking() {
         let transport = Arc::new(TestTransport::with_responses([
             Ok(TransportResponse { status: 503 }),
@@ -885,6 +984,106 @@ mod tests {
         assert_eq!(transport.requests().len(), 2);
         assert_eq!(client.delivery_status(), TelemetryDeliveryStatus::Delivered);
         assert_eq!(client.failure_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn every_documented_retryable_http_status_retries() {
+        for status in [408, 429, 500, 502, 503, 504] {
+            let transport = Arc::new(TestTransport::with_responses([
+                Ok(TransportResponse { status }),
+                success(),
+            ]));
+            let client = TelemetryClient::with_test_transport(
+                "http://telemetry.invalid",
+                "",
+                test_policy(1),
+                Arc::clone(&transport),
+            )
+            .expect("test transport should be constructible");
+
+            assert_eq!(
+                client.track_event(TelemetryEvent::SignedIntent),
+                TelemetryDispatch::Scheduled
+            );
+            wait_for_delivery(&client).await;
+
+            assert_eq!(
+                transport.request_count(),
+                2,
+                "HTTP status {status} should retry once"
+            );
+            assert_eq!(
+                client.delivery_status(),
+                TelemetryDeliveryStatus::Delivered,
+                "HTTP status {status} should recover after retry"
+            );
+            assert_eq!(client.failure_count(), 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn non_retryable_http_status_does_not_retry() {
+        let transport = Arc::new(TestTransport::with_responses([
+            Ok(TransportResponse { status: 400 }),
+            success(),
+        ]));
+        let client = TelemetryClient::with_test_transport(
+            "http://telemetry.invalid",
+            "",
+            test_policy(2),
+            Arc::clone(&transport),
+        )
+        .expect("test transport should be constructible");
+
+        assert_eq!(
+            client.track_event(TelemetryEvent::SignedIntent),
+            TelemetryDispatch::Scheduled
+        );
+        wait_for_delivery(&client).await;
+
+        assert_eq!(transport.request_count(), 1);
+        assert_eq!(client.delivery_status(), TelemetryDeliveryStatus::Failed);
+        assert_eq!(
+            client.last_failure(),
+            Some(TelemetryFailure {
+                kind: TelemetryFailureKind::HttpStatus,
+                status_code: Some(400),
+                retries_exhausted: false,
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn legacy_signature_identifier_is_redacted_from_body_and_diagnostics() {
+        let secret_identifier = "sig-secret-looking-identifier-7f4c";
+        let transport = Arc::new(TestTransport::with_responses([Err(
+            TransportError::Network,
+        )]));
+        let client = TelemetryClient::with_test_transport(
+            "http://telemetry.invalid",
+            "",
+            test_policy(0),
+            Arc::clone(&transport),
+        )
+        .expect("test transport should be constructible");
+
+        #[allow(deprecated)]
+        client.track_signature(secret_identifier.to_string());
+        wait_for_delivery(&client).await;
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        assert!(!requests[0]
+            .body
+            .windows(secret_identifier.len())
+            .any(|window| window == secret_identifier.as_bytes()));
+
+        let diagnostics = format!("{:?}", client.last_failure());
+        assert!(!diagnostics.contains(secret_identifier));
+        assert_eq!(
+            client.last_failure().map(|failure| failure.kind),
+            Some(TelemetryFailureKind::Network)
+        );
     }
 
     #[test]

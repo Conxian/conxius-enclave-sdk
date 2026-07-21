@@ -899,9 +899,13 @@ mod rail_proxy_tests {
     use crate::enclave::{EnclaveManager, SignRequest, SignResponse, SignerCapability};
     use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
     use crate::protocol::business::BusinessRegistry;
-    use crate::telemetry::TelemetryClient;
+    use crate::telemetry::{
+        TelemetryClient, TelemetryDeliveryStatus, TelemetryPolicy, TestTransport, TransportError,
+        TransportResponse,
+    };
     use ed25519_dalek::{Signer as _, SigningKey};
     use std::sync::Arc;
+    use std::time::Duration;
 
     const TEST_MERCHANT_ENDPOINT: &str = "https://merchant.invalid/x402";
 
@@ -912,6 +916,38 @@ mod rail_proxy_tests {
             Arc::new(AssetRegistry::new()),
             Arc::new(BusinessRegistry::new()),
         )
+    }
+
+    fn telemetry_test_policy() -> TelemetryPolicy {
+        TelemetryPolicy::new(Duration::from_millis(25), 0, Duration::ZERO)
+            .expect("telemetry test policy should be bounded")
+    }
+
+    fn telemetry_client_with_responses(
+        responses: impl IntoIterator<Item = Result<TransportResponse, TransportError>>,
+    ) -> (Arc<TelemetryClient>, Arc<TestTransport>) {
+        let transport = Arc::new(TestTransport::with_responses(responses));
+        let client = TelemetryClient::with_test_transport(
+            "http://telemetry.invalid",
+            "",
+            telemetry_test_policy(),
+            Arc::clone(&transport),
+        )
+        .expect("telemetry test client should be constructible");
+        (Arc::new(client), transport)
+    }
+
+    async fn wait_for_telemetry_status(
+        client: &TelemetryClient,
+        expected: TelemetryDeliveryStatus,
+    ) {
+        for _ in 0..50 {
+            if client.delivery_status() == expected {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        assert_eq!(client.delivery_status(), expected);
     }
 
     fn test_intent(seed: Vec<u8>) -> SwapIntent {
@@ -1770,6 +1806,95 @@ mod rail_proxy_tests {
                 .expect("telemetry should remain attached")
                 .delivery_status(),
             crate::telemetry::TelemetryDeliveryStatus::Disabled
+        );
+    }
+
+    #[tokio::test]
+    async fn enabled_telemetry_failure_does_not_change_verified_rail_result() {
+        let (telemetry, transport) =
+            telemetry_client_with_responses([Err(TransportError::Network)]);
+        let mut rail_proxy = test_proxy()
+            .with_min_trust_tier(TrustTier::T4)
+            .with_telemetry(Arc::clone(&telemetry));
+        rail_proxy.register_rail(Box::new(CustomRail));
+
+        let intent = custom_settlement_intent(vec![17; 32]);
+        let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
+
+        #[allow(deprecated)]
+        let response = rail_proxy
+            .broadcast_signed_intent(intent, "sig".to_string(), attestation)
+            .await
+            .expect("telemetry failure must not block verified dispatch");
+
+        assert_eq!(response.proof_envelope.as_deref(), Some("partner_proof"));
+        assert_eq!(response.rail_used, "custom_partner");
+        wait_for_telemetry_status(&telemetry, TelemetryDeliveryStatus::Failed).await;
+        assert_eq!(transport.request_count(), 1);
+        assert_eq!(
+            telemetry.last_failure().map(|failure| failure.kind),
+            Some(crate::telemetry::TelemetryFailureKind::Network)
+        );
+    }
+
+    #[tokio::test]
+    async fn pre_dispatch_attestation_failure_does_not_schedule_telemetry() {
+        let (telemetry, transport) =
+            telemetry_client_with_responses([Ok(TransportResponse { status: 204 })]);
+        let mut rail_proxy = test_proxy()
+            .with_min_trust_tier(TrustTier::T4)
+            .with_telemetry(Arc::clone(&telemetry));
+        rail_proxy.register_rail(Box::new(CustomRail));
+
+        let intent = custom_settlement_intent(vec![18; 32]);
+        #[allow(deprecated)]
+        let result = rail_proxy
+            .broadcast_signed_intent(intent, "sig".to_string(), None)
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(ConclaveError::EnclaveFailure(message)) if message.contains("attestation required")
+        ));
+        assert_eq!(telemetry.delivery_status(), TelemetryDeliveryStatus::Idle);
+        assert_eq!(telemetry.failure_count(), 0);
+        assert_eq!(transport.request_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn pre_dispatch_replay_failure_does_not_schedule_additional_telemetry() {
+        let (telemetry, transport) = telemetry_client_with_responses([
+            Ok(TransportResponse { status: 204 }),
+            Ok(TransportResponse { status: 204 }),
+        ]);
+        let mut rail_proxy = test_proxy()
+            .with_min_trust_tier(TrustTier::T4)
+            .with_telemetry(Arc::clone(&telemetry));
+        rail_proxy.register_rail(Box::new(CustomRail));
+
+        let intent = custom_settlement_intent(vec![19; 32]);
+        let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
+
+        #[allow(deprecated)]
+        rail_proxy
+            .broadcast_signed_intent(intent.clone(), "sig".to_string(), attestation.clone())
+            .await
+            .expect("initial verified dispatch should succeed");
+        wait_for_telemetry_status(&telemetry, TelemetryDeliveryStatus::Delivered).await;
+        assert_eq!(transport.request_count(), 1);
+
+        #[allow(deprecated)]
+        let replay_result = rail_proxy
+            .broadcast_signed_intent(intent, "sig".to_string(), attestation)
+            .await;
+        assert!(matches!(
+            replay_result,
+            Err(ConclaveError::EnclaveFailure(message)) if message.contains("replay")
+        ));
+        assert_eq!(transport.request_count(), 1);
+        assert_eq!(
+            telemetry.delivery_status(),
+            TelemetryDeliveryStatus::Delivered
         );
     }
 
