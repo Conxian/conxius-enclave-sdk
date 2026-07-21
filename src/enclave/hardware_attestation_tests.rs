@@ -61,6 +61,7 @@ impl MockAttestationGenerator {
             level: self.level,
             challenge_nonce: nonce.to_vec(),
             signature: Vec::new(),
+            attested_operation_public_key: signing_key.verifying_key().to_bytes().to_vec(),
             certificate_chain: vec![pubkey_hex, root_ca],
             timestamp,
             extension_data,
@@ -501,6 +502,7 @@ mod edge_case_tests {
             level: AttestationLevel::TEE,
             challenge_nonce: vec![1, 2, 3, 4],
             signature: vec![], // Empty signature
+            attested_operation_public_key: vec![0x42; 32],
             certificate_chain: vec!["key".to_string(), "CONCLAVE_ROOT_CA_V1".to_string()],
             timestamp: 1_000_000,
             extension_data: "PURPOSE_SIGN|ALGORITHM_ED25519".to_string(),
