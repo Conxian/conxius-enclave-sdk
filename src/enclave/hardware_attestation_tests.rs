@@ -220,7 +220,7 @@ mod hardware_provider_verifier_tests {
     #[test]
     fn test_hardware_chain_signature_verification_failure() {
         let generator = MockAttestationGenerator::new(AttestationLevel::StrongBox);
-        let nonce = [1, 2, 3, 4];
+        let nonce: [u8; 4] = rand::random();
         let report = generator.generate_valid_report(&nonce, 1_000_000);
 
         let policy = AttestationPolicy::production().with_hardware_provider(
@@ -517,7 +517,7 @@ mod trust_enforcement_tests {
     fn test_production_signing_requires_hardware_attestation() {
         // Simulate a production signing request
         let generator = MockAttestationGenerator::new(AttestationLevel::Software);
-        let nonce: [u8; 4] = rand::random();
+        let nonce = [1, 2, 3, 4];
         let now = 1_000_000_u64;
 
         let report = generator.generate_valid_report(&nonce, now.saturating_sub(60));

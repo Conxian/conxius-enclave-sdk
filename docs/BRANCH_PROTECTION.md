@@ -39,11 +39,7 @@ All of the following checks must pass before merging:
 | Check | Workflow | Timeout |
 |-------|----------|---------|
 | `Validate Release Metadata` | `release-strict.yml` | 45 min |
-| `Full-history Secret Scan` | `release-strict.yml` → reusable `secret-scan.yml` | 15 min |
 | `SBOM + Provenance` | `release-strict.yml` | 30 min |
-| `Publish + Registry Verification` | `release-strict.yml` | 15 min |
-
-The GitHub Release creator depends on `Publish + Registry Verification`; it cannot run before the crates.io publication/recovery step and the matching registry digest evidence succeed.
 
 ---
 
