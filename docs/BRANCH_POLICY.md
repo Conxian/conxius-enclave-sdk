@@ -23,7 +23,8 @@ The following checks must pass before a Pull Request can be merged:
 
 ## 4. Release Pipeline
 - **Validation**: High-risk changes should be validated on a `staged` branch before merging to `main`.
-- **Supply Chain Controls**: `Validate release metadata and package` and `SBOM + provenance attestation` must pass before `Publish crate to crates.io (manual gate)` can run.
+- **Supply Chain Controls**: The full-history Gitleaks scan, release metadata/package validation, SBOM/provenance evidence, and post-publication registry digest comparison must pass in the single `release-strict.yml` path before a GitHub Release can be created.
+- **Publication**: Only `release-strict.yml` publishes to crates.io. Its manual inputs either publish an absent version or verify an already-published matching artifact; they do not create a competing publisher.
 - **Changelog**: Every PR that modifies logic must update `CHANGELOG.md` under the `[Unreleased]` section.
 - **Versioning**: Version bumps must follow SemVer and occur during the final release tag workflow.
 
