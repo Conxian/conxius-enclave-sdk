@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "schemaVersion": 1,
   "repository": "Conxian/conxius-enclave-sdk",
-  "reviewedRef": "975c2567fc20419c7c5cf56871b8acbb0addb317",
+  "reviewedRef": "c976c377aaf3ac0d825e47fa1fd1436802fc130e",
   "lastVerified": "2026-07-21",
   "maturity": "beta-conditional",
   "statusVocabulary": {
@@ -1100,7 +1100,7 @@
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/telemetry.rs:1-1110",
+        "src/telemetry.rs:1-1298",
         "src/protocol/rails/mod.rs:1-700",
         "docs/operations/TELEMETRY_OPERATIONS.md",
         "docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md",
@@ -1112,13 +1112,13 @@
       "evidenceChain": [
         {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:69-82", "https://github.com/Conxian/conxius-enclave-sdk/issues/201", "docs/operations/TELEMETRY_OPERATIONS.md", "docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md", "docs/operations/RELEASE_RECOVERY_RUNBOOK.md"]},
         {"stage": "code", "refs": ["src/telemetry.rs:1-682", "src/protocol/rails/mod.rs:1-700"]},
-        {"stage": "test", "refs": ["src/telemetry.rs:683-1110", "src/protocol/rails/mod.rs:900-1700"]},
+        {"stage": "test", "refs": ["src/telemetry.rs:683-1298", "src/protocol/rails/mod.rs:900-1700"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:20-50", ".github/workflows/ci-strict.yml:20-53"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/201", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Telemetry remains opt-in and best effort; independent review, server-side retention/access/deletion evidence, deployment monitoring, named on-call assignment, rollback-drill evidence, and production artifacts are not established by this documentation phase.",
-      "notes": "The code/test checkpoint is 975c2567fc20419c7c5cf56871b8acbb0addb317. Payloads are minimized to the exact coarse event contract and credentials remain sensitive transport headers only. The new runbooks are SDK-local public-safe evidence; they do not prove service-side controls, independent review, or production support. Telemetry must not become a hidden dependency for signing or other security decisions."
+      "notes": "The code/test checkpoint is c976c377aaf3ac0d825e47fa1fd1436802fc130e and includes native credential-redirect hardening plus regression coverage that verifies redirects are not followed and the sensitive API key is not forwarded. This is SDK-local implementation/test evidence only; it does not establish production support or independent review. Payloads are minimized to the exact coarse event contract and credentials remain sensitive transport headers only. The new runbooks are SDK-local public-safe evidence and do not prove service-side controls. Telemetry must not become a hidden dependency for signing or other security decisions."
     },
     {
       "id": "ci-release-evidence",
