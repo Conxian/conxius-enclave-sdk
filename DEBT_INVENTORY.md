@@ -46,6 +46,30 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Recommendation**: Publish v2.0.7 as first release, update README status
 - **Related Issue**: #154
 
+#### SEC-002: Real Provider Verifier and Signer Integration
+- **Category**: Security
+- **Priority**: P1
+- **Description**: The typed value-bearing boundary now fails closed and requires provider-verified hardware provenance, but the repository does not contain an authenticated real hardware/provider verifier or signer implementation.
+- **Risk**: Software fixtures, simulated attestation, or an unverified provider could otherwise be mistaken for value-bearing production authorization.
+- **Recommendation**: Define and integrate the provider response/key-binding contract, vendor roots and collateral, hardware-generated keys, deployment checks, and provider-backed positive/negative integration tests. Keep `UnavailableEnclave` as the default until that evidence exists.
+- **Tracking**: [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195)
+
+#### SEC-003: Distributed Replay Authorization
+- **Category**: Security
+- **Priority**: P1
+- **Description**: Typed settlement authorization and attestation replay checks are contained by process-local `ReplayGuard` instances; distributed deployment coordination is not implemented or evidenced.
+- **Risk**: A process-local replay cache cannot establish single-use authorization across replicas, restarts, or independent provider/runtime boundaries.
+- **Recommendation**: Specify and independently review deployment-safe replay semantics, then add provider-backed and distributed integration tests with failure-closed behavior.
+- **Tracking**: [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195)
+
+#### EVID-001: Provider, Runtime, and Artifact Evidence
+- **Category**: Testing
+- **Priority**: P1
+- **Description**: WASM compilation and simulated attestation demonstrate build or structural behavior only. Provider/runtime integration, independent review, exact release artifacts, SBOM, provenance, and support decisions remain uncollected.
+- **Risk**: A green local or CI build could be misread as hardware, runtime, deployment, or release evidence.
+- **Recommendation**: Attach exact provider/runtime test results, reviewed artifact digests, provenance/SBOM, independent findings, and a scoped support decision before promotion.
+- **Tracking**: [#199](https://github.com/Conxian/conxius-enclave-sdk/issues/199), [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202)
+
 ### P2 - High
 
 #### DEP-002: Unmaintained Dependencies with Exceptions
@@ -68,7 +92,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Risk**: Changes to hardware attestation may break production flows
 - **Recommendation**: Add integration tests with mock hardware; block production Trust Tiers without hardware tests
 - **AGENTS.md Reference**: "Hardware-backed logic should be tested with both simulated and software attestation"
-- **Status**: Unit/simulation evidence recorded (2026-07-14); production hardware/provider evidence and caller enforcement remain open in [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) and [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202)
+- **Status**: Unit/simulation evidence and typed fail-closed caller containment recorded (2026-07-21); real hardware/provider evidence, distributed replay, and production support remain open in [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) and [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202)
 
 ### P3 - Medium
 
@@ -116,6 +140,9 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 | DOC-001 | 2026-07-08 | v2.0.7 release | ✅ Resolved | 2026-07-14 |
 | DEP-002 | 2026-07-08 | Q3 2026 | Planned | 2026-07-14 |
 | TEST-001 | 2026-07-08 | Hardware/provider evidence | Reclassified — simulation/unit evidence only; #195 open | 2026-07-20 |
+| SEC-002 | 2026-07-21 | Real provider verifier/signer | Open — typed containment only; #195 open | 2026-07-21 |
+| SEC-003 | 2026-07-21 | Distributed replay authorization | Open — process-local replay only; #195 open | 2026-07-21 |
+| EVID-001 | 2026-07-21 | Provider/runtime/artifact evidence | Open — build and simulation are not deployment/release evidence; #199/#200/#202 open | 2026-07-21 |
 | SEC-001 | 2026-07-12 | Structural FROST validation | ✅ Resolved (structural validation only; production cryptography open) | 2026-07-20 |
 | DOC-003 | 2026-07-08 | CHANGELOG [Unreleased] | ✅ Resolved | 2026-07-14 |
 | ARCH-001 | 2026-07-14 | Runtime/platform/secret boundary | Reclassified — API inventory only; #200 open | 2026-07-20 |

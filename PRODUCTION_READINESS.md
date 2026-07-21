@@ -1,9 +1,11 @@
 # Production Enablement Checklist
 
 > This is a gated checklist, not a production-readiness claim.
-> Status: Beta / conditional | Last Updated: 2026-07-20
+> Status: Beta / conditional | Last Updated: 2026-07-21
 
 The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), and [machine-readable evidence](./docs/architecture/capability-evidence.json) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.11`; `Cargo.toml` declaring `2.0.12` does not establish a supported release.
+
+Merged PR [#205](https://github.com/Conxian/conxius-enclave-sdk/pull/205) and the typed-settlement follow-up code checkpoint are containment and evidence-boundary work only. They make missing provider evidence fail closed; they do not establish real hardware/provider integration, distributed replay, runtime support, independent review, release artifacts, or production readiness. Issue [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) remains open.
 
 Issue #145 is a **historical CI/CD baseline**, not current release-acceptance evidence. Residual toolchain, dependency, publisher, scanning, SBOM, provenance, and exact-artifact work is tracked by [issue #199](https://github.com/Conxian/conxius-enclave-sdk/issues/199). Historical issues #145, #154, #169, #172, #173, #174, and #180 provide context only and must not be used as current production proof.
 
@@ -29,6 +31,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [ ] Hardware-backed attestation integration and vendor evidence (P0)
 - [ ] Replay protection verified on every value-bearing path (P0/P1)
 - [x] Typed error surface exists (`ConclaveResult`); production fail-closed behavior remains gated
+- [x] Typed value-bearing settlement containment and raw-dispatch rejection are implemented; this is not provider or production evidence
 - [ ] FROST treasury DKG and signing production readiness (issue #180; current `src/protocol/frost.rs` is a structural/hash placeholder, not production FROST cryptography)
 - [ ] Independent security audit (for >= 1.0.0)
 - [ ] Dependency audit passes (cargo audit)
@@ -42,6 +45,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [ ] **Hardware attestation integration tests** (P0/P1)
 - [ ] WASM runtime integration tests
 - [x] WASM private-key export path removed; provider/runtime support remains fail-closed
+- [x] Negative tests cover missing provider evidence, simulator exclusion, typed binding mismatches, and raw settlement dispatch rejection
 - [ ] Fuzz testing for critical paths
 
 ### 📦 Dependency Requirements

@@ -10,21 +10,22 @@ This report records the public-safe outcome of the production-enablement review 
 
 | Item | Value |
 | --- | --- |
-| Audited default-branch ref | `8194aa8ade26a9d5d7ed54b7f80f36796fce585c` |
-| Audit ref description | `docs: add FROST treasury integration runbook (#180) (#190)` |
-| Documentation correction base | Latest `origin/main` at audit start: `b6766f706e06e88e8800680906f82923a526646a` |
+| Audited default-branch ref | `35f7843a1ee8994de98b00cfacbae7dab1a1eaf5` (merged PR #205) |
+| Reviewed containment checkpoint | `1e9f7ff228924b231fe5e2a26456f8d7e71e3909` (rebased follow-up code commit) |
+| Audit ref description | `fix(attestation): make #195 freshness verification deterministic (#205)` plus typed settlement containment follow-up |
+| Documentation correction base | Latest `origin/main` at follow-up start: `35f7843a1ee8994de98b00cfacbae7dab1a1eaf5` |
 | Audit date | 2026-07-20 |
 | Maturity language | Beta / conditional |
 | Scope | Public repository source, tests, documentation, package metadata, and CI/release definitions |
 
-The documentation correction branch is based on the latest `origin/main`, not on the historical audit ref. The historical ref is retained so that the findings remain reproducible and attributable.
+The follow-up branch is based on the merged `origin/main` ref above. The reviewed containment checkpoint is recorded separately so the capability evidence points to the exact code commit rather than the later documentation commit. Historical audit context remains attributable to its original ref and date.
 
 ## Executive verdict
 
 The repository has useful primitives and a meaningful test/documentation foundation, but its current evidence chain stops at API presence and simulated or structural validation for several high-impact capabilities. In particular:
 
-- The default and cloud signing paths can operate with software-generated material; the default unlock contract is permissive.
-- Rail enforcement checks nonce, replay, and freshness but does not call the full `DeviceIntegrityReport::verify()` path, and an explicit policy value can bypass enforcement.
+- The reviewed checkpoint now contains a fail-closed typed value-bearing signing boundary, rejects raw production settlement dispatch, isolates software simulators, and makes the default/WASM provider boundary unavailable until an approved provider exists.
+- Rail policy now invokes the complete report verification path and carries typed settlement authorization through canonical intent/key, provider response, policy, attestation, and replay bindings; the real provider verifier, distributed replay, and deployment/artifact evidence remain open.
 - BIP-322 verification returns success after address and encoding checks without cryptographically verifying the signature.
 - Ethereum and Taproot helpers contain non-canonical hashing behavior.
 - FROST, Fedimint threshold/DLEQ, BitVM2/Ark, CCTP, and account-abstraction surfaces contain structural, simulated, or placeholder behavior.
@@ -60,8 +61,8 @@ The canonical capability/evidence matrix is [CAPABILITY_MATRIX.md](../architectu
 
 | ID | Finding | Repository evidence | Required correction |
 | --- | --- | --- | --- |
-| P0-01 | **Software and simulated signing paths are reachable.** | `EnclaveManager::unlock` has a default-success implementation (`src/enclave/mod.rs:35-42`). `CoreEnclaveManager` is explicitly a software-backed development driver, emits a software report with a zero-filled signature, and accepts any PIN of length four or more (`src/enclave/android_strongbox.rs:18-33,80-90,179-199`). `CloudEnclave` generates and uses a simulated KMS key when no development key is supplied (`src/enclave/cloud.rs:21-33,43-73`), and its Schnorr branch returns a zero-filled signature (`src/enclave/cloud.rs:155-160`). | Make production signing require an explicit hardware-backed provider and verified attestation. Remove default-success unlock behavior from production paths, isolate development drivers behind non-production configuration, and add negative tests proving simulated paths cannot sign value-bearing requests. |
-| P0-02 | **Rail policy bypasses the full attestation verifier.** | `RailProxy::verify_hardware_integrity_with_policy` returns success when `enforce` is false and otherwise checks JSON parsing, nonce equality, replay, and freshness, but never calls `DeviceIntegrityReport::verify()` (`src/protocol/rails/mod.rs:171-228`). Tests explicitly cover the bypass (`src/protocol/rails/mod.rs:472-497,523-538`). | Require full report verification, expected policy/level, vendor-root validation, and nonce binding for every value-bearing broadcast. Remove or strictly compile-gate bypass behavior so production configuration cannot select it. |
+| P0-01 | **Production signing remains unavailable until a real provider is integrated.** | Containment is implemented in the reviewed checkpoint: `ValueBearingSignRequest`/`ValueBearingSignResponse` bind the canonical operation digest, algorithm, key identity, verified signature, attestation, provenance, policy, and replay authorization (`src/enclave/mod.rs:300-760`); `UnavailableEnclave` fails closed; software/cloud simulators are test/development-gated (`src/enclave/mod.rs:1-12`, `src/enclave/android_strongbox.rs`, `src/enclave/cloud.rs`, `Cargo.toml`). Negative tests cover provider absence and simulator exclusion (`src/enclave/mod.rs:1000-1618`, `src/protocol/rails/mod.rs:900-1190`). | **Containment complete; P0 remains open.** Integrate an authenticated hardware/provider verifier and signer, vendor roots/collateral, deployment evidence, independent review, and exact release artifacts. Until then, do not claim value-bearing production signing or close issue #195. |
+| P0-02 | **Typed rail settlement containment is implemented, but production evidence is incomplete.** | `RailProxy` now performs full attestation-policy verification and rejects legacy request-only hashes (`src/protocol/rails/mod.rs:450-550`). Built-in rails receive only private typed `VerifiedOperation` envelopes carrying canonical intent, operation/key binding, signature, attestation, provenance, policy, and replay authorization; raw production dispatch returns `Unsupported` (`src/protocol/rails/mod.rs:63-260,551-702`). Ark, BitVM/Taproot, Business, Chain Abstraction, Economy/Stacks, and Opportunity routes use the typed signing boundary (`src/protocol/{ark,bitvm,business,chain_abstraction,economy,opportunity,stacks}.rs`). | **Containment complete; P0 remains open.** Add the real provider verifier/signer contract and vendor evidence, replace process-local replay with distributed deployment-safe authorization, attach provider/runtime/integration evidence, and retain independent-review/artifact evidence. |
 | P0-03 | **BIP-322 verification is acceptance-only, not signature verification.** | `Bip322Bridge::verify_simple_signature` parses the address, constructs a transaction, decodes base64, then returns `Ok(true)` when the address script is non-empty; the decoded bytes are never verified (`src/protocol/bip322.rs:81-138`). Tests use placeholder base64 strings and assert only `is_ok()` (`src/protocol/bip322.rs:141-176`). | Implement BIP-322 simple verification for each supported script type with official vectors, reject invalid signatures, and add mutation/negative tests. Do not expose the current function as proof of address ownership. |
 | P0-04 | **Non-canonical Ethereum and Taproot hashing.** | `EthereumManager::get_address` and `sign_message` use SHA-256 where the documented Ethereum operations require Keccak-family hashing (`src/protocol/ethereum.rs:24-32,73-94`). `TaprootManager` uses a locally defined `TapTweakTag` with a hard-coded non-standard midstate (`src/protocol/bitcoin.rs:47-74,105-115`). | Use audited library implementations and canonical test vectors for Ethereum address/message hashing and BIP-340/BIP-341 Taproot tweaks. Add cross-checks against independent implementations before enabling value-bearing signing. |
 | P0-05 | **High-impact protocol surfaces contain simulated or placeholder behavior.** | FROST derives identifiers and shares by hashing labels and returns an `R` placeholder instead of a Schnorr point (`src/protocol/frost.rs:42-67,145-167,237-285`). Fedimint describes simulated federation keys, validates DLEQ structure only, and concatenates/hashes shares instead of performing BLS threshold aggregation (`src/protocol/nexus/fedimint.rs:28-34,85-95,283-320,367-397,437-472`). Ark derives simulated parent IDs and returns deterministic fixture entries (`src/protocol/ark.rs:91-166`); BitVM2 treats the challenge window as always open and does not verify the claimed SNARK (`src/protocol/bitvm2.rs:187-207,248-263`). CCTP returns an empty burn payload and accepts any non-empty attestation (`src/protocol/cctp.rs:27-36`). Account abstraction validates only that a module address is non-empty (`src/protocol/account_abstraction.rs:46-60`). | Replace each placeholder with a protocol-conformant implementation or mark the surface explicitly unsupported and unreachable from production. Require protocol vectors, real network/testnet integration, independent review, and fail-closed behavior before promotion. |
@@ -100,9 +101,10 @@ Production enablement should remain blocked until all P0 gates and the required 
 
 ### Gate B — hardware and attestation
 
-- Hardware-generated keys and vendor-issued attestation reports are used in supported deployments.
-- The complete attestation verifier is called by every value-bearing caller, with nonce, freshness, certificate chain, vendor root, hardware level, purpose, and replay policy checked.
-- Positive and negative tests exist for each supported platform, including stale, replayed, malformed, wrong-root, wrong-purpose, and software-attestation reports.
+- **Containment complete:** value-bearing callers require the typed provider-only signing path; the complete report verifier is reached before typed settlement authorization, with canonical nonce/digest, key, freshness, purpose, algorithm, policy, and process-local replay checks.
+- **Open provider gate:** no authenticated real hardware/provider verifier or signer, vendor roots/collateral, or deployed hardware evidence is present in this repository. Software and simulated fixtures remain excluded from production support.
+- **Open replay and artifact gates:** the current replay guard is process-local, not distributed deployment coordination; independent review, provider/runtime integration tests, and exact artifacts remain empty.
+- Positive and negative fixture tests cover stale, replayed, malformed, wrong-root, wrong-purpose, software, raw-dispatch, and missing-evidence cases, but they are not vendor or production evidence.
 
 ### Gate C — protocol correctness
 
@@ -127,7 +129,7 @@ Production enablement should remain blocked until all P0 gates and the required 
 ## Implementation sequence
 
 1. **Lock the claim boundary:** keep public status conditional, publish the matrix, and block production wording in agent/review guardrails.
-2. **Close P0-01/P0-02:** isolate software drivers, remove default-success production paths, and make full attestation verification mandatory for value-bearing rails.
+2. **Complete the remaining P0-01/P0-02 evidence:** preserve the implemented containment, then integrate the real provider verifier/signer, distributed replay, vendor evidence, independent review, and exact artifacts before any production-support decision.
 3. **Close P0-03/P0-04:** implement canonical BIP-322, BIP-340/BIP-341, and Ethereum vectors with negative tests and independent cross-checks.
 4. **Close P0-05:** replace or disable each placeholder protocol adapter; require real integration evidence before reclassification.
 5. **Close P1 supply-chain and release gaps:** pin dependencies/toolchain, consolidate workflows, reconcile the 2.x release, and retain SBOM/provenance evidence.
@@ -150,9 +152,9 @@ Unknowns are not positive evidence. They remain release-blocking until resolved 
 ## Verification limits
 
 - This is a source, test, documentation, and workflow audit; it is not a penetration test, cryptographic proof, vendor attestation validation, deployment review, or mainnet certification.
-- The mandatory local build verification was attempted on 2026-07-20. `cargo fmt --all -- --check` was reached successfully, but the chained Clippy/test gate was blocked when the resolver selected `alloy 2.2.0` and related packages requiring newer Rust than the available `rustc 1.89.0`. No dependency or lockfile changes were made.
+- The mandatory local build verification passed on the merged main checkout before this follow-up. The rebased checkpoint is verified with the repository's Rust 1.94.1 toolchain; resolver/toolchain compatibility is recorded separately from provider and artifact evidence.
 - Existing unit tests were not reclassified as integration or independent-review evidence.
-- This documentation PR does not modify runtime code, workflows, generated issue/PR indexes, dependencies, or release artifacts.
+- This follow-up does not modify workflows, generated issue/PR indexes, dependencies, or release artifacts; its runtime changes are limited to typed value-bearing containment and fail-closed provider boundaries.
 
 ## Research and standards references
 

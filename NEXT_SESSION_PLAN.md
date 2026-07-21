@@ -7,9 +7,19 @@
 
 ## Current Follow-up
 
-The machine-first capability evidence follow-up to merged PR #193 is recorded in `docs/architecture/capability-evidence.json` and generated into `docs/architecture/CAPABILITY_MATRIX.md`. The next session must continue with evidence work, not infer production support from API rows, unit tests, WASM builds, or historical closed issues.
+The machine-first capability evidence follow-up now records merged PR #205 and rebased typed-settlement containment checkpoint `1e9f7ff228924b231fe5e2a26456f8d7e71e3909` in `docs/architecture/capability-evidence.json`, generated into `docs/architecture/CAPABILITY_MATRIX.md`. The next session must continue with evidence work, not infer production support from API rows, unit tests, WASM builds, or historical closed issues.
 
-Remaining gates are already tracked by GitHub #195–#202. Prioritize hardware-backed signing/attestation, canonical cryptographic verification, placeholder quarantine, reproducible release artifacts, and WASM runtime/secret-boundary evidence. Do not create duplicate issues.
+Remaining gates are already tracked by GitHub #195–#202. PR #205 and the typed-settlement follow-up are containment/evidence-boundary work only; issue #195 remains open. Do not create duplicate issues.
+
+## Immediate blockers to prioritize
+
+1. Define and integrate the real provider verifier/signer contract, including hardware-generated keys, provider response/key binding, vendor roots, and collateral.
+2. Replace process-local replay containment with independently reviewed distributed replay authorization for the deployment scope.
+3. Add provider-backed hardware/runtime integration tests, including WASM runtime/platform evidence where supported; compilation is not runtime evidence.
+4. Obtain independent security/cryptographic review for the exact reviewed code and attach the findings.
+5. Produce exact release artifacts with digests, SBOM, provenance, retained CI results, and a scoped support decision.
+
+Keep `UnavailableEnclave`, simulator exclusion, typed settlement propagation, and raw-dispatch rejection fail closed until all gates are evidenced.
 
 ---
 

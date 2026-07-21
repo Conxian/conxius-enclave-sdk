@@ -1,8 +1,27 @@
 # Session History
 
-> **Last Updated**: 2026-07-15 | **Agent Version**: v0.4.2
+> **Last Updated**: 2026-07-21 | **Agent Version**: v0.4.2
 
 This document tracks what was accomplished in previous sessions so future agents can continue the work seamlessly.
+
+---
+
+## Session: 2026-07-21 (Merged PR #205 and Typed Settlement Containment)
+
+### Summary
+Verified that PR [#205](https://github.com/Conxian/conxius-enclave-sdk/pull/205) merged into `main` at `35f7843a1ee8994de98b00cfacbae7dab1a1eaf5`, while issue [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) remains open. Rebased the completed typed settlement authorization checkpoint onto that merge as code commit `1e9f7ff228924b231fe5e2a26456f8d7e71e3909`.
+
+### Containment and evidence boundary
+- Typed value-bearing requests/responses now bind canonical intent/operation context, digest, algorithm, key identity, verified signature, attestation/provenance/policy identity, and replay authorization before settlement dispatch.
+- Raw production settlement dispatch is rejected; Ark, BitVM/Taproot, Business, Chain Abstraction, Economy/Stacks, and Opportunity routes use the typed signing boundary directly or through typed wrappers.
+- WASM defaults and software simulators remain fail closed or explicitly development/test-only. This is containment evidence, not hardware/provider, runtime, deployment, independent-review, or release-artifact evidence.
+
+### Verification
+- `cargo +1.94.1 test`: 207 unit tests passed, 4 production-containment integration tests passed, and 1 doc test passed (1 compile-fail/doc test ignored).
+- `cargo +1.94.1 test --all-features`: 226 unit tests passed, 5 production-containment integration tests passed, and 1 doc test passed (1 compile-fail/doc test ignored).
+
+### Remaining unsupported boundary
+Real provider verifier/signer integration, vendor roots/collateral, distributed replay authorization, provider-backed runtime tests, independent review, exact artifacts/provenance/SBOM, and a production-support decision remain open. Do not close issue #195 or claim production readiness.
 
 ---
 
