@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "schemaVersion": 1,
   "repository": "Conxian/conxius-enclave-sdk",
-  "reviewedRef": "57726f3e5fca29ec953b1f58445eae7530414924",
+  "reviewedRef": "c976c377aaf3ac0d825e47fa1fd1436802fc130e",
   "lastVerified": "2026-07-21",
   "maturity": "beta-conditional",
   "statusVocabulary": {
@@ -507,20 +507,20 @@
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/protocol/ark.rs:1-523",
+        "src/protocol/ark.rs:1-482",
         "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
       ],
       "evidenceChain": [
         {"stage": "requirement", "refs": ["docs/architecture/GAP_SCORECARD.md:70-150", "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
-        {"stage": "code", "refs": ["src/protocol/ark.rs:1-391"]},
-        {"stage": "test", "refs": ["src/protocol/ark.rs:393-523"]},
+        {"stage": "code", "refs": ["src/protocol/ark.rs:1-350"]},
+        {"stage": "test", "refs": ["src/protocol/ark.rs:351-482"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Typed IDs, descriptors, and structural validation are not live Ark interoperability, settlement, recovery, or unilateral-exit evidence.",
-      "notes": "PR #209 quarantines derivation, tree construction, forfeit signing, and recovery. `ArkManager::try_with_backend` and compatibility `with_backend` reject `ProviderOwned` with exact `ProtocolUnsupported`; `new` remains `Unconfigured`. A future milestone must choose and pin Arkade or Second after issue #195 provider/attestation evidence; inspected Arkade v0.9.15 remains Alpha/do-not-use-in-production."
+      "notes": "PR #209 quarantines derivation, tree construction, forfeit signing, and recovery. A future milestone must choose and pin Arkade or Second; inspected Arkade v0.9.15 remains Alpha/do-not-use-in-production."
     },
     {
       "id": "bitvm",
@@ -545,7 +545,7 @@
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Challenge/commitment APIs and structural tests do not prove SNARK verification, Bitcoin interoperability, or production settlement.",
-      "notes": "BitVM and BitVM2 remain separate records while sharing the threshold/settlement blocker. The native legacy `BitVmManager` is a non-production MuSig2 primitive; its generic signatures and aggregates are not BitVM2 evidence, and the public WASM compatibility surface is quarantined separately."
+      "notes": "BitVM and BitVM2 remain separate records while sharing the threshold/settlement blocker."
     },
     {
       "id": "bitvm2",
@@ -558,21 +558,20 @@
       "productionSupport": "unsupported",
       "evidenceRefs": [
         "src/protocol/bitvm2.rs:1-645",
-        "src/wasm_bindings.rs:748-867",
-        "src/wasm_support.rs:73-163",
+        "src/wasm_bindings.rs:748-854",
         "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
       ],
       "evidenceChain": [
         {"stage": "requirement", "refs": ["docs/architecture/GAP_SCORECARD.md:70-150", "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
-        {"stage": "code", "refs": ["src/protocol/bitvm2.rs:1-430", "src/wasm_bindings.rs:748-867", "src/wasm_support.rs:73-92"]},
-        {"stage": "test", "refs": ["src/protocol/bitvm2.rs:431-645", "src/wasm_support.rs:94-163"]},
+        {"stage": "code", "refs": ["src/protocol/bitvm2.rs:1-430", "src/wasm_bindings.rs:748-854"]},
+        {"stage": "test", "refs": ["src/protocol/bitvm2.rs:431-645"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Typed roles, observations, windows, and WASM mappings do not prove bridge graph correctness, proof/disprove verification, Bitcoin interoperability, or provider/runtime support.",
-      "notes": "PR #209 permits only externally observed, idempotent modeled events; posting, challenge, resolution, signing, and transaction construction remain unsupported. Legacy WASM BitVM signing and aggregation now fail before decoding with exact BitVM2 `ProtocolUnsupported` errors mapped to `PROTOCOL_UNSUPPORTED`; no generic MuSig2 output is treated as BitVM2 evidence."
+      "notes": "PR #209 permits only externally observed, idempotent modeled events; posting, challenge, resolution, signing, and transaction construction remain unsupported."
     },
     {
       "id": "cctp",
@@ -1100,21 +1099,25 @@
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/telemetry.rs:1-911",
-        "src/protocol/rails/mod.rs:1-635",
+        "src/telemetry.rs:1-1298",
+        "src/protocol/rails/mod.rs:1-700",
         "docs/operations/TELEMETRY_OPERATIONS.md",
+        "docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md",
+        "docs/operations/RELEASE_RECOVERY_RUNBOOK.md",
+        "REPO_OWNERSHIP.md",
+        "PRODUCTION_READINESS.md",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/201"
       ],
       "evidenceChain": [
-        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:69-80", "https://github.com/Conxian/conxius-enclave-sdk/issues/201"]},
-        {"stage": "code", "refs": ["src/telemetry.rs:1-682", "src/protocol/rails/mod.rs:1-635"]},
-        {"stage": "test", "refs": ["src/telemetry.rs:683-911"]},
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:69-82", "https://github.com/Conxian/conxius-enclave-sdk/issues/201", "docs/operations/TELEMETRY_OPERATIONS.md", "docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md", "docs/operations/RELEASE_RECOVERY_RUNBOOK.md"]},
+        {"stage": "code", "refs": ["src/telemetry.rs:1-682", "src/protocol/rails/mod.rs:1-700"]},
+        {"stage": "test", "refs": ["src/telemetry.rs:683-1298", "src/protocol/rails/mod.rs:900-1700"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:20-50", ".github/workflows/ci-strict.yml:20-53"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/201", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Telemetry remains opt-in and best effort; independent review, server-side retention evidence, deployment monitoring, and production artifacts are not established by this change.",
-      "notes": "Payloads are minimized to a coarse event and credentials remain sensitive transport headers only. Telemetry must not become a hidden dependency for signing or other security decisions."
+      "exclusion": "Telemetry remains opt-in and best effort; independent review, server-side retention/access/deletion evidence, deployment monitoring, named on-call assignment, rollback-drill evidence, and production artifacts are not established by this documentation phase.",
+      "notes": "The code/test checkpoint is c976c377aaf3ac0d825e47fa1fd1436802fc130e and includes native credential-redirect hardening plus regression coverage that verifies redirects are not followed and the sensitive API key is not forwarded. This is SDK-local implementation/test evidence only; it does not establish production support or independent review. Payloads are minimized to the exact coarse event contract and credentials remain sensitive transport headers only. The new runbooks are SDK-local public-safe evidence and do not prove service-side controls. Telemetry must not become a hidden dependency for signing or other security decisions."
     },
     {
       "id": "ci-release-evidence",

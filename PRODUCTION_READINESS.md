@@ -3,11 +3,11 @@
 > This is a gated checklist, not a production-readiness claim.
 > Status: Beta / conditional | Last Updated: 2026-07-21
 
-The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), [machine-readable evidence](./docs/architecture/capability-evidence.json), and [protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.11`; `Cargo.toml` declaring `2.0.12` does not establish a supported release.
+The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), [machine-readable evidence](./docs/architecture/capability-evidence.json), [public operations runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md), [release recovery runbook](./docs/operations/RELEASE_RECOVERY_RUNBOOK.md), and [protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.11`; `Cargo.toml` declaring `2.0.12` does not establish a supported release.
 
 Merged PR [#205](https://github.com/Conxian/conxius-enclave-sdk/pull/205), merged PR [#216](https://github.com/Conxian/conxius-enclave-sdk/pull/216), and the typed-settlement follow-up code checkpoint are containment and evidence-boundary work only. They make missing provider evidence fail closed and preserve signer-identity binding; they do not establish real hardware/provider integration, distributed replay, runtime support, independent review, release artifacts, or production readiness. Issue [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) remains open.
 
-Issue #145 is a **historical CI/CD baseline**, not current release-acceptance evidence. Residual toolchain, dependency, publisher, scanning, SBOM, provenance, and exact-artifact work is tracked by [issue #199](https://github.com/Conxian/conxius-enclave-sdk/issues/199). Historical issues #145, #154, #169, #172, #173, #174, and #180 provide context only and must not be used as current production proof.
+Issue #145 is a **historical CI/CD baseline**, not current release-acceptance evidence. Repository-control work for toolchain, dependency, publisher, scanning, SBOM, provenance, and exact-artifact evidence is tracked by [issue #199](https://github.com/Conxian/conxius-enclave-sdk/issues/199); independent review and release acceptance remain open in [issue #202](https://github.com/Conxian/conxius-enclave-sdk/issues/202). Historical issues #145, #154, #169, #172, #173, #174, and #180 provide context only and must not be used as current production proof.
 
 ---
 
@@ -69,7 +69,9 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 ### 📚 Examples & Documentation
 
 - [ ] `examples/` and operational runbooks aligned with the matrix (DOC-002 - P2)
-- [x] Public-safe telemetry privacy and delivery runbook (`docs/operations/TELEMETRY_OPERATIONS.md`)
+- [x] SDK-local telemetry privacy and delivery contract (`docs/operations/TELEMETRY_OPERATIONS.md`)
+- [x] Public-safe operations and release-recovery runbooks (`docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md`, `docs/operations/RELEASE_RECOVERY_RUNBOOK.md`)
+- [ ] Deployment monitoring, named person/on-call assignment, service retention policy, rollback drill, and exact-release evidence (documentation alone does not check this gate)
 - [x] API documentation via rustdoc
 - [x] Architecture documentation
 - [x] Gap scorecard maintained
@@ -79,8 +81,10 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 
 - [ ] Reconcile package metadata with a verified release tag (latest visible: `v2.0.11`)
 - [x] Select one authoritative release/publish workflow (`release-strict.yml`; one automatic tag publisher with manual recovery)
-- [ ] Verify CI gates and retain their results for the exact artifact
-- [ ] Attach registry, SBOM, provenance, and release-note evidence
+- [ ] Verify the exact tagged registry artifact and retain all release-gate results for that artifact
+- [ ] Attach registry, SBOM, provenance, lockfile, checksum, and release-note evidence from a live tagged run
+- [ ] Complete independent release/security acceptance (issue #202)
+- [ ] Verify service-side telemetry retention/access/deletion, aggregate monitoring, named on-call assignment, and a rollback drill for the exact deployment scope
 
 ### 🔧 Environment Setup
 
@@ -100,7 +104,8 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 | WASM Build | `ci.yml` and `ci-strict.yml` build WASM | Runtime/platform/hardware matrix is still open |
 | Security Audit | Security workflows are defined | Independent review evidence is not attached |
 | CodeQL | Workflow is defined | Workflow presence is not a release artifact |
-| Release Validation | Multiple release workflows exist | Consolidation and durable artifact evidence remain open in #199; workflow presence is not a release artifact |
+| Release Validation | One authoritative `release-strict.yml` workflow owns publication and release creation; tag paths reuse the full-history secret scan and compare the crates.io artifact digest | Live tagged registry/provenance evidence and independent acceptance remain open in #199 and #202; workflow presence is not a release artifact |
+| Telemetry operations | SDK-local redaction, endpoint, timeout/retry, disablement, and failure-isolation controls are tested and documented | Service-side monitoring, retention/access/deletion, named on-call assignment, rollback drill, independent review, and exact release evidence remain unchecked |
 
 ---
 
@@ -110,7 +115,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 |---------|--------|-------|
 | 2.x line | Beta / conditional | Production enablement remains blocked by CON-1506 P0/P1 gates and protocol roadmap milestones |
 | v2.0.11 | Latest visible GitHub release/tag | Verify artifacts and capability scope before use |
-| 2.0.12 | Cargo metadata only at audit time | No matching visible tag/release evidence was found |
+| 2.0.12 | Cargo metadata only at the 2026-07-21 review | No matching visible tag/release or registry evidence was found |
 
 ---
 
@@ -130,6 +135,8 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 ## Release Procedure
 
 No release procedure below authorizes production enablement by itself. A candidate release must pass the audit gates and attach evidence for the exact tag, target, runtime, and deployment scope.
+
+The release workflow now contains repository controls for full-history secret scanning, attestation identity retention, registry-artifact digest comparison, and post-publication GitHub Release ordering. These controls are not live release evidence: issue [#199](https://github.com/Conxian/conxius-enclave-sdk/issues/199) and independent acceptance issue [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) remain open until a tagged run produces reviewable artifacts and the required acceptance decision.
 
 ```bash
 # 1. Verify all checks pass
@@ -160,6 +167,8 @@ git push origin vX.Y.Z
 - [ ] Verify README, SECURITY, matrix, and changelog scope
 - [ ] Publish only public-safe operational notes
 - [ ] Record rollback owner and tested rollback procedure
+- [ ] Verify service-side telemetry monitoring and retention/access/deletion evidence for the exact deployment
+- [ ] Confirm named deployment/on-call assignment; role documentation alone is not assignment evidence
 
 ---
 
@@ -175,4 +184,4 @@ git push origin vX.Y.Z
 ---
 
 *Checklist maintained by: SDK Team*
-*Last reviewed: 2026-07-20*
+*Last reviewed: 2026-07-21*

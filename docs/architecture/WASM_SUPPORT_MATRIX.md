@@ -66,8 +66,9 @@ provenance, or production support.
   from the legacy native module are not BitVM2 challenge evidence.
 - Fedimint methods that accept already-opaque handles currently return
   `PROTOCOL_UNSUPPORTED`; they do not expose or accept raw secret material.
-  `SECRET_EXPORT_FORBIDDEN` is reserved for a distinct API that explicitly
-  exposes or accepts secret material, and no such default WASM API exists.
+  Any future API that explicitly exposes or accepts raw secret/blinding-factor
+  material must fail with `SECRET_EXPORT_FORBIDDEN` until a provider-owned
+  opaque flow exists; no such default WASM API exists.
 - Malformed hex, length, JSON, and shape inputs at the signing/covenant
   boundary return the stable `INVALID_INPUT` code before native processing.
 - Cloud, localhost, software-only, and mock implementations are test/development

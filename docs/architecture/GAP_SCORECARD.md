@@ -23,6 +23,10 @@ The [machine-readable capability evidence](./capability-evidence.json) and gener
 - **Resolution**: Fully implemented the `bip110_compliant` feature flag, integrated BIP-110 validation rules into the BIP-322 construct-to-sign flow, hardened serialization with standard compact size (VarInt) encoding to prevent raw truncation hazards, and added compliance tests verifying Ark/BitVM2 commitment segmentation.
 - **Status**: API/structural implementation recorded (v2.0.13); canonical Bitcoin verification, integration, review, and artifact evidence remain open in #196 and #202.
 
+### 2. Hardware Attestation: Production-Grade Hardware Provider Verifier (Issue #195)
+- **Resolution**: Defined and integrated `HardwareProvider` verifier with concrete `HardwareProviderType` representing `IntelSgx`, `AndroidStrongBox`, and `AwsNitro` as well as full cryptographic X.509 certificate chain signature verification and policy validation. Extended `hardware_attestation_tests.rs` with verification failure scenarios for unanchored simulated chains.
+- **Status**: API, structural, and cryptographic validation implementation recorded (v2.0.13).
+
 ## Technical Resolutions (v2.0.12)
 
 ### 1. BitVM2: Static Tree Root Helper
