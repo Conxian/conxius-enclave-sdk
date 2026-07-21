@@ -523,12 +523,13 @@ mod edge_case_tests {
     #[test]
     fn test_empty_certificate_chain_rejected() {
         let generator = MockAttestationGenerator::new(AttestationLevel::TEE);
-        let mut report = generator.generate_valid_report(&[1, 2, 3, 4], 1_000_000);
+        let nonce: [u8; 4] = random();
+        let mut report = generator.generate_valid_report(&nonce, 1_000_000);
         report.certificate_chain.clear(); // Empty chain
 
         // Empty chain should fail
         assert!(
-            !report.verify(&[1, 2, 3, 4]),
+            !report.verify(&nonce),
             "Empty certificate chain should be rejected"
         );
     }
