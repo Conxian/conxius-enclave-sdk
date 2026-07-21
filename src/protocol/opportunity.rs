@@ -92,6 +92,7 @@ impl<'a> OpportunityDispatcher<'a> {
                 };
 
                 let intent = self.rail_proxy.prepare_intent(&rail_name, request, None)?;
+                self.rail_proxy.preflight_typed_dispatch(&intent)?;
 
                 let (algo, derivation_path) = match from_chain {
                     Chain::SOLANA | Chain::NEAR | Chain::STELLAR | Chain::SUI | Chain::APTOS => {
