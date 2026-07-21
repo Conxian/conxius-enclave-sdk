@@ -4,6 +4,8 @@
 //! a browser, Node, bundler, worker, or provider boundary is safe or supported
 //! for value-bearing operations. This module keeps that decision fail-closed.
 
+#[cfg(any(target_arch = "wasm32", test))]
+use crate::{protocol_unsupported, UnsupportedOperation, UnsupportedProtocol};
 use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 
@@ -68,6 +70,27 @@ pub fn reject_unapproved_provider(provider: &str) -> ConclaveResult<()> {
     )))
 }
 
+/// Map the legacy WASM BitVM surface to the typed BitVM2 quarantine boundary.
+/// Generic MuSig2 values from the legacy module are not BitVM2 evidence.
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) fn legacy_bitvm2_unsupported(operation: UnsupportedOperation) -> ConclaveError {
+    protocol_unsupported(UnsupportedProtocol::BitVm2, operation)
+}
+
+/// Keep WASM error codes stable while the human-readable error remains typed.
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) fn wasm_error_code(error: &ConclaveError) -> &'static str {
+    match error {
+        ConclaveError::ProtocolUnsupported { .. } => "PROTOCOL_UNSUPPORTED",
+        ConclaveError::BoundaryValidation(_) => "BOUNDARY_VALIDATION",
+        ConclaveError::UnsupportedRuntime(_) => "UNSUPPORTED_RUNTIME",
+        ConclaveError::UnsupportedProvider(_) => "UNSUPPORTED_PROVIDER",
+        ConclaveError::SecretExportForbidden => "SECRET_EXPORT_FORBIDDEN",
+        ConclaveError::InvalidPayload => "INVALID_INPUT",
+        _ => "CONXIAN_ERROR",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,17 +122,143 @@ mod tests {
     }
 
     #[test]
+    fn stable_error_codes_preserve_input_protocol_and_secret_semantics() {
+        assert_eq!(
+            wasm_error_code(&ConclaveError::InvalidPayload),
+            "INVALID_INPUT"
+        );
+        assert_eq!(
+            wasm_error_code(&ConclaveError::ProtocolUnsupported {
+                protocol: UnsupportedProtocol::BitVm2,
+                operation: UnsupportedOperation::ChallengeSubmission,
+                reason: crate::UnsupportedReason::NoAuditedImplementation,
+            }),
+            "PROTOCOL_UNSUPPORTED"
+        );
+        assert_eq!(
+            wasm_error_code(&ConclaveError::SecretExportForbidden),
+            "SECRET_EXPORT_FORBIDDEN"
+        );
+    }
+
+    #[test]
+    fn legacy_wasm_bitvm_surface_is_exactly_bitvm2_unsupported() {
+        let sign_error = legacy_bitvm2_unsupported(UnsupportedOperation::ChallengeSubmission);
+        assert_eq!(
+            sign_error,
+            ConclaveError::ProtocolUnsupported {
+                protocol: UnsupportedProtocol::BitVm2,
+                operation: UnsupportedOperation::ChallengeSubmission,
+                reason: crate::UnsupportedReason::NoAuditedImplementation,
+            }
+        );
+        assert_eq!(wasm_error_code(&sign_error), "PROTOCOL_UNSUPPORTED");
+
+        let aggregate_error = legacy_bitvm2_unsupported(UnsupportedOperation::ThresholdAggregation);
+        assert_eq!(
+            aggregate_error,
+            ConclaveError::ProtocolUnsupported {
+                protocol: UnsupportedProtocol::BitVm2,
+                operation: UnsupportedOperation::ThresholdAggregation,
+                reason: crate::UnsupportedReason::NoAuditedImplementation,
+            }
+        );
+        assert_eq!(wasm_error_code(&aggregate_error), "PROTOCOL_UNSUPPORTED");
+
+        let source = include_str!("wasm_bindings.rs");
+        let bitvm_surface = source
+            .split("pub struct WasmBitVmClient")
+            .nth(1)
+            .and_then(|rest| {
+                rest.split("#[wasm_bindgen]\npub struct Iso20022Wrapper")
+                    .next()
+            })
+            .unwrap_or("");
+        assert!(bitvm_surface.contains("legacy_bitvm2_error"));
+        assert!(bitvm_surface.contains("UnsupportedOperation::ChallengeSubmission"));
+        assert!(bitvm_surface.contains("UnsupportedOperation::ThresholdAggregation"));
+        assert!(bitvm_surface.contains("pub fn new() -> WasmBitVmClient"));
+        assert!(bitvm_surface.contains("Err(legacy_bitvm2_error("));
+        assert!(!bitvm_surface.contains("pub inner"));
+        assert!(!bitvm_surface.contains("serde_wasm_bindgen::from_value"));
+        assert!(!bitvm_surface.contains("serde_json::from_str"));
+        assert!(!bitvm_surface.contains(".inner\n            .sign_challenge("));
+        assert!(!bitvm_surface.contains(".inner\n            .aggregate_challenge_signatures("));
+        assert!(!bitvm_surface.contains("to_value(&aggregate)"));
+    }
+
+    #[test]
+    fn direct_ark_and_legacy_bitvm_clients_are_stateless_and_quarantined() {
+        let source = include_str!("wasm_bindings.rs");
+        let ark_surface = source
+            .split("pub struct WasmArkClient;")
+            .nth(1)
+            .and_then(|rest| {
+                rest.split("#[wasm_bindgen]\npub struct WasmBitVmClient;")
+                    .next()
+            })
+            .unwrap_or("");
+        let bitvm_surface = source
+            .split("pub struct WasmBitVmClient;")
+            .nth(1)
+            .and_then(|rest| {
+                rest.split("#[wasm_bindgen]\npub struct Iso20022Wrapper")
+                    .next()
+            })
+            .unwrap_or("");
+
+        assert!(ark_surface.contains("pub fn new() -> WasmArkClient"));
+        assert!(ark_surface.contains("UnsupportedOperation::VutxoKeyDerivation"));
+        assert!(ark_surface.contains("UnsupportedOperation::ForfeitSigning"));
+        assert!(ark_surface.contains("UnsupportedOperation::RecoveryScan"));
+        assert!(!ark_surface.contains("pub inner"));
+        assert!(!ark_surface.contains("Arc<ArkManager>"));
+        assert!(!ark_surface.contains("Arc<dyn EnclaveManager>"));
+        assert!(!ark_surface.contains("CloudEnclave"));
+        assert!(!ark_surface.contains("new_for_development"));
+        assert!(!ark_surface.contains("master_seed"));
+        assert!(!ark_surface.contains("private_key"));
+        assert!(!ark_surface.contains("secret"));
+
+        assert!(bitvm_surface.contains("pub fn new() -> WasmBitVmClient"));
+        assert!(bitvm_surface.contains("Err(legacy_bitvm2_error("));
+        assert!(!bitvm_surface.contains("pub inner"));
+        assert!(!bitvm_surface.contains("Arc<BitVmManager>"));
+        assert!(!bitvm_surface.contains("Arc<dyn EnclaveManager>"));
+        assert!(!bitvm_surface.contains("CloudEnclave"));
+        assert!(!bitvm_surface.contains("new_for_development"));
+        assert!(!bitvm_surface.contains("private_key"));
+        assert!(!bitvm_surface.contains("secret"));
+
+        assert!(source.contains("pub fn ark(&self) -> WasmArkClient"));
+        assert!(source.contains("pub fn bitvm(&self) -> WasmBitVmClient"));
+        assert!(source.contains("WasmArkClient::new()"));
+        assert!(source.contains("WasmBitVmClient::new()"));
+    }
+
+    #[test]
     fn wasm_surface_has_no_private_key_export_or_cloud_default() {
         let source = include_str!("wasm_bindings.rs");
+        let support_source = include_str!("wasm_support.rs");
 
         assert!(!source.contains("pub fn derive_vutxo_key"));
         assert!(!source.contains("hex::encode(key)"));
         assert!(!source.contains("master_seed_hex"));
         assert!(!source.contains("crate::enclave::cloud::CloudEnclave::new("));
-        assert!(source.contains("UnavailableEnclave"));
+        assert!(!source.contains("UnavailableEnclave"));
         assert!(!source.contains("expect(\"Failed to create enclave\")"));
         assert!(!source.contains("EnclaveManager::sign"));
         assert!(!source.contains(".sign(request"));
+        assert!(source.contains("Err(unsupported_provider("));
+        assert!(source.contains("pub fn new() -> Result<WasmBitVm2Orchestrator, JsValue>"));
+        assert!(source.contains("pub fn bitvm2(&self) -> Result<WasmBitVm2Orchestrator, JsValue>"));
+        assert!(source.contains("fn invalid_input()"));
+        assert!(!source.contains("JsValue::from_str(\"Invalid key length\")"));
+        assert!(!source.contains("JsValue::from_str(\"Invalid hash length\")"));
+        assert!(!source.contains("JsValue::from_str(\"Invalid state hash length\")"));
+        assert!(
+            !source.contains("JsValue::from_str(\"Invalid taproot internal public key length\")")
+        );
         let source_lines: Vec<&str> = source.lines().collect();
         let mut gated_development_constructors = 0;
         for (index, line) in source_lines.iter().enumerate() {
@@ -127,7 +276,8 @@ mod tests {
         assert_eq!(gated_development_constructors, 2);
         assert!(source.contains("derive_vutxo_public_key"));
         assert!(source.contains("sign_vutxo"));
-        assert!(source.contains("SECRET_EXPORT_FORBIDDEN"));
+        assert!(source.contains("wasm_error_code"));
+        assert!(support_source.contains("SECRET_EXPORT_FORBIDDEN"));
     }
 
     #[test]

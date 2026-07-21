@@ -1,6 +1,4 @@
 use crate::enclave::EnclaveManager;
-use crate::protocol::ark::ArkManager;
-use crate::protocol::bitvm::BitVmManager;
 use crate::protocol::ethereum::EthereumManager;
 use crate::protocol::solana::SolanaManager;
 use crate::wasm_support::{self, WasmRuntime};
@@ -19,9 +17,9 @@ pub struct ConclaveWasmClient {
 impl ConclaveWasmClient {
     #[wasm_bindgen(constructor)]
     pub fn new(_enclave_url: &str) -> Result<ConclaveWasmClient, JsValue> {
-        Ok(ConclaveWasmClient {
-            enclave: Arc::new(crate::enclave::UnavailableEnclave),
-        })
+        Err(unsupported_provider(
+            "URL-backed CloudEnclave construction is disabled for WASM; use an approved provider-backed capability",
+        ))
     }
 
     #[cfg(feature = "development-simulators")]
@@ -56,44 +54,49 @@ impl ConclaveWasmClient {
     }
 
     pub fn ark(&self) -> WasmArkClient {
-        WasmArkClient {
-            inner: Arc::new(ArkManager::new(self.enclave.clone())),
-        }
+        WasmArkClient::new()
     }
 
     pub fn bitvm(&self) -> WasmBitVmClient {
-        WasmBitVmClient {
-            inner: Arc::new(BitVmManager::new(self.enclave.clone())),
-        }
+        WasmBitVmClient::new()
     }
 }
 
 #[wasm_bindgen]
-pub struct WasmArkClient {
-    #[wasm_bindgen(skip)]
-    pub inner: Arc<ArkManager>,
-}
+pub struct WasmArkClient;
 
 #[wasm_bindgen]
 impl WasmArkClient {
+    /// Construct the stateless, quarantined Ark boundary. It retains no
+    /// provider, enclave, URL, key, or sensitive state.
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmArkClient {
+        WasmArkClient
+    }
+
     /// Retrieve a provider-owned public key without accepting or returning a
-    /// seed/private key.
+    /// seed/private key. The direct client remains quarantined until the
+    /// provider and protocol evidence exist.
     pub fn derive_vutxo_public_key(&self, index: u32) -> Result<String, JsValue> {
-        self.inner
-            .derive_vutxo_public_key(index)
-            .map_err(conclave_error_to_js)
+        let _ = index;
+        Err(conclave_error_to_js(crate::protocol_unsupported(
+            crate::UnsupportedProtocol::Ark,
+            crate::UnsupportedOperation::VutxoKeyDerivation,
+        )))
     }
 
     /// Quarantined Ark signing entry point. No provider call is made.
     pub fn sign_vutxo(&self, tx_hash_hex: &str, index: u32) -> Result<String, JsValue> {
-        let tx_hash: [u8; 32] = hex::decode(tx_hash_hex)
-            .map_err(to_js_error)?
+        let _tx_hash: [u8; 32] = hex::decode(tx_hash_hex)
+            .map_err(|_| invalid_input())?
             .try_into()
-            .map_err(|_| wasm_error("INVALID_INPUT", "transaction hash must be 32 bytes"))?;
+            .map_err(|_| invalid_input())?;
+        let _ = index;
 
-        self.inner
-            .sign_vutxo(tx_hash, index)
-            .map_err(conclave_error_to_js)
+        Err(conclave_error_to_js(crate::protocol_unsupported(
+            crate::UnsupportedProtocol::Ark,
+            crate::UnsupportedOperation::ForfeitSigning,
+        )))
     }
 
     pub async fn recovery_scan(&self, gap_limit: u32, asp_url: &str) -> Result<JsValue, JsValue> {
@@ -105,35 +108,44 @@ impl WasmArkClient {
     }
 
     pub fn construct_vtxo_tree(&self, leaves: JsValue) -> Result<JsValue, JsValue> {
-        let leaves_vec = serde_wasm_bindgen::from_value(leaves).map_err(to_js_error)?;
-        let root = self
-            .inner
-            .construct_vtxo_tree(leaves_vec)
-            .map_err(conclave_error_to_js)?;
-        serde_wasm_bindgen::to_value(&root).map_err(to_js_error)
+        let _: Vec<crate::protocol::ark::VUtxoDescriptor> =
+            serde_wasm_bindgen::from_value(leaves).map_err(|_| invalid_input())?;
+        Err(conclave_error_to_js(crate::protocol_unsupported(
+            crate::UnsupportedProtocol::Ark,
+            crate::UnsupportedOperation::VtxoTreeConstruction,
+        )))
     }
 }
 
 #[wasm_bindgen]
-pub struct WasmBitVmClient {
-    #[wasm_bindgen(skip)]
-    pub inner: Arc<BitVmManager>,
-}
+pub struct WasmBitVmClient;
 
 #[wasm_bindgen]
 impl WasmBitVmClient {
+    /// Construct the stateless, quarantined legacy BitVM boundary. It retains
+    /// no provider, enclave, URL, key, or sensitive state.
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmBitVmClient {
+        WasmBitVmClient
+    }
+
+    /// Legacy BitVM signing is not BitVM2 challenge evidence. Keep this
+    /// compatibility surface present, but fail before decoding inputs or
+    /// invoking the native MuSig2 implementation.
     pub fn sign_challenge(
         &self,
         challenge: JsValue,
         path: &str,
         key_id: &str,
     ) -> Result<String, JsValue> {
-        let chal = serde_wasm_bindgen::from_value(challenge).map_err(to_js_error)?;
-        self.inner
-            .sign_challenge(chal, path, key_id)
-            .map_err(to_js_error)
+        let _ = (challenge, path, key_id);
+        Err(legacy_bitvm2_error(
+            crate::UnsupportedOperation::ChallengeSubmission,
+        ))
     }
 
+    /// Legacy MuSig2 aggregation is not BitVM2 challenge evidence. No
+    /// signature or aggregate is decoded or returned through this boundary.
     pub fn aggregate_challenge_signatures(
         &self,
         pubkeys_hex: JsValue,
@@ -141,34 +153,10 @@ impl WasmBitVmClient {
         partial_sigs_hex: JsValue,
         challenge: JsValue,
     ) -> Result<JsValue, JsValue> {
-        let pks: Vec<String> = serde_wasm_bindgen::from_value(pubkeys_hex).map_err(to_js_error)?;
-        let nonces: Vec<String> =
-            serde_wasm_bindgen::from_value(pub_nonces_hex).map_err(to_js_error)?;
-        let sigs: Vec<String> =
-            serde_wasm_bindgen::from_value(partial_sigs_hex).map_err(to_js_error)?;
-        let chal = serde_wasm_bindgen::from_value(challenge).map_err(to_js_error)?;
-
-        let mut pks_decoded = Vec::new();
-        for pk in pks {
-            let bytes = hex::decode(pk).map_err(to_js_error)?;
-            pks_decoded.push(secp256k1::PublicKey::from_slice(&bytes).map_err(to_js_error)?);
-        }
-
-        let mut nonces_decoded = Vec::new();
-        for n in nonces {
-            nonces_decoded.push(musig2::PubNonce::from_hex(&n).map_err(to_js_error)?);
-        }
-
-        let mut sigs_decoded = Vec::new();
-        for s in sigs {
-            sigs_decoded.push(musig2::PartialSignature::from_hex(&s).map_err(to_js_error)?);
-        }
-
-        let aggregate = self
-            .inner
-            .aggregate_challenge_signatures(&pks_decoded, nonces_decoded, sigs_decoded, chal)
-            .map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&aggregate).map_err(to_js_error)
+        let _ = (pubkeys_hex, pub_nonces_hex, partial_sigs_hex, challenge);
+        Err(legacy_bitvm2_error(
+            crate::UnsupportedOperation::ThresholdAggregation,
+        ))
     }
 }
 
@@ -179,8 +167,9 @@ pub struct Iso20022Wrapper;
 impl Iso20022Wrapper {
     pub fn wrap_pacs008(card: JsValue) -> Result<String, JsValue> {
         let card: crate::protocol::job_card::ConxianJobCard =
-            serde_wasm_bindgen::from_value(card).map_err(to_js_error)?;
-        crate::protocol::job_card::Iso20022Wrapper::wrap_pacs008(&card).map_err(to_js_error)
+            serde_wasm_bindgen::from_value(card).map_err(|_| invalid_input())?;
+        crate::protocol::job_card::Iso20022Wrapper::wrap_pacs008(&card)
+            .map_err(conclave_error_to_js)
     }
 }
 
@@ -198,7 +187,7 @@ impl WasmEthereumManager {
         amount: &str,
         contract: &str,
     ) -> Result<Vec<u8>, JsValue> {
-        let amt = amount.parse::<u128>().map_err(to_js_error)?;
+        let amt = amount.parse::<u128>().map_err(|_| invalid_input())?;
         let transfer = crate::protocol::ethereum::Erc20Transfer {
             to: to.to_string(),
             amount: amt,
@@ -206,7 +195,7 @@ impl WasmEthereumManager {
         };
         EthereumManager::new(self.enclave.as_ref())
             .prepare_erc20_transfer(transfer)
-            .map_err(to_js_error)
+            .map_err(conclave_error_to_js)
     }
 }
 
@@ -244,8 +233,11 @@ pub struct WasmAccountClient {
 #[wasm_bindgen]
 impl WasmAccountClient {
     pub fn prepare_execution(&self, actions: JsValue) -> Result<JsValue, JsValue> {
-        let acts = serde_wasm_bindgen::from_value(actions).map_err(to_js_error)?;
-        let execution = self.inner.prepare_execution(acts).map_err(to_js_error)?;
+        let acts = serde_wasm_bindgen::from_value(actions).map_err(|_| invalid_input())?;
+        let execution = self
+            .inner
+            .prepare_execution(acts)
+            .map_err(conclave_error_to_js)?;
         serde_wasm_bindgen::to_value(&execution).map_err(to_js_error)
     }
 }
@@ -259,10 +251,10 @@ pub struct WasmCctpClient {
 #[wasm_bindgen]
 impl WasmCctpClient {
     pub fn prepare_burn_payload(&self, intent: JsValue) -> Result<Vec<u8>, JsValue> {
-        let intent_obj = serde_wasm_bindgen::from_value(intent).map_err(to_js_error)?;
+        let intent_obj = serde_wasm_bindgen::from_value(intent).map_err(|_| invalid_input())?;
         self.inner
             .prepare_burn_payload(intent_obj)
-            .map_err(to_js_error)
+            .map_err(conclave_error_to_js)
     }
 }
 
@@ -308,7 +300,7 @@ impl WasmIntentClient {
         asset: &str,
         recipient: &str,
     ) -> Result<JsValue, JsValue> {
-        let amt = amount.parse::<u128>().map_err(to_js_error)?;
+        let amt = amount.parse::<u128>().map_err(|_| invalid_input())?;
         let ctx = crate::protocol::intent::Fdc3Context::settlement(amt, asset, recipient);
         serde_wasm_bindgen::to_value(&ctx).map_err(to_js_error)
     }
@@ -353,24 +345,27 @@ pub struct WasmCovenantClient {
 
 #[wasm_bindgen]
 impl WasmCovenantClient {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmCovenantClient {
+        WasmCovenantClient {
+            inner: crate::protocol::covenant::CovenantManager,
+        }
+    }
+
     pub fn generate_cat_vault_script(
         &self,
         internal_key_hex: &str,
         template_hash_hex: &str,
     ) -> Result<JsValue, JsValue> {
-        let pk_bytes = hex::decode(internal_key_hex).map_err(to_js_error)?;
-        let pk_arr: [u8; 32] = pk_bytes
-            .try_into()
-            .map_err(|_| JsValue::from_str("Invalid key length"))?;
-        let pk = bitcoin::XOnlyPublicKey::from_byte_array(&pk_arr).map_err(to_js_error)?;
-        let hash_bytes = hex::decode(template_hash_hex).map_err(to_js_error)?;
-        let hash: [u8; 32] = hash_bytes
-            .try_into()
-            .map_err(|_| JsValue::from_str("Invalid hash length"))?;
+        let pk_bytes = hex::decode(internal_key_hex).map_err(|_| invalid_input())?;
+        let pk_arr: [u8; 32] = pk_bytes.try_into().map_err(|_| invalid_input())?;
+        let pk = bitcoin::XOnlyPublicKey::from_byte_array(&pk_arr).map_err(|_| invalid_input())?;
+        let hash_bytes = hex::decode(template_hash_hex).map_err(|_| invalid_input())?;
+        let hash: [u8; 32] = hash_bytes.try_into().map_err(|_| invalid_input())?;
 
         let script =
             crate::protocol::covenant::CovenantManager::generate_cat_vault_script(&pk, hash)
-                .map_err(to_js_error)?;
+                .map_err(conclave_error_to_js)?;
         serde_wasm_bindgen::to_value(&script).map_err(to_js_error)
     }
 
@@ -380,15 +375,13 @@ impl WasmCovenantClient {
         expected_hash_hex: &str,
     ) -> Result<bool, JsValue> {
         let witness_vec: Vec<Vec<u8>> =
-            serde_wasm_bindgen::from_value(witness).map_err(to_js_error)?;
-        let hash_bytes = hex::decode(expected_hash_hex).map_err(to_js_error)?;
-        let hash: [u8; 32] = hash_bytes
-            .try_into()
-            .map_err(|_| JsValue::from_str("Invalid hash length"))?;
+            serde_wasm_bindgen::from_value(witness).map_err(|_| invalid_input())?;
+        let hash_bytes = hex::decode(expected_hash_hex).map_err(|_| invalid_input())?;
+        let hash: [u8; 32] = hash_bytes.try_into().map_err(|_| invalid_input())?;
 
         self.inner
             .verify_recursive_invariant(&witness_vec, hash)
-            .map_err(to_js_error)
+            .map_err(conclave_error_to_js)
     }
 }
 
@@ -411,17 +404,19 @@ fn to_js_error<E: std::fmt::Display>(e: E) -> JsValue {
     wasm_error("CONXIAN_ERROR", &e.to_string())
 }
 
+fn invalid_input() -> JsValue {
+    conclave_error_to_js(ConclaveError::InvalidPayload)
+}
+
+fn legacy_bitvm2_error(operation: crate::UnsupportedOperation) -> JsValue {
+    conclave_error_to_js(crate::wasm_support::legacy_bitvm2_unsupported(operation))
+}
+
 fn conclave_error_to_js(error: ConclaveError) -> JsValue {
-    let code = match &error {
-        ConclaveError::ProtocolUnsupported { .. } => "PROTOCOL_UNSUPPORTED",
-        ConclaveError::BoundaryValidation(_) => "BOUNDARY_VALIDATION",
-        ConclaveError::UnsupportedRuntime(_) => "UNSUPPORTED_RUNTIME",
-        ConclaveError::UnsupportedProvider(_) => "UNSUPPORTED_PROVIDER",
-        ConclaveError::SecretExportForbidden => "SECRET_EXPORT_FORBIDDEN",
-        ConclaveError::InvalidPayload => "INVALID_INPUT",
-        _ => "CONXIAN_ERROR",
-    };
-    wasm_error(code, &error.to_string())
+    wasm_error(
+        crate::wasm_support::wasm_error_code(&error),
+        &error.to_string(),
+    )
 }
 
 fn wasm_error(code: &str, message: &str) -> JsValue {
@@ -435,7 +430,7 @@ fn wasm_error(code: &str, message: &str) -> JsValue {
 }
 
 fn unsupported_provider(message: &str) -> JsValue {
-    wasm_error("UNSUPPORTED_PROVIDER", message)
+    conclave_error_to_js(ConclaveError::UnsupportedProvider(message.to_string()))
 }
 
 #[wasm_bindgen]
@@ -485,7 +480,7 @@ impl WasmFedimintClient {
     }
 
     pub fn verify_note(&self, note: JsValue) -> Result<bool, JsValue> {
-        let note_obj = serde_wasm_bindgen::from_value(note).map_err(to_js_error)?;
+        let note_obj = serde_wasm_bindgen::from_value(note).map_err(|_| invalid_input())?;
         self.inner
             .verify_note(&note_obj)
             .map_err(conclave_error_to_js)
@@ -531,8 +526,8 @@ impl WasmLightningClient {
 
     pub fn apply_event(&mut self, event_json: &str) -> Result<(), JsValue> {
         let event: crate::protocol::lightning::LightningEvent =
-            serde_json::from_str(event_json).map_err(to_js_error)?;
-        self.inner.apply_event(event).map_err(to_js_error)
+            serde_json::from_str(event_json).map_err(|_| invalid_input())?;
+        self.inner.apply_event(event).map_err(conclave_error_to_js)
     }
 
     pub fn can_retry(&self) -> bool {
@@ -610,7 +605,7 @@ impl WasmDlcClient {
         let contract = self
             .inner
             .offer_contract(oracle_announcement, local_collateral, remote_collateral)
-            .map_err(to_js_error)?;
+            .map_err(conclave_error_to_js)?;
         serde_wasm_bindgen::to_value(&contract).map_err(to_js_error)
     }
 
@@ -620,11 +615,28 @@ impl WasmDlcClient {
         remote_pubkey: &str,
     ) -> Result<JsValue, JsValue> {
         let contract: crate::protocol::dlc::DlcContract =
-            serde_json::from_str(contract_json).map_err(to_js_error)?;
+            serde_json::from_str(contract_json).map_err(|_| invalid_input())?;
         let accepted = self
             .inner
             .accept_contract(contract, remote_pubkey.to_string())
-            .map_err(to_js_error)?;
+            .map_err(conclave_error_to_js)?;
+        serde_wasm_bindgen::to_value(&accepted).map_err(to_js_error)
+    }
+
+    /// Accept a lifecycle contract directly from JavaScript without requiring
+    /// JSON stringification of u64 values. The operation is pure: a rejected
+    /// transition cannot mutate the caller's contract object.
+    pub fn accept_contract_value(
+        &self,
+        contract: JsValue,
+        remote_pubkey: &str,
+    ) -> Result<JsValue, JsValue> {
+        let contract: crate::protocol::dlc::DlcContract =
+            serde_wasm_bindgen::from_value(contract).map_err(|_| invalid_input())?;
+        let accepted = self
+            .inner
+            .accept_contract(contract, remote_pubkey.to_string())
+            .map_err(conclave_error_to_js)?;
         serde_wasm_bindgen::to_value(&accepted).map_err(to_js_error)
     }
 }
@@ -691,9 +703,9 @@ impl WasmSolverClient {
 
     pub fn rank_bids(&self, bids_json: &str) -> Result<JsValue, JsValue> {
         let bids: Vec<crate::protocol::solver::SolverBid> =
-            serde_json::from_str(bids_json).map_err(to_js_error)?;
-        let ranked =
-            crate::protocol::solver::SolverManager::rank_bids(bids).map_err(to_js_error)?;
+            serde_json::from_str(bids_json).map_err(|_| invalid_input())?;
+        let ranked = crate::protocol::solver::SolverManager::rank_bids(bids)
+            .map_err(conclave_error_to_js)?;
         serde_wasm_bindgen::to_value(&ranked).map_err(to_js_error)
     }
 }
@@ -762,6 +774,7 @@ pub struct WasmBitVm2Orchestrator {
 
 #[wasm_bindgen]
 impl WasmBitVm2Orchestrator {
+    #[cfg(feature = "development-simulators")]
     fn from_enclave(enclave: Arc<dyn EnclaveManager>) -> WasmBitVm2Orchestrator {
         let ark = Arc::new(crate::protocol::ark::ArkManager::new(enclave.clone()));
         let bitvm = Arc::new(crate::protocol::bitvm::BitVmManager::new(enclave));
@@ -773,8 +786,10 @@ impl WasmBitVm2Orchestrator {
     }
 
     #[wasm_bindgen(constructor)]
-    pub fn new() -> WasmBitVm2Orchestrator {
-        Self::from_enclave(Arc::new(crate::enclave::UnavailableEnclave))
+    pub fn new() -> Result<WasmBitVm2Orchestrator, JsValue> {
+        Err(unsupported_provider(
+            "BitVM2 WASM construction requires an approved provider; localhost/software mocks are test-only",
+        ))
     }
 
     #[cfg(feature = "development-simulators")]
@@ -796,19 +811,19 @@ impl WasmBitVm2Orchestrator {
         taproot_internal_key_hex: &str,
     ) -> Result<JsValue, JsValue> {
         let vutxo: crate::protocol::ark::VUtxoDescriptor =
-            serde_json::from_str(vutxo_json).map_err(to_js_error)?;
+            serde_json::from_str(vutxo_json).map_err(|_| invalid_input())?;
         let tree: crate::protocol::ark::VtxoTreeNode =
-            serde_json::from_str(tree_json).map_err(to_js_error)?;
+            serde_json::from_str(tree_json).map_err(|_| invalid_input())?;
 
         let state_hash = hex::decode(state_hash_hex)
-            .map_err(to_js_error)?
+            .map_err(|_| invalid_input())?
             .try_into()
-            .map_err(|_| JsValue::from_str("Invalid state hash length"))?;
+            .map_err(|_| invalid_input())?;
 
         let taproot_internal_key = hex::decode(taproot_internal_key_hex)
-            .map_err(to_js_error)?
+            .map_err(|_| invalid_input())?
             .try_into()
-            .map_err(|_| JsValue::from_str("Invalid taproot internal public key length"))?;
+            .map_err(|_| invalid_input())?;
 
         let forfeit = self
             .inner
@@ -821,7 +836,7 @@ impl WasmBitVm2Orchestrator {
 
     pub fn post_commitment(&self, commitment_json: &str) -> Result<String, JsValue> {
         let commitment: crate::protocol::bitvm2::BitVm2Commitment =
-            serde_json::from_str(commitment_json).map_err(to_js_error)?;
+            serde_json::from_str(commitment_json).map_err(|_| invalid_input())?;
         self.inner
             .borrow_mut()
             .post_commitment(commitment)
@@ -834,7 +849,7 @@ impl WasmBitVm2Orchestrator {
         response_json: &str,
     ) -> Result<(), JsValue> {
         let response: crate::protocol::bitvm2::BitVm2ChallengeResponse =
-            serde_json::from_str(response_json).map_err(to_js_error)?;
+            serde_json::from_str(response_json).map_err(|_| invalid_input())?;
         self.inner
             .borrow_mut()
             .challenge_commitment(commitment_id, response)
@@ -876,7 +891,7 @@ impl WasmBitVm2Orchestrator {
 
 #[wasm_bindgen]
 impl ConclaveWasmClient {
-    pub fn bitvm2(&self) -> WasmBitVm2Orchestrator {
+    pub fn bitvm2(&self) -> Result<WasmBitVm2Orchestrator, JsValue> {
         WasmBitVm2Orchestrator::new()
     }
 }
@@ -948,7 +963,7 @@ impl WasmBusinessClient {
 
     pub fn register_business(&self, profile_json: &str) -> Result<(), JsValue> {
         let profile: crate::protocol::business::BusinessProfile =
-            serde_json::from_str(profile_json).map_err(to_js_error)?;
+            serde_json::from_str(profile_json).map_err(|_| invalid_input())?;
         self.inner.register_business(profile);
         Ok(())
     }

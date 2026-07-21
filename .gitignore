@@ -6,6 +6,7 @@ node_modules/
 pkg/
 wasm-pack.log
 .wasm-pack-lock
+tests/wasm/.generated/
 
 # Tooling & Agents
 .claude/
