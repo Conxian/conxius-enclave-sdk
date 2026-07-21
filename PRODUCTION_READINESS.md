@@ -48,7 +48,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [ ] WASM runtime integration tests
 - [x] WASM private-key export path removed; provider/runtime support remains fail-closed
 - [x] Negative tests cover missing provider evidence, simulator exclusion, typed binding mismatches, and raw settlement dispatch rejection
-- [x] WASM FROST/Fedimint/Ark/BitVM2 quarantine methods propagate typed unsupported errors without secret-bearing outputs
+- [x] WASM FROST/Fedimint/Ark/BitVM2 quarantine methods propagate typed unsupported errors without secret-bearing outputs; legacy BitVM challenge signing/aggregation also fail with `PROTOCOL_UNSUPPORTED` before decoding
 - [ ] Fuzz testing for critical paths
 
 ### 📦 Dependency Requirements
