@@ -1,5 +1,8 @@
 use crate::{
-    enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
+    enclave::{
+        sign_value_bearing, EnclaveManager, OperationContext, SignerKeyBinding, SigningAlgorithm,
+        TrustRequirement, ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
+    },
     ConclaveError, ConclaveResult,
 };
 use bitcoin::{
@@ -30,18 +33,30 @@ impl<'a> TaprootManager<'a> {
         Self::validate_bip86_path(derivation_path)?;
 
         let tweak = self.calculate_taproot_tweak(derivation_path, merkle_root)?;
-        Self::tweak_scalar(&tweak)?;
+        let tweak_scalar = Self::tweak_scalar(&tweak)?;
+        let internal_key = self.internal_key(derivation_path)?;
+        let operation_pubkey = internal_key.add_tweak(&tweak_scalar).map_err(|error| {
+            ConclaveError::CryptoError(format!("Taproot key tweak failed: {error}"))
+        })?;
+        let request = ValueBearingSignRequest::new(
+            OperationContext::new(
+                "conxian/bitcoin/taproot",
+                ValueBearingPurpose::Transaction,
+                sighash.to_vec(),
+            )?,
+            SigningAlgorithm::SchnorrSecp256k1,
+            TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+            sighash,
+            SignerKeyBinding::new(
+                key_id,
+                derivation_path,
+                operation_pubkey.serialize().0.to_vec(),
+            )?,
+            Some(tweak.to_vec()),
+        )?;
 
-        let request = SignRequest {
-            algorithm: SigningAlgorithm::SchnorrSecp256k1,
-            message_hash: sighash.to_vec(),
-            derivation_path: derivation_path.to_string(),
-            key_id: key_id.to_string(),
-            taproot_tweak: Some(tweak.to_vec()),
-        };
-
-        let response = self.enclave.sign(request)?;
-        Ok(response.signature_hex)
+        let response = sign_value_bearing(self.enclave, request)?;
+        Ok(response.sign_response().signature_hex.clone())
     }
 
     /// Derives the BIP-341 Taproot output key from the enclave's internal key.
@@ -328,7 +343,7 @@ impl OpCatHelper {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::enclave::SignResponse;
+    use crate::enclave::{SignRequest, SignResponse};
 
     struct TestEnclave {
         public_key_hex: String,
