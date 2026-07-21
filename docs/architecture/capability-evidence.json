@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "schemaVersion": 1,
   "repository": "Conxian/conxius-enclave-sdk",
-  "reviewedRef": "5977aafbf844f47aac2c35fd48d5e0cdd6884bf7",
+  "reviewedRef": "5a936ba97373ebdbd809580c5e9c9f4df1966b40",
   "lastVerified": "2026-07-21",
   "maturity": "beta-conditional",
   "statusVocabulary": {

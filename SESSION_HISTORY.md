@@ -11,7 +11,7 @@ This document tracks what was accomplished in previous sessions so future agents
 ### Summary
 Verified that PR [#205](https://github.com/Conxian/conxius-enclave-sdk/pull/205) merged at `35f7843a1ee8994de98b00cfacbae7dab1a1eaf5` and PR [#216](https://github.com/Conxian/conxius-enclave-sdk/pull/216) merged at `0bdb323255279893c246f06659ec05875338c296`, while issue [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) remains open. Current `origin/main` was fetched at `1d9ef9b8d1745c51366d34a1624a8d3c76426769`, including later signer-binding and code-scanning follow-ups.
 
-The preserved typed settlement/evidence work was selectively reconciled onto current `main` as code commit `5977aafbf844f47aac2c35fd48d5e0cdd6884bf7`. The separate documentation commit records this checkpoint and keeps all unsupported production gates explicit.
+The preserved typed settlement/evidence work was selectively reconciled onto current `main` as code commit `5a936ba97373ebdbd809580c5e9c9f4df1966b40`, including the current-main fix that keeps WASM development constructors explicitly feature-gated. The separate documentation commit records this checkpoint and keeps all unsupported production gates explicit.
 
 ### Containment and evidence boundary
 - Typed value-bearing requests/responses bind canonical intent and operation context, digest, algorithm, operation key identity, verified signature, attestation/provenance/policy identity, and manager-issued replay authorization before settlement dispatch.

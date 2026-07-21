@@ -14,7 +14,7 @@ This document captures external research findings relevant to the Conclave SDK's
 ## Typed provider evidence boundary (2026-07-21)
 
 - Simulated attestation, software-driver tests, and successful WASM compilation establish containment or build evidence only; they do not establish hardware, provider, runtime, deployment, or release support.
-- Reconciled code checkpoint `5977aafbf844f47aac2c35fd48d5e0cdd6884bf7` keeps value-bearing signing behind a fail-closed typed provider verifier/signer boundary that binds the operation, key, algorithm, attestation, policy, and replay authorization. The real provider verifier/signer remains unavailable, so production support is not claimed.
+- Reconciled code checkpoint `5a936ba97373ebdbd809580c5e9c9f4df1966b40` keeps value-bearing signing behind a fail-closed typed provider verifier/signer boundary that binds the operation, key, algorithm, attestation, policy, and replay authorization. The real provider verifier/signer remains unavailable, so production support is not claimed.
 - The current replay authorization is process-local. Distributed replay coordination, provider-backed runtime tests, independent review, and exact artifacts remain required before promotion.
 
 ## Production-enablement evidence schema research (2026-07-20)

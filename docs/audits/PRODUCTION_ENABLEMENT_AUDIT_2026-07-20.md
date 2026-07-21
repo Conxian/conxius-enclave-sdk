@@ -11,7 +11,7 @@ This report records the public-safe outcome of the production-enablement review 
 | Item | Value |
 | --- | --- |
 | Audited default-branch ref | `1d9ef9b8d1745c51366d34a1624a8d3c76426769` (current `origin/main` fetched 2026-07-21) |
-| Reviewed containment checkpoint | `5977aafbf844f47aac2c35fd48d5e0cdd6884bf7` (reconciled follow-up code commit) |
+| Reviewed containment checkpoint | `5a936ba97373ebdbd809580c5e9c9f4df1966b40` (reconciled follow-up code commit, including gated WASM simulator coverage) |
 | Dependency merge refs | PR #205 `35f7843a1ee8994de98b00cfacbae7dab1a1eaf5`; PR #216 `0bdb323255279893c246f06659ec05875338c296` |
 | Audit ref description | Current main after fail-closed containment and signer-identity follow-ups, plus typed settlement evidence propagation |
 | Documentation correction base | Latest `origin/main` at follow-up start: `1d9ef9b8d1745c51366d34a1624a8d3c76426769` |

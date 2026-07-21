@@ -23,7 +23,7 @@ Do not change workflows or unrelated release lanes; the repository remains Beta 
 
 ## Current Follow-up
 
-The machine-first capability evidence follow-up now records merged PR #205, merged PR #216 signer identity binding, and the reconciled typed-settlement containment checkpoint `5977aafbf844f47aac2c35fd48d5e0cdd6884bf7` in `docs/architecture/capability-evidence.json`, generated into `docs/architecture/CAPABILITY_MATRIX.md`. The next session must continue with evidence work, not infer production support from API rows, unit tests, WASM builds, or historical closed issues.
+The machine-first capability evidence follow-up now records merged PR #205, merged PR #216 signer identity binding, and the reconciled typed-settlement containment checkpoint `5a936ba97373ebdbd809580c5e9c9f4df1966b40` in `docs/architecture/capability-evidence.json`, generated into `docs/architecture/CAPABILITY_MATRIX.md`. The next session must continue with evidence work, not infer production support from API rows, unit tests, WASM builds, or historical closed issues.
 
 Remaining gates are already tracked by GitHub #195–#202. PR #205 and the typed-settlement follow-up are containment/evidence-boundary work only; issue #195 remains open. Do not create duplicate issues.
 
