@@ -238,6 +238,15 @@ impl CoreEnclaveManager {
                     .map_err(|_| ConclaveError::CryptoError("Invalid tweak length".to_string()))?,
             )
             .map_err(|e| ConclaveError::CryptoError(format!("Invalid tweak scalar: {}", e)))?;
+
+            // BIP-341 tweaks the secret corresponding to the x-only internal
+            // key: use d for even-Y keys and n-d for odd-Y keys before adding
+            // the TapTweak scalar. The parity comes from libsecp256k1 rather
+            // than from hand-rolled point or scalar arithmetic.
+            let (_, parity) = secret_key.x_only_public_key();
+            if parity == secp256k1::Parity::Odd {
+                secret_key = secret_key.negate();
+            }
             secret_key = secret_key
                 .add_tweak(&scalar)
                 .map_err(|e| ConclaveError::CryptoError(format!("Tweak addition failed: {}", e)))?;
@@ -370,6 +379,7 @@ impl EnclaveManager for CoreEnclaveManager {
 mod tests {
     use super::*;
     use crate::enclave::{EnclaveManager, SignRequest, SigningAlgorithm};
+    use crate::protocol::bitcoin::verify_bip340_signature;
     use rand::RngExt;
 
     fn unlocked_enclave() -> CoreEnclaveManager {
@@ -387,6 +397,36 @@ mod tests {
             key_id: "test-key".to_string(),
             taproot_tweak: None,
         }
+    }
+
+    fn decode_hex<const N: usize>(value: &str) -> [u8; N] {
+        hex::decode(value)
+            .expect("test vector hex")
+            .try_into()
+            .expect("test vector length")
+    }
+
+    fn secret_key_with_parity(expected: secp256k1::Parity) -> SecretKey {
+        (1u8..=u8::MAX)
+            .map(|value| {
+                let mut bytes = [0u8; 32];
+                bytes[31] = value;
+                SecretKey::from_secret_bytes(bytes).expect("small test secret key")
+            })
+            .find(|secret_key| secret_key.x_only_public_key().1 == expected)
+            .expect("a small secret key with the requested parity")
+    }
+
+    fn taproot_output_key(
+        secret_key: &SecretKey,
+        tweak_bytes: &[u8; 32],
+    ) -> secp256k1::XOnlyPublicKey {
+        let (internal_key, _) = secret_key.x_only_public_key();
+        let tweak = secp256k1::Scalar::from_be_bytes(*tweak_bytes).expect("valid test tweak");
+        internal_key
+            .add_tweak(&tweak)
+            .expect("valid test Taproot output key")
+            .0
     }
 
     #[test]
@@ -482,6 +522,118 @@ mod tests {
             response.public_key_hex,
             "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"
         );
+    }
+
+    #[test]
+    fn software_strongbox_taproot_schnorr_normalizes_odd_internal_secret() {
+        let enclave = CoreEnclaveManager::new();
+        let secret_key = secret_key_with_parity(secp256k1::Parity::Odd);
+        let message = [0x42u8; 32];
+        let tweak =
+            decode_hex::<32>("6af9e28dbf9d6aaf027696e2598a5b3d056f5fd2355a7fd5a37a0e5008132d30");
+        let expected_output_key = taproot_output_key(&secret_key, &tweak);
+        let secret_key_bytes = secret_key.to_secret_bytes();
+
+        let response = enclave
+            .sign_schnorr(&secret_key_bytes, &message, Some(&tweak))
+            .expect("odd-Y Taproot signing");
+        let signature = decode_hex::<64>(&response.signature_hex);
+        let public_key = decode_hex::<32>(&response.public_key_hex);
+
+        assert_eq!(public_key, expected_output_key.serialize());
+        assert_eq!(
+            verify_bip340_signature(&message, &expected_output_key.serialize(), &signature),
+            Ok(true)
+        );
+
+        let scalar = secp256k1::Scalar::from_be_bytes(tweak).expect("valid test tweak");
+        let direct_secret_key = secret_key
+            .add_tweak(&scalar)
+            .expect("direct d+t regression key");
+        let direct_output_key = direct_secret_key.x_only_public_key().0;
+        let direct_signature =
+            secp256k1::schnorr::sign_no_aux_rand(&message, &direct_secret_key.keypair());
+
+        assert_ne!(direct_output_key, expected_output_key);
+        assert_eq!(
+            verify_bip340_signature(
+                &message,
+                &expected_output_key.serialize(),
+                &direct_signature.to_byte_array(),
+            ),
+            Ok(false)
+        );
+    }
+
+    #[test]
+    fn software_strongbox_taproot_schnorr_preserves_even_internal_secret_behavior() {
+        let enclave = CoreEnclaveManager::new();
+        let secret_key = secret_key_with_parity(secp256k1::Parity::Even);
+        let message = [0x24u8; 32];
+        let tweak =
+            decode_hex::<32>("6af9e28dbf9d6aaf027696e2598a5b3d056f5fd2355a7fd5a37a0e5008132d30");
+        let expected_output_key = taproot_output_key(&secret_key, &tweak);
+        let secret_key_bytes = secret_key.to_secret_bytes();
+
+        let response = enclave
+            .sign_schnorr(&secret_key_bytes, &message, Some(&tweak))
+            .expect("even-Y Taproot signing");
+        let signature = decode_hex::<64>(&response.signature_hex);
+        let public_key = decode_hex::<32>(&response.public_key_hex);
+        assert_eq!(public_key, expected_output_key.serialize());
+        assert_eq!(
+            verify_bip340_signature(&message, &expected_output_key.serialize(), &signature),
+            Ok(true)
+        );
+
+        let scalar = secp256k1::Scalar::from_be_bytes(tweak).expect("valid test tweak");
+        let direct_output_key = secret_key
+            .add_tweak(&scalar)
+            .expect("direct even-Y d+t key")
+            .x_only_public_key()
+            .0;
+        assert_eq!(direct_output_key, expected_output_key);
+    }
+
+    #[test]
+    fn software_strongbox_taproot_schnorr_rejects_invalid_tweak_and_result_keys() {
+        let enclave = CoreEnclaveManager::new();
+        let secret_key = secret_key_with_parity(secp256k1::Parity::Even);
+        let secret_key_bytes = secret_key.to_secret_bytes();
+        let message = [0x11u8; 32];
+
+        assert!(matches!(
+            enclave.sign_schnorr(&secret_key_bytes, &message, Some(&[1u8; 31])),
+            Err(ConclaveError::CryptoError(_))
+        ));
+
+        let scalar_out_of_range =
+            decode_hex::<32>("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141");
+        assert!(matches!(
+            enclave.sign_schnorr(&secret_key_bytes, &message, Some(&scalar_out_of_range)),
+            Err(ConclaveError::CryptoError(_))
+        ));
+
+        let scalar_result_zero =
+            decode_hex::<32>("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140");
+        let one_secret_key = SecretKey::from_secret_bytes({
+            let mut bytes = [0u8; 32];
+            bytes[31] = 1;
+            bytes
+        })
+        .expect("secret key one");
+        assert_eq!(
+            one_secret_key.x_only_public_key().1,
+            secp256k1::Parity::Even
+        );
+        assert!(matches!(
+            enclave.sign_schnorr(
+                &one_secret_key.to_secret_bytes(),
+                &message,
+                Some(&scalar_result_zero)
+            ),
+            Err(ConclaveError::CryptoError(_))
+        ));
     }
 
     #[test]
