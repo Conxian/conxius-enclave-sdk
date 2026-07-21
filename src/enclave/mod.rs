@@ -8,7 +8,10 @@ pub mod replay_guard;
 #[cfg(test)]
 mod hardware_attestation_tests;
 
-use crate::enclave::attestation::{AttestationAlgorithm, AttestationPolicy, DeviceIntegrityReport};
+use crate::enclave::attestation::{
+    AttestationAlgorithm, AttestationPolicy, AttestationPurpose, DeviceIntegrityReport,
+    SignerKeyBindingEvidence,
+};
 #[cfg(test)]
 use crate::enclave::attestation::{AttestationExtension, AttestationLevel};
 use crate::enclave::replay_guard::{ReplayGuard, ReplayGuardError};
@@ -82,6 +85,14 @@ pub enum ValueBearingPurpose {
 }
 
 impl ValueBearingPurpose {
+    pub fn canonical_token(self) -> &'static str {
+        match self {
+            Self::Transaction => "TRANSACTION",
+            Self::Settlement => "SETTLEMENT",
+            Self::Authorization => "AUTHORIZATION",
+        }
+    }
+
     fn canonical_tag(self) -> u8 {
         match self {
             Self::Transaction => 1,
@@ -522,6 +533,23 @@ impl ValueBearingSignResponse {
             ));
         }
 
+        let expected_binding = SignerKeyBindingEvidence::new(
+            request.key_binding.key_id(),
+            request.key_binding.derivation_path(),
+            request.key_binding.public_key(),
+            &public_key,
+            request.message_digest(),
+            request.operation_context.purpose().canonical_token(),
+            AttestationPurpose::Sign,
+            request.algorithm.attestation_algorithm(),
+        )?;
+        if report.signer_key_binding.as_ref() != Some(&expected_binding) {
+            return Err(crate::ConclaveError::Unsupported(
+                "attestation evidence is not bound to the requested value-bearing operation"
+                    .to_string(),
+            ));
+        }
+
         verify_operation_signature(request, &response)?;
 
         Ok(Self {
@@ -871,6 +899,19 @@ mod enclave_tests {
                 challenge_nonce: request.message_digest().to_vec(),
                 signature: Vec::new(),
                 attested_operation_public_key: operation_public_key.to_vec(),
+                signer_key_binding: Some(
+                    SignerKeyBindingEvidence::new(
+                        request.key_binding().key_id(),
+                        request.key_binding().derivation_path(),
+                        request.key_binding().public_key(),
+                        &operation_public_key,
+                        request.message_digest(),
+                        request.operation_context().purpose().canonical_token(),
+                        AttestationPurpose::Sign,
+                        request.algorithm().attestation_algorithm(),
+                    )
+                    .expect("fixture key binding should be constructible"),
+                ),
                 certificate_chain: vec![
                     hex::encode(attestation_key.verifying_key().to_bytes()),
                     "CONCLAVE_ROOT_CA_V1".to_string(),
@@ -912,6 +953,30 @@ mod enclave_tests {
                 ),
             }
         }
+    }
+
+    fn assert_binding_tamper_rejected(mutate: impl FnOnce(&mut SignerKeyBindingEvidence)) {
+        let provider = FixtureProvider::new(16);
+        let request = ed25519_value_request([0xA5; 32]);
+        let valid_response = provider.response_for(&request);
+        let mut report: DeviceIntegrityReport = serde_json::from_str(
+            valid_response
+                .device_attestation
+                .as_deref()
+                .expect("fixture attestation"),
+        )
+        .unwrap();
+        mutate(report.signer_key_binding.as_mut().expect("fixture binding"));
+
+        assert!(matches!(
+            ValueBearingSignResponse::from_provider(
+                &request,
+                provider.response_with_report(&request, report),
+                provider.signer_capability(),
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("not bound to the requested value-bearing operation")
+        ));
     }
 
     impl EnclaveManager for FixtureProvider {
@@ -1153,6 +1218,7 @@ mod enclave_tests {
             challenge_nonce: request.message_digest().to_vec(),
             signature: vec![1u8; 64],
             attested_operation_public_key: request.key_binding().public_key().to_vec(),
+            signer_key_binding: None,
             certificate_chain: vec![hex::encode([0x11u8; 32]), "software-root".to_string()],
             timestamp: 1,
             extension_data: "PURPOSE_SIGN|ALGORITHM_ECDSA_SECP256K1".to_string(),
@@ -1307,6 +1373,77 @@ mod enclave_tests {
     }
 
     #[test]
+    fn signed_binding_rejects_key_id_tampering() {
+        assert_binding_tamper_rejected(|binding| binding.requested_key_id_hash[0] ^= 0x01);
+    }
+
+    #[test]
+    fn signed_binding_rejects_derivation_path_tampering() {
+        assert_binding_tamper_rejected(|binding| binding.requested_derivation_path_hash[0] ^= 0x01);
+    }
+
+    #[test]
+    fn signed_binding_rejects_expected_public_key_tampering() {
+        assert_binding_tamper_rejected(|binding| binding.expected_public_key_hash[0] ^= 0x01);
+    }
+
+    #[test]
+    fn signed_binding_rejects_returned_public_key_tampering() {
+        assert_binding_tamper_rejected(|binding| binding.returned_public_key_hash[0] ^= 0x01);
+    }
+
+    #[test]
+    fn signed_binding_rejects_operation_digest_tampering() {
+        assert_binding_tamper_rejected(|binding| binding.operation_digest_hash[0] ^= 0x01);
+    }
+
+    #[test]
+    fn signed_binding_rejects_operation_purpose_tampering() {
+        assert_binding_tamper_rejected(|binding| binding.operation_purpose_hash[0] ^= 0x01);
+    }
+
+    #[test]
+    fn signed_binding_rejects_purpose_tampering() {
+        assert_binding_tamper_rejected(|binding| binding.purpose_hash[0] ^= 0x01);
+    }
+
+    #[test]
+    fn signed_binding_rejects_algorithm_tampering() {
+        assert_binding_tamper_rejected(|binding| binding.algorithm_hash[0] ^= 0x01);
+    }
+
+    #[test]
+    fn changing_requested_operation_purpose_is_rejected() {
+        let provider = FixtureProvider::new(16);
+        let request = ed25519_value_request([0xA5; 32]);
+        let changed_context = OperationContext::new(
+            "conxian.test/ed25519",
+            ValueBearingPurpose::Settlement,
+            [0xA5; 32].to_vec(),
+        )
+        .unwrap();
+        let changed_request = ValueBearingSignRequest::new(
+            changed_context,
+            request.algorithm(),
+            request.trust_requirement().clone(),
+            *request.message_digest(),
+            request.key_binding().clone(),
+            None,
+        )
+        .unwrap();
+
+        assert!(matches!(
+            ValueBearingSignResponse::from_provider(
+                &changed_request,
+                provider.response_for(&request),
+                provider.signer_capability(),
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("not bound to the requested value-bearing operation")
+        ));
+    }
+
+    #[test]
     fn complete_attestation_policy_rejects_wrong_root_purpose_algorithm_nonce_and_stale_report() {
         let provider = FixtureProvider::new(16);
         let request = ed25519_value_request([0xA5; 32]);
@@ -1392,6 +1529,34 @@ mod enclave_tests {
         let mut invalid = provider.response_for(&request);
         invalid.device_attestation = None;
         provider.queue_response(invalid);
+
+        assert!(provider.sign_value_bearing(request.clone()).is_err());
+        assert!(provider.sign_value_bearing(request.clone()).is_ok());
+        assert!(matches!(
+            provider.sign_value_bearing(request),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("replay protection") && message.contains("already")
+        ));
+    }
+
+    #[test]
+    fn invalid_key_binding_does_not_consume_replay_state() {
+        let provider = FixtureProvider::new(16);
+        let request = ed25519_value_request([0xA5; 32]);
+        let valid_response = provider.response_for(&request);
+        let mut report: DeviceIntegrityReport = serde_json::from_str(
+            valid_response
+                .device_attestation
+                .as_deref()
+                .expect("fixture attestation"),
+        )
+        .unwrap();
+        report
+            .signer_key_binding
+            .as_mut()
+            .expect("fixture binding")
+            .requested_key_id_hash[0] ^= 0x01;
+        provider.queue_response(provider.response_with_report(&request, report));
 
         assert!(provider.sign_value_bearing(request.clone()).is_err());
         assert!(provider.sign_value_bearing(request.clone()).is_ok());

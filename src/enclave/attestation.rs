@@ -49,6 +49,15 @@ pub enum AttestationPurpose {
     Verify,
 }
 
+impl AttestationPurpose {
+    pub fn canonical_token(self) -> &'static str {
+        match self {
+            Self::Sign => "PURPOSE_SIGN",
+            Self::Verify => "PURPOSE_VERIFY",
+        }
+    }
+}
+
 /// Algorithm bound into attestation evidence.
 ///
 /// The current evidence envelope is signed with Ed25519. The other variants
@@ -60,6 +69,16 @@ pub enum AttestationAlgorithm {
     Ed25519,
     EcdsaSecp256k1,
     SchnorrSecp256k1,
+}
+
+impl AttestationAlgorithm {
+    pub fn canonical_token(self) -> &'static str {
+        match self {
+            Self::Ed25519 => "ALGORITHM_ED25519",
+            Self::EcdsaSecp256k1 => "ALGORITHM_ECDSA_SECP256K1",
+            Self::SchnorrSecp256k1 => "ALGORITHM_SCHNORR_SECP256K1",
+        }
+    }
 }
 
 /// Typed extension tokens used by the signed envelope and policy checks.
@@ -176,6 +195,116 @@ fn append_len_prefixed(output: &mut Vec<u8>, value: &[u8]) -> Option<()> {
     Some(())
 }
 
+/// Versioned domain separator for value-bearing signer identity evidence.
+pub const VALUE_BEARING_BINDING_VERSION: u16 = 1;
+pub const VALUE_BEARING_BINDING_DOMAIN: &str = "CONXIAN-VALUE-BEARING-BINDING/v1";
+
+fn hash_binding_component(label: &str, value: &[u8]) -> ConclaveResult<[u8; 32]> {
+    let mut canonical = Vec::new();
+    append_len_prefixed(&mut canonical, VALUE_BEARING_BINDING_DOMAIN.as_bytes())
+        .ok_or(ConclaveError::InvalidPayload)?;
+    canonical.extend_from_slice(&VALUE_BEARING_BINDING_VERSION.to_be_bytes());
+    append_len_prefixed(&mut canonical, label.as_bytes()).ok_or(ConclaveError::InvalidPayload)?;
+    append_len_prefixed(&mut canonical, value).ok_or(ConclaveError::InvalidPayload)?;
+    Ok(Sha256::digest(canonical).into())
+}
+
+/// Signed hashes binding a value-bearing request to the provider's operation
+/// key and authorization context.
+///
+/// The raw key identifier and derivation path are deliberately not carried in
+/// provider evidence. Each component is hashed with a versioned, labelled
+/// domain separator, and the complete representation is included in the
+/// signed attestation envelope.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SignerKeyBindingEvidence {
+    pub version: u16,
+    pub requested_key_id_hash: [u8; 32],
+    pub requested_derivation_path_hash: [u8; 32],
+    pub expected_public_key_hash: [u8; 32],
+    pub returned_public_key_hash: [u8; 32],
+    pub operation_digest_hash: [u8; 32],
+    pub operation_purpose_hash: [u8; 32],
+    pub purpose_hash: [u8; 32],
+    pub algorithm_hash: [u8; 32],
+}
+
+impl SignerKeyBindingEvidence {
+    // Keep each security-relevant component explicit at this boundary so the
+    // request-to-evidence mapping remains reviewable.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        requested_key_id: &str,
+        requested_derivation_path: &str,
+        expected_public_key: &[u8],
+        returned_public_key: &[u8],
+        operation_digest: &[u8],
+        operation_purpose: &str,
+        purpose: AttestationPurpose,
+        algorithm: AttestationAlgorithm,
+    ) -> ConclaveResult<Self> {
+        if requested_key_id.is_empty()
+            || requested_derivation_path.is_empty()
+            || expected_public_key.is_empty()
+            || returned_public_key.is_empty()
+            || operation_digest.is_empty()
+            || operation_purpose.is_empty()
+        {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        Ok(Self {
+            version: VALUE_BEARING_BINDING_VERSION,
+            requested_key_id_hash: hash_binding_component(
+                "requested-key-id",
+                requested_key_id.as_bytes(),
+            )?,
+            requested_derivation_path_hash: hash_binding_component(
+                "requested-derivation-path",
+                requested_derivation_path.as_bytes(),
+            )?,
+            expected_public_key_hash: hash_binding_component(
+                "expected-public-key",
+                expected_public_key,
+            )?,
+            returned_public_key_hash: hash_binding_component(
+                "returned-public-key",
+                returned_public_key,
+            )?,
+            operation_digest_hash: hash_binding_component("operation-digest", operation_digest)?,
+            operation_purpose_hash: hash_binding_component(
+                "operation-purpose",
+                operation_purpose.as_bytes(),
+            )?,
+            purpose_hash: hash_binding_component("purpose", purpose.canonical_token().as_bytes())?,
+            algorithm_hash: hash_binding_component(
+                "algorithm",
+                algorithm.canonical_token().as_bytes(),
+            )?,
+        })
+    }
+
+    fn canonical_signed_bytes(&self) -> Option<Vec<u8>> {
+        if self.version != VALUE_BEARING_BINDING_VERSION {
+            return None;
+        }
+
+        let mut output = Vec::with_capacity(2 + 8 * 32);
+        output.extend_from_slice(VALUE_BEARING_BINDING_DOMAIN.as_bytes());
+        output.push(0);
+        output.extend_from_slice(&self.version.to_be_bytes());
+        output.extend_from_slice(&self.requested_key_id_hash);
+        output.extend_from_slice(&self.requested_derivation_path_hash);
+        output.extend_from_slice(&self.expected_public_key_hash);
+        output.extend_from_slice(&self.returned_public_key_hash);
+        output.extend_from_slice(&self.operation_digest_hash);
+        output.extend_from_slice(&self.operation_purpose_hash);
+        output.extend_from_slice(&self.purpose_hash);
+        output.extend_from_slice(&self.algorithm_hash);
+        Some(output)
+    }
+}
+
 fn level_tag(level: AttestationLevel) -> u8 {
     match level {
         AttestationLevel::Software => 0,
@@ -252,6 +381,7 @@ impl AttestationPolicy {
     pub(crate) fn test_fixture() -> Self {
         Self {
             allowed_levels: vec![
+                AttestationLevel::Software,
                 AttestationLevel::TEE,
                 AttestationLevel::StrongBox,
                 AttestationLevel::CloudTEE,
@@ -467,6 +597,10 @@ pub struct DeviceIntegrityReport {
     /// by the attestation-leaf signature and is checked against the provider's
     /// operation signature key at the typed signing boundary.
     pub attested_operation_public_key: Vec<u8>,
+    /// Optional signed request binding. Legacy non-value-bearing reports omit
+    /// this field and retain their historical canonical encoding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signer_key_binding: Option<SignerKeyBindingEvidence>,
     /// Full certificate/identity chain. The first entry is the leaf public key
     /// as hex in the currently supported software/test envelope.
     pub certificate_chain: Vec<String>,
@@ -587,7 +721,10 @@ impl DeviceIntegrityReport {
             // Generic TEE is accepted only by the crate-internal test fixture;
             // the default production policy excludes it and has no verifier.
             AttestationLevel::TEE => policy.is_test_fixture(),
-            AttestationLevel::Software => false,
+            // Software reports are accepted only by this crate-internal test
+            // fixture so protocol cryptographic tests can exercise the common
+            // boundary without presenting simulator evidence as hardware.
+            AttestationLevel::Software => policy.is_test_fixture(),
         };
 
         let purposes = self
@@ -628,6 +765,11 @@ impl DeviceIntegrityReport {
         output.push(level_tag(self.level));
         append_len_prefixed(&mut output, &self.challenge_nonce)?;
         append_len_prefixed(&mut output, &self.attested_operation_public_key)?;
+        if let Some(binding) = &self.signer_key_binding {
+            output.push(1);
+            let binding_bytes = binding.canonical_signed_bytes()?;
+            append_len_prefixed(&mut output, &binding_bytes)?;
+        }
         output.extend_from_slice(&self.timestamp.to_be_bytes());
 
         let extension_count = u32::try_from(self.extensions.len()).ok()?;
@@ -746,8 +888,9 @@ pub(crate) fn test_signing_key() -> SigningKey {
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_extension_data, test_signing_key, AttestationExtension, AttestationLevel,
-        AttestationPolicy, AttestationReportType, DeviceIntegrityReport, MAX_ATTESTATION_AGE_SECS,
+        parse_extension_data, test_signing_key, AttestationAlgorithm, AttestationExtension,
+        AttestationLevel, AttestationPolicy, AttestationPurpose, AttestationReportType,
+        DeviceIntegrityReport, SignerKeyBindingEvidence, MAX_ATTESTATION_AGE_SECS,
     };
     use ed25519_dalek::SigningKey;
 
@@ -768,6 +911,7 @@ mod tests {
             challenge_nonce: nonce,
             signature: Vec::new(),
             attested_operation_public_key: signing_key.verifying_key().to_bytes().to_vec(),
+            signer_key_binding: None,
             certificate_chain: vec![pubkey_hex, "CONCLAVE_ROOT_CA_V1".to_string()],
             timestamp,
             extension_data,
@@ -896,6 +1040,37 @@ mod tests {
             .certificate_chain
             .push("SWAPPED_CHAIN_ENTRY".to_string());
         assert!(!chain_changed.verify_at_time(&[1, 2, 3, 4], now_secs));
+    }
+
+    #[test]
+    fn changing_signed_value_bearing_binding_invalidates_report() {
+        let now_secs: u64 = 1_000_000;
+        let signing_key = test_signing_key();
+        let mut report = valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
+        report.signer_key_binding = Some(
+            SignerKeyBindingEvidence::new(
+                "fixture-key",
+                "m/44'/501'/0'/0/0",
+                &report.attested_operation_public_key,
+                &report.attested_operation_public_key,
+                &[0xA5; 32],
+                "TRANSACTION",
+                AttestationPurpose::Sign,
+                AttestationAlgorithm::Ed25519,
+            )
+            .expect("fixture binding should construct"),
+        );
+        report
+            .sign_with_ed25519_key(&signing_key)
+            .expect("fixture should sign");
+        assert!(report.verify_at_time(&[1, 2, 3, 4], now_secs));
+
+        report
+            .signer_key_binding
+            .as_mut()
+            .expect("fixture binding")
+            .requested_key_id_hash[0] ^= 0x01;
+        assert!(!report.verify_at_time(&[1, 2, 3, 4], now_secs));
     }
 
     #[test]
