@@ -26,6 +26,10 @@ and retained evidence are attached to the same release scope.
   reintroduced.
 - Seed-based Ark recovery is not available through WASM. Native Rust recovery
   remains a separate, conditional API and is not evidence of browser support.
+- Legacy `WasmBitVmClient::sign_challenge` and
+  `aggregate_challenge_signatures` return `PROTOCOL_UNSUPPORTED` before
+  decoding inputs or producing a signature/aggregate. Generic MuSig2 values
+  from the legacy native module are not BitVM2 challenge evidence.
 - Fedimint secret/blinding-factor flows fail with `SECRET_EXPORT_FORBIDDEN`
   until a provider-owned opaque flow exists.
 - Cloud, localhost, software-only, and mock implementations are test/development

@@ -122,18 +122,23 @@ pub struct WasmBitVmClient {
 
 #[wasm_bindgen]
 impl WasmBitVmClient {
+    /// Legacy BitVM signing is not BitVM2 challenge evidence. Keep this
+    /// compatibility surface present, but fail before decoding inputs or
+    /// invoking the native MuSig2 implementation.
     pub fn sign_challenge(
         &self,
         challenge: JsValue,
         path: &str,
         key_id: &str,
     ) -> Result<String, JsValue> {
-        let chal = serde_wasm_bindgen::from_value(challenge).map_err(to_js_error)?;
-        self.inner
-            .sign_challenge(chal, path, key_id)
-            .map_err(to_js_error)
+        let _ = (&self.inner, challenge, path, key_id);
+        Err(legacy_bitvm2_error(
+            crate::UnsupportedOperation::ChallengeSubmission,
+        ))
     }
 
+    /// Legacy MuSig2 aggregation is not BitVM2 challenge evidence. No
+    /// signature or aggregate is decoded or returned through this boundary.
     pub fn aggregate_challenge_signatures(
         &self,
         pubkeys_hex: JsValue,
@@ -141,34 +146,16 @@ impl WasmBitVmClient {
         partial_sigs_hex: JsValue,
         challenge: JsValue,
     ) -> Result<JsValue, JsValue> {
-        let pks: Vec<String> = serde_wasm_bindgen::from_value(pubkeys_hex).map_err(to_js_error)?;
-        let nonces: Vec<String> =
-            serde_wasm_bindgen::from_value(pub_nonces_hex).map_err(to_js_error)?;
-        let sigs: Vec<String> =
-            serde_wasm_bindgen::from_value(partial_sigs_hex).map_err(to_js_error)?;
-        let chal = serde_wasm_bindgen::from_value(challenge).map_err(to_js_error)?;
-
-        let mut pks_decoded = Vec::new();
-        for pk in pks {
-            let bytes = hex::decode(pk).map_err(to_js_error)?;
-            pks_decoded.push(secp256k1::PublicKey::from_slice(&bytes).map_err(to_js_error)?);
-        }
-
-        let mut nonces_decoded = Vec::new();
-        for n in nonces {
-            nonces_decoded.push(musig2::PubNonce::from_hex(&n).map_err(to_js_error)?);
-        }
-
-        let mut sigs_decoded = Vec::new();
-        for s in sigs {
-            sigs_decoded.push(musig2::PartialSignature::from_hex(&s).map_err(to_js_error)?);
-        }
-
-        let aggregate = self
-            .inner
-            .aggregate_challenge_signatures(&pks_decoded, nonces_decoded, sigs_decoded, chal)
-            .map_err(to_js_error)?;
-        serde_wasm_bindgen::to_value(&aggregate).map_err(to_js_error)
+        let _ = (
+            &self.inner,
+            pubkeys_hex,
+            pub_nonces_hex,
+            partial_sigs_hex,
+            challenge,
+        );
+        Err(legacy_bitvm2_error(
+            crate::UnsupportedOperation::ThresholdAggregation,
+        ))
     }
 }
 
@@ -411,17 +398,15 @@ fn to_js_error<E: std::fmt::Display>(e: E) -> JsValue {
     wasm_error("CONXIAN_ERROR", &e.to_string())
 }
 
+fn legacy_bitvm2_error(operation: crate::UnsupportedOperation) -> JsValue {
+    conclave_error_to_js(crate::wasm_support::legacy_bitvm2_unsupported(operation))
+}
+
 fn conclave_error_to_js(error: ConclaveError) -> JsValue {
-    let code = match &error {
-        ConclaveError::ProtocolUnsupported { .. } => "PROTOCOL_UNSUPPORTED",
-        ConclaveError::BoundaryValidation(_) => "BOUNDARY_VALIDATION",
-        ConclaveError::UnsupportedRuntime(_) => "UNSUPPORTED_RUNTIME",
-        ConclaveError::UnsupportedProvider(_) => "UNSUPPORTED_PROVIDER",
-        ConclaveError::SecretExportForbidden => "SECRET_EXPORT_FORBIDDEN",
-        ConclaveError::InvalidPayload => "INVALID_INPUT",
-        _ => "CONXIAN_ERROR",
-    };
-    wasm_error(code, &error.to_string())
+    wasm_error(
+        crate::wasm_support::wasm_error_code(&error),
+        &error.to_string(),
+    )
 }
 
 fn wasm_error(code: &str, message: &str) -> JsValue {
