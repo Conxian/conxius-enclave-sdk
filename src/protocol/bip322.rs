@@ -24,6 +24,10 @@ const TAPROOT_CONTROL_BLOCK_MAX_BYTES: usize = 257;
 /// checked where possible and returned as typed inconclusive outcomes because
 /// this crate does not contain a Bitcoin Script interpreter. Legacy, P2SH,
 /// P2A, and future witness-version addresses remain conditional boundaries.
+/// Full and Proof-of-Funds payloads are decoded only far enough to reject
+/// malformed wire data; their required transaction/PSBT finalization and
+/// consensus/script validation are outside this module's scope and therefore
+/// return typed unsupported-format errors instead of `Inconclusive`.
 /// The construction helpers are structural transaction builders and do not
 /// expand the verification support boundary.
 pub struct Bip322Bridge;
@@ -42,7 +46,8 @@ pub enum Bip322Verification {
     Valid,
     /// The supported script and cryptographic checks completed and failed.
     Invalid,
-    /// The input is structurally valid, but this module cannot execute it.
+    /// The input is structurally valid, but this module cannot execute its
+    /// supported script form.
     Inconclusive {
         /// The exact unsupported boundary reached by verification.
         reason: Bip322InconclusiveReason,
@@ -78,10 +83,6 @@ pub enum Bip322InconclusiveReason {
     FutureWitnessVersion,
     #[error("future Taproot leaf-version execution is unavailable")]
     FutureTaprootLeafVersion,
-    #[error("Full BIP-322 verification is unavailable")]
-    FullFormat,
-    #[error("Proof-of-Funds BIP-322 verification is unavailable")]
-    ProofOfFundsFormat,
     #[error("the Bitcoin script is not supported by this verification boundary")]
     UnsupportedScript,
 }
@@ -91,6 +92,10 @@ pub enum Bip322InconclusiveReason {
 pub enum Bip322Error {
     #[error("the address is not valid for the expected Bitcoin network")]
     NetworkMismatch,
+    #[error("Full BIP-322 verification is unsupported by this module")]
+    UnsupportedFullFormat,
+    #[error("Proof-of-Funds BIP-322 verification is unsupported by this module")]
+    UnsupportedProofOfFundsFormat,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,8 +120,8 @@ enum SignatureVariant {
 #[derive(Debug)]
 enum DecodedSignature {
     Simple(Witness),
-    Full(Transaction),
-    ProofOfFunds(Psbt),
+    Full,
+    ProofOfFunds,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -602,11 +607,22 @@ impl Bip322Bridge {
             SignatureVariant::Simple => deserialize::<Witness>(&signature_bytes)
                 .map(DecodedSignature::Simple)
                 .map_err(|_| ConclaveError::InvalidPayload),
+            // BIP-322 requires Full signatures to be finalized `to_sign`
+            // transactions and Proof-of-Funds signatures to be finalized PSBTs
+            // before basic validation and script execution. The rust-bitcoin
+            // decoders establish only consensus/PSBT wire validity; this module
+            // deliberately does not implement the remaining finalization,
+            // consensus, UTXO, or script checks. Decode the bytes so malformed
+            // payloads remain InvalidPayload, then classify every decoded Full
+            // or Proof-of-Funds payload as a typed unsupported format.
+            // References:
+            // https://github.com/bitcoin/bips/blob/master/bip-0322.mediawiki#verification
+            // https://docs.rs/bitcoin/0.33.0-beta/bitcoin/psbt/struct.Psbt.html
             SignatureVariant::Full => deserialize::<Transaction>(&signature_bytes)
-                .map(DecodedSignature::Full)
+                .map(|_| DecodedSignature::Full)
                 .map_err(|_| ConclaveError::InvalidPayload),
             SignatureVariant::ProofOfFunds => Psbt::deserialize(&signature_bytes)
-                .map(DecodedSignature::ProofOfFunds)
+                .map(|_| DecodedSignature::ProofOfFunds)
                 .map_err(|_| ConclaveError::InvalidPayload),
         }
     }
@@ -646,74 +662,6 @@ impl Bip322Bridge {
 
     fn unsupported_simple_signature(reason: Bip322InconclusiveReason) -> ConclaveError {
         ConclaveError::Unsupported(format!("BIP-322 verification inconclusive: {reason}"))
-    }
-
-    fn validate_full_to_sign_shape(
-        to_spend: &Transaction,
-        to_sign: &Transaction,
-    ) -> ConclaveResult<()> {
-        if (to_sign.version.to_u32() != 0 && to_sign.version.to_u32() != 2)
-            || to_sign.inputs.len() != 1
-            || to_sign.outputs.len() != 1
-        {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
-        let input = to_sign
-            .inputs
-            .first()
-            .ok_or(ConclaveError::InvalidPayload)?;
-        if input.previous_output
-            != (OutPoint {
-                txid: to_spend.compute_txid(),
-                vout: 0,
-            })
-        {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
-        let output = to_sign
-            .outputs
-            .first()
-            .ok_or(ConclaveError::InvalidPayload)?;
-        if output.amount != Amount::ZERO || output.script_pubkey.as_bytes() != [0x6a] {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
-        Ok(())
-    }
-
-    fn validate_proof_of_funds_shape(to_spend: &Transaction, proof: &Psbt) -> ConclaveResult<()> {
-        let to_sign = &proof.unsigned_tx;
-        if (to_sign.version.to_u32() != 0 && to_sign.version.to_u32() != 2)
-            || to_sign.inputs.is_empty()
-            || to_sign.outputs.len() != 1
-        {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
-        let input = to_sign
-            .inputs
-            .first()
-            .ok_or(ConclaveError::InvalidPayload)?;
-        if input.previous_output
-            != (OutPoint {
-                txid: to_spend.compute_txid(),
-                vout: 0,
-            })
-        {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
-        let output = to_sign
-            .outputs
-            .first()
-            .ok_or(ConclaveError::InvalidPayload)?;
-        if output.amount != Amount::ZERO || output.script_pubkey.as_bytes() != [0x6a] {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
-        Ok(())
     }
 
     fn verify_p2wpkh(
@@ -817,18 +765,12 @@ impl Bip322Bridge {
         let decoded = Self::decode_signature(signature_base64)?;
 
         match decoded {
-            DecodedSignature::Full(to_sign) => {
-                Self::validate_full_to_sign_shape(&to_spend, &to_sign)?;
-                Ok(Bip322Verification::Inconclusive {
-                    reason: Bip322InconclusiveReason::FullFormat,
-                })
+            DecodedSignature::Full => {
+                Err(ConclaveError::Bip322(Bip322Error::UnsupportedFullFormat))
             }
-            DecodedSignature::ProofOfFunds(proof) => {
-                Self::validate_proof_of_funds_shape(&to_spend, &proof)?;
-                Ok(Bip322Verification::Inconclusive {
-                    reason: Bip322InconclusiveReason::ProofOfFundsFormat,
-                })
-            }
+            DecodedSignature::ProofOfFunds => Err(ConclaveError::Bip322(
+                Bip322Error::UnsupportedProofOfFundsFormat,
+            )),
             DecodedSignature::Simple(witness) => {
                 if let Some(reason) = Self::challenge_inconclusive_reason(challenge) {
                     return Ok(Bip322Verification::Inconclusive { reason });
@@ -912,7 +854,8 @@ impl Bip322Bridge {
     /// Supported verification is limited to native P2WPKH and native P2TR
     /// key-path signatures. Construction support is not verification support.
     /// P2WSH, Taproot script-path/annex, legacy, P2SH, P2A, future witness
-    /// versions, Full, and Proof-of-Funds are explicit inconclusive boundaries.
+    /// versions remain explicit inconclusive boundaries. Full and
+    /// Proof-of-Funds are decoded and rejected as typed unsupported formats.
     /// No Bitcoin Script/Tapscript interpreter is implemented here.
     pub fn verify_simple_signature_for_network(
         &self,
@@ -1213,7 +1156,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bip322_full_and_proof_of_funds_are_typed_boundaries() {
+    fn test_bip322_full_and_proof_of_funds_reject_incomplete_material() {
         let bridge = Bip322Bridge;
         let address = P2WPKH_ADDRESS
             .parse::<Address<bitcoin::address::NetworkUnchecked>>()
@@ -1228,35 +1171,73 @@ mod tests {
             "ful{}",
             BASE64_STANDARD.encode(bitcoin::consensus::encode::serialize(&to_sign))
         );
-        assert_eq!(
-            bridge
-                .verify_simple_signature_for_network(
-                    "Hello World",
-                    P2WPKH_ADDRESS,
-                    &full_signature,
-                    Network::Bitcoin,
-                )
-                .expect("valid Full shape reaches the unsupported boundary"),
-            Bip322Verification::Inconclusive {
-                reason: Bip322InconclusiveReason::FullFormat
-            }
-        );
+        assert!(matches!(
+            bridge.verify_simple_signature_for_network(
+                "Hello World",
+                P2WPKH_ADDRESS,
+                &full_signature,
+                Network::Bitcoin,
+            ),
+            Err(ConclaveError::Bip322(Bip322Error::UnsupportedFullFormat))
+        ));
+        assert!(matches!(
+            bridge.verify_simple_signature(P2WPKH_ADDRESS, "Hello World", &full_signature),
+            Err(ConclaveError::Bip322(Bip322Error::UnsupportedFullFormat))
+        ));
+
+        assert!(matches!(
+            bridge.verify_simple_signature_for_network(
+                "Hello World",
+                P2WPKH_ADDRESS,
+                "fulnot-base64",
+                Network::Bitcoin,
+            ),
+            Err(ConclaveError::InvalidPayload)
+        ));
+        let invalid_transaction = format!("ful{}", BASE64_STANDARD.encode([0x01_u8, 0x02, 0x03]));
+        assert!(matches!(
+            bridge.verify_simple_signature_for_network(
+                "Hello World",
+                P2WPKH_ADDRESS,
+                &invalid_transaction,
+                Network::Bitcoin,
+            ),
+            Err(ConclaveError::InvalidPayload)
+        ));
 
         let proof = Psbt::from_unsigned_tx(to_sign).expect("canonical Proof-of-Funds shape");
         let proof_signature = format!("pof{}", BASE64_STANDARD.encode(proof.serialize()));
-        assert_eq!(
-            bridge
-                .verify_simple_signature_for_network(
-                    "Hello World",
-                    P2WPKH_ADDRESS,
-                    &proof_signature,
-                    Network::Bitcoin,
-                )
-                .expect("valid Proof-of-Funds shape reaches the unsupported boundary"),
-            Bip322Verification::Inconclusive {
-                reason: Bip322InconclusiveReason::ProofOfFundsFormat
-            }
-        );
+        assert!(matches!(
+            bridge.verify_simple_signature_for_network(
+                "Hello World",
+                P2WPKH_ADDRESS,
+                &proof_signature,
+                Network::Bitcoin,
+            ),
+            Err(ConclaveError::Bip322(
+                Bip322Error::UnsupportedProofOfFundsFormat
+            ))
+        ));
+
+        assert!(matches!(
+            bridge.verify_simple_signature_for_network(
+                "Hello World",
+                P2WPKH_ADDRESS,
+                "pofnot-base64",
+                Network::Bitcoin,
+            ),
+            Err(ConclaveError::InvalidPayload)
+        ));
+        let invalid_psbt = format!("pof{}", BASE64_STANDARD.encode(b"not a psbt"));
+        assert!(matches!(
+            bridge.verify_simple_signature_for_network(
+                "Hello World",
+                P2WPKH_ADDRESS,
+                &invalid_psbt,
+                Network::Bitcoin,
+            ),
+            Err(ConclaveError::InvalidPayload)
+        ));
     }
 
     #[test]
