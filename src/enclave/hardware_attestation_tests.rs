@@ -472,8 +472,7 @@ mod trust_enforcement_tests {
     fn test_production_signing_requires_hardware_attestation() {
         // Simulate a production signing request
         let generator = MockAttestationGenerator::new(AttestationLevel::Software);
-        let mut nonce = [0u8; 4];
-        rand::rngs::OsRng.fill_bytes(&mut nonce);
+        let nonce: [u8; 4] = rand::random();
         let now = 1_000_000_u64;
 
         let report = generator.generate_valid_report(&nonce, now.saturating_sub(60));
