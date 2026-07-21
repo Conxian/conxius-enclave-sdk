@@ -43,6 +43,19 @@ pub enum TrustTier {
 /// Canonical operation-context domain for typed settlement authorization.
 pub const SETTLEMENT_OPERATION_DOMAIN: &str = "conxian/settlement/v1";
 
+/// Built-in settlement adapters remain quarantined until their wire contract
+/// and gateway compatibility are versioned and evidenced.
+pub(crate) const BUILTIN_ADAPTER_DISPATCH_DISABLED_MESSAGE: &str =
+    "Built-in settlement adapter dispatch is disabled pending a versioned wire contract and gateway compatibility evidence";
+
+/// Reject built-in adapter dispatch before any adapter can construct or send a
+/// request containing typed authorization or device evidence.
+pub(crate) fn reject_builtin_adapter_dispatch() -> ConclaveResult<()> {
+    Err(ConclaveError::Unsupported(
+        BUILTIN_ADAPTER_DISPATCH_DISABLED_MESSAGE.to_string(),
+    ))
+}
+
 /// Internal representation of a settlement rail (e.g. x402, Wormhole, NTT).
 ///
 /// This trait is deliberately private and sealed. Downstream crates cannot
@@ -1758,6 +1771,79 @@ mod rail_proxy_tests {
                 .delivery_status(),
             crate::telemetry::TelemetryDeliveryStatus::Disabled
         );
+    }
+
+    #[tokio::test]
+    async fn built_in_adapter_dispatch_is_quarantined_before_network() {
+        let proxy = test_proxy().with_min_trust_tier(TrustTier::T4);
+        let client = reqwest::Client::new();
+        let gateway_url = "http://127.0.0.1:9/should-not-connect".to_string();
+        let adapters: Vec<(&str, Box<dyn SovereignRail>)> = vec![
+            (
+                "bisq",
+                Box::new(bisq::BisqRail {
+                    gateway_url: gateway_url.clone(),
+                    http_client: client.clone(),
+                }),
+            ),
+            (
+                "boltz",
+                Box::new(boltz::BoltzRail {
+                    gateway_url: gateway_url.clone(),
+                    http_client: client.clone(),
+                }),
+            ),
+            (
+                "changelly",
+                Box::new(changelly::ChangellyRail {
+                    gateway_url: gateway_url.clone(),
+                    http_client: client.clone(),
+                }),
+            ),
+            (
+                "ntt",
+                Box::new(ntt::NTTRail {
+                    gateway_url: gateway_url.clone(),
+                    http_client: client.clone(),
+                }),
+            ),
+            (
+                "wormhole",
+                Box::new(wormhole::WormholeRail {
+                    gateway_url: gateway_url.clone(),
+                    http_client: client.clone(),
+                }),
+            ),
+            (
+                "x402",
+                Box::new(x402::X402Rail {
+                    gateway_url,
+                    http_client: client,
+                }),
+            ),
+        ];
+
+        for (index, (rail_name, adapter)) in adapters.into_iter().enumerate() {
+            let mut intent = test_intent(vec![index as u8 + 40; 32]);
+            intent.rail_type = rail_name.to_string();
+            intent.signable_hash = intent.canonical_hash();
+            let provider = SettlementFixtureProvider::new(VALUE_BEARING_POLICY_ID);
+            let operation = authorize_fixture_operation(&proxy, &provider, intent);
+
+            let result = adapter.execute_swap(operation).await;
+
+            assert!(
+                matches!(
+                    result,
+                    Err(ConclaveError::Unsupported(message))
+                        if message == BUILTIN_ADAPTER_DISPATCH_DISABLED_MESSAGE
+                            && !message.contains("https://")
+                            && !message.contains("PURPOSE_SIGN")
+                            && !message.contains("CONXIAN-SETTLEMENT-REPLAY")
+                ),
+                "{rail_name} must fail closed before network dispatch"
+            );
+        }
     }
 
     #[test]

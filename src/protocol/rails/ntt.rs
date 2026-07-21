@@ -32,6 +32,7 @@ impl SovereignRail for NTTRail {
     }
 
     async fn execute_swap(&self, operation: VerifiedOperation) -> ConclaveResult<SwapResponse> {
+        super::reject_builtin_adapter_dispatch()?;
         let (intent, authorization) = operation.into_parts();
         let url = format!("{}/v1/rails/ntt/execute", self.gateway_url);
         let payload = json!({

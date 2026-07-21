@@ -47,6 +47,7 @@ impl SovereignRail for X402Rail {
     }
 
     async fn execute_swap(&self, operation: VerifiedOperation) -> ConclaveResult<SwapResponse> {
+        super::reject_builtin_adapter_dispatch()?;
         let (intent, authorization) = operation.into_parts();
         let url = format!("{}/v1/rails/x402/settle", self.gateway_url);
 

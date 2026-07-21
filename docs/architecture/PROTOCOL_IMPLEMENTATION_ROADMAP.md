@@ -7,6 +7,10 @@
 > secret-safe opaque envelopes, structural validation, and idempotency helpers.
 > Value-bearing FROST, Fedimint, Ark, and BitVM2 operations remain fail-closed
 > with exact `ConclaveError::ProtocolUnsupported` results.
+> Typed settlement authorization containment is present, but all built-in
+> settlement adapter dispatch remains disabled before request-body serialization
+> and network I/O pending a versioned wire contract and gateway compatibility
+> evidence.
 
 ## Evidence and promotion rules
 
