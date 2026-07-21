@@ -11,7 +11,10 @@ repository = "https://github.com/Conxian/conxius-enclave-sdk"
 
 [features]
 default = []
-mock-cloud-enclave = []
+# Software-backed drivers are available only through an explicitly named
+# development boundary and are never the default release surface.
+development-simulators = []
+mock-cloud-enclave = ["development-simulators"]
 bip110_compliant = []
 
 [dependencies]

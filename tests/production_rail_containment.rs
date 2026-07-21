@@ -1,8 +1,12 @@
 use conxius_enclave_sdk::enclave::attestation::{
     AttestationLevel, AttestationPolicy, ProviderVerifierStatus,
 };
+#[cfg(feature = "development-simulators")]
+use conxius_enclave_sdk::enclave::cloud::CloudEnclave;
 use conxius_enclave_sdk::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 use conxius_enclave_sdk::protocol::business::BusinessRegistry;
+#[cfg(feature = "development-simulators")]
+use conxius_enclave_sdk::protocol::ethereum::EthereumManager;
 use conxius_enclave_sdk::protocol::intent::SwapRequest;
 use conxius_enclave_sdk::protocol::rails::{RailProxy, SovereignHandshake, TrustTier};
 use conxius_enclave_sdk::{ConclaveError, ConclaveResult};
@@ -97,5 +101,21 @@ fn production_verification_rejects_legacy_request_only_hashes() {
         result,
         Err(ConclaveError::EnclaveFailure(message))
             if message.contains("legacy request-only hashes are rejected")
+    ));
+}
+
+#[cfg(feature = "development-simulators")]
+#[test]
+fn development_cloud_cannot_sign_through_production_protocol_boundary() {
+    let enclave = CloudEnclave::new_for_development("http://127.0.0.1:9".to_string())
+        .expect("development simulator should construct explicitly");
+    let ethereum = EthereumManager::new(&enclave);
+
+    let result = ethereum.sign_transaction_hash([0xA5; 32], "m/44'/60'/0'/0/0", "dev-key");
+
+    assert!(matches!(
+        result,
+        Err(ConclaveError::Unsupported(message))
+            if message.contains("software-only")
     ));
 }

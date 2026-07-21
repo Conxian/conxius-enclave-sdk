@@ -1,12 +1,19 @@
 #[allow(unused_imports)]
 use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 use crate::protocol::intent::{AssetAmount, CrossChainIntent, ResolvedCrossChainOrder};
-use crate::{enclave::EnclaveManager, ConclaveError, ConclaveResult};
+use crate::{
+    enclave::{
+        sign_value_bearing, EnclaveManager, OperationContext, SignerKeyBinding, TrustRequirement,
+        ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
+    },
+    ConclaveError, ConclaveResult,
+};
 use alloy::primitives::{Address as EthAddress, Keccak256};
 use bitcoin::address::Address;
 use bitcoin::key::PublicKey;
 use bitcoin::Network;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
 /// Chain Abstraction Service (v1.9.2)
@@ -78,17 +85,27 @@ impl ChainAbstractionService {
             _ => crate::enclave::SigningAlgorithm::EcdsaSecp256k1,
         };
 
-        let sign_request = crate::enclave::SignRequest {
+        let message_digest: [u8; 32] = Sha256::digest(&request.payload).into();
+        let public_key = hex::decode(self.enclave.get_public_key(&request.derivation_path)?)
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let operation_domain = format!("conxian/chain-abstraction/{:?}", request.target_chain);
+        let sign_request = ValueBearingSignRequest::new(
+            OperationContext::new(
+                operation_domain,
+                ValueBearingPurpose::Transaction,
+                message_digest.to_vec(),
+            )?,
             algorithm,
-            message_hash: request.payload,
-            derivation_path: request.derivation_path,
-            key_id: "universal_master_key".to_string(), // Canonical key ID for chain abstraction
-            taproot_tweak: None,
-        };
+            TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+            message_digest,
+            SignerKeyBinding::new("universal_master_key", request.derivation_path, public_key)?,
+            None,
+        )?;
 
-        let response = self.enclave.sign(sign_request)?;
+        let response = sign_value_bearing(self.enclave.as_ref(), sign_request)?;
+        let sign_response = response.sign_response();
 
-        let public_key_bytes = hex::decode(&response.public_key_hex)
+        let public_key_bytes = hex::decode(&sign_response.public_key_hex)
             .map_err(|e| ConclaveError::CryptoError(format!("Invalid public key hex: {}", e)))?;
 
         let target_address = match request.target_chain {
@@ -172,7 +189,7 @@ impl ChainAbstractionService {
         };
 
         Ok(ChainSignatureResponse {
-            signature_hex: response.signature_hex,
+            signature_hex: sign_response.signature_hex.clone(),
             target_address,
         })
     }
@@ -210,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_for_chain_bitcoin() {
+    fn test_sign_for_chain_bitcoin_fails_closed_without_provider() {
         let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
         let assets = Arc::new(AssetRegistry::new());
         let service = ChainAbstractionService::new(enclave, assets);
@@ -221,12 +238,11 @@ mod tests {
             derivation_path: "m/44'/0'/0'/0/0".to_string(),
         };
 
-        let response = service.sign_for_chain(request).unwrap();
-        assert!(response.target_address.starts_with("bc1"));
+        assert!(service.sign_for_chain(request).is_err());
     }
 
     #[test]
-    fn test_sign_for_chain_xrp() {
+    fn test_sign_for_chain_xrp_fails_closed_without_provider() {
         let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
         let assets = Arc::new(AssetRegistry::new());
         let service = ChainAbstractionService::new(enclave, assets);
@@ -237,12 +253,11 @@ mod tests {
             derivation_path: "m/44'/144'/0'/0/0".to_string(),
         };
 
-        let response = service.sign_for_chain(request).unwrap();
-        assert!(response.target_address.starts_with("r"));
+        assert!(service.sign_for_chain(request).is_err());
     }
 
     #[test]
-    fn test_sign_for_chain_stellar() {
+    fn test_sign_for_chain_stellar_fails_closed_without_provider() {
         let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
         let assets = Arc::new(AssetRegistry::new());
         let service = ChainAbstractionService::new(enclave, assets);
@@ -253,12 +268,11 @@ mod tests {
             derivation_path: "m/44'/148'/0'/0/0".to_string(),
         };
 
-        let response = service.sign_for_chain(request).unwrap();
-        assert!(response.target_address.starts_with("G"));
+        assert!(service.sign_for_chain(request).is_err());
     }
 
     #[test]
-    fn test_sign_for_chain_near() {
+    fn test_sign_for_chain_near_fails_closed_without_provider() {
         let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
         let assets = Arc::new(AssetRegistry::new());
         let service = ChainAbstractionService::new(enclave, assets);
@@ -269,7 +283,6 @@ mod tests {
             derivation_path: "m/44'/397'/0'/0/0".to_string(),
         };
 
-        let response = service.sign_for_chain(request).unwrap();
-        assert!(response.target_address.starts_with("ed25519:"));
+        assert!(service.sign_for_chain(request).is_err());
     }
 }
