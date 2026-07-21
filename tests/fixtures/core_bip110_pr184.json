@@ -1,0 +1,19 @@
+{
+  "provenance": {
+    "repository": "Conxian/lib-conxian-core",
+    "commit": "1699cf3b04ee0755756f5e8c38ec37388c89efbd",
+    "pull_request": 184
+  },
+  "limits": {
+    "max_pushdata_bytes": 256,
+    "max_op_return_bytes": 83,
+    "max_script_pubkey_bytes": 34,
+    "max_witness_element_bytes": 256
+  },
+  "transaction_shape": {
+    "pushdata_sizes_bytes": [32, 256],
+    "op_return_script_pubkey_sizes_bytes": [80, 83],
+    "non_op_return_script_pubkey_sizes_bytes": [22, 34],
+    "witness_element_sizes_bytes": [64, 256]
+  }
+}
