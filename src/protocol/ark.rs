@@ -478,6 +478,16 @@ mod tests {
     }
 
     #[test]
+    fn with_backend_accepts_unconfigured_backend() {
+        let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
+
+        let manager = ArkManager::with_backend(enclave, ArkBackend::Unconfigured)
+            .expect("unconfigured backend is the safe default");
+
+        assert_eq!(manager.backend(), ArkBackend::Unconfigured);
+    }
+
+    #[test]
     fn all_value_bearing_ark_operations_are_exactly_unsupported_and_stateless() {
         let manager = manager();
         assert_eq!(manager.backend(), ArkBackend::Unconfigured);
