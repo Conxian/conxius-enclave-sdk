@@ -31,6 +31,42 @@ function expectTypedError(checks, name, operation, expectedCode) {
   checks.push(name);
 }
 
+function buildValidLightningInvoice() {
+  const charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+  const generators = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+  const data = [
+    ...Array(7).fill(0),
+    1,
+    1,
+    20,
+    ...Array(52).fill(1),
+    ...Array(104).fill(1),
+  ];
+  const hrp = "lnbc";
+  let checksum = 1;
+  for (const value of [
+    ...[...hrp].map((character) => character.charCodeAt(0) >> 5),
+    0,
+    ...[...hrp].map((character) => character.charCodeAt(0) & 31),
+    ...data,
+    ...Array(6).fill(0),
+  ]) {
+    const top = checksum >> 25;
+    checksum = ((checksum & 0x1ffffff) << 5) ^ value;
+    for (let index = 0; index < generators.length; index += 1) {
+      if ((top >> index) & 1) {
+        checksum ^= generators[index];
+      }
+    }
+  }
+  checksum ^= 1;
+  const checksumValues = Array.from(
+    { length: 6 },
+    (_, index) => (checksum >> (5 * (5 - index))) & 31,
+  );
+  return `${hrp}1${[...data, ...checksumValues].map((value) => charset[value]).join("")}`;
+}
+
 function publicSurfaceNames(api) {
   const names = new Set(Object.keys(api));
   for (const value of Object.values(api)) {
@@ -60,6 +96,10 @@ export function runBoundaryAssertions(api) {
   assertCondition(
     typeof api.WasmLightningClient === "function",
     "generated artifact does not export WasmLightningClient",
+  );
+  assertCondition(
+    typeof api.WasmLightningClientConstructor === "function",
+    "generated artifact does not export WasmLightningClientConstructor",
   );
   assertCondition(
     !exportedNames.some((name) => forbiddenSecretName.test(name)),
@@ -107,9 +147,48 @@ export function runBoundaryAssertions(api) {
     "UNSUPPORTED_PROVIDER",
   );
 
+  const validLightningPaymentHash = "11".repeat(32);
+  const validLightningInvoice =
+    "lnbc1qqqqqqqpp5ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppwdp039";
+  const validLightningInvoiceFixture = buildValidLightningInvoice();
+
+  expectTypedError(
+    checks,
+    "Lightning constructor malformed payment hash",
+    () => new api.WasmLightningClient("payment-hash", validLightningInvoiceFixture, 1000n, null),
+    "INVALID_INPUT",
+  );
+  expectTypedError(
+    checks,
+    "Lightning constructor malformed invoice",
+    () => new api.WasmLightningClient(validLightningPaymentHash, "lnbc1-runtime-evidence", 1000n, null),
+    "INVALID_INPUT",
+  );
+  expectTypedError(
+    checks,
+    "Lightning constructor malformed invoice structure",
+    () => new api.WasmLightningClient(validLightningPaymentHash, validLightningInvoice, 1000n, null),
+    "INVALID_INPUT",
+  );
+  expectTypedError(
+    checks,
+    "Lightning constructor zero amount",
+    () => new api.WasmLightningClient(validLightningPaymentHash, validLightningInvoiceFixture, 0n, null),
+    "INVALID_INPUT",
+  );
+
+  const lightningConstructor = new api.WasmLightningClientConstructor();
+  expectTypedError(
+    checks,
+    "Lightning factory malformed payment hash",
+    () => lightningConstructor.create_intent("payment-hash", validLightningInvoiceFixture, 1000n, null),
+    "INVALID_INPUT",
+  );
+  lightningConstructor.free();
+
   const lightning = new api.WasmLightningClient(
-    "payment-hash",
-    "lnbc1-runtime-evidence",
+    validLightningPaymentHash,
+    validLightningInvoiceFixture,
     1000n,
     null,
   );

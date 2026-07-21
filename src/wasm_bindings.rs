@@ -5,6 +5,7 @@ use crate::protocol::ethereum::EthereumManager;
 use crate::protocol::solana::SolanaManager;
 use crate::wasm_support::{self, WasmRuntime};
 use crate::ConclaveError;
+use bech32::{primitives::decode::CheckedHrpstring, Bech32};
 use hex;
 use serde_wasm_bindgen;
 use std::sync::Arc;
@@ -402,6 +403,132 @@ fn invalid_input<E: std::fmt::Display>(e: E) -> JsValue {
     wasm_error("INVALID_INPUT", &e.to_string())
 }
 
+const LIGHTNING_INVOICE_MAX_LENGTH: usize = 2048;
+const LIGHTNING_INVOICE_TIMESTAMP_DATA_LENGTH: usize = 7;
+const LIGHTNING_INVOICE_SIGNATURE_DATA_LENGTH: usize = 104;
+const LIGHTNING_PAYMENT_HASH_DATA_LENGTH: usize = 52;
+
+fn validate_lightning_constructor_inputs(
+    payment_hash: &str,
+    invoice: &str,
+    amount_msat: u64,
+) -> Result<(), JsValue> {
+    if !is_valid_lightning_payment_hash(payment_hash) {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "payment_hash must be 32 bytes encoded as 64 hexadecimal characters",
+        ));
+    }
+
+    if !is_valid_lightning_invoice(invoice) {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "invoice must be a valid BOLT11 payment request",
+        ));
+    }
+
+    if !is_valid_lightning_amount(amount_msat) {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "amount_msat must be greater than zero",
+        ));
+    }
+
+    Ok(())
+}
+
+fn is_valid_lightning_payment_hash(payment_hash: &str) -> bool {
+    payment_hash.len() == 64
+        && payment_hash
+            .as_bytes()
+            .iter()
+            .all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn is_valid_lightning_amount(amount_msat: u64) -> bool {
+    amount_msat > 0
+}
+
+fn is_valid_lightning_invoice(invoice: &str) -> bool {
+    if invoice.is_empty() || invoice.len() > LIGHTNING_INVOICE_MAX_LENGTH {
+        return false;
+    }
+
+    let Ok(checked) = CheckedHrpstring::new::<Bech32>(invoice) else {
+        return false;
+    };
+
+    let hrp = checked.hrp().to_string();
+    if !is_valid_lightning_invoice_hrp(&hrp) {
+        return false;
+    }
+
+    let data: Vec<u8> = checked
+        .fe32_iter::<std::iter::Empty<u8>>()
+        .map(|value| value.to_u8())
+        .collect();
+    let Some(tagged_data_end) = data
+        .len()
+        .checked_sub(LIGHTNING_INVOICE_SIGNATURE_DATA_LENGTH)
+    else {
+        return false;
+    };
+
+    if tagged_data_end < LIGHTNING_INVOICE_TIMESTAMP_DATA_LENGTH {
+        return false;
+    }
+
+    let mut offset = LIGHTNING_INVOICE_TIMESTAMP_DATA_LENGTH;
+    let mut payment_hash_fields = 0;
+    while offset < tagged_data_end {
+        if tagged_data_end - offset < 3 {
+            return false;
+        }
+
+        let tag = data[offset];
+        let field_length = (data[offset + 1] as usize) * 32 + data[offset + 2] as usize;
+        offset += 3;
+
+        if field_length > tagged_data_end - offset {
+            return false;
+        }
+
+        if tag == 1 {
+            if field_length != LIGHTNING_PAYMENT_HASH_DATA_LENGTH {
+                return false;
+            }
+            payment_hash_fields += 1;
+        }
+
+        offset += field_length;
+    }
+
+    offset == tagged_data_end && payment_hash_fields == 1
+}
+
+fn is_valid_lightning_invoice_hrp(hrp: &str) -> bool {
+    let amount = ["lnbcrt", "lntbs", "lnbc", "lntb", "lnsb"]
+        .iter()
+        .find_map(|prefix| hrp.strip_prefix(prefix));
+    let Some(amount) = amount else {
+        return false;
+    };
+
+    if amount.is_empty() || amount.as_bytes().iter().all(|byte| byte.is_ascii_digit()) {
+        return true;
+    }
+
+    if amount.len() < 2 {
+        return false;
+    }
+    let split_at = amount.len() - 1;
+    let (digits, multiplier) = amount.split_at(split_at);
+
+    !digits.is_empty()
+        && digits.as_bytes().iter().all(|byte| byte.is_ascii_digit())
+        && matches!(multiplier, "m" | "u" | "n" | "p")
+}
+
 fn legacy_bitvm2_error(operation: crate::UnsupportedOperation) -> JsValue {
     conclave_error_to_js(crate::wasm_support::legacy_bitvm2_unsupported(operation))
 }
@@ -509,6 +636,7 @@ impl WasmLightningClient {
         amount_msat: u64,
         expiry_secs: Option<u64>,
     ) -> Result<WasmLightningClient, JsValue> {
+        validate_lightning_constructor_inputs(payment_hash, invoice, amount_msat)?;
         let intent = crate::protocol::lightning::LightningPaymentIntent::new(
             payment_hash.to_string(),
             invoice.to_string(),
@@ -545,6 +673,11 @@ pub struct WasmLightningClientConstructor;
 
 #[wasm_bindgen]
 impl WasmLightningClientConstructor {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmLightningClientConstructor {
+        WasmLightningClientConstructor
+    }
+
     pub fn create_intent(
         &self,
         payment_hash: &str,
@@ -553,6 +686,12 @@ impl WasmLightningClientConstructor {
         expiry_secs: Option<u64>,
     ) -> Result<WasmLightningClient, JsValue> {
         WasmLightningClient::new(payment_hash, invoice, amount_msat, expiry_secs)
+    }
+}
+
+impl Default for WasmLightningClientConstructor {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -1104,5 +1243,75 @@ impl Default for WasmA2PClient {
 impl ConclaveWasmClient {
     pub fn a2p(&self) -> WasmA2PClient {
         WasmA2PClient::new()
+    }
+}
+
+#[cfg(test)]
+mod lightning_wasm_boundary_tests {
+    use super::*;
+
+    const MALFORMED_LIGHTNING_INVOICE: &str =
+        "lnbc1qqqqqqqpp5ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppwdp039";
+
+    const MALFORMED_LIGHTNING_INVOICE_WITH_EXTRA_FIELDS: &str =
+        "lnbc1qqqqqqqpp5ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppwdp039";
+
+    fn valid_lightning_invoice() -> String {
+        let charset = b"qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+        let generators = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+        let hrp = b"lnbc";
+        let mut data = vec![0u8; 7];
+        data.extend([1, 1, 20]);
+        data.extend(std::iter::repeat(1u8).take(52));
+        data.extend(std::iter::repeat(1u8).take(104));
+
+        let mut values = Vec::with_capacity(hrp.len() * 2 + data.len() + 7);
+        values.extend(hrp.iter().map(|byte| (*byte as u32) >> 5));
+        values.push(0);
+        values.extend(hrp.iter().map(|byte| (*byte as u32) & 31));
+        values.extend(data.iter().map(|value| *value as u32));
+        values.extend(std::iter::repeat(0u32).take(6));
+
+        let mut checksum = 1u32;
+        for value in values {
+            let top = checksum >> 25;
+            checksum = ((checksum & 0x1ffffff) << 5) ^ value;
+            for (index, generator) in generators.iter().enumerate() {
+                if (top >> index) & 1 != 0 {
+                    checksum ^= generator;
+                }
+            }
+        }
+        checksum ^= 1;
+
+        let mut invoice = String::from("lnbc1");
+        for value in data {
+            invoice.push(charset[value as usize] as char);
+        }
+        for index in 0..6 {
+            let value = (checksum >> (5 * (5 - index))) & 31;
+            invoice.push(charset[value as usize] as char);
+        }
+        invoice
+    }
+
+    #[test]
+    fn accepts_valid_lightning_constructor_fields() {
+        assert!(is_valid_lightning_payment_hash(&"11".repeat(32)));
+        assert!(is_valid_lightning_invoice(&valid_lightning_invoice()));
+        assert!(is_valid_lightning_amount(1));
+    }
+
+    #[test]
+    fn rejects_malformed_lightning_constructor_fields() {
+        assert!(!is_valid_lightning_payment_hash("payment-hash"));
+        assert!(!is_valid_lightning_payment_hash(&"gg".repeat(32)));
+        assert!(!is_valid_lightning_invoice("lnbc1-runtime-evidence"));
+        assert!(!is_valid_lightning_invoice(MALFORMED_LIGHTNING_INVOICE));
+        assert!(!is_valid_lightning_invoice(
+            MALFORMED_LIGHTNING_INVOICE_WITH_EXTRA_FIELDS
+        ));
+        assert!(!is_valid_lightning_invoice("lnbc1"));
+        assert!(!is_valid_lightning_amount(0));
     }
 }
