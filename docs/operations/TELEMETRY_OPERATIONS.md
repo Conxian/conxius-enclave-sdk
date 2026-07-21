@@ -52,7 +52,7 @@ The SDK does not prescribe a logging or dashboard backend. Any deployment implem
 
 ## Endpoint, TLS, and delivery policy
 
-Production construction accepts only an HTTPS endpoint with a host. The endpoint may not contain URL credentials, query parameters, or fragments. Deployment-specific endpoint values stay in private configuration and outside public documentation. HTTP endpoints are accepted only by the `cfg(test)` request-capturing transport used to exercise serialization and delivery behavior without contacting a service.
+Production construction accepts only an HTTPS endpoint with a host. The endpoint may not contain URL credentials, query parameters, or fragments. Deployment-specific endpoint values stay in private configuration and outside public documentation. HTTP endpoints are accepted only by the `cfg(test)` request-capturing transport used to exercise serialization and delivery behavior without contacting a service. Native delivery never follows redirects: a `3xx` response is recorded as a non-success HTTP status and fails without issuing a request to its `Location`, so the configured sensitive `X-Api-Key` is not forwarded to a redirect destination, including cross-origin or HTTPS-to-HTTP targets.
 
 | Policy | Default | SDK maximum or boundary |
 | --- | --- | --- |
@@ -101,4 +101,4 @@ Review this contract before each release and whenever the payload schema, event 
 
 ## Evidence boundary
 
-SDK-local evidence includes minimized serialization, sensitive-header placement, HTTPS endpoint validation, bounded timeout/retry policy, failure observability, explicit disabled mode, no-runtime handling, and rail failure isolation in `src/telemetry.rs` and `src/protocol/rails/mod.rs`. The capability remains `partial` / `not-evidenced` / `unsupported` for the relevant axes until the exact deployment has service-side retention and monitoring evidence, named operational assignment, independent review, rollback evidence, and exact release artifacts.
+SDK-local evidence includes minimized serialization, sensitive-header placement, HTTPS endpoint validation, redirect blocking, bounded timeout/retry policy, failure observability, explicit disabled mode, no-runtime handling, and rail failure isolation in `src/telemetry.rs` and `src/protocol/rails/mod.rs`. The capability remains `partial` / `not-evidenced` / `unsupported` for the relevant axes until the exact deployment has service-side retention and monitoring evidence, named operational assignment, independent review, rollback evidence, and exact release artifacts.

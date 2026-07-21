@@ -492,6 +492,7 @@ fn build_http_client(policy: TelemetryPolicy) -> Result<Client, TelemetryConfigE
     #[cfg(not(target_arch = "wasm32"))]
     {
         Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
             .timeout(policy.request_timeout())
             .build()
             .map_err(|_| TelemetryConfigError::HttpClientInitialization)
@@ -708,6 +709,139 @@ impl TelemetryTransport for TestTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(target_arch = "wasm32"))]
+    use std::{
+        io::{ErrorKind, Read, Write},
+        net::{TcpListener, TcpStream},
+        thread,
+        time::Instant,
+    };
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[derive(Debug, Default)]
+    struct RedirectObservation {
+        source_requests: usize,
+        destination_requests: usize,
+        source_api_keys: Vec<String>,
+        destination_api_keys: Vec<String>,
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn accept_until(listener: &TcpListener, deadline: Instant) -> Option<TcpStream> {
+        loop {
+            match listener.accept() {
+                Ok((stream, _)) => return Some(stream),
+                Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                    if Instant::now() >= deadline {
+                        return None;
+                    }
+                    thread::sleep(Duration::from_millis(5));
+                }
+                Err(_) => return None,
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn read_http_request(stream: &mut TcpStream) -> String {
+        let _ = stream.set_read_timeout(Some(Duration::from_millis(250)));
+        let mut request = Vec::new();
+        let mut buffer = [0_u8; 1024];
+
+        while request.len() < 16 * 1024 {
+            match stream.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(read) => {
+                    request.extend_from_slice(&buffer[..read]);
+                    if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                Err(error)
+                    if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) =>
+                {
+                    break;
+                }
+                Err(_) => break,
+            }
+        }
+
+        String::from_utf8_lossy(&request).into_owned()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn request_target(request: &str) -> Option<&str> {
+        request.lines().next()?.split_whitespace().nth(1)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn request_header(request: &str, name: &str) -> Option<String> {
+        request.lines().skip(1).find_map(|line| {
+            let (key, value) = line.split_once(':')?;
+            key.eq_ignore_ascii_case(name)
+                .then(|| value.trim().to_string())
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn spawn_redirect_source(
+        listener: TcpListener,
+        location: String,
+        observation: Arc<Mutex<RedirectObservation>>,
+    ) -> thread::JoinHandle<()> {
+        thread::spawn(move || {
+            listener
+                .set_nonblocking(true)
+                .expect("source listener should become nonblocking");
+            let deadline = Instant::now() + Duration::from_secs(1);
+            let Some(mut stream) = accept_until(&listener, deadline) else {
+                return;
+            };
+            let request = read_http_request(&mut stream);
+
+            if request_target(&request) == Some("/source") {
+                let mut observation = observation.lock().expect("observation should not poison");
+                observation.source_requests += 1;
+                if let Some(api_key) = request_header(&request, API_KEY_HEADER) {
+                    observation.source_api_keys.push(api_key);
+                }
+            }
+
+            let response = format!(
+                "HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            let _ = stream.write_all(response.as_bytes());
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn spawn_redirect_destination(
+        listener: TcpListener,
+        observation: Arc<Mutex<RedirectObservation>>,
+    ) -> thread::JoinHandle<()> {
+        thread::spawn(move || {
+            listener
+                .set_nonblocking(true)
+                .expect("destination listener should become nonblocking");
+            let deadline = Instant::now() + Duration::from_millis(750);
+            let Some(mut stream) = accept_until(&listener, deadline) else {
+                return;
+            };
+            let request = read_http_request(&mut stream);
+
+            if request_target(&request) == Some("/destination") {
+                let mut observation = observation.lock().expect("observation should not poison");
+                observation.destination_requests += 1;
+                if let Some(api_key) = request_header(&request, API_KEY_HEADER) {
+                    observation.destination_api_keys.push(api_key);
+                }
+            }
+
+            let _ = stream.write_all(
+                b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            );
+        })
+    }
 
     fn test_policy(max_retries: u8) -> TelemetryPolicy {
         TelemetryPolicy::new(Duration::from_millis(100), max_retries, Duration::ZERO)
@@ -774,6 +908,60 @@ mod tests {
             .is_some_and(HeaderValue::is_sensitive));
         assert!(request.url.as_str().ends_with(TELEMETRY_PATH));
         assert_eq!(client.delivery_status(), TelemetryDeliveryStatus::Delivered);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn native_client_does_not_follow_redirects_or_forward_api_key() {
+        let source_listener =
+            TcpListener::bind(("127.0.0.1", 0)).expect("source listener should bind");
+        let destination_listener =
+            TcpListener::bind(("127.0.0.1", 0)).expect("destination listener should bind");
+        let source_address = source_listener
+            .local_addr()
+            .expect("source listener should expose an address");
+        let destination_address = destination_listener
+            .local_addr()
+            .expect("destination listener should expose an address");
+        let observation = Arc::new(Mutex::new(RedirectObservation::default()));
+
+        // Different loopback ports make the redirect cross-origin without external network use.
+        let destination_handle =
+            spawn_redirect_destination(destination_listener, Arc::clone(&observation));
+        let source_handle = spawn_redirect_source(
+            source_listener,
+            format!("http://{destination_address}/destination"),
+            Arc::clone(&observation),
+        );
+
+        let policy = TelemetryPolicy::new(Duration::from_secs(1), 0, Duration::ZERO)
+            .expect("redirect test policy should be bounded");
+        let client = build_http_client(policy).expect("native HTTP client should build");
+        let headers =
+            build_auth_headers("redirect-test-key").expect("redirect test headers should be valid");
+        let response = client
+            .post(format!("http://{source_address}/source"))
+            .headers(headers)
+            .send()
+            .await
+            .expect("redirect response should be returned");
+
+        assert_eq!(response.status(), reqwest::StatusCode::FOUND);
+        source_handle
+            .join()
+            .expect("source redirect server should stop cleanly");
+        destination_handle
+            .join()
+            .expect("destination redirect server should stop cleanly");
+
+        let observation = observation.lock().expect("observation should not poison");
+        assert_eq!(observation.source_requests, 1);
+        assert_eq!(
+            observation.source_api_keys,
+            vec![String::from("redirect-test-key")]
+        );
+        assert_eq!(observation.destination_requests, 0);
+        assert!(observation.destination_api_keys.is_empty());
     }
 
     #[tokio::test]
