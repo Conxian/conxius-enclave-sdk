@@ -47,8 +47,8 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 ### 📦 Dependency Requirements
 
 - [x] Dependencies are declared in Cargo.toml
-- [ ] Cargo.lock and the release dependency graph are reproducible and durably evidenced (P1)
-- [ ] Toolchain/MSRV is pinned and compatible with the resolved graph (P1)
+- [x] Cargo.lock and the release dependency graph are committed and checked with `--locked` (implementation evidence; release acceptance remains open)
+- [x] Toolchain/MSRV is pinned and compatible with the resolved graph (Rust 1.94.1 MSRV / Rust 1.97.1 CI pin)
 - [ ] Unmaintained and security-sensitive dependency review (P1/P2)
 
 ### 🌐 Platform Integration
@@ -71,7 +71,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 ### 🚀 Release Process
 
 - [ ] Reconcile package metadata with a verified release tag (latest visible: `v2.0.11`)
-- [ ] Select one authoritative release/publish workflow (P1)
+- [x] Select one authoritative release/publish workflow (`release-strict.yml`; one automatic tag publisher with manual recovery)
 - [ ] Verify CI gates and retain their results for the exact artifact
 - [ ] Attach registry, SBOM, provenance, and release-note evidence
 

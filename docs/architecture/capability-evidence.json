@@ -1106,22 +1106,25 @@
         ".github/workflows/ci.yml:1-100",
         ".github/workflows/ci-strict.yml:1-100",
         ".github/workflows/sbom.yml:1-100",
-        ".github/workflows/provenance.yml:1-100",
-        ".github/workflows/release.yml:1-160",
-        ".github/workflows/release-strict.yml:1-160",
+        ".github/workflows/release-strict.yml:1-360",
+        ".github/workflows/secret-scan.yml:1-100",
+        ".github/scripts/verify-release-metadata.sh:1-180",
+        ".github/scripts/verify-release-artifacts.sh:1-180",
+        "Cargo.lock",
+        "rust-toolchain.toml",
         "PRODUCTION_READINESS.md:1-180",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/199"
       ],
       "evidenceChain": [
         {"stage": "requirement", "refs": ["PRODUCTION_READINESS.md:1-180", "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:250-360", "https://github.com/Conxian/conxius-enclave-sdk/issues/199"]},
-        {"stage": "code", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100", ".github/workflows/sbom.yml:1-100", ".github/workflows/provenance.yml:1-100", ".github/workflows/release.yml:1-160", ".github/workflows/release-strict.yml:1-160"]},
+        {"stage": "code", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100", ".github/workflows/sbom.yml:1-100", ".github/workflows/release-strict.yml:1-360", ".github/workflows/secret-scan.yml:1-100", ".github/scripts/verify-release-metadata.sh:1-180", ".github/scripts/verify-release-artifacts.sh:1-180", "Cargo.lock", "rust-toolchain.toml"]},
         {"stage": "test", "refs": ["PRODUCTION_READINESS.md:1-180"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/security.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/199", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Workflow definitions and package metadata are not durable exact-artifact, provenance, SBOM, scanning, or release-support evidence.",
-      "notes": "Issue #145 is historical CI baseline context; residual toolchain/release/scanning/artifact work is tracked by #199."
+      "exclusion": "The committed controls are implementation evidence only; a supported release still requires exact tagged-artifact, registry, retained CI, provenance, SBOM, and independent-review evidence.",
+      "notes": "Issue #145 is historical CI baseline context; #199 hardening is implemented here, while final release acceptance remains external evidence tracked by #202."
     },
     {
       "id": "wasm-lightning",
