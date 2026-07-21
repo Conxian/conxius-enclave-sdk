@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>conxius-enclave-sdk WASM worker runtime evidence</title>
+<script>
+  const worker = new Worker("./worker-entry.mjs", { type: "module" });
+  window.__workerResult = new Promise((resolve) => {
+    worker.addEventListener("message", (event) => resolve(event.data), { once: true });
+    worker.addEventListener("error", (event) => resolve({
+      lane: "worker",
+      ok: false,
+      error: event.message,
+    }), { once: true });
+  });
+</script>

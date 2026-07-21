@@ -45,7 +45,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [ ] Integration tests against real protocol and vendor boundaries
 - [ ] Cross-chain tests with verified addresses and live/testnet evidence
 - [ ] **Hardware attestation integration tests** (P0/P1)
-- [ ] WASM runtime integration tests
+- [x] Tracked WASM runtime execution harness covers Node, browser, bundler, and worker lanes; passing negative/runtime tests do not establish provider, hardware, or production support
 - [x] WASM private-key export path removed; provider/runtime support remains fail-closed
 - [x] Negative tests cover missing provider evidence, simulator exclusion, typed binding mismatches, and raw settlement dispatch rejection
 - [x] WASM FROST/Fedimint/Ark/BitVM2 quarantine methods propagate typed unsupported errors without secret-bearing outputs; legacy BitVM challenge signing/aggregation also fail with `PROTOCOL_UNSUPPORTED` before decoding
@@ -62,7 +62,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 
 - [x] WASM binding API surface is inventoried in the capability evidence record
 - [x] WASM secret-boundary policy and migration note are documented
-- [ ] WASM runtime/platform/hardware matrix (P1)
+- [x] WASM runtime execution matrix is documented; provider, platform, attestation, artifact/provenance, and production-support gates remain open (P1)
 - [ ] Multi-chain support with verified address provenance (P1)
 - [ ] Settlement rails implemented without placeholders and backed by integration evidence (P0)
 

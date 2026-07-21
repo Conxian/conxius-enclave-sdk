@@ -122,6 +122,26 @@ mod tests {
     }
 
     #[test]
+    fn stable_error_codes_preserve_input_protocol_and_secret_semantics() {
+        assert_eq!(
+            wasm_error_code(&ConclaveError::InvalidPayload),
+            "INVALID_INPUT"
+        );
+        assert_eq!(
+            wasm_error_code(&ConclaveError::ProtocolUnsupported {
+                protocol: UnsupportedProtocol::BitVm2,
+                operation: UnsupportedOperation::ChallengeSubmission,
+                reason: crate::UnsupportedReason::NoAuditedImplementation,
+            }),
+            "PROTOCOL_UNSUPPORTED"
+        );
+        assert_eq!(
+            wasm_error_code(&ConclaveError::SecretExportForbidden),
+            "SECRET_EXPORT_FORBIDDEN"
+        );
+    }
+
+    #[test]
     fn legacy_wasm_bitvm_surface_is_exactly_bitvm2_unsupported() {
         let sign_error = legacy_bitvm2_unsupported(UnsupportedOperation::ChallengeSubmission);
         assert_eq!(
@@ -157,6 +177,9 @@ mod tests {
         assert!(bitvm_surface.contains("legacy_bitvm2_error"));
         assert!(bitvm_surface.contains("UnsupportedOperation::ChallengeSubmission"));
         assert!(bitvm_surface.contains("UnsupportedOperation::ThresholdAggregation"));
+        assert!(bitvm_surface.contains("Err(legacy_bitvm2_error("));
+        assert!(!bitvm_surface.contains("serde_wasm_bindgen::from_value"));
+        assert!(!bitvm_surface.contains("serde_json::from_str"));
         assert!(!bitvm_surface.contains(".inner\n            .sign_challenge("));
         assert!(!bitvm_surface.contains(".inner\n            .aggregate_challenge_signatures("));
         assert!(!bitvm_surface.contains("to_value(&aggregate)"));
@@ -171,10 +194,20 @@ mod tests {
         assert!(!source.contains("hex::encode(key)"));
         assert!(!source.contains("master_seed_hex"));
         assert!(!source.contains("crate::enclave::cloud::CloudEnclave::new("));
-        assert!(source.contains("UnavailableEnclave"));
+        assert!(!source.contains("UnavailableEnclave"));
         assert!(!source.contains("expect(\"Failed to create enclave\")"));
         assert!(!source.contains("EnclaveManager::sign"));
         assert!(!source.contains(".sign(request"));
+        assert!(source.contains("Err(unsupported_provider("));
+        assert!(source.contains("pub fn new() -> Result<WasmBitVm2Orchestrator, JsValue>"));
+        assert!(source.contains("pub fn bitvm2(&self) -> Result<WasmBitVm2Orchestrator, JsValue>"));
+        assert!(source.contains("fn invalid_input()"));
+        assert!(!source.contains("JsValue::from_str(\"Invalid key length\")"));
+        assert!(!source.contains("JsValue::from_str(\"Invalid hash length\")"));
+        assert!(!source.contains("JsValue::from_str(\"Invalid state hash length\")"));
+        assert!(
+            !source.contains("JsValue::from_str(\"Invalid taproot internal public key length\")")
+        );
         let source_lines: Vec<&str> = source.lines().collect();
         let mut gated_development_constructors = 0;
         for (index, line) in source_lines.iter().enumerate() {
