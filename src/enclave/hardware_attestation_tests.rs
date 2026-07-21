@@ -15,6 +15,7 @@ use crate::enclave::attestation::{
     DeviceIntegrityReport, ATTESTATION_ENVELOPE_VERSION,
 };
 use crate::enclave::replay_guard::ReplayGuard;
+use rand::RngCore;
 
 /// Mock attestation generator for different trust tiers
 struct MockAttestationGenerator {
@@ -471,7 +472,8 @@ mod trust_enforcement_tests {
     fn test_production_signing_requires_hardware_attestation() {
         // Simulate a production signing request
         let generator = MockAttestationGenerator::new(AttestationLevel::Software);
-        let nonce = [1, 2, 3, 4];
+        let mut nonce = [0u8; 4];
+        rand::rngs::OsRng.fill_bytes(&mut nonce);
         let now = 1_000_000_u64;
 
         let report = generator.generate_valid_report(&nonce, now.saturating_sub(60));
