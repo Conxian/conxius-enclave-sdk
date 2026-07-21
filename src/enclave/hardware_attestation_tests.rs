@@ -494,6 +494,7 @@ mod trust_enforcement_tests {
 #[cfg(test)]
 mod edge_case_tests {
     use super::*;
+    use rand::random;
 
     #[test]
     fn test_empty_signature_rejected() {
@@ -535,13 +536,14 @@ mod edge_case_tests {
     #[test]
     fn test_single_certificate_rejected() {
         let generator = MockAttestationGenerator::new(AttestationLevel::TEE);
-        let mut report = generator.generate_valid_report(&[1, 2, 3, 4], 1_000_000);
+        let nonce: [u8; 4] = random();
+        let mut report = generator.generate_valid_report(&nonce, 1_000_000);
         // Remove the root CA, leaving only the device cert
         report.certificate_chain.pop();
 
         // Single cert (no chain) should fail
         assert!(
-            !report.verify(&[1, 2, 3, 4]),
+            !report.verify(&nonce),
             "Single certificate should be rejected (need chain)"
         );
     }
