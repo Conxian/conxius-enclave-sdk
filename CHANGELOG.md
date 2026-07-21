@@ -17,6 +17,8 @@
 - Added `INVALID_INPUT` mapping for malformed WASM boundary payloads and a reproducible Node.js, bundler, browser, and Web Worker runtime-evidence harness.
 - Made Lightning WASM lifecycle timestamps use the JavaScript runtime clock so initialization and repeated event calls do not hit the unsupported native clock path.
 - Added the [WASM runtime/provider support matrix](docs/architecture/WASM_SUPPORT_MATRIX.md) and [key-boundary migration note](docs/migrations/wasm-key-boundary.md).
+- Added canonical Bitcoin/Taproot and Ethereum verification/derivation behavior for issue #196, including public typed BIP-322 outcomes and `ConclaveError::Bip322`; malformed and unsupported inputs now fail closed within the documented conditional support boundary.
+- Tightened BIP-322 compatibility parsing to recognize only exact `smp`, `ful`, and `pof` tags; other inputs remain subject to strict unprefixed Simple decoding.
 
 ### Documentation
 

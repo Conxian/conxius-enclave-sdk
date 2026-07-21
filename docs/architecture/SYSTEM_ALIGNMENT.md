@@ -1,6 +1,6 @@
 # Conclave SDK System Alignment Report (v2.0.3)
 
-## Status: v2.0.3 Aligned (with non-production FROST caveat)
+## Status: Beta / conditional; scoped canonical verification evidence only
 
 ### Universal Orchestration Architecture
 1. **Multi-Chain Execution**: High-performance Rust engines using Alloy-rs and BDK for EVM and Bitcoin.
@@ -9,7 +9,7 @@
 4. **Sovereign Attribution**: Business-grade cryptographic attribution and telemetry.
 
 ### Advanced Bitcoin Primitives
-- **Hardened BIP-322 Verification**: Full proof-of-ownership support for P2PKH, P2SH, SegWit, and Taproot.
+- **Scoped BIP-322 Simple Verification**: Native P2WPKH and native P2TR key-path cryptographic verification only. P2WSH, Taproot script-path/annex, legacy, P2SH, P2A, and future witness-version paths remain inconclusive or unsupported; Full and Proof-of-Funds verification are unsupported, and no Script/Tapscript interpreter is included.
 - **FROST DKG Round 1**: Typed boundary/quarantine validation only; production RFC 9591-compatible DKG, signing, secure share storage, and aggregation are not implemented.
 - **Hardened Fedimint OPR**: local blinding and structural OPR (Oblivious Proof of Reserve) for community mints.
 - **BitVM2 Aggregation**: MuSig2-based Taproot tree aggregation for 364-tap verification floor.
@@ -29,4 +29,4 @@
 ## Release Metadata
 - **Canonical Name**: conxius-enclave-sdk
 - **Branding**: Conclave SDK
-- **Maturity**: Bleeding Edge / Production Path (Hardened)
+- **Maturity**: Beta / conditional; production support is not established.

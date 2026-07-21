@@ -7,12 +7,42 @@ use crate::{
 };
 use bitcoin::{
     key::PublicKey,
-    secp256k1::Scalar,
+    secp256k1::{self, Scalar},
     taproot::{TapLeafHash, TapNodeHash, TapTweakHash},
     XOnlyPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+
+/// Verify a BIP-340 Schnorr signature over a pre-hashed message digest.
+///
+/// This boundary intentionally accepts byte slices so callers cannot silently
+/// truncate or pad malformed inputs. BIP-340 verification returns `Ok(false)`
+/// for a well-encoded but invalid signature; malformed lengths or public-key
+/// encodings return typed errors instead.
+pub fn verify_bip340_signature(
+    message_digest: &[u8],
+    x_only_public_key: &[u8],
+    signature: &[u8],
+) -> ConclaveResult<bool> {
+    let message: [u8; 32] = message_digest
+        .try_into()
+        .map_err(|_| ConclaveError::InvalidPayload)?;
+    let public_key_bytes: [u8; 32] = x_only_public_key
+        .try_into()
+        .map_err(|_| ConclaveError::InvalidPayload)?;
+    let signature_bytes: [u8; 64] = signature
+        .try_into()
+        .map_err(|_| ConclaveError::InvalidPayload)?;
+
+    let public_key =
+        secp256k1::XOnlyPublicKey::from_byte_array(public_key_bytes).map_err(|error| {
+            ConclaveError::CryptoError(format!("Invalid BIP-340 x-only public key: {error}"))
+        })?;
+    let signature = secp256k1::schnorr::Signature::from_byte_array(signature_bytes);
+
+    Ok(secp256k1::schnorr::verify(&signature, &message, &public_key).is_ok())
+}
 
 pub struct TaprootManager<'a> {
     enclave: &'a dyn EnclaveManager,
@@ -397,6 +427,13 @@ mod tests {
         XOnlyPublicKey::from_byte_array(&[1u8; 32]).unwrap()
     }
 
+    fn decode_hex<const N: usize>(value: &str) -> [u8; N] {
+        hex::decode(value)
+            .expect("test vector hex")
+            .try_into()
+            .expect("test vector length")
+    }
+
     #[test]
     fn test_op_cat_covenant_script_generation() {
         let pubkey = dummy_pubkey();
@@ -416,6 +453,8 @@ mod tests {
 
     #[test]
     fn test_bip86_tap_tweak_matches_reference_vector() {
+        // Source: BIP-0086 reference wallet vector.
+        // https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki
         let internal_key = "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115";
         let enclave = TestEnclave {
             public_key_hex: internal_key.to_string(),
@@ -441,6 +480,131 @@ mod tests {
             &address.script_pubkey().as_bytes()[2..],
             &output_key.serialize().0
         );
+    }
+
+    #[test]
+    fn test_bip341_tap_tweak_matches_wallet_vector_with_merkle_root() {
+        // Source: official BIP-0341 wallet test vectors.
+        // https://github.com/bitcoin/bips/blob/master/bip-0341/wallet-test-vectors.json
+        let enclave = TestEnclave {
+            public_key_hex: "93478e9488f956df2396be2ce6c5cced75f900dfa18e7dabd2428aae78451820"
+                .to_string(),
+        };
+        let manager = TaprootManager::new(&enclave);
+        let merkle_root = Some(decode_hex::<32>(
+            "c525714a7f49c28aedbbba78c005931a81c234b2f6c99a73e4d06082adc8bf2b",
+        ));
+
+        let tweak = manager
+            .calculate_taproot_tweak("m/86'/0'/0'/0/0", merkle_root)
+            .expect("BIP-341 tweak derivation");
+        assert_eq!(
+            hex::encode(tweak),
+            "6af9e28dbf9d6aaf027696e2598a5b3d056f5fd2355a7fd5a37a0e5008132d30"
+        );
+
+        let output_key = manager
+            .derive_taproot_output_key("m/86'/0'/0'/0/0", merkle_root)
+            .expect("BIP-341 output key derivation");
+        assert_eq!(
+            hex::encode(output_key.serialize().0),
+            "e4d810fd50586274face62b8a807eb9719cef49c04177cc6b76a9a4251d5450e"
+        );
+    }
+
+    #[test]
+    fn test_bip340_verification_matches_official_valid_vector() {
+        // Source: official BIP-0340 test vector 0.
+        // https://github.com/bitcoin/bips/blob/master/bip-0340/test-vectors.csv
+        let message = [0u8; 32];
+        let public_key =
+            decode_hex::<32>("f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9");
+        let signature = decode_hex::<64>(concat!(
+            "e907831f80848d1069a5371b402410364bdf1c5f8307b0084c55f1ce2dca8215",
+            "25f66a4a85ea8b71e482a74f382d2ce5ebeee8fdb2172f477df4900d310536c0"
+        ));
+
+        assert_eq!(
+            verify_bip340_signature(&message, &public_key, &signature),
+            Ok(true)
+        );
+    }
+
+    #[test]
+    fn test_bip340_verification_rejects_official_invalid_vectors() {
+        // Source: official BIP-0340 test vectors 7, 12, and 13.
+        // https://github.com/bitcoin/bips/blob/master/bip-0340/test-vectors.csv
+        let message =
+            decode_hex::<32>("243f6a8885a308d313198a2e03707344a4093822299f31d0082efa98ec4e6c89");
+        let public_key =
+            decode_hex::<32>("dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659");
+
+        let wrong_message_signature = decode_hex::<64>(concat!(
+            "1fa62e331edbc21c394792d2ab1100a7b432b013df3f6ff4f99fcb33e0e1515f",
+            "28890b3edb6e7189b630448b515ce4f8622a954cfe545735aaea5134fccdb2bd"
+        ));
+        assert_eq!(
+            verify_bip340_signature(&message, &public_key, &wrong_message_signature),
+            Ok(false)
+        );
+
+        let r_equal_field_size = decode_hex::<64>(concat!(
+            "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
+            "69e89b4c5564d00349106b8497785dd7d1d713a8ae82b32fa79d5f7fc407d39b"
+        ));
+        assert_eq!(
+            verify_bip340_signature(&message, &public_key, &r_equal_field_size),
+            Ok(false)
+        );
+
+        let s_equal_curve_order = decode_hex::<64>(concat!(
+            "6cff5c3ba86c69ea4b7376f31a9bcb4f74c1976089b2d9963da2e5543e177769",
+            "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"
+        ));
+        assert_eq!(
+            verify_bip340_signature(&message, &public_key, &s_equal_curve_order),
+            Ok(false)
+        );
+
+        let valid_signature = decode_hex::<64>(concat!(
+            "e907831f80848d1069a5371b402410364bdf1c5f8307b0084c55f1ce2dca8215",
+            "25f66a4a85ea8b71e482a74f382d2ce5ebeee8fdb2172f477df4900d310536c0"
+        ));
+        let wrong_key =
+            decode_hex::<32>("dff1d77f2a671c5f36183726db2341be58feae1da2deced843240f7b502ba659");
+        assert_eq!(
+            verify_bip340_signature(&[0u8; 32], &wrong_key, &valid_signature),
+            Ok(false)
+        );
+    }
+
+    #[test]
+    fn test_bip340_verification_rejects_malformed_lengths_and_keys() {
+        let message = [0u8; 32];
+        let public_key =
+            decode_hex::<32>("f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9");
+        let signature = decode_hex::<64>(concat!(
+            "e907831f80848d1069a5371b402410364bdf1c5f8307b0084c55f1ce2dca8215",
+            "25f66a4a85ea8b71e482a74f382d2ce5ebeee8fdb2172f477df4900d310536c0"
+        ));
+
+        assert!(matches!(
+            verify_bip340_signature(&message[..31], &public_key, &signature),
+            Err(ConclaveError::InvalidPayload)
+        ));
+        assert!(matches!(
+            verify_bip340_signature(&message, &public_key[..31], &signature),
+            Err(ConclaveError::InvalidPayload)
+        ));
+        assert!(matches!(
+            verify_bip340_signature(&message, &public_key, &signature[..63]),
+            Err(ConclaveError::InvalidPayload)
+        ));
+
+        assert!(matches!(
+            verify_bip340_signature(&message, &[0xff; 32], &signature),
+            Err(ConclaveError::CryptoError(_))
+        ));
     }
 
     #[test]
