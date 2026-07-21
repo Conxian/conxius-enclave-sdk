@@ -507,20 +507,20 @@
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/protocol/ark.rs:1-482",
+        "src/protocol/ark.rs:1-523",
         "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
       ],
       "evidenceChain": [
         {"stage": "requirement", "refs": ["docs/architecture/GAP_SCORECARD.md:70-150", "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
-        {"stage": "code", "refs": ["src/protocol/ark.rs:1-350"]},
-        {"stage": "test", "refs": ["src/protocol/ark.rs:351-482"]},
+        {"stage": "code", "refs": ["src/protocol/ark.rs:1-391"]},
+        {"stage": "test", "refs": ["src/protocol/ark.rs:393-523"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Typed IDs, descriptors, and structural validation are not live Ark interoperability, settlement, recovery, or unilateral-exit evidence.",
-      "notes": "PR #209 quarantines derivation, tree construction, forfeit signing, and recovery. A future milestone must choose and pin Arkade or Second; inspected Arkade v0.9.15 remains Alpha/do-not-use-in-production."
+      "notes": "PR #209 quarantines derivation, tree construction, forfeit signing, and recovery. `ArkManager::try_with_backend` and compatibility `with_backend` reject `ProviderOwned` with exact `ProtocolUnsupported`; `new` remains `Unconfigured`. A future milestone must choose and pin Arkade or Second after issue #195 provider/attestation evidence; inspected Arkade v0.9.15 remains Alpha/do-not-use-in-production."
     },
     {
       "id": "bitvm",
@@ -545,7 +545,7 @@
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Challenge/commitment APIs and structural tests do not prove SNARK verification, Bitcoin interoperability, or production settlement.",
-      "notes": "BitVM and BitVM2 remain separate records while sharing the threshold/settlement blocker."
+      "notes": "BitVM and BitVM2 remain separate records while sharing the threshold/settlement blocker. The native legacy `BitVmManager` is a non-production MuSig2 primitive; its generic signatures and aggregates are not BitVM2 evidence, and the public WASM compatibility surface is quarantined separately."
     },
     {
       "id": "bitvm2",
@@ -558,20 +558,21 @@
       "productionSupport": "unsupported",
       "evidenceRefs": [
         "src/protocol/bitvm2.rs:1-645",
-        "src/wasm_bindings.rs:748-854",
+        "src/wasm_bindings.rs:748-867",
+        "src/wasm_support.rs:73-163",
         "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
       ],
       "evidenceChain": [
         {"stage": "requirement", "refs": ["docs/architecture/GAP_SCORECARD.md:70-150", "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
-        {"stage": "code", "refs": ["src/protocol/bitvm2.rs:1-430", "src/wasm_bindings.rs:748-854"]},
-        {"stage": "test", "refs": ["src/protocol/bitvm2.rs:431-645"]},
+        {"stage": "code", "refs": ["src/protocol/bitvm2.rs:1-430", "src/wasm_bindings.rs:748-867", "src/wasm_support.rs:73-92"]},
+        {"stage": "test", "refs": ["src/protocol/bitvm2.rs:431-645", "src/wasm_support.rs:94-163"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Typed roles, observations, windows, and WASM mappings do not prove bridge graph correctness, proof/disprove verification, Bitcoin interoperability, or provider/runtime support.",
-      "notes": "PR #209 permits only externally observed, idempotent modeled events; posting, challenge, resolution, signing, and transaction construction remain unsupported."
+      "notes": "PR #209 permits only externally observed, idempotent modeled events; posting, challenge, resolution, signing, and transaction construction remain unsupported. Legacy WASM BitVM signing and aggregation now fail before decoding with exact BitVM2 `ProtocolUnsupported` errors mapped to `PROTOCOL_UNSUPPORTED`; no generic MuSig2 output is treated as BitVM2 evidence."
     },
     {
       "id": "cctp",

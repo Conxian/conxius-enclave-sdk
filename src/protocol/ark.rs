@@ -300,8 +300,31 @@ impl ArkManager {
         }
     }
 
-    pub fn with_backend(enclave: Arc<dyn EnclaveManager>, backend: ArkBackend) -> Self {
-        Self { enclave, backend }
+    /// Construct an Ark manager only for a backend that is currently safe to
+    /// expose. Provider-owned operation requires the hardware/provider and
+    /// attestation evidence tracked by issue #195, so it cannot be selected
+    /// through this boundary yet.
+    pub fn try_with_backend(
+        enclave: Arc<dyn EnclaveManager>,
+        backend: ArkBackend,
+    ) -> ConclaveResult<Self> {
+        match backend {
+            ArkBackend::Unconfigured => Ok(Self::new(enclave)),
+            ArkBackend::ProviderOwned => Err(protocol_unsupported(
+                UnsupportedProtocol::Ark,
+                UnsupportedOperation::VutxoKeyDerivation,
+            )),
+        }
+    }
+
+    /// Compatibility-named alias for [`Self::try_with_backend`]. The return
+    /// type is fallible so callers cannot silently construct provider-owned
+    /// state before the enabling evidence exists.
+    pub fn with_backend(
+        enclave: Arc<dyn EnclaveManager>,
+        backend: ArkBackend,
+    ) -> ConclaveResult<Self> {
+        Self::try_with_backend(enclave, backend)
     }
 
     pub fn backend(&self) -> ArkBackend {
@@ -434,6 +457,24 @@ mod tests {
                 BoundaryValidationError::InvalidStateTransition
             ))
         ));
+    }
+
+    #[test]
+    fn backend_selection_accepts_only_the_safe_disabled_variant() {
+        let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
+
+        let manager = ArkManager::try_with_backend(enclave.clone(), ArkBackend::Unconfigured)
+            .expect("unconfigured backend is the safe default");
+        assert_eq!(manager.backend(), ArkBackend::Unconfigured);
+
+        assert_unsupported(
+            ArkManager::try_with_backend(enclave.clone(), ArkBackend::ProviderOwned),
+            UnsupportedOperation::VutxoKeyDerivation,
+        );
+        assert_unsupported(
+            ArkManager::with_backend(enclave, ArkBackend::ProviderOwned),
+            UnsupportedOperation::VutxoKeyDerivation,
+        );
     }
 
     #[test]
