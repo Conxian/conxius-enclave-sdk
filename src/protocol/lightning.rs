@@ -1,6 +1,20 @@
 use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::{SystemTime, UNIX_EPOCH};
+
+#[cfg(target_arch = "wasm32")]
+fn current_unix_seconds() -> u64 {
+    (js_sys::Date::now() / 1_000.0).max(0.0) as u64
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn current_unix_seconds() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
 
 const MAX_LIGHTNING_RETRIES: u32 = 5;
 
@@ -63,10 +77,7 @@ impl LightningPaymentIntent {
         amount_msat: u64,
         expiry_secs: Option<u64>,
     ) -> Self {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let now = current_unix_seconds();
 
         Self {
             payment_hash,
@@ -85,10 +96,7 @@ impl LightningPaymentIntent {
     }
 
     pub fn apply_event(&mut self, event: LightningEvent) -> ConclaveResult<()> {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let now = current_unix_seconds();
 
         let next_status = match &event {
             LightningEvent::PaymentInitiated => LightningPaymentStatus::Pending,
