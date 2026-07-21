@@ -11,7 +11,7 @@ on:
         required: true
         type: string
       publish_to_crates_io:
-        description: "Publish to crates.io after validation"
+        description: "Publish to crates.io after all release evidence passes"
         required: true
         default: false
         type: boolean
@@ -22,8 +22,6 @@ concurrency:
 
 permissions:
   contents: read
-  attestations: write
-  id-token: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -45,12 +43,14 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
-          toolchain: stable
+          toolchain: 1.97.1
+          components: rustfmt, clippy
 
       - name: Select expected release version
         id: version
         shell: bash
         run: |
+          set -euo pipefail
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             VERSION="${GITHUB_REF_NAME}"
           else
@@ -60,21 +60,21 @@ jobs:
           echo "value=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Selected version: ${VERSION}"
 
-      - name: Verify release metadata
+      - name: Verify release metadata and lockfile
         run: .github/scripts/verify-release-metadata.sh "${{ steps.version.outputs.value }}"
 
-      - name: Run tests
-        run: cargo test --all-features --verbose
+      - name: Run locked tests
+        run: cargo test --locked --all-features --verbose
         env:
           RUST_BACKTRACE: full
 
-      - name: Run linting
+      - name: Run locked formatting and linting
         run: |
           cargo fmt --all -- --check
-          cargo clippy --all-targets --all-features -- -D warnings
+          cargo clippy --locked --all-targets --all-features -- -D warnings
 
-      - name: Verify crates.io package
-        run: cargo publish --dry-run --allow-dirty
+      - name: Verify locked crates.io package
+        run: cargo publish --locked --dry-run
 
   sbom-provenance:
     name: SBOM and Provenance
@@ -82,61 +82,149 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
+      actions: read
       contents: read
       id-token: write
       attestations: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
-          toolchain: stable
+          toolchain: 1.97.1
 
-      - name: Verify release metadata
+      - name: Verify release metadata and lockfile
         run: .github/scripts/verify-release-metadata.sh "${{ needs.validate-release.outputs.version }}"
 
       - name: Build release package
-        run: cargo package --allow-dirty --no-verify
+        run: cargo package --locked
 
       - name: Locate packaged crate
         id: crate
         shell: bash
         run: |
+          set -euo pipefail
           mapfile -t crates < <(find target/package -maxdepth 1 -type f -name '*.crate' | sort)
           if [[ "${#crates[@]}" -ne 1 ]]; then
-            echo "ERROR: expected exactly one packaged crate" >&2
+            echo "error: expected exactly one packaged crate" >&2
             exit 1
           fi
           echo "path=${crates[0]}" >> "$GITHUB_OUTPUT"
 
-      - name: Install Syft
-        uses: taiki-e/install-action@a6b2e2dcd845ddd7f509ce4f3ed3d922b80cc5d9
+      - name: Create crate checksum
+        id: checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHECKSUM_PATH="${{ steps.crate.outputs.path }}.sha256"
+          sha256sum "${{ steps.crate.outputs.path }}" > "$CHECKSUM_PATH"
+          echo "path=${CHECKSUM_PATH}" >> "$GITHUB_OUTPUT"
+
+      - name: Install cargo-sbom
+        uses: taiki-e/install-action@a6b2e2dcd845ddd7f509ce4f3ed3d922b80cc5d9 # v2
         with:
-          tool: syft
+          tool: cargo-sbom@0.10.0
 
       - name: Generate SPDX SBOM
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p sbom
-          syft "${{ steps.crate.outputs.path }}" -o spdx-json=sbom/release.spdx.json
+          cargo metadata --locked --format-version 1 >/dev/null
+          # cargo-sbom 0.10.0 does not expose Cargo's --locked flag; the
+          # explicit metadata gate above rejects a stale or missing lockfile.
+          cargo sbom --output-format spdx_json_2_3 > sbom/release.spdx.json
+          python3 -m json.tool sbom/release.spdx.json >/dev/null
 
-      - name: Upload SBOM artifact
+      - name: Create release evidence manifest
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.validate-release.outputs.version }}
+          RELEASE_TAG: v${{ needs.validate-release.outputs.version }}
+          RELEASE_COMMIT: ${{ github.sha }}
+          CRATE_PATH: ${{ steps.crate.outputs.path }}
+          SBOM_PATH: sbom/release.spdx.json
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          def sha256(path: str) -> str:
+              return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+          crate_path = os.environ["CRATE_PATH"]
+          sbom_path = os.environ["SBOM_PATH"]
+          manifest = {
+              "package": "conxius-enclave-sdk",
+              "version": os.environ["RELEASE_VERSION"],
+              "tag": os.environ["RELEASE_TAG"],
+              "commit": os.environ["RELEASE_COMMIT"],
+              "workflow": "release-strict",
+              "crate": Path(crate_path).name,
+              "crateSha256": sha256(crate_path),
+              "sbom": Path(sbom_path).name,
+              "sbomSha256": sha256(sbom_path),
+              "lockSha256": sha256("Cargo.lock"),
+          }
+          Path("release-manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Verify package, checksum, SBOM, and manifest consistency
+        run: >-
+          .github/scripts/verify-release-artifacts.sh
+          "${{ needs.validate-release.outputs.version }}"
+          "${{ steps.crate.outputs.path }}"
+          "${{ steps.checksum.outputs.path }}"
+          sbom/release.spdx.json
+          release-manifest.json
+
+      - name: Prepare flat release evidence bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-evidence
+          cp "${{ steps.crate.outputs.path }}" release-evidence/
+          cp "${{ steps.checksum.outputs.path }}" release-evidence/
+          cp sbom/release.spdx.json release-evidence/
+          cp release-manifest.json release-evidence/
+
+      - name: Upload release evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: release-sbom-${{ needs.validate-release.outputs.version }}
-          path: sbom/release.spdx.json
+          name: release-evidence-${{ needs.validate-release.outputs.version }}
+          path: release-evidence
           if-no-files-found: error
           retention-days: 90
 
-      - name: Attest release provenance
+      - name: Attest release package provenance
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: ${{ steps.crate.outputs.path }}
 
+      - name: Verify release package provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh attestation verify
+          "${{ steps.crate.outputs.path }}"
+          --repo "${GITHUB_REPOSITORY}"
+          --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release-strict.yml"
+          --source-ref "${GITHUB_REF}"
+
   publish-crates-io:
-    name: Publish to crates.io
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_to_crates_io }}
+    name: Publish to crates.io (Automatic Tag / Manual Recovery)
+    if: >-
+      ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+          || (github.event_name == 'workflow_dispatch' && inputs.publish_to_crates_io) }}
     needs:
       - validate-release
       - sbom-provenance
@@ -144,54 +232,100 @@ jobs:
     timeout-minutes: 15
     environment: release
     permissions:
+      actions: read
       contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
-        with:
-          toolchain: stable
-
-      - name: Enforce publish from release tag
-        run: |
-          if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
-            echo "ERROR: publishing requires a release tag"
-            exit 1
-          fi
-
-      - name: Verify release metadata
-        run: .github/scripts/verify-release-metadata.sh "${{ inputs.release_version }}"
-
-      - name: Preflight crates.io token
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          if [[ -z "${CARGO_REGISTRY_TOKEN}" ]]; then
-            echo "ERROR: CARGO_REGISTRY_TOKEN is missing"
-            exit 1
-          fi
-
-      - name: Publish to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --token "${CARGO_REGISTRY_TOKEN}"
-
-  create-github-release:
-    name: Create GitHub Release
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
-    needs: [validate-release, sbom-provenance]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - name: Create GitHub Release
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: 1.97.1
+
+      - name: Enforce publishing from the validated release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
+            echo "error: publishing requires a release tag" >&2
+            exit 1
+          fi
+          if [[ "${GITHUB_REF_NAME}" != "v${{ needs.validate-release.outputs.version }}" ]]; then
+            echo "error: publish tag does not match the validated version" >&2
+            exit 1
+          fi
+
+      - name: Verify release metadata and lockfile
+        run: .github/scripts/verify-release-metadata.sh "${{ needs.validate-release.outputs.version }}"
+
+      - name: Download attested release evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-evidence-${{ needs.validate-release.outputs.version }}
+          path: release-evidence
+
+      - name: Rebuild and compare the attested crate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo package --locked
+          mapfile -t local_crates < <(find target/package -maxdepth 1 -type f -name '*.crate' | sort)
+          mapfile -t attested_crates < <(find release-evidence -maxdepth 1 -type f -name '*.crate' | sort)
+          if [[ "${#local_crates[@]}" -ne 1 || "${#attested_crates[@]}" -ne 1 ]]; then
+            echo "error: expected one local crate and one attested crate" >&2
+            exit 1
+          fi
+          local_sha="$(sha256sum "${local_crates[0]}" | awk '{print $1}')"
+          attested_sha="$(sha256sum "${attested_crates[0]}" | awk '{print $1}')"
+          if [[ "$local_sha" != "$attested_sha" ]]; then
+            echo "error: publish candidate differs from the attested release package" >&2
+            exit 1
+          fi
+
+      - name: Verify downloaded release evidence
+        run: >-
+          .github/scripts/verify-release-artifacts.sh
+          "${{ needs.validate-release.outputs.version }}"
+          "$(find release-evidence -maxdepth 1 -type f -name '*.crate' -print -quit)"
+          "$(find release-evidence -maxdepth 1 -type f -name '*.sha256' -print -quit)"
+          release-evidence/release.spdx.json
+          release-evidence/release-manifest.json
+
+      - name: Preflight crates.io token
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [[ -z "${CARGO_REGISTRY_TOKEN}" ]]; then
+            echo "error: CARGO_REGISTRY_TOKEN is missing" >&2
+            exit 1
+          fi
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked --token "${CARGO_REGISTRY_TOKEN}"
+
+  create-github-release:
+    name: Create GitHub Release
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    needs:
+      - validate-release
+      - sbom-provenance
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download release evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-evidence-${{ needs.validate-release.outputs.version }}
+          path: release-evidence
+
+      - name: Create GitHub Release with evidence bundle
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           tag_name: ${{ github.ref_name }}
@@ -199,27 +333,6 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
+          files: release-evidence/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  auto-publish-crates-io:
-    name: Auto-Publish to crates.io
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
-    needs: [validate-release, sbom-provenance]
-    runs-on: ubuntu-latest
-    environment: release
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
-        with:
-          toolchain: stable
-
-      - name: Publish to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --token "${CARGO_REGISTRY_TOKEN}"
