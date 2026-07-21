@@ -1,5 +1,5 @@
 use crate::enclave::EnclaveManager;
-use crate::ConclaveResult;
+use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -12,45 +12,46 @@ pub struct IdentityProfile {
 }
 
 pub struct IdentityManager {
-    enclave: Arc<dyn EnclaveManager>,
+    _enclave: Arc<dyn EnclaveManager>,
 }
 
 impl IdentityManager {
     pub fn new(enclave: Arc<dyn EnclaveManager>) -> Self {
-        Self { enclave }
+        Self { _enclave: enclave }
     }
 
-    /// Generates a hardware-backed personal identity (DID).
+    /// Returns an identity only after provider-verified identity attestation
+    /// can bind the generated key to a verified `DeviceIntegrityReport`.
     pub fn create_identity(&self) -> ConclaveResult<IdentityProfile> {
-        let public_key = self.enclave.get_public_key("m/44'/5757'/0'/0/identity")?;
-
-        // Simple DID format: did:conxian:<pubkey_hex>
-        let did = format!("did:conxian:{}", public_key);
-
-        Ok(IdentityProfile {
-            did,
-            public_key,
-            hardware_attestation: "HW_TEE_v1".to_string(),
-        })
+        Err(ConclaveError::Unsupported(
+            "provider-verified identity attestation is unavailable".to_string(),
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::enclave::cloud::CloudEnclave;
+    use crate::enclave::{android_strongbox::CoreEnclaveManager, cloud::CloudEnclave};
 
     #[test]
-    fn test_create_identity() -> crate::ConclaveResult<()> {
-        let enclave = Arc::new(CloudEnclave::new(
+    fn software_and_development_managers_cannot_create_hardware_identity(
+    ) -> crate::ConclaveResult<()> {
+        let cloud_enclave = Arc::new(CloudEnclave::new(
             "https://vault.conxian-labs.com".to_string(),
         )?);
-        let mgr = IdentityManager::new(enclave);
+        let core_enclave = Arc::new(CoreEnclaveManager::new());
 
-        let profile = mgr.create_identity()?;
-        assert!(profile.did.starts_with("did:conxian:"));
-        assert!(!profile.public_key.is_empty());
-        assert_eq!(profile.hardware_attestation, "HW_TEE_v1");
+        for enclave in [
+            cloud_enclave as Arc<dyn EnclaveManager>,
+            core_enclave as Arc<dyn EnclaveManager>,
+        ] {
+            assert!(matches!(
+                IdentityManager::new(enclave).create_identity(),
+                Err(ConclaveError::Unsupported(message))
+                    if message == "provider-verified identity attestation is unavailable"
+            ));
+        }
 
         Ok(())
     }

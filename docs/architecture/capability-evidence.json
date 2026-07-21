@@ -946,22 +946,23 @@
       "implementation": "partial",
       "integration": "no",
       "independentReview": "not-evidenced",
-      "productionSupport": "conditional",
+      "productionSupport": "unsupported",
       "evidenceRefs": [
         "src/protocol/identity.rs:1-240",
         "src/protocol/intent.rs:1-260",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/195",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
       ],
       "evidenceChain": [
-        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
+        {"stage": "requirement", "refs": ["docs/architecture/CAPABILITY_MATRIX.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"]},
         {"stage": "code", "refs": ["src/protocol/identity.rs:1-240", "src/protocol/intent.rs:1-260"]},
         {"stage": "test", "refs": ["src/protocol/identity.rs:1-240", "src/protocol/intent.rs:1-260"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
-      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Identity API and local serialization tests are not identity-provider, privacy, or exact-artifact support evidence.",
-      "notes": "No dedicated identity blocker exists in the current backlog; final acceptance remains the explicit exclusion."
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Identity creation fails closed until a provider-verified identity-attestation API exists; software and development managers cannot produce an IdentityProfile or hardware-attestation claim.",
+      "notes": "The value-bearing containment boundary is implemented separately, but real provider-backed identity attestation remains unsupported."
     },
     {
       "id": "credit",
