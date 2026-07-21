@@ -45,6 +45,37 @@ for traceability.
 
 ---
 
+## Session: 2026-07-20 (End-of-sprint containment evidence and tracking refresh)
+
+### Summary
+
+This entry records the partial containment evidence delivered by [PR #214](https://github.com/Conxian/conxius-enclave-sdk/pull/214) at `a877bf2eb1fa9acf06216f794dea4afc7217bb22`; it does **not** establish repository-wide production readiness or release acceptance.
+
+### Audit and readiness trail
+
+- [PR #193](https://github.com/Conxian/conxius-enclave-sdk/pull/193) recorded the production-enablement audit.
+- [PR #204](https://github.com/Conxian/conxius-enclave-sdk/pull/204) added machine-first capability evidence tracking.
+- [PR #207](https://github.com/Conxian/conxius-enclave-sdk/pull/207) reconciled the live issue and pull-request indexes.
+- Generated issue/PR indexes and current PR detail snapshots were refreshed from GitHub, including `prs/0214.md`.
+
+### PR #214 containment behavior
+
+- Attestation reports use a versioned, signed envelope; report type, version, and security-relevant fields are covered by the signature.
+- Typed policy tokens require the requested operation purpose, algorithm, provider, and trust requirements to match exactly.
+- Provider verification remains intentionally unavailable, so unverifiable evidence cannot become an acceptance path; the runtime bypass was removed.
+- Replay-cache saturation fails closed when no capacity exists for a new attestation.
+- Raw BIP-340 signing uses the required raw signature encoding.
+- Canonical complete-intent hashing binds the rail and dispatch/security context.
+- Rail execution is sealed behind the attested complete intent, and production raw broadcast is rejected before network dispatch.
+
+### Explicit limitations and lane ownership
+
+- This is containment evidence only. The provider verifier is unavailable, typed operation key/algorithm/provider binding remains incomplete, and open [issue #195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) and [issue #202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) remain open.
+- Draft [PR #205](https://github.com/Conxian/conxius-enclave-sdk/pull/205) was preserved rather than overwritten; its mixed-scope provider-wrapper work must be split and reconciled separately.
+- Capability evidence and matrix ownership remained with [PR #210](https://github.com/Conxian/conxius-enclave-sdk/pull/210) at that historical snapshot; current status is governed by the canonical evidence source and the newer protocol-boundary entry above.
+
+---
+
 ## Session: 2026-07-20 (Capability Evidence Follow-up)
 
 ### Summary

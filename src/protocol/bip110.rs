@@ -256,7 +256,7 @@ impl Bip110Validator {
             .into_conclave_error());
         }
         if control_block.len() < MIN_TAPROOT_CONTROL_BLOCK_BYTES
-            || (control_block.len() - MIN_TAPROOT_CONTROL_BLOCK_BYTES) % 32 != 0
+            || !(control_block.len() - MIN_TAPROOT_CONTROL_BLOCK_BYTES).is_multiple_of(32)
         {
             return Err(Bip110Violation::MalformedTaprootControlBlock {
                 actual: control_block.len(),

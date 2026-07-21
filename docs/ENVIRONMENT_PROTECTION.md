@@ -4,7 +4,7 @@ This document describes the required GitHub repository settings for environment 
 
 ## Overview
 
-The `release` environment is used by `.github/workflows/release.yml` to gate crate publication to crates.io. This requires proper configuration in GitHub repository settings.
+The `release` environment is used only by `.github/workflows/release-strict.yml` to gate its single crates.io publication job. The job runs automatically for validated release tags and can be invoked manually for recovery. No other workflow is authorized to publish or create a release.
 
 ## Required Configuration
 
@@ -75,16 +75,20 @@ protection_rules:
 
 After environment is configured:
 
-1. **Tag creation** triggers automatic validation:
+1. **Tag creation** triggers automatic validation and the single publisher path:
    ```bash
    git tag -s v2.0.7 -m "Release v2.0.7"
    git push origin v2.0.7
    ```
 
-2. **Manual publish** requires:
-   - Validation job must pass
+2. **Automatic publish** requires:
+   - Validation job and release-evidence job must pass
    - Required reviewers must approve (if configured)
-   - Repository admin triggers via Actions → Release workflow
+
+3. **Manual recovery publish** requires:
+   - The same release tag and version to be selected in Actions → Release Strict
+   - Validation job and release-evidence job must pass
+   - Required reviewers must approve (if configured)
 
 ## Verification
 
@@ -100,7 +104,7 @@ Expected response should include `release` environment with protection rules.
 
 ### Publish Job Stuck
 
-If `publish-crates-io` job waits indefinitely:
+If the `publish-crates-io` job waits indefinitely:
 1. Check environment protection rules are configured
 2. Verify `CARGO_REGISTRY_TOKEN` secret exists in `release` environment
 3. Ensure workflow is triggered against a release tag

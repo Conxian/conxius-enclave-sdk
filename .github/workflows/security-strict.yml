@@ -35,18 +35,12 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
-          toolchain: stable
+          toolchain: 1.97.1
 
       - name: Install cargo-audit
         uses: taiki-e/install-action@a6b2e2dcd845ddd7f509ce4f3ed3d922b80cc5d9
         with:
-          tool: cargo-audit
-
-      - name: Prepare audit config and lockfile
-        run: |
-          mkdir -p .cargo
-          cp audit.toml .cargo/audit.toml
-          cargo generate-lockfile
+          tool: cargo-audit@0.22.2
 
       - name: Run cargo audit
         run: cargo audit --file Cargo.lock
@@ -64,15 +58,12 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
-          toolchain: stable
+          toolchain: 1.97.1
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@a6b2e2dcd845ddd7f509ce4f3ed3d922b80cc5d9
         with:
-          tool: cargo-deny
-
-      - name: Prepare lockfile
-        run: cargo generate-lockfile
+          tool: cargo-deny@0.20.2
 
       - name: Run cargo deny
         run: cargo deny --config deny.toml --locked check advisories bans licenses sources

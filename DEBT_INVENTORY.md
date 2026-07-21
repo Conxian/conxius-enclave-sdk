@@ -107,11 +107,11 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 #### TOOL-001: Cargo.lock Not Tracked
 - **Category**: Tooling
 - **Priority**: P4
-- **Description**: Cargo.lock is not committed to version control
-- **Current Practice**: Generate locally/ephemerally per RELEASING.md
-- **Impact**: Non-reproducible builds without lockfile
-- **Recommendation**: Consider tracking Cargo.lock for reproducible builds
-- **Note**: May be intentional for library crate; verify against team standards
+- **Description**: Cargo.lock was not committed to version control
+- **Current Practice**: `Cargo.lock` is tracked and all CI/release dependency commands use `--locked`
+- **Impact**: Resolved for the committed dependency graph; release acceptance still requires exact-artifact evidence
+- **Recommendation**: Keep the lockfile synchronized with intentional dependency changes and review lockfile diffs
+- **Status**: ✅ RESOLVED (2026-07-20; issue #199 hardening)
 
 #### DOC-003: CHANGELOG Formatting
 - **Category**: Documentation
