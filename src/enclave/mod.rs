@@ -743,20 +743,49 @@ fn verify_operation_signature(
 
     let valid = match request.algorithm {
         SigningAlgorithm::EcdsaSecp256k1 => {
-            if !(signature_bytes.len() == 64 || signature_bytes.len() == 65)
-                || (signature_bytes.len() == 65 && signature_bytes[64] > 3)
-            {
+            if signature_bytes.len() != 64 && signature_bytes.len() != 65 {
                 false
             } else {
                 let signature = secp256k1::ecdsa::Signature::from_compact(&signature_bytes[..64]);
                 let public_key = secp256k1::PublicKey::from_slice(&public_key_bytes);
-                match (signature, public_key) {
-                    (Ok(signature), Ok(public_key)) => secp256k1::ecdsa::verify(
-                        &signature,
-                        secp256k1::Message::from_digest(*request.message_digest()),
-                        &public_key,
-                    )
-                    .is_ok(),
+                let bound_public_key =
+                    secp256k1::PublicKey::from_slice(request.key_binding.public_key());
+                match (signature, public_key, bound_public_key) {
+                    (Ok(signature), Ok(public_key), Ok(bound_public_key)) => {
+                        if public_key != bound_public_key
+                            || secp256k1::ecdsa::verify(
+                                &signature,
+                                secp256k1::Message::from_digest(*request.message_digest()),
+                                &bound_public_key,
+                            )
+                            .is_err()
+                        {
+                            false
+                        } else if signature_bytes.len() == 64 {
+                            true
+                        } else {
+                            let recovery_id = parse_ecdsa_recovery_id(signature_bytes[64])?;
+                            let recoverable =
+                                match secp256k1::ecdsa::RecoverableSignature::from_compact(
+                                    &signature_bytes[..64],
+                                    recovery_id,
+                                ) {
+                                    Ok(recoverable) => recoverable,
+                                    Err(_) => {
+                                        return Err(ConclaveError::CryptoError(
+                                            "invalid ECDSA recoverable signature".to_string(),
+                                        ))
+                                    }
+                                };
+
+                            match recoverable.recover_ecdsa(secp256k1::Message::from_digest(
+                                *request.message_digest(),
+                            )) {
+                                Ok(recovered_key) => recovered_key == bound_public_key,
+                                Err(_) => false,
+                            }
+                        }
+                    }
                     _ => false,
                 }
             }
@@ -828,12 +857,27 @@ fn map_replay_guard_error(error: ReplayGuardError) -> ConclaveError {
     ))
 }
 
+fn parse_ecdsa_recovery_id(value: u8) -> ConclaveResult<secp256k1::ecdsa::RecoveryId> {
+    // Providers emit the compact 0..=3 form; retain the Ethereum-compatible
+    // 27..=30 encoding already supported by protocol verification, and reject
+    // every other recovery identifier.
+    let normalized = match value {
+        0..=3 => value,
+        27..=30 => value - 27,
+        _ => return Err(ConclaveError::InvalidPayload),
+    };
+
+    secp256k1::ecdsa::RecoveryId::try_from(i32::from(normalized))
+        .map_err(|_| ConclaveError::InvalidPayload)
+}
+
 #[cfg(test)]
 mod enclave_tests {
     use super::*;
     use crate::enclave::android_strongbox::CoreEnclaveManager;
     use crate::enclave::cloud::CloudEnclave;
     use ed25519_dalek::{Signer as _, SigningKey};
+    use secp256k1::{ecdsa::RecoverableSignature, Message, SecretKey};
     use std::collections::VecDeque;
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
@@ -1068,6 +1112,28 @@ mod enclave_tests {
         .unwrap()
     }
 
+    fn ecdsa_value_request(digest: [u8; 32], public_key: Vec<u8>) -> ValueBearingSignRequest {
+        let operation_context = OperationContext::new(
+            "conxian.test/ecdsa",
+            ValueBearingPurpose::Transaction,
+            digest.to_vec(),
+        )
+        .unwrap();
+        let trust_requirement = TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID).unwrap();
+        let key_binding =
+            SignerKeyBinding::new("ecdsa-test-key", "m/44'/60'/0'/0/0", public_key).unwrap();
+
+        ValueBearingSignRequest::new(
+            operation_context,
+            SigningAlgorithm::EcdsaSecp256k1,
+            trust_requirement,
+            digest,
+            key_binding,
+            None,
+        )
+        .unwrap()
+    }
+
     fn unlock_request() -> ValueBearingUnlockRequest {
         let operation_context = OperationContext::new(
             "conxian.test/value-bearing",
@@ -1204,6 +1270,53 @@ mod enclave_tests {
             ValueBearingSignResponse::from_provider(&request, response, capability),
             Err(ConclaveError::InvalidPayload)
         ));
+    }
+
+    #[test]
+    fn ecdsa_recovery_id_for_bound_key_is_accepted() {
+        let secret_key = SecretKey::from_secret_bytes([3u8; 32]).unwrap();
+        let public_key = secret_key.public_key();
+        let message_digest = [0x42u8; 32];
+        let recoverable = RecoverableSignature::sign_ecdsa_recoverable(
+            Message::from_digest(message_digest),
+            &secret_key,
+        );
+        let (recovery_id, compact_signature) = recoverable.serialize_compact();
+        let request = ecdsa_value_request(message_digest, public_key.serialize().to_vec());
+
+        for encoded_recovery_id in [recovery_id.to_u8(), 27 + recovery_id.to_u8()] {
+            let mut signature = compact_signature.to_vec();
+            signature.push(encoded_recovery_id);
+            let response = SignResponse {
+                signature_hex: hex::encode(signature),
+                public_key_hex: hex::encode(public_key.serialize()),
+                device_attestation: None,
+            };
+
+            assert!(verify_operation_signature(&request, &response).is_ok());
+        }
+    }
+
+    #[test]
+    fn ecdsa_recovery_id_mismatch_with_bound_key_is_rejected() {
+        let secret_key = SecretKey::from_secret_bytes([3u8; 32]).unwrap();
+        let public_key = secret_key.public_key();
+        let message_digest = [0x43u8; 32];
+        let recoverable = RecoverableSignature::sign_ecdsa_recoverable(
+            Message::from_digest(message_digest),
+            &secret_key,
+        );
+        let (recovery_id, compact_signature) = recoverable.serialize_compact();
+        let request = ecdsa_value_request(message_digest, public_key.serialize().to_vec());
+        let mut signature = compact_signature.to_vec();
+        signature.push((recovery_id.to_u8() + 1) % 4);
+        let response = SignResponse {
+            signature_hex: hex::encode(signature),
+            public_key_hex: hex::encode(public_key.serialize()),
+            device_attestation: None,
+        };
+
+        assert!(verify_operation_signature(&request, &response).is_err());
     }
 
     #[test]

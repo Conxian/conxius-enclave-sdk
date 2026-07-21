@@ -3,14 +3,21 @@ use conxius_enclave_sdk::enclave::attestation::{
 };
 #[cfg(feature = "development-simulators")]
 use conxius_enclave_sdk::enclave::cloud::CloudEnclave;
+use conxius_enclave_sdk::enclave::{
+    EnclaveManager, SignRequest, SignResponse, ValueBearingSignRequest,
+};
 use conxius_enclave_sdk::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 use conxius_enclave_sdk::protocol::business::BusinessRegistry;
 #[cfg(feature = "development-simulators")]
 use conxius_enclave_sdk::protocol::ethereum::EthereumManager;
 use conxius_enclave_sdk::protocol::intent::SwapRequest;
+use conxius_enclave_sdk::protocol::opportunity::{OpportunityDispatcher, OpportunityPayload};
 use conxius_enclave_sdk::protocol::rails::{RailProxy, SovereignHandshake, TrustTier};
 use conxius_enclave_sdk::{ConclaveError, ConclaveResult};
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 
 fn proxy() -> RailProxy {
     RailProxy::new(
@@ -34,6 +41,54 @@ fn request() -> SwapRequest {
         amount: 100,
         recipient_address: "merchant".to_string(),
         attribution: None,
+    }
+}
+
+struct CountingEnclave {
+    provider_calls: AtomicUsize,
+}
+
+impl CountingEnclave {
+    fn new() -> Self {
+        Self {
+            provider_calls: AtomicUsize::new(0),
+        }
+    }
+}
+
+impl EnclaveManager for CountingEnclave {
+    fn initialize(&self) -> ConclaveResult<()> {
+        Ok(())
+    }
+
+    fn generate_key(&self, _key_id: &str) -> ConclaveResult<String> {
+        Err(ConclaveError::Unsupported(
+            "counting enclave does not generate keys".to_string(),
+        ))
+    }
+
+    fn get_public_key(&self, _derivation_path: &str) -> ConclaveResult<String> {
+        self.provider_calls.fetch_add(1, Ordering::Relaxed);
+        Err(ConclaveError::EnclaveFailure(
+            "provider public-key lookup should not be reached".to_string(),
+        ))
+    }
+
+    fn sign(&self, _request: SignRequest) -> ConclaveResult<SignResponse> {
+        self.provider_calls.fetch_add(1, Ordering::Relaxed);
+        Err(ConclaveError::EnclaveFailure(
+            "provider signing should not be reached".to_string(),
+        ))
+    }
+
+    fn sign_value_bearing_provider(
+        &self,
+        _request: &ValueBearingSignRequest,
+    ) -> ConclaveResult<SignResponse> {
+        self.provider_calls.fetch_add(1, Ordering::Relaxed);
+        Err(ConclaveError::EnclaveFailure(
+            "typed provider signing should not be reached".to_string(),
+        ))
     }
 }
 
@@ -81,6 +136,30 @@ async fn production_raw_broadcast_is_rejected_before_any_network_dispatch() {
         Err(ConclaveError::Unsupported(message))
             if message.contains("Typed operation-signature envelope required")
     ));
+}
+
+#[tokio::test]
+async fn production_opportunity_dispatch_rejects_before_provider_signing() {
+    let enclave = CountingEnclave::new();
+    let dispatcher = OpportunityDispatcher::new(&enclave, Arc::new(proxy()));
+    let payload = OpportunityPayload::Swap {
+        from_chain: Chain::BITCOIN,
+        from_symbol: "BTC".to_string(),
+        to_chain: Chain::ETHEREUM,
+        to_symbol: "ETH".to_string(),
+        amount: 100,
+        recipient: "merchant".to_string(),
+        rail: Some("x402".to_string()),
+    };
+
+    let result = dispatcher.execute(payload).await;
+
+    assert!(matches!(
+        result,
+        Err(ConclaveError::Unsupported(message))
+            if message.contains("Typed operation-signature envelope required")
+    ));
+    assert_eq!(enclave.provider_calls.load(Ordering::Relaxed), 0);
 }
 
 #[test]
