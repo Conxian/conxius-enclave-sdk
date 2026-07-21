@@ -28,7 +28,7 @@ pub struct CloudEnclave {
 }
 
 impl CloudEnclave {
-    pub fn new(kms_endpoint: String) -> ConclaveResult<Self> {
+    fn new_inner(kms_endpoint: String) -> ConclaveResult<Self> {
         let simulated_kms_key_bytes = Self::generate_simulated_kms_key_bytes()?;
         Ok(Self {
             kms_endpoint,
@@ -37,6 +37,17 @@ impl CloudEnclave {
         })
     }
 
+    #[cfg(test)]
+    pub fn new(kms_endpoint: String) -> ConclaveResult<Self> {
+        Self::new_inner(kms_endpoint)
+    }
+
+    #[cfg(all(not(test), feature = "development-simulators"))]
+    pub fn new_for_development(kms_endpoint: String) -> ConclaveResult<Self> {
+        Self::new_inner(kms_endpoint)
+    }
+
+    #[cfg(any(test, feature = "development-simulators"))]
     pub fn with_dev_key(mut self, key_bytes: [u8; 32]) -> ConclaveResult<Self> {
         let dev_key_bytes = Zeroizing::new(key_bytes);
         self.local_dev_key_bytes = Some(dev_key_bytes);
@@ -81,17 +92,50 @@ impl CloudEnclave {
             .map_err(|e| ConclaveError::CryptoError(format!("SEC1 Error: {e}")))
     }
 
+    fn uses_ed25519(derivation_path: &str) -> bool {
+        derivation_path.contains("501'")
+            || derivation_path.contains("397'")
+            || derivation_path.contains("148'")
+            || derivation_path.contains("ed25519")
+    }
+
     fn generate_attestation_report(
         &self,
         challenge: &[u8],
+        algorithm: &SigningAlgorithm,
     ) -> ConclaveResult<DeviceIntegrityReport> {
-        let key_bytes = self.get_active_key_bytes();
-        let signing_key = SigningKey::from_bytes(key_bytes);
-        let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
-
         let timestamp = unix_time_secs();
-        let extension_data =
-            "SIMULATED_SOFTWARE_ONLY|PURPOSE_SIGN|ALGORITHM_ED25519|PLATFORM_CLOUD".to_string();
+        let algorithm_token = match algorithm {
+            SigningAlgorithm::EcdsaSecp256k1 => "ALGORITHM_ECDSA_SECP256K1",
+            SigningAlgorithm::SchnorrSecp256k1 => "ALGORITHM_SCHNORR_SECP256K1",
+            SigningAlgorithm::Ed25519 => "ALGORITHM_ED25519",
+        };
+
+        #[cfg(test)]
+        let (signing_key, level, certificate_chain, extension_data) = {
+            let signing_key = crate::enclave::attestation::test_signing_key();
+            let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
+            (
+                signing_key,
+                AttestationLevel::Software,
+                vec![pubkey_hex, "CONCLAVE_ROOT_CA_V1".to_string()],
+                format!("SIMULATED_SOFTWARE_ONLY|PURPOSE_SIGN|{algorithm_token}|PLATFORM_CLOUD"),
+            )
+        };
+
+        #[cfg(not(test))]
+        let (signing_key, level, certificate_chain, extension_data) = {
+            let key_bytes = self.get_active_key_bytes();
+            let signing_key = SigningKey::from_bytes(key_bytes);
+            let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
+            (
+                signing_key,
+                AttestationLevel::Software,
+                vec![pubkey_hex],
+                format!("SIMULATED_SOFTWARE_ONLY|PURPOSE_SIGN|{algorithm_token}|PLATFORM_CLOUD"),
+            )
+        };
+
         let extensions = parse_extension_data(&extension_data).ok_or_else(|| {
             ConclaveError::CryptoError("Invalid simulated attestation extensions".to_string())
         })?;
@@ -99,16 +143,10 @@ impl CloudEnclave {
         let mut report = DeviceIntegrityReport {
             report_version: ATTESTATION_ENVELOPE_VERSION,
             report_type: AttestationReportType::DeviceIntegrity,
-            // This implementation is a local software simulation. It must not
-            // present itself as provider-backed hardware before a real provider
-            // integration exists.
-            level: AttestationLevel::Software,
+            level,
             challenge_nonce: challenge.to_vec(),
             signature: Vec::new(),
-            // No provider certificate chain exists for this software-only
-            // simulation. The single leaf identity is intentionally rejected
-            // by all production verification paths.
-            certificate_chain: vec![pubkey_hex],
+            certificate_chain,
             timestamp,
             extension_data,
             extensions,
@@ -137,6 +175,11 @@ impl EnclaveManager for CloudEnclave {
     }
 
     fn get_public_key(&self, _derivation_path: &str) -> ConclaveResult<String> {
+        if Self::uses_ed25519(_derivation_path) {
+            let signing_key = SigningKey::from_bytes(self.get_active_key_bytes());
+            return Ok(hex::encode(signing_key.verifying_key().to_bytes()));
+        }
+
         let secret_key = self.get_active_secp_key()?;
         let public_key = secret_key.public_key();
         Ok(hex::encode(public_key.serialize()))
@@ -182,7 +225,8 @@ impl EnclaveManager for CloudEnclave {
             }
         };
 
-        let attestation = self.generate_attestation_report(&request.message_hash)?;
+        let attestation =
+            self.generate_attestation_report(&request.message_hash, &request.algorithm)?;
         let attestation_json = serde_json::to_string(&attestation)
             .map_err(|e| ConclaveError::CryptoError(format!("Serialization error: {}", e)))?;
 

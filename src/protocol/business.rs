@@ -1,5 +1,5 @@
 use crate::{
-    enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
+    enclave::{sign_value_bearing, EnclaveManager, SigningAlgorithm, ValueBearingSignRequest},
     ConclaveError, ConclaveResult,
 };
 use rand::Rng;
@@ -175,17 +175,22 @@ impl<'a> BusinessManager<'a> {
             metadata,
         };
 
-        let message_hash = attribution.get_hash();
+        let operation_digest: [u8; 32] = attribution
+            .get_hash()
+            .try_into()
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let derivation_path = format!("m/44'/5757'/0'/0/business/{}", business_id);
+        let expected_public_key_hex = self.enclave.get_public_key(&derivation_path)?;
+        let request = ValueBearingSignRequest::new(
+            operation_digest,
+            SigningAlgorithm::EcdsaSecp256k1,
+            derivation_path,
+            format!("business_{}", business_id),
+            expected_public_key_hex,
+            None,
+        );
 
-        let request = SignRequest {
-            algorithm: SigningAlgorithm::EcdsaSecp256k1,
-            message_hash,
-            derivation_path: format!("m/44'/5757'/0'/0/business/{}", business_id),
-            key_id: format!("business_{}", business_id),
-            taproot_tweak: None,
-        };
-
-        let response = self.enclave.sign(request)?;
+        let response = sign_value_bearing(self.enclave, request)?;
         attribution.signature = response.signature_hex;
 
         Ok(attribution)

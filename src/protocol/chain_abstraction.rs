@@ -1,7 +1,10 @@
 #[allow(unused_imports)]
 use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 use crate::protocol::intent::{AssetAmount, CrossChainIntent, ResolvedCrossChainOrder};
-use crate::{enclave::EnclaveManager, ConclaveError, ConclaveResult};
+use crate::{
+    enclave::{sign_value_bearing, EnclaveManager, ValueBearingSignRequest},
+    ConclaveError, ConclaveResult,
+};
 use alloy::primitives::{Address as EthAddress, Keccak256};
 use bitcoin::address::Address;
 use bitcoin::key::PublicKey;
@@ -68,7 +71,8 @@ impl ChainAbstractionService {
         &self,
         request: ChainSignatureRequest,
     ) -> ConclaveResult<ChainSignatureResponse> {
-        let algorithm = match request.target_chain {
+        let target_chain = request.target_chain;
+        let algorithm = match target_chain {
             Chain::BITCOIN | Chain::ETHEREUM | Chain::STACKS | Chain::XrpLedger | Chain::TRON => {
                 crate::enclave::SigningAlgorithm::EcdsaSecp256k1
             }
@@ -78,20 +82,26 @@ impl ChainAbstractionService {
             _ => crate::enclave::SigningAlgorithm::EcdsaSecp256k1,
         };
 
-        let sign_request = crate::enclave::SignRequest {
+        let operation_digest: [u8; 32] = request
+            .payload
+            .try_into()
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let expected_public_key_hex = self.enclave.get_public_key(&request.derivation_path)?;
+        let sign_request = ValueBearingSignRequest::new(
+            operation_digest,
             algorithm,
-            message_hash: request.payload,
-            derivation_path: request.derivation_path,
-            key_id: "universal_master_key".to_string(), // Canonical key ID for chain abstraction
-            taproot_tweak: None,
-        };
+            request.derivation_path,
+            "universal_master_key".to_string(),
+            expected_public_key_hex,
+            None,
+        );
 
-        let response = self.enclave.sign(sign_request)?;
+        let response = sign_value_bearing(self.enclave.as_ref(), sign_request)?;
 
         let public_key_bytes = hex::decode(&response.public_key_hex)
             .map_err(|e| ConclaveError::CryptoError(format!("Invalid public key hex: {}", e)))?;
 
-        let target_address = match request.target_chain {
+        let target_address = match target_chain {
             Chain::BITCOIN => {
                 let pk = PublicKey::from_slice(&public_key_bytes).map_err(|e| {
                     ConclaveError::CryptoError(format!("Invalid Bitcoin PK: {}", e))

@@ -19,9 +19,18 @@ pub struct ConclaveWasmClient {
 impl ConclaveWasmClient {
     #[wasm_bindgen(constructor)]
     pub fn new(_enclave_url: &str) -> Result<ConclaveWasmClient, JsValue> {
-        Err(unsupported_provider(
-            "URL-backed CloudEnclave construction is disabled for WASM; use an approved provider-backed capability",
-        ))
+        Ok(ConclaveWasmClient {
+            enclave: Arc::new(crate::enclave::UnavailableEnclave),
+        })
+    }
+
+    #[cfg(feature = "development-simulators")]
+    pub fn new_for_development(enclave_url: &str) -> Result<ConclaveWasmClient, JsValue> {
+        let enclave = Arc::new(
+            crate::enclave::cloud::CloudEnclave::new_for_development(enclave_url.to_string())
+                .map_err(to_js_error)?,
+        );
+        Ok(ConclaveWasmClient { enclave })
     }
 
     /// Check the support decision for a documented runtime before loading an
@@ -747,11 +756,30 @@ pub struct WasmBitVm2Orchestrator {
 
 #[wasm_bindgen]
 impl WasmBitVm2Orchestrator {
+    fn from_enclave(enclave: Arc<dyn EnclaveManager>) -> WasmBitVm2Orchestrator {
+        let ark = Arc::new(crate::protocol::ark::ArkManager::new(enclave.clone()));
+        let bitvm = Arc::new(crate::protocol::bitvm::BitVmManager::new(enclave));
+        WasmBitVm2Orchestrator {
+            inner: Arc::new(std::cell::RefCell::new(
+                crate::protocol::bitvm2::BitVm2Orchestrator::new(ark, bitvm),
+            )),
+        }
+    }
+
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Result<WasmBitVm2Orchestrator, JsValue> {
-        Err(unsupported_provider(
-            "BitVM2 WASM construction requires an approved provider; localhost/software mocks are test-only",
-        ))
+    pub fn new() -> WasmBitVm2Orchestrator {
+        Self::from_enclave(Arc::new(crate::enclave::UnavailableEnclave))
+    }
+
+    #[cfg(feature = "development-simulators")]
+    pub fn new_for_development() -> Result<WasmBitVm2Orchestrator, JsValue> {
+        let enclave = Arc::new(
+            crate::enclave::cloud::CloudEnclave::new_for_development(
+                "http://localhost".to_string(),
+            )
+            .map_err(to_js_error)?,
+        );
+        Ok(Self::from_enclave(enclave))
     }
 
     pub fn create_forfeit_with_commitment(
@@ -842,7 +870,7 @@ impl WasmBitVm2Orchestrator {
 
 #[wasm_bindgen]
 impl ConclaveWasmClient {
-    pub fn bitvm2(&self) -> Result<WasmBitVm2Orchestrator, JsValue> {
+    pub fn bitvm2(&self) -> WasmBitVm2Orchestrator {
         WasmBitVm2Orchestrator::new()
     }
 }

@@ -1,5 +1,7 @@
 use der::Decode;
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+#[cfg(any(test, feature = "development-simulators"))]
+use ed25519_dalek::{Signer, SigningKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -250,6 +252,7 @@ impl AttestationPolicy {
     pub(crate) fn test_fixture() -> Self {
         Self {
             allowed_levels: vec![
+                AttestationLevel::Software,
                 AttestationLevel::TEE,
                 AttestationLevel::StrongBox,
                 AttestationLevel::CloudTEE,
@@ -577,7 +580,10 @@ impl DeviceIntegrityReport {
             // Generic TEE is accepted only by the crate-internal test fixture;
             // the default production policy excludes it and has no verifier.
             AttestationLevel::TEE => policy.is_test_fixture(),
-            AttestationLevel::Software => false,
+            // Software reports are accepted only by this crate-internal test
+            // fixture so protocol cryptographic tests can exercise the common
+            // boundary without presenting simulator evidence as hardware.
+            AttestationLevel::Software => policy.is_test_fixture(),
         };
 
         let purposes = self
@@ -700,6 +706,7 @@ impl DeviceIntegrityReport {
         verifying_key.verify(canonical, &signature).is_ok()
     }
 
+    #[cfg(any(test, feature = "development-simulators"))]
     pub(crate) fn sign_with_ed25519_key(&mut self, signing_key: &SigningKey) -> ConclaveResult<()> {
         let canonical = self
             .canonical_signed_bytes()

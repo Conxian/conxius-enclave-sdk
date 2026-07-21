@@ -63,7 +63,7 @@ mod tests {
 
         let request = ChainSignatureRequest {
             target_chain: Chain::SOLANA,
-            payload: vec![1, 2, 3],
+            payload: vec![1u8; 32],
             derivation_path: "m/44'/501'/0'/0'".to_string(),
         };
 

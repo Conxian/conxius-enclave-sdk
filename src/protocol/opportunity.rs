@@ -1,4 +1,6 @@
-use crate::enclave::{EnclaveManager, SignRequest, SigningAlgorithm};
+use crate::enclave::{
+    sign_value_bearing, EnclaveManager, SigningAlgorithm, ValueBearingSignRequest,
+};
 use crate::protocol::asset::Chain;
 use crate::protocol::economy::{DualStackIntent, YieldEngine};
 use crate::protocol::intent::SwapRequest;
@@ -110,13 +112,23 @@ impl<'a> OpportunityDispatcher<'a> {
                     ),
                 };
 
-                let sign_resp = self.enclave.sign(SignRequest {
-                    algorithm: algo,
-                    message_hash: intent.signable_hash.clone(),
-                    derivation_path,
-                    key_id: "opportunity_key".to_string(),
-                    taproot_tweak: None,
-                })?;
+                let operation_digest: [u8; 32] = intent
+                    .signable_hash
+                    .clone()
+                    .try_into()
+                    .map_err(|_| ConclaveError::InvalidPayload)?;
+                let expected_public_key_hex = self.enclave.get_public_key(&derivation_path)?;
+                let sign_resp = sign_value_bearing(
+                    self.enclave,
+                    ValueBearingSignRequest::new(
+                        operation_digest,
+                        algo,
+                        derivation_path,
+                        "opportunity_key".to_string(),
+                        expected_public_key_hex,
+                        None,
+                    ),
+                )?;
 
                 #[allow(deprecated)]
                 let resp = self

@@ -1,5 +1,5 @@
 use crate::{
-    enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
+    enclave::{sign_value_bearing, EnclaveManager, SigningAlgorithm, ValueBearingSignRequest},
     ConclaveError, ConclaveResult,
 };
 use alloy::primitives::{eip191_hash_message, keccak256, Address as EthAddress};
@@ -36,15 +36,17 @@ impl<'a> EthereumManager<'a> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        let request = SignRequest {
-            algorithm: SigningAlgorithm::EcdsaSecp256k1,
-            message_hash: sighash.to_vec(),
-            derivation_path: derivation_path.to_string(),
-            key_id: key_id.to_string(),
-            taproot_tweak: None,
-        };
+        let expected_public_key_hex = self.enclave.get_public_key(derivation_path)?;
+        let request = ValueBearingSignRequest::new(
+            sighash,
+            SigningAlgorithm::EcdsaSecp256k1,
+            derivation_path.to_string(),
+            key_id.to_string(),
+            expected_public_key_hex,
+            None,
+        );
 
-        let response = self.enclave.sign(request)?;
+        let response = sign_value_bearing(self.enclave, request)?;
         if !Self::verify_signature(sighash, &response.signature_hex, &response.public_key_hex)? {
             return Err(ConclaveError::CryptoError(
                 "Enclave returned an ECDSA signature that does not verify".to_string(),
@@ -139,15 +141,17 @@ impl<'a> EthereumManager<'a> {
     ) -> ConclaveResult<String> {
         let message_hash = Self::hash_message(message);
 
-        let request = SignRequest {
-            algorithm: SigningAlgorithm::EcdsaSecp256k1,
-            message_hash: message_hash.to_vec(),
-            derivation_path: derivation_path.to_string(),
-            key_id: key_id.to_string(),
-            taproot_tweak: None,
-        };
+        let expected_public_key_hex = self.enclave.get_public_key(derivation_path)?;
+        let request = ValueBearingSignRequest::new(
+            message_hash,
+            SigningAlgorithm::EcdsaSecp256k1,
+            derivation_path.to_string(),
+            key_id.to_string(),
+            expected_public_key_hex,
+            None,
+        );
 
-        let response = self.enclave.sign(request)?;
+        let response = sign_value_bearing(self.enclave, request)?;
         if !Self::verify_signature(
             message_hash,
             &response.signature_hex,
@@ -208,8 +212,13 @@ impl<'a> EthereumManager<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::enclave::attestation::{
+        parse_extension_data, test_signing_key, AttestationLevel, AttestationReportType,
+        DeviceIntegrityReport, ATTESTATION_ENVELOPE_VERSION,
+    };
     use crate::enclave::{SignRequest, SignResponse};
     use std::sync::Mutex;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     struct TestEnclave {
         secret_key: secp256k1::SecretKey,
@@ -265,10 +274,34 @@ mod tests {
                 Some(request);
             let signature =
                 secp256k1::ecdsa::sign(Message::from_digest(message_hash), &self.secret_key);
+            let signing_key = test_signing_key();
+            let extension_data =
+                "SIMULATED_SOFTWARE_ONLY|PURPOSE_SIGN|ALGORITHM_ECDSA_SECP256K1".to_string();
+            let extensions = parse_extension_data(&extension_data).expect("fixture extensions");
+            let mut report = DeviceIntegrityReport {
+                report_version: ATTESTATION_ENVELOPE_VERSION,
+                report_type: AttestationReportType::DeviceIntegrity,
+                level: AttestationLevel::Software,
+                challenge_nonce: message_hash.to_vec(),
+                signature: Vec::new(),
+                certificate_chain: vec![
+                    hex::encode(signing_key.verifying_key().to_bytes()),
+                    "CONCLAVE_ROOT_CA_V1".to_string(),
+                ],
+                timestamp: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+                extension_data,
+                extensions,
+            };
+            report
+                .sign_with_ed25519_key(&signing_key)
+                .expect("fixture report should sign");
             Ok(SignResponse {
                 signature_hex: hex::encode(signature.serialize_compact()),
                 public_key_hex: self.public_key_hex.clone(),
-                device_attestation: None,
+                device_attestation: Some(serde_json::to_string(&report).unwrap()),
             })
         }
     }

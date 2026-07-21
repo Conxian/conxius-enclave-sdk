@@ -1,5 +1,5 @@
 use crate::{
-    enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
+    enclave::{sign_value_bearing, EnclaveManager, SigningAlgorithm, ValueBearingSignRequest},
     ConclaveResult,
 };
 use serde::{Deserialize, Serialize};
@@ -32,15 +32,17 @@ impl<'a> SolanaManager<'a> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        let request = SignRequest {
-            algorithm: SigningAlgorithm::Ed25519,
-            message_hash: message_hash.to_vec(),
-            derivation_path: derivation_path.to_string(),
-            key_id: key_id.to_string(),
-            taproot_tweak: None,
-        };
+        let expected_public_key_hex = self.enclave.get_public_key(derivation_path)?;
+        let request = ValueBearingSignRequest::new(
+            message_hash,
+            SigningAlgorithm::Ed25519,
+            derivation_path.to_string(),
+            key_id.to_string(),
+            expected_public_key_hex,
+            None,
+        );
 
-        let response = self.enclave.sign(request)?;
+        let response = sign_value_bearing(self.enclave, request)?;
         Ok(response.signature_hex)
     }
 
