@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "schemaVersion": 1,
   "repository": "Conxian/conxius-enclave-sdk",
-  "reviewedRef": "79a4a082ab2c05e5b1b30335ab56b9e6d068c7e8",
-  "lastVerified": "2026-07-20",
+  "reviewedRef": "5977aafbf844f47aac2c35fd48d5e0cdd6884bf7",
+  "lastVerified": "2026-07-21",
   "maturity": "beta-conditional",
   "statusVocabulary": {
     "evidence": ["yes", "partial", "no", "not-evidenced"],
@@ -42,23 +42,33 @@
       "independentReview": "not-evidenced",
       "productionSupport": "conditional",
       "evidenceRefs": [
-        "src/enclave/mod.rs:1-67",
-        "src/enclave/android_strongbox.rs:1-250",
-        "src/enclave/cloud.rs:1-190",
+        "src/enclave/mod.rs:1-860",
+        "src/enclave/android_strongbox.rs:1-500",
+        "src/enclave/cloud.rs:1-370",
+        "src/protocol/rails/mod.rs:63-260",
+        "src/protocol/ark.rs:1-214",
+        "src/protocol/bitvm.rs:1-80",
+        "src/protocol/business.rs:1-205",
+        "src/protocol/chain_abstraction.rs:1-125",
+        "src/protocol/economy.rs:1-80",
+        "src/protocol/opportunity.rs:1-150",
+        "src/wasm_bindings.rs:1-120",
+        "src/wasm_support.rs:1-120",
         "src/enclave/hardware_attestation_tests.rs:1-450",
-        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-80",
+        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-120",
+        "https://github.com/Conxian/conxius-enclave-sdk/pull/216",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
       ],
       "evidenceChain": [
-        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-80", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
-        {"stage": "code", "refs": ["src/enclave/mod.rs:1-67", "src/enclave/android_strongbox.rs:1-250", "src/enclave/cloud.rs:1-190"]},
-        {"stage": "test", "refs": ["src/enclave/hardware_attestation_tests.rs:1-450"]},
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-120", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
+        {"stage": "code", "refs": ["src/enclave/mod.rs:1-860", "src/protocol/rails/mod.rs:63-260", "src/protocol/ark.rs:1-214", "src/protocol/bitvm.rs:1-80", "src/protocol/business.rs:1-205", "src/protocol/chain_abstraction.rs:1-125", "src/protocol/economy.rs:1-80", "src/protocol/opportunity.rs:1-150", "src/wasm_bindings.rs:1-120", "src/wasm_support.rs:1-120"]},
+        {"stage": "test", "refs": ["src/enclave/mod.rs:1000-1618", "src/protocol/rails/mod.rs:900-1190", "src/enclave/hardware_attestation_tests.rs:1-450", "src/wasm_support.rs:70-120"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/security.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Software-backed and simulated signing paths are development evidence only; no value-bearing production support is claimed.",
-      "notes": "The interface and local tests exist, but hardware-backed provider enforcement and exact release evidence remain open."
+      "exclusion": "Software-backed and simulated drivers are test/development-only and cannot satisfy the typed production policy; no real provider verifier or exact release artifact is available.",
+      "notes": "The reviewed checkpoint adds fail-closed typed value-bearing requests/responses, canonical operation and key binding, typed settlement propagation, raw-signing exclusion, and preserves PR #216 signer-identity evidence. Provider-issued hardware evidence, deployment integration, independent review, and artifact evidence remain open."
     },
     {
       "id": "enclave-attestation",
@@ -71,20 +81,23 @@
       "productionSupport": "conditional",
       "evidenceRefs": [
         "src/enclave/attestation.rs:1-251",
+        "src/enclave/mod.rs:430-620",
+        "src/protocol/rails/mod.rs:450-620",
         "src/enclave/hardware_attestation_tests.rs:1-450",
-        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/pull/205",
+        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
       ],
       "evidenceChain": [
-        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-100", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
-        {"stage": "code", "refs": ["src/enclave/attestation.rs:1-251"]},
-        {"stage": "test", "refs": ["src/enclave/hardware_attestation_tests.rs:1-450"]},
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
+        {"stage": "code", "refs": ["src/enclave/attestation.rs:1-251", "src/enclave/mod.rs:430-620", "src/protocol/rails/mod.rs:450-620"]},
+        {"stage": "test", "refs": ["src/enclave/hardware_attestation_tests.rs:1-450", "src/enclave/mod.rs:1000-1618", "src/protocol/rails/mod.rs:900-1190"]},
         {"stage": "ci", "refs": [".github/workflows/security.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Simulated fixtures and software attestation tests do not establish vendor-root, deployed-hardware, or release-artifact support.",
-      "notes": "Report verification has useful checks, but important callers and provider evidence are not complete."
+      "exclusion": "Simulated fixtures and software attestation tests do not establish vendor-root, deployed-hardware, provider/runtime, or release-artifact support.",
+      "notes": "The complete report verifier is now reached by the typed value-bearing boundary and rail policy, with nonce, key, purpose, algorithm, freshness, and policy checks. A real provider verifier, vendor roots/collateral, deployed hardware, independent review, and artifacts remain unavailable."
     },
     {
       "id": "replay-protection",
@@ -98,45 +111,50 @@
       "evidenceRefs": [
         "src/enclave/replay_guard.rs:1-103",
         "src/enclave/attestation.rs:1-251",
+        "src/enclave/mod.rs:700-760",
+        "src/protocol/rails/mod.rs:560-620",
         "src/enclave/hardware_attestation_tests.rs:1-450",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
       ],
       "evidenceChain": [
-        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-100", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
-        {"stage": "code", "refs": ["src/enclave/replay_guard.rs:1-103", "src/enclave/attestation.rs:1-251"]},
-        {"stage": "test", "refs": ["src/enclave/hardware_attestation_tests.rs:1-450", "src/enclave/replay_guard.rs:1-103"]},
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
+        {"stage": "code", "refs": ["src/enclave/replay_guard.rs:1-103", "src/enclave/attestation.rs:1-251", "src/enclave/mod.rs:700-760", "src/protocol/rails/mod.rs:560-620"]},
+        {"stage": "test", "refs": ["src/enclave/hardware_attestation_tests.rs:1-450", "src/enclave/replay_guard.rs:1-103", "src/enclave/mod.rs:1000-1618", "src/protocol/rails/mod.rs:900-1190"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Local replay-cache tests are not a deployed-provider or exact-artifact production claim.",
-      "notes": "Freshness and replay behavior is tracked separately so a passing unit suite cannot imply complete caller enforcement."
+      "exclusion": "Replay authorization is process-local and fixture-tested; it is not distributed replay coordination or exact-artifact production evidence.",
+      "notes": "Manager and rail paths now consume replay authorization only after typed provider evidence passes. Distributed replay state, deployment integration, independent review, and artifacts remain open."
     },
     {
       "id": "rail-policy",
       "name": "Rail policy and attestation enforcement",
       "family": "rails",
       "api": "yes",
-      "implementation": "no",
-      "integration": "partial",
+      "implementation": "partial",
+      "integration": "no",
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/protocol/rails/mod.rs:1-635",
-        "src/protocol/rails/mod.rs:450-550",
-        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150",
+        "src/protocol/rails/mod.rs:1-760",
+        "src/protocol/rails/mod.rs:900-1190",
+        "src/enclave/mod.rs:430-760",
+        "src/protocol/opportunity.rs:90-150",
+        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-190",
+        "https://github.com/Conxian/conxius-enclave-sdk/pull/216",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
       ],
       "evidenceChain": [
-        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
-        {"stage": "code", "refs": ["src/protocol/rails/mod.rs:1-635"]},
-        {"stage": "test", "refs": ["src/protocol/rails/mod.rs:450-550"]},
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-190", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
+        {"stage": "code", "refs": ["src/protocol/rails/mod.rs:1-760", "src/enclave/mod.rs:430-760", "src/protocol/opportunity.rs:90-150"]},
+        {"stage": "test", "refs": ["src/protocol/rails/mod.rs:900-1190", "tests/production_rail_containment.rs:1-130"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/security.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Policy bypass tests and partial checks are not production authorization evidence.",
-      "notes": "The rail path must invoke complete attestation verification and fail closed before any value-bearing support claim."
+      "exclusion": "Typed fixture authorization, process-local replay, and local rail tests are containment evidence only; no real provider-backed rail settlement support is claimed.",
+      "notes": "Raw production settlement dispatch is rejected and built-in rails receive typed verified-operation envelopes carrying canonical intent, operation/key binding, signature, attestation, provenance, policy, and replay authorization. Real provider verification, distributed replay, independent review, and artifacts remain open."
     },
     {
       "id": "rail-adapters",
