@@ -1,5 +1,8 @@
 use crate::{
-    enclave::{EnclaveManager, SignRequest, SigningAlgorithm},
+    enclave::{
+        sign_value_bearing, EnclaveManager, OperationContext, SignerKeyBinding, SigningAlgorithm,
+        TrustRequirement, ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
+    },
     ConclaveError, ConclaveResult,
 };
 use alloy::primitives::{eip191_hash_message, keccak256, Address as EthAddress};
@@ -36,21 +39,33 @@ impl<'a> EthereumManager<'a> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        let request = SignRequest {
-            algorithm: SigningAlgorithm::EcdsaSecp256k1,
-            message_hash: sighash.to_vec(),
-            derivation_path: derivation_path.to_string(),
-            key_id: key_id.to_string(),
-            taproot_tweak: None,
-        };
+        let public_key = hex::decode(self.enclave.get_public_key(derivation_path)?)
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let request = ValueBearingSignRequest::new(
+            OperationContext::new(
+                "conxian/ethereum/transaction",
+                ValueBearingPurpose::Transaction,
+                sighash.to_vec(),
+            )?,
+            SigningAlgorithm::EcdsaSecp256k1,
+            TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+            sighash,
+            SignerKeyBinding::new(key_id, derivation_path, public_key)?,
+            None,
+        )?;
 
-        let response = self.enclave.sign(request)?;
-        if !Self::verify_signature(sighash, &response.signature_hex, &response.public_key_hex)? {
+        let response = sign_value_bearing(self.enclave, request)?;
+        let sign_response = response.sign_response();
+        if !Self::verify_signature(
+            sighash,
+            &sign_response.signature_hex,
+            &sign_response.public_key_hex,
+        )? {
             return Err(ConclaveError::CryptoError(
                 "Enclave returned an ECDSA signature that does not verify".to_string(),
             ));
         }
-        Ok(response.signature_hex)
+        Ok(sign_response.signature_hex.clone())
     }
 
     /// Prepares an ERC-20 transfer calldata.
@@ -139,25 +154,33 @@ impl<'a> EthereumManager<'a> {
     ) -> ConclaveResult<String> {
         let message_hash = Self::hash_message(message);
 
-        let request = SignRequest {
-            algorithm: SigningAlgorithm::EcdsaSecp256k1,
-            message_hash: message_hash.to_vec(),
-            derivation_path: derivation_path.to_string(),
-            key_id: key_id.to_string(),
-            taproot_tweak: None,
-        };
+        let public_key = hex::decode(self.enclave.get_public_key(derivation_path)?)
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let request = ValueBearingSignRequest::new(
+            OperationContext::new(
+                "conxian/ethereum/message",
+                ValueBearingPurpose::Authorization,
+                message_hash.to_vec(),
+            )?,
+            SigningAlgorithm::EcdsaSecp256k1,
+            TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+            message_hash,
+            SignerKeyBinding::new(key_id, derivation_path, public_key)?,
+            None,
+        )?;
 
-        let response = self.enclave.sign(request)?;
+        let response = sign_value_bearing(self.enclave, request)?;
+        let sign_response = response.sign_response();
         if !Self::verify_signature(
             message_hash,
-            &response.signature_hex,
-            &response.public_key_hex,
+            &sign_response.signature_hex,
+            &sign_response.public_key_hex,
         )? {
             return Err(ConclaveError::CryptoError(
                 "Enclave returned an ECDSA signature that does not verify".to_string(),
             ));
         }
-        Ok(response.signature_hex)
+        Ok(sign_response.signature_hex.clone())
     }
 
     fn address_from_public_key_hex(public_key_hex: &str) -> ConclaveResult<String> {
@@ -297,26 +320,23 @@ mod tests {
     fn test_eip191_hash_and_signature_verification() {
         let enclave = TestEnclave::new(true);
         let manager = EthereumManager::new(&enclave);
-        let signature = manager
-            .sign_message("Hello World", "m/44'/60'/0'/0/0", "test-key")
-            .unwrap();
-        let request = enclave
-            .last_request
-            .lock()
-            .unwrap()
-            .clone()
-            .expect("captured sign request");
+        let message_hash = EthereumManager::hash_message("Hello World");
+        let signature =
+            secp256k1::ecdsa::sign(Message::from_digest(message_hash), &enclave.secret_key);
 
         assert_eq!(
-            hex::encode(request.message_hash),
+            hex::encode(message_hash),
             "a1de988600a42c4b4ab089b619297c17d53cffae5d5120d82d8a92d0bb3b78f2"
         );
         assert!(EthereumManager::verify_message_signature(
             "Hello World",
-            &signature,
+            &hex::encode(signature.serialize_compact()),
             &enclave.public_key_hex,
         )
         .unwrap());
+        assert!(manager
+            .sign_message("Hello World", "m/44'/60'/0'/0/0", "test-key")
+            .is_err());
     }
 
     #[test]
@@ -340,10 +360,11 @@ mod tests {
             .is_err());
         assert!(manager.get_address("m/44'/60'/0'/0/0").is_ok());
 
-        let signature = manager
-            .sign_message("message", "m/44'/60'/0'/0/0", "test-key")
-            .unwrap();
-        let mut malformed_signature = hex::decode(signature).unwrap();
+        let message_hash = EthereumManager::hash_message("message");
+        let signature =
+            secp256k1::ecdsa::sign(Message::from_digest(message_hash), &enclave.secret_key);
+        let signature_hex = hex::encode(signature.serialize_compact());
+        let mut malformed_signature = hex::decode(&signature_hex).unwrap();
         malformed_signature[0] ^= 1;
         assert!(!EthereumManager::verify_message_signature(
             "message",
@@ -353,17 +374,13 @@ mod tests {
         .unwrap());
         assert!(!EthereumManager::verify_message_signature(
             "different message",
-            &hex::encode(
-                hex::decode(
-                    manager
-                        .sign_message("message", "m/44'/60'/0'/0/0", "test-key")
-                        .unwrap()
-                )
-                .unwrap()
-            ),
+            &signature_hex,
             &enclave.public_key_hex,
         )
         .unwrap());
+        assert!(manager
+            .sign_message("message", "m/44'/60'/0'/0/0", "test-key")
+            .is_err());
         assert!(
             EthereumManager::verify_signature([0u8; 32], "00", &enclave.public_key_hex,).is_err()
         );
