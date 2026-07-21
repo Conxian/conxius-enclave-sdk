@@ -11,7 +11,7 @@ use crate::protocol::asset::AssetRegistry;
 use crate::protocol::business::BusinessRegistry;
 use crate::protocol::intent::{SwapIntent, SwapRequest, SwapResponse};
 use crate::protocol::solver::{SolverBid, SolverManager};
-use crate::telemetry::TelemetryClient;
+use crate::telemetry::{TelemetryClient, TelemetryEvent};
 use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -395,7 +395,7 @@ impl RailProxy {
         }
 
         if let Some(telemetry) = &self.telemetry {
-            telemetry.track_signature(hex::encode(&intent.signable_hash));
+            let _ = telemetry.track_event(TelemetryEvent::SignedIntent);
         }
 
         rail.execute_swap(operation).await
@@ -664,7 +664,7 @@ mod rail_proxy_tests {
         let registry = Arc::new(AssetRegistry::new());
         let business = Arc::new(BusinessRegistry::new());
         let telemetry = Arc::new(TelemetryClient::new(
-            "http://localhost".to_string(),
+            "https://telemetry.invalid".to_string(),
             "test_key".to_string(),
         ));
 
@@ -1004,6 +1004,35 @@ mod rail_proxy_tests {
             .await
             .unwrap();
         assert!(response.proof_envelope.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_disabled_telemetry_does_not_block_verified_dispatch() {
+        let mut rail_proxy = test_proxy()
+            .with_min_trust_tier(TrustTier::T4)
+            .with_telemetry(Arc::new(TelemetryClient::disabled()));
+        rail_proxy.register_rail(Box::new(CustomRail));
+
+        let mut intent = test_intent(vec![16; 32]);
+        intent.rail_type = "custom_partner".to_string();
+        intent.signable_hash = intent.canonical_hash();
+        let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
+
+        #[allow(deprecated)]
+        let response = rail_proxy
+            .broadcast_signed_intent(intent, "sig".to_string(), attestation)
+            .await
+            .expect("disabled telemetry must not block verified dispatch");
+
+        assert!(response.proof_envelope.is_some());
+        assert_eq!(
+            rail_proxy
+                .telemetry
+                .as_ref()
+                .expect("telemetry should remain attached")
+                .delivery_status(),
+            crate::telemetry::TelemetryDeliveryStatus::Disabled
+        );
     }
 
     #[test]

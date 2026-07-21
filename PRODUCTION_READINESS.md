@@ -62,6 +62,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 ### 📚 Examples & Documentation
 
 - [ ] `examples/` and operational runbooks aligned with the matrix (DOC-002 - P2)
+- [x] Public-safe telemetry privacy and delivery runbook (`docs/operations/TELEMETRY_OPERATIONS.md`)
 - [x] API documentation via rustdoc
 - [x] Architecture documentation
 - [x] Gap scorecard maintained
