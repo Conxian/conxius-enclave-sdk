@@ -161,6 +161,7 @@ impl CoreEnclaveManager {
             challenge_nonce: challenge.to_vec(),
             signature: Vec::new(),
             attested_operation_public_key: operation_public_key.to_vec(),
+            signer_key_binding: None,
             certificate_chain,
             timestamp,
             extension_data,
