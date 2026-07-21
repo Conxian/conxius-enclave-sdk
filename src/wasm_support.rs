@@ -105,7 +105,8 @@ mod tests {
         assert!(!source.contains("pub fn derive_vutxo_key"));
         assert!(!source.contains("hex::encode(key)"));
         assert!(!source.contains("master_seed_hex"));
-        assert!(!source.contains("crate::enclave::cloud::CloudEnclave::new"));
+        assert!(!source.contains("crate::enclave::cloud::CloudEnclave::new("));
+        assert!(source.contains("UnavailableEnclave"));
         assert!(!source.contains("expect(\"Failed to create enclave\")"));
         assert!(source.contains("derive_vutxo_public_key"));
         assert!(source.contains("sign_vutxo"));
