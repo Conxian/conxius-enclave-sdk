@@ -171,7 +171,12 @@ mod tests {
         assert!(!source.contains("hex::encode(key)"));
         assert!(!source.contains("master_seed_hex"));
         assert!(!source.contains("crate::enclave::cloud::CloudEnclave::new("));
-        assert!(source.contains("UnavailableEnclave"));
+        assert!(!source.contains("Arc::new(crate::enclave::UnavailableEnclave)"));
+        assert!(source
+            .contains("pub fn new(_enclave_url: &str) -> Result<ConclaveWasmClient, JsValue>"));
+        assert!(source.contains("pub fn new() -> Result<WasmBitVm2Orchestrator, JsValue>"));
+        assert!(source.contains("pub fn bitvm2(&self) -> Result<WasmBitVm2Orchestrator, JsValue>"));
+        assert!(source.contains("Err(unsupported_provider("));
         assert!(!source.contains("expect(\"Failed to create enclave\")"));
         assert!(!source.contains("EnclaveManager::sign"));
         assert!(!source.contains(".sign(request"));
