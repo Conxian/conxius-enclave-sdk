@@ -1,5 +1,8 @@
-use crate::enclave::{EnclaveManager, SignRequest, SigningAlgorithm};
-use crate::protocol::asset::Chain;
+use crate::enclave::{
+    sign_value_bearing, EnclaveManager, OperationContext, SignerKeyBinding, SigningAlgorithm,
+    TrustRequirement, ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
+};
+use crate::protocol::asset::{AssetIdentifier, Chain};
 use crate::protocol::economy::{DualStackIntent, YieldEngine};
 use crate::protocol::intent::SwapRequest;
 use crate::protocol::rails::{RailProxy, SovereignHandshake};
@@ -64,18 +67,16 @@ impl<'a> OpportunityDispatcher<'a> {
                 rail,
             } => {
                 let registry = &self.rail_proxy.registry;
-                let from_asset = registry
-                    .list_assets()
-                    .into_iter()
-                    .find(|(id, _)| id.chain == from_chain && id.symbol == from_symbol)
-                    .ok_or(ConclaveError::InvalidPayload)?
-                    .0;
-                let to_asset = registry
-                    .list_assets()
-                    .into_iter()
-                    .find(|(id, _)| id.chain == to_chain && id.symbol == to_symbol)
-                    .ok_or(ConclaveError::InvalidPayload)?
-                    .0;
+                let from_asset = AssetIdentifier {
+                    chain: from_chain,
+                    symbol: from_symbol,
+                };
+                let to_asset = AssetIdentifier {
+                    chain: to_chain,
+                    symbol: to_symbol,
+                };
+                registry.validate_asset(&from_asset)?;
+                registry.validate_asset(&to_asset)?;
 
                 let request = SwapRequest {
                     from_asset,
@@ -110,21 +111,38 @@ impl<'a> OpportunityDispatcher<'a> {
                     ),
                 };
 
-                let sign_resp = self.enclave.sign(SignRequest {
-                    algorithm: algo,
-                    message_hash: intent.signable_hash.clone(),
-                    derivation_path,
-                    key_id: "opportunity_key".to_string(),
-                    taproot_tweak: None,
-                })?;
+                let message_digest: [u8; 32] = intent
+                    .signable_hash
+                    .clone()
+                    .try_into()
+                    .map_err(|_| ConclaveError::InvalidPayload)?;
+                let public_key = hex::decode(self.enclave.get_public_key(&derivation_path)?)
+                    .map_err(|_| ConclaveError::InvalidPayload)?;
+                let operation_domain = format!("conxian/opportunity/{from_chain:?}");
+                let sign_resp = sign_value_bearing(
+                    self.enclave,
+                    ValueBearingSignRequest::new(
+                        OperationContext::new(
+                            operation_domain,
+                            ValueBearingPurpose::Transaction,
+                            message_digest.to_vec(),
+                        )?,
+                        algo,
+                        TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+                        message_digest,
+                        SignerKeyBinding::new("opportunity_key", derivation_path, public_key)?,
+                        None,
+                    )?,
+                )?;
+                let sign_response = sign_resp.sign_response();
 
                 #[allow(deprecated)]
                 let resp = self
                     .rail_proxy
                     .broadcast_signed_intent(
                         intent,
-                        sign_resp.signature_hex,
-                        sign_resp.device_attestation,
+                        sign_response.signature_hex.clone(),
+                        sign_response.device_attestation.clone(),
                     )
                     .await?;
 
@@ -141,6 +159,8 @@ mod tests {
     use crate::protocol::asset::AssetRegistry;
     use crate::protocol::business::BusinessRegistry;
     use std::sync::Arc;
+
+    const TEST_EVM_ADDRESS: &str = "0x52908400098527886E0F7030069857D2E4169EE7";
 
     #[tokio::test]
     async fn test_opportunity_dispatcher_dynamic_rail() {
@@ -162,7 +182,7 @@ mod tests {
             to_chain: Chain::ETHEREUM,
             to_symbol: "ETH".to_string(),
             amount: 100,
-            recipient: "0x123".to_string(),
+            recipient: TEST_EVM_ADDRESS.to_string(),
             rail: None,
         };
 

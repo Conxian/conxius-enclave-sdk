@@ -44,6 +44,19 @@ impl ArkManager {
         ))
     }
 
+    /// Retrieves the public key for a provider-owned V-UTXO derivation path.
+    ///
+    /// The provider owns the private key. This capability intentionally does
+    /// not accept a seed and never returns private key bytes.
+    pub fn derive_vutxo_public_key(&self, index: u32) -> ConclaveResult<String> {
+        self.enclave.get_public_key(&format!("m/ark/vutxo/{index}"))
+    }
+
+    /// Signs a V-UTXO operation through the provider-owned enclave key.
+    pub fn sign_vutxo(&self, tx_hash: [u8; 32], index: u32) -> ConclaveResult<String> {
+        self.sign_forfeit_transaction(tx_hash, &format!("m/ark/vutxo/{index}"))
+    }
+
     /// Performs a stateless recovery scan for V-UTXOs.
     pub async fn recovery_scan(
         &self,

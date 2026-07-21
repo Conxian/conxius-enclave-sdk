@@ -11,7 +11,7 @@ use crate::protocol::asset::AssetRegistry;
 use crate::protocol::business::BusinessRegistry;
 use crate::protocol::intent::{SwapIntent, SwapRequest, SwapResponse};
 use crate::protocol::solver::{SolverBid, SolverManager};
-use crate::telemetry::TelemetryClient;
+use crate::telemetry::{TelemetryClient, TelemetryEvent};
 use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -179,6 +179,12 @@ impl RailProxy {
         self
     }
 
+    fn validate_request_assets(&self, request: &SwapRequest) -> ConclaveResult<()> {
+        self.registry.validate_asset(&request.from_asset)?;
+        self.registry.validate_asset(&request.to_asset)?;
+        Ok(())
+    }
+
     pub fn with_min_trust_tier(mut self, min_trust_tier: TrustTier) -> Self {
         self.min_trust_tier = min_trust_tier;
         self
@@ -210,6 +216,7 @@ impl RailProxy {
     }
 
     pub fn discover_best_rail(&self, request: &SwapRequest) -> ConclaveResult<String> {
+        self.validate_request_assets(request)?;
         let mut candidates = Vec::new();
 
         for rail in self.rails.values() {
@@ -388,7 +395,7 @@ impl RailProxy {
         }
 
         if let Some(telemetry) = &self.telemetry {
-            telemetry.track_signature(hex::encode(&intent.signable_hash));
+            let _ = telemetry.track_event(TelemetryEvent::SignedIntent);
         }
 
         rail.execute_swap(operation).await
@@ -403,6 +410,7 @@ impl SovereignHandshake for RailProxy {
         request: SwapRequest,
         fdc3_context: Option<crate::protocol::intent::Fdc3Context>,
     ) -> ConclaveResult<SwapIntent> {
+        self.validate_request_assets(&request)?;
         let rail = self
             .rails
             .get(rail_name)
@@ -437,6 +445,7 @@ impl SovereignHandshake for RailProxy {
         signature: String,
         attestation: Option<String>,
     ) -> ConclaveResult<SwapResponse> {
+        self.validate_request_assets(&intent.request)?;
         #[cfg(not(test))]
         {
             let _ = (intent, signature, attestation);
@@ -529,6 +538,8 @@ mod tests {
     use crate::protocol::asset::{AssetIdentifier, Chain};
     use crate::protocol::business::BusinessAttribution;
 
+    const TEST_EVM_ADDRESS: &str = "0x52908400098527886E0F7030069857D2E4169EE7";
+
     #[test]
     fn test_swap_request_hash_determinism() {
         let from_asset = AssetIdentifier {
@@ -548,7 +559,7 @@ mod tests {
             from_asset: from_asset.clone(),
             to_asset: to_asset.clone(),
             amount: 1000,
-            recipient_address: "0x123".to_string(),
+            recipient_address: TEST_EVM_ADDRESS.to_string(),
             attribution: Some(BusinessAttribution {
                 business_id: "p1".to_string(),
                 user_id: "u1".to_string(),
@@ -576,6 +587,8 @@ mod rail_proxy_tests {
     use crate::protocol::business::BusinessRegistry;
     use crate::telemetry::TelemetryClient;
     use std::sync::Arc;
+
+    const TEST_MERCHANT_ENDPOINT: &str = "https://merchant.invalid/x402";
 
     fn test_proxy() -> RailProxy {
         RailProxy::new(
@@ -625,6 +638,7 @@ mod rail_proxy_tests {
             level: AttestationLevel::TEE,
             challenge_nonce: nonce,
             signature: Vec::new(),
+            attested_operation_public_key: signing_key.verifying_key().to_bytes().to_vec(),
             certificate_chain: vec![pubkey_hex, "CONCLAVE_ROOT_CA_V1".to_string()],
             timestamp,
             extension_data,
@@ -650,7 +664,7 @@ mod rail_proxy_tests {
         let registry = Arc::new(AssetRegistry::new());
         let business = Arc::new(BusinessRegistry::new());
         let telemetry = Arc::new(TelemetryClient::new(
-            "http://localhost".to_string(),
+            "https://telemetry.invalid".to_string(),
             "test_key".to_string(),
         ));
 
@@ -889,17 +903,62 @@ mod rail_proxy_tests {
     }
 
     #[test]
+    fn test_malformed_attestation_is_rejected_without_consuming_replay_state() {
+        let proxy = test_proxy();
+        let intent = test_intent(vec![15; 32]);
+        let malformed = Some("{not-json".to_string());
+
+        let result = proxy.verify_hardware_integrity(&intent, &malformed);
+        assert!(matches!(
+            result,
+            Err(ConclaveError::EnclaveFailure(message)) if message.contains("Invalid attestation JSON")
+        ));
+
+        let valid = Some(test_attestation_json(intent.signable_hash.clone()));
+        assert!(proxy.verify_hardware_integrity(&intent, &valid).is_ok());
+    }
+
+    #[test]
+    fn test_wrong_purpose_is_rejected_without_consuming_replay_state() {
+        let proxy = test_proxy();
+        let intent = test_intent(vec![16; 32]);
+        let mut report = test_attestation_report(intent.signable_hash.clone(), unix_time_secs());
+        report.extension_data =
+            "PURPOSE_VIEW|ALGORITHM_ED25519|TEE_ENABLED|HARDWARE_ROOT_OF_TRUST".to_string();
+        report.extensions = parse_extension_data(&report.extension_data).expect("valid extensions");
+        report
+            .sign_with_ed25519_key(&test_signing_key())
+            .expect("fixture should sign");
+        let wrong_purpose = Some(serde_json::to_string(&report).unwrap());
+
+        let result = proxy.verify_hardware_integrity(&intent, &wrong_purpose);
+        assert!(matches!(
+            result,
+            Err(ConclaveError::EnclaveFailure(message)) if message.contains("cryptographic")
+        ));
+
+        let valid = Some(test_attestation_json(intent.signable_hash.clone()));
+        assert!(proxy.verify_hardware_integrity(&intent, &valid).is_ok());
+    }
+
+    #[test]
     fn test_legacy_policy_flag_cannot_disable_attestation() {
         let proxy = test_proxy();
         let intent = test_intent(vec![11; 32]);
         let no_attestation = None;
 
-        let result = proxy.verify_hardware_integrity_with_policy(&intent, &no_attestation, false);
+        for legacy_enforce in [false, true] {
+            let result = proxy.verify_hardware_integrity_with_policy(
+                &intent,
+                &no_attestation,
+                legacy_enforce,
+            );
 
-        assert!(matches!(
-            result,
-            Err(ConclaveError::EnclaveFailure(message)) if message.contains("required")
-        ));
+            assert!(matches!(
+                result,
+                Err(ConclaveError::EnclaveFailure(message)) if message.contains("required")
+            ));
+        }
     }
 
     #[test]
@@ -915,7 +974,7 @@ mod rail_proxy_tests {
                 symbol: "BTC".to_string(),
             },
             amount: 100,
-            recipient_address: "addr".to_string(),
+            recipient_address: TEST_MERCHANT_ENDPOINT.to_string(),
             attribution: None,
         };
 
@@ -947,6 +1006,35 @@ mod rail_proxy_tests {
         assert!(response.proof_envelope.is_some());
     }
 
+    #[tokio::test]
+    async fn test_disabled_telemetry_does_not_block_verified_dispatch() {
+        let mut rail_proxy = test_proxy()
+            .with_min_trust_tier(TrustTier::T4)
+            .with_telemetry(Arc::new(TelemetryClient::disabled()));
+        rail_proxy.register_rail(Box::new(CustomRail));
+
+        let mut intent = test_intent(vec![16; 32]);
+        intent.rail_type = "custom_partner".to_string();
+        intent.signable_hash = intent.canonical_hash();
+        let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
+
+        #[allow(deprecated)]
+        let response = rail_proxy
+            .broadcast_signed_intent(intent, "sig".to_string(), attestation)
+            .await
+            .expect("disabled telemetry must not block verified dispatch");
+
+        assert!(response.proof_envelope.is_some());
+        assert_eq!(
+            rail_proxy
+                .telemetry
+                .as_ref()
+                .expect("telemetry should remain attached")
+                .delivery_status(),
+            crate::telemetry::TelemetryDeliveryStatus::Disabled
+        );
+    }
+
     #[test]
     fn test_discover_best_rail() {
         let proxy = test_proxy().with_min_trust_tier(TrustTier::T3);
@@ -961,12 +1049,39 @@ mod rail_proxy_tests {
                 symbol: "ETH".to_string(),
             },
             amount: 100,
-            recipient_address: "addr".to_string(),
+            recipient_address: TEST_MERCHANT_ENDPOINT.to_string(),
             attribution: None,
         };
 
         let rail = proxy.discover_best_rail(&request).unwrap();
         assert_eq!(rail, "x402");
+    }
+
+    #[test]
+    fn test_quarantined_asset_cannot_enter_routing() {
+        let proxy = test_proxy();
+        let request = SwapRequest {
+            from_asset: AssetIdentifier {
+                chain: Chain::MEZO,
+                symbol: "BTC".to_string(),
+            },
+            to_asset: AssetIdentifier {
+                chain: Chain::ETHEREUM,
+                symbol: "ETH".to_string(),
+            },
+            amount: 100,
+            recipient_address: TEST_MERCHANT_ENDPOINT.to_string(),
+            attribution: None,
+        };
+
+        assert!(matches!(
+            proxy.discover_best_rail(&request),
+            Err(ConclaveError::Unsupported(message)) if message.contains("quarantined")
+        ));
+        assert!(matches!(
+            proxy.prepare_intent("x402", request, None),
+            Err(ConclaveError::Unsupported(message)) if message.contains("quarantined")
+        ));
     }
 
     #[test]
@@ -982,7 +1097,7 @@ mod rail_proxy_tests {
                 symbol: "ETH".to_string(),
             },
             amount: 100,
-            recipient_address: "addr".to_string(),
+            recipient_address: TEST_MERCHANT_ENDPOINT.to_string(),
             attribution: None,
         };
 
@@ -1005,6 +1120,8 @@ mod fdc3_integration_tests {
     use crate::protocol::business::BusinessRegistry;
     use crate::protocol::intent::Fdc3Context;
     use std::sync::Arc;
+
+    const TEST_MERCHANT_ENDPOINT: &str = "https://merchant.invalid/x402";
 
     fn setup_proxy() -> RailProxy {
         RailProxy::new(
@@ -1032,7 +1149,7 @@ mod fdc3_integration_tests {
                 symbol: "USDC".to_string(),
             },
             amount: 1000,
-            recipient_address: "0x123".to_string(),
+            recipient_address: TEST_MERCHANT_ENDPOINT.to_string(),
             attribution: None,
         };
 

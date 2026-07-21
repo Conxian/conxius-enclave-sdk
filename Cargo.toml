@@ -11,7 +11,10 @@ repository = "https://github.com/Conxian/conxius-enclave-sdk"
 
 [features]
 default = []
-mock-cloud-enclave = []
+# Software-backed drivers are available only through an explicitly named
+# development boundary and are never the default release surface.
+development-simulators = []
+mock-cloud-enclave = ["development-simulators"]
 bip110_compliant = []
 
 [dependencies]
@@ -44,7 +47,7 @@ sha2 = "0.11.0"
 blake2 = "0.10.6"
 subtle = "2.6.1"
 thiserror = "2.0.18"
-tokio = { version = "1.52.3", features = ["rt", "macros"] }
+tokio = { version = "1.52.3", features = ["rt", "macros", "time"] }
 alloy = { version = "2.1.0", features = ["rpc-types", "rpc-client", "network", "signer-local", "provider-http", "pubsub"] }
 wasm-bindgen = "0.2.125"
 wasm-bindgen-futures = "0.4.71"

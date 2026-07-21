@@ -1072,25 +1072,26 @@
       "name": "Telemetry and observability",
       "family": "operations",
       "api": "yes",
-      "implementation": "no",
-      "integration": "no",
+      "implementation": "yes",
+      "integration": "partial",
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/telemetry.rs:1-180",
+        "src/telemetry.rs:1-911",
         "src/protocol/rails/mod.rs:1-635",
+        "docs/operations/TELEMETRY_OPERATIONS.md",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/201"
       ],
       "evidenceChain": [
-        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:250-320", "https://github.com/Conxian/conxius-enclave-sdk/issues/201"]},
-        {"stage": "code", "refs": ["src/telemetry.rs:1-180", "src/protocol/rails/mod.rs:1-635"]},
-        {"stage": "test", "refs": ["src/telemetry.rs:1-180"]},
-        {"stage": "ci", "refs": [".github/workflows/security.yml:1-100"]},
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:69-80", "https://github.com/Conxian/conxius-enclave-sdk/issues/201"]},
+        {"stage": "code", "refs": ["src/telemetry.rs:1-682", "src/protocol/rails/mod.rs:1-635"]},
+        {"stage": "test", "refs": ["src/telemetry.rs:683-911"]},
+        {"stage": "ci", "refs": [".github/workflows/ci.yml:20-50", ".github/workflows/ci-strict.yml:20-53"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/201", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Current telemetry behavior is not a public-safe privacy, monitoring, retention, or operational support record.",
-      "notes": "Telemetry must not become a hidden dependency for signing or other security decisions."
+      "exclusion": "Telemetry remains opt-in and best effort; independent review, server-side retention evidence, deployment monitoring, and production artifacts are not established by this change.",
+      "notes": "Payloads are minimized to a coarse event and credentials remain sensitive transport headers only. Telemetry must not become a hidden dependency for signing or other security decisions."
     },
     {
       "id": "ci-release-evidence",

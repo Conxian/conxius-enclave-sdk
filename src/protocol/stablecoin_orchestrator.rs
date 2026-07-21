@@ -30,10 +30,7 @@ impl StablecoinOrchestrator {
         asset_id: &AssetIdentifier,
         rpc_url: &str,
     ) -> ConclaveResult<U256> {
-        let metadata = self
-            .asset_registry
-            .get_asset(asset_id)
-            .ok_or(ConclaveError::InvalidPayload)?;
+        let metadata = self.asset_registry.validate_asset(asset_id)?;
 
         let contract_addr_str = metadata
             .contract_address
