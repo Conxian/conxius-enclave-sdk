@@ -578,19 +578,9 @@ impl Bip322Bridge {
             return Ok((SignatureVariant::ProofOfFunds, encoded));
         }
 
-        // BIP-322 permits a verifier to assume the simple variant when the
-        // prefix is absent. Real consensus-encoded witness stacks begin with
-        // a compact-size item count, while lower-case ASCII prefixes are the
-        // unambiguous human-readable form used by the variant tags.
-        if signature_base64.len() >= 3
-            && signature_base64
-                .as_bytes()
-                .get(..3)
-                .is_some_and(|prefix| prefix.iter().all(u8::is_ascii_lowercase))
-        {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
+        // BIP-322 permits a verifier to assume the Simple variant when no
+        // recognized variant tag is present. Leave the entire input for strict
+        // Base64 and witness parsing; unknown textual prefixes are not tags.
         Ok((SignatureVariant::Simple, signature_base64))
     }
 
@@ -1036,6 +1026,23 @@ mod tests {
     }
 
     #[test]
+    fn test_bip322_unprefixed_lowercase_base64_uses_simple_fallback() {
+        let witness = Witness::from_slice(&vec![Vec::<u8>::new(); 104]);
+        let encoded = BASE64_STANDARD.encode(bitcoin::consensus::encode::serialize(&witness));
+        assert!(encoded
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_ascii_lowercase()));
+
+        let decoded =
+            Bip322Bridge::decode_signature(&encoded).expect("valid unprefixed witness encoding");
+        assert!(matches!(
+            decoded,
+            DecodedSignature::Simple(ref decoded) if decoded.len() == witness.len()
+        ));
+    }
+
+    #[test]
     fn test_bip322_official_generated_p2tr_positive_vector() {
         let bridge = Bip322Bridge;
         assert_eq!(
@@ -1396,6 +1403,9 @@ mod tests {
             bridge.verify_simple_signature(P2WPKH_ADDRESS, "", "smpAAABAA=="),
             Err(ConclaveError::InvalidPayload)
         ));
+
+        // Unknown textual prefixes are treated as unprefixed Simple data and
+        // must still fail through strict Base64/witness validation.
         assert!(matches!(
             bridge.verify_simple_signature(P2WPKH_ADDRESS, "", "fooAA=="),
             Err(ConclaveError::InvalidPayload)
