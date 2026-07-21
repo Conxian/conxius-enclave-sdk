@@ -192,6 +192,52 @@ mod trust_tier_tests {
 }
 
 // =============================================================================
+// Hardware Provider Verifier Tests
+// =============================================================================
+
+#[cfg(test)]
+mod hardware_provider_verifier_tests {
+    use super::*;
+    use crate::enclave::attestation::{
+        AttestationPolicy, HardwareProviderType, ProviderVerifierStatus,
+    };
+
+    #[test]
+    fn test_hardware_provider_verifier_status() {
+        let policy = AttestationPolicy::production();
+        let hardware_policy = policy.with_hardware_provider(
+            HardwareProviderType::AndroidStrongBox,
+            vec!["GOOGLE_STRONGBOX_ROOT_V1".to_string()],
+            None,
+        );
+
+        assert_eq!(
+            hardware_policy.provider_verifier_status(),
+            ProviderVerifierStatus::VerifiedHardware
+        );
+    }
+
+    #[test]
+    fn test_hardware_chain_signature_verification_failure() {
+        let generator = MockAttestationGenerator::new(AttestationLevel::StrongBox);
+        let nonce = [1, 2, 3, 4];
+        let report = generator.generate_valid_report(&nonce, 1_000_000);
+
+        let policy = AttestationPolicy::production().with_hardware_provider(
+            HardwareProviderType::AndroidStrongBox,
+            vec!["REAL_GOOGLE_STRONGBOX_ROOT_CA".to_string()],
+            None,
+        );
+
+        // Report has only mock/simulated CA roots so real cryptographic verification should fail-closed
+        assert!(
+            !policy.verify_hardware_chain_signature(&report, HardwareProviderType::AndroidStrongBox, &["REAL_GOOGLE_STRONGBOX_ROOT_CA".to_string()], None),
+            "Real hardware chain signature validation should fail-closed for unanchored certificate chains"
+        );
+    }
+}
+
+// =============================================================================
 // Freshness & Replay Protection Tests
 // =============================================================================
 

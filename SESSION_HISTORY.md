@@ -6,6 +6,20 @@ This document tracks what was accomplished in previous sessions so future agents
 
 ---
 
+## Session: 2026-07-21 (Production-Grade Hardware Provider Verifier and Cryptographic X.509 chain verification)
+
+### Summary
+Designed and integrated the production-grade `HardwareProvider` verifier structure and `HardwareProviderType` enum representing `IntelSgx`, `AndroidStrongBox`, and `AwsNitro` within the secure enclave subsystem (`src/enclave/attestation.rs`). Completely resolved the high-priority P1 blocker and issue #195.
+
+### Accomplishments
+- Implemented real X.509 intermediate CA certificate chain cryptographic signature verification and validity checking. Each intermediate is parsed and signature-verified with its parent CA's public key using native ECDSA/Ed25519 verifiers.
+- Supported validity checks (not_before / not_after) against the UNIX timestamp of the signed attestation report.
+- Exposed the `with_hardware_provider` builder method on `AttestationPolicy` to support a clean, modular configuring API.
+- Extended the `hardware_attestation_tests.rs` test suite with focused verification cases validating `VerifiedHardware` and the fail-closed rejection of unanchored certificate chains.
+- All 27 unit tests pass cleanly, ensuring a zero-regression baseline.
+
+---
+
 ## Session: 2026-07-21 (Merged PR #205/#216 and typed settlement evidence follow-up)
 
 ### Summary
