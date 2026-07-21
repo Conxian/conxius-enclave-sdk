@@ -73,18 +73,19 @@ function assertNoSecretShapedResult(result, label) {
   }
 }
 
-function buildValidLightningInvoice() {
-  const charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
-  const generators = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
-  const data = [
-    ...Array(7).fill(0),
-    1,
-    1,
-    20,
-    ...Array(52).fill(1),
-    ...Array(104).fill(1),
-  ];
-  const hrp = "lnbc";
+const BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+const BECH32_GENERATORS = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+
+const VALID_LIGHTNING_PAYMENT_HASH =
+  "0001020304050607080900010203040506070809000102030405060708090102";
+const VALID_LIGHTNING_INVOICE =
+  "lnbc2500u1pvjluezsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygspp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpu9qrsgquk0rl77nj30yxdy8j9vdx85fkpmdla2087ne0xh8nhedh8w27kyke0lp53ut353s06fv3qfegext0eh0ymjpf39tuven09sam30g4vgpfna3rh";
+const INVALID_SIGNATURE_LIGHTNING_INVOICE =
+  "lnbc2500u1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpusp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygs9qrsgqwgt7mcn5yqw3yx0w94pswkpq6j9uh6xfqqqtsk4tnarugeektd4hg5975x9am52rz4qskukxdmjemg92vvqz8nvmsye63r5ykel43pgz7zq0g2";
+const IMPRECISE_AMOUNT_LIGHTNING_INVOICE =
+  "lnbc2500000001p1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpusp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygs9qrsgq0lzc236j96a95uv0m3umg28gclm5lqxtqqwk32uuk4k6673k6n5kfvx3d2h8s295fad45fdhmusm8sjudfhlf6dcsxmfvkeywmjdkxcp99202x";
+
+function encodeBech32(hrp, data) {
   let checksum = 1;
   for (const value of [
     ...[...hrp].map((character) => character.charCodeAt(0) >> 5),
@@ -95,9 +96,9 @@ function buildValidLightningInvoice() {
   ]) {
     const top = checksum >> 25;
     checksum = ((checksum & 0x1ffffff) << 5) ^ value;
-    for (let index = 0; index < generators.length; index += 1) {
+    for (let index = 0; index < BECH32_GENERATORS.length; index += 1) {
       if ((top >> index) & 1) {
-        checksum ^= generators[index];
+        checksum ^= BECH32_GENERATORS[index];
       }
     }
   }
@@ -106,7 +107,36 @@ function buildValidLightningInvoice() {
     { length: 6 },
     (_, index) => (checksum >> (5 * (5 - index))) & 31,
   );
-  return `${hrp}1${[...data, ...checksumValues].map((value) => charset[value]).join("")}`;
+  return `${hrp}1${[...data, ...checksumValues]
+    .map((value) => BECH32_CHARSET[value])
+    .join("")}`;
+}
+
+function decodeBech32Data(invoice) {
+  const separator = invoice.lastIndexOf("1");
+  assert(separator > 0, "BOLT11 fixture is missing its Bech32 separator");
+  const encoded = [...invoice.slice(separator + 1)].map((character) => {
+    const value = BECH32_CHARSET.indexOf(character);
+    assert(value >= 0, `BOLT11 fixture contains an invalid Bech32 character: ${character}`);
+    return value;
+  });
+  return { hrp: invoice.slice(0, separator), data: encoded.slice(0, -6) };
+}
+
+function rewriteLightningInvoiceHrp(invoice, hrp) {
+  return encodeBech32(hrp, decodeBech32Data(invoice).data);
+}
+
+function buildForgedLightningInvoice() {
+  const data = [
+    ...Array(7).fill(0),
+    1,
+    1,
+    20,
+    ...Array(52).fill(1),
+    ...Array(104).fill(1),
+  ];
+  return encodeBech32("lnbc", data);
 }
 
 function assertNoSecretExports(api, lane) {
@@ -221,13 +251,24 @@ export async function runSurfaceChecks(api, lane) {
     `${lane}: provider construction with unknown runtime`,
   );
 
-  const validLightningPaymentHash = "11".repeat(32);
-  const validLightningInvoice = buildValidLightningInvoice();
+  const validLightningPaymentHash = VALID_LIGHTNING_PAYMENT_HASH;
+  const validLightningInvoice = VALID_LIGHTNING_INVOICE;
+  const forgedLightningInvoice = buildForgedLightningInvoice();
+  const leadingZeroAmountInvoice = rewriteLightningInvoiceHrp(validLightningInvoice, "lnbc02500u");
+  const malformedPaymentHash = "gg".repeat(32);
+  const mismatchedPaymentHash = "ff".repeat(32);
+  const validLightningAmount = 250_000_000n;
+
   expectCode(
     () => new api.WasmLightningClient("payment-hash", validLightningInvoice, 1000n, null),
     "INVALID_INPUT",
     `${lane}: Lightning malformed payment hash`,
     ["payment-hash"],
+  );
+  expectCode(
+    () => new api.WasmLightningClient(malformedPaymentHash, validLightningInvoice, validLightningAmount, null),
+    "INVALID_INPUT",
+    `${lane}: Lightning non-hex payment hash`,
   );
   expectCode(
     () => new api.WasmLightningClient(validLightningPaymentHash, "lnbc1-runtime-evidence", 1000n, null),
@@ -239,6 +280,60 @@ export async function runSurfaceChecks(api, lane) {
     () => new api.WasmLightningClient(validLightningPaymentHash, validLightningInvoice, 0n, null),
     "INVALID_INPUT",
     `${lane}: Lightning zero amount`,
+  );
+  expectCode(
+    () => new api.WasmLightningClient(validLightningPaymentHash, validLightningInvoice, 1000n, null),
+    "INVALID_INPUT",
+    `${lane}: Lightning invoice amount mismatch`,
+  );
+  expectCode(
+    () => new api.WasmLightningClient(mismatchedPaymentHash, validLightningInvoice, validLightningAmount, null),
+    "INVALID_INPUT",
+    `${lane}: Lightning payment hash mismatch`,
+    [mismatchedPaymentHash],
+  );
+  expectCode(
+    () => new api.WasmLightningClient(validLightningPaymentHash, forgedLightningInvoice, validLightningAmount, null),
+    "INVALID_INPUT",
+    `${lane}: Lightning missing mandatory s/d/h fields`,
+  );
+  expectCode(
+    () =>
+      new api.WasmLightningClient(
+        validLightningPaymentHash,
+        INVALID_SIGNATURE_LIGHTNING_INVOICE,
+        validLightningAmount,
+        null,
+      ),
+    "INVALID_INPUT",
+    `${lane}: Lightning invalid signature`,
+  );
+  expectCode(
+    () =>
+      new api.WasmLightningClient(
+        validLightningPaymentHash,
+        leadingZeroAmountInvoice,
+        validLightningAmount,
+        null,
+      ),
+    "INVALID_INPUT",
+    `${lane}: Lightning leading-zero HRP amount`,
+  );
+  expectCode(
+    () => new api.WasmLightningClient(validLightningPaymentHash, "lnbc1p", validLightningAmount, null),
+    "INVALID_INPUT",
+    `${lane}: Lightning truncated pico HRP amount`,
+  );
+  expectCode(
+    () =>
+      new api.WasmLightningClient(
+        validLightningPaymentHash,
+        IMPRECISE_AMOUNT_LIGHTNING_INVOICE,
+        validLightningAmount,
+        null,
+      ),
+    "INVALID_INPUT",
+    `${lane}: Lightning imprecise pico amount`,
   );
 
   const lightningConstructor = new api.WasmLightningClientConstructor();
@@ -271,15 +366,46 @@ export async function runSurfaceChecks(api, lane) {
     "INVALID_INPUT",
     `${lane}: Lightning factory zero amount`,
   );
+  expectCode(
+    () =>
+      lightningConstructor.create_intent(
+        validLightningPaymentHash,
+        forgedLightningInvoice,
+        validLightningAmount,
+        null,
+      ),
+    "INVALID_INPUT",
+    `${lane}: Lightning factory missing mandatory s/d/h fields`,
+  );
+  expectCode(
+    () =>
+      lightningConstructor.create_intent(
+        validLightningPaymentHash,
+        validLightningInvoice,
+        1000n,
+        null,
+      ),
+    "INVALID_INPUT",
+    `${lane}: Lightning factory invoice amount mismatch`,
+  );
 
   const lightning = new api.WasmLightningClient(
     validLightningPaymentHash,
     validLightningInvoice,
-    1000n,
+    validLightningAmount,
     null,
   );
   assert(lightning.get_status() === "Created", `${lane}: valid Lightning construction`);
   assert(!lightning.can_retry(), `${lane}: new Lightning client unexpectedly can retry`);
+
+  const factoryLightning = lightningConstructor.create_intent(
+    validLightningPaymentHash,
+    validLightningInvoice,
+    validLightningAmount,
+    null,
+  );
+  assert(factoryLightning.get_status() === "Created", `${lane}: valid Lightning factory construction`);
+  assert(!factoryLightning.can_retry(), `${lane}: valid Lightning factory unexpectedly can retry`);
 
   // These direct protocol clients are deliberately zero-state. They do not
   // construct or retain a provider-backed ConclaveWasmClient, enclave, URL,

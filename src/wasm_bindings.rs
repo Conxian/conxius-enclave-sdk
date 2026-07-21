@@ -3,8 +3,8 @@ use crate::protocol::ethereum::EthereumManager;
 use crate::protocol::solana::SolanaManager;
 use crate::wasm_support::{self, WasmRuntime};
 use crate::ConclaveError;
-use bech32::{primitives::decode::CheckedHrpstring, Bech32};
 use hex;
+use lightning_invoice::Bolt11Invoice;
 use serde_wasm_bindgen;
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
@@ -406,10 +406,6 @@ fn to_js_error<E: std::fmt::Display>(e: E) -> JsValue {
 }
 
 const LIGHTNING_INVOICE_MAX_LENGTH: usize = 2048;
-const LIGHTNING_INVOICE_TIMESTAMP_DATA_LENGTH: usize = 7;
-const LIGHTNING_INVOICE_SIGNATURE_DATA_LENGTH: usize = 104;
-const LIGHTNING_PAYMENT_HASH_DATA_LENGTH: usize = 52;
-const BECH32_CHARSET: &[u8; 32] = b"qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 
 /// Validate caller-supplied Lightning construction fields without including
 /// any rejected value in the public error. The native state-machine
@@ -427,18 +423,46 @@ fn validate_lightning_constructor_inputs(
         ));
     }
 
-    if !is_valid_lightning_invoice(invoice) {
-        return Err(wasm_error(
-            "INVALID_INPUT",
-            "invoice must be a valid BOLT11 payment request",
-        ));
-    }
+    let parsed_invoice = parse_lightning_invoice(invoice)?;
 
     if amount_msat == 0 {
         return Err(wasm_error(
             "INVALID_INPUT",
             "amount_msat must be greater than zero",
         ));
+    }
+
+    let expected_payment_hash = hex::decode(payment_hash).map_err(|_| invalid_input())?;
+    let invoice_payment_hash: &[u8] = parsed_invoice.payment_hash().as_ref();
+    if invoice_payment_hash != expected_payment_hash.as_slice() {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "payment_hash does not match the invoice payment hash",
+        ));
+    }
+
+    let invoice_amount_msat = parsed_invoice.amount_milli_satoshis();
+    let invoice_encodes_amount = parsed_invoice
+        .clone()
+        .into_signed_raw()
+        .raw_invoice()
+        .hrp
+        .raw_amount
+        .is_some();
+    if invoice_encodes_amount && invoice_amount_msat.is_none() {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "invoice amount is out of range",
+        ));
+    }
+
+    if let Some(invoice_amount_msat) = invoice_amount_msat {
+        if invoice_amount_msat != amount_msat {
+            return Err(wasm_error(
+                "INVALID_INPUT",
+                "amount_msat does not match the invoice amount",
+            ));
+        }
     }
 
     Ok(())
@@ -452,93 +476,33 @@ fn is_valid_lightning_payment_hash(payment_hash: &str) -> bool {
             .all(|byte| byte.is_ascii_hexdigit())
 }
 
-fn is_valid_lightning_invoice(invoice: &str) -> bool {
+fn parse_lightning_invoice(invoice: &str) -> Result<Bolt11Invoice, JsValue> {
     if invoice.is_empty() || invoice.len() > LIGHTNING_INVOICE_MAX_LENGTH {
-        return false;
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "invoice must be a valid BOLT11 payment request",
+        ));
     }
 
-    let Ok(checked) = CheckedHrpstring::new::<Bech32>(invoice) else {
-        return false;
-    };
+    let parsed_invoice = invoice.parse::<Bolt11Invoice>().map_err(|_| {
+        wasm_error(
+            "INVALID_INPUT",
+            "invoice must be a valid BOLT11 payment request",
+        )
+    })?;
 
-    let hrp = checked.hrp().to_string();
-    if !is_valid_lightning_invoice_hrp(&hrp) {
-        return false;
+    // `lightning-invoice` normalizes the HRP amount while parsing. Requiring a
+    // canonical round trip rejects encodings such as a leading-zero amount,
+    // while the parser itself enforces the BOLT11 field, feature, and
+    // recoverable-signature semantics.
+    if parsed_invoice.to_string() != invoice {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "invoice must be a canonical BOLT11 payment request",
+        ));
     }
 
-    let Some(data): Option<Vec<u8>> = checked
-        .data_part_ascii_no_checksum()
-        .iter()
-        .map(|character| {
-            BECH32_CHARSET
-                .iter()
-                .position(|candidate| candidate == character)
-                .map(|value| value as u8)
-        })
-        .collect()
-    else {
-        return false;
-    };
-    let Some(tagged_data_end) = data
-        .len()
-        .checked_sub(LIGHTNING_INVOICE_SIGNATURE_DATA_LENGTH)
-    else {
-        return false;
-    };
-
-    if tagged_data_end < LIGHTNING_INVOICE_TIMESTAMP_DATA_LENGTH {
-        return false;
-    }
-
-    let mut offset = LIGHTNING_INVOICE_TIMESTAMP_DATA_LENGTH;
-    let mut payment_hash_fields = 0;
-    while offset < tagged_data_end {
-        if tagged_data_end - offset < 3 {
-            return false;
-        }
-
-        let tag = data[offset];
-        let field_length = (data[offset + 1] as usize) * 32 + data[offset + 2] as usize;
-        offset += 3;
-
-        if field_length > tagged_data_end - offset {
-            return false;
-        }
-
-        if tag == 1 {
-            if field_length != LIGHTNING_PAYMENT_HASH_DATA_LENGTH {
-                return false;
-            }
-            payment_hash_fields += 1;
-        }
-
-        offset += field_length;
-    }
-
-    offset == tagged_data_end && payment_hash_fields == 1
-}
-
-fn is_valid_lightning_invoice_hrp(hrp: &str) -> bool {
-    let amount = ["lnbcrt", "lntbs", "lnbc", "lntb", "lnsb"]
-        .iter()
-        .find_map(|prefix| hrp.strip_prefix(prefix));
-    let Some(amount) = amount else {
-        return false;
-    };
-
-    if amount.is_empty() || amount.as_bytes().iter().all(|byte| byte.is_ascii_digit()) {
-        return true;
-    }
-
-    if amount.len() < 2 {
-        return false;
-    }
-    let split_at = amount.len() - 1;
-    let (digits, multiplier) = amount.split_at(split_at);
-
-    !digits.is_empty()
-        && digits.as_bytes().iter().all(|byte| byte.is_ascii_digit())
-        && matches!(multiplier, "m" | "u" | "n" | "p")
+    Ok(parsed_invoice)
 }
 
 fn invalid_input() -> JsValue {
