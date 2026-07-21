@@ -484,6 +484,13 @@ fn parse_lightning_invoice(invoice: &str) -> Result<Bolt11Invoice, JsValue> {
         ));
     }
 
+    let normalized_invoice = wasm_support::normalize_bolt11_case(invoice).ok_or_else(|| {
+        wasm_error(
+            "INVALID_INPUT",
+            "invoice must be a canonical BOLT11 payment request",
+        )
+    })?;
+
     let parsed_invoice = invoice.parse::<Bolt11Invoice>().map_err(|_| {
         wasm_error(
             "INVALID_INPUT",
@@ -491,11 +498,11 @@ fn parse_lightning_invoice(invoice: &str) -> Result<Bolt11Invoice, JsValue> {
         )
     })?;
 
-    // `lightning-invoice` normalizes the HRP amount while parsing. Requiring a
-    // canonical round trip rejects encodings such as a leading-zero amount,
-    // while the parser itself enforces the BOLT11 field, feature, and
-    // recoverable-signature semantics.
-    if parsed_invoice.to_string() != invoice {
+    // `lightning-invoice` normalizes the HRP amount and case while parsing.
+    // Requiring a canonical round trip against the safe lowercase copy rejects
+    // encodings such as a leading-zero amount, while the parser itself
+    // enforces the BOLT11 field, feature, and recoverable-signature semantics.
+    if parsed_invoice.to_string() != normalized_invoice {
         return Err(wasm_error(
             "INVALID_INPUT",
             "invoice must be a canonical BOLT11 payment request",

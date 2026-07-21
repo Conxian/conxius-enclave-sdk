@@ -80,6 +80,8 @@ const VALID_LIGHTNING_PAYMENT_HASH =
   "0001020304050607080900010203040506070809000102030405060708090102";
 const VALID_LIGHTNING_INVOICE =
   "lnbc2500u1pvjluezsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygspp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpu9qrsgquk0rl77nj30yxdy8j9vdx85fkpmdla2087ne0xh8nhedh8w27kyke0lp53ut353s06fv3qfegext0eh0ymjpf39tuven09sam30g4vgpfna3rh";
+const UPPERCASE_LIGHTNING_INVOICE = VALID_LIGHTNING_INVOICE.toUpperCase();
+const MIXED_CASE_LIGHTNING_INVOICE = `L${VALID_LIGHTNING_INVOICE.slice(1)}`;
 const INVALID_SIGNATURE_LIGHTNING_INVOICE =
   "lnbc2500u1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpusp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygs9qrsgqwgt7mcn5yqw3yx0w94pswkpq6j9uh6xfqqqtsk4tnarugeektd4hg5975x9am52rz4qskukxdmjemg92vvqz8nvmsye63r5ykel43pgz7zq0g2";
 const IMPRECISE_AMOUNT_LIGHTNING_INVOICE =
@@ -253,6 +255,8 @@ export async function runSurfaceChecks(api, lane) {
 
   const validLightningPaymentHash = VALID_LIGHTNING_PAYMENT_HASH;
   const validLightningInvoice = VALID_LIGHTNING_INVOICE;
+  const uppercaseLightningInvoice = UPPERCASE_LIGHTNING_INVOICE;
+  const mixedCaseLightningInvoice = MIXED_CASE_LIGHTNING_INVOICE;
   const forgedLightningInvoice = buildForgedLightningInvoice();
   const leadingZeroAmountInvoice = rewriteLightningInvoiceHrp(validLightningInvoice, "lnbc02500u");
   const malformedPaymentHash = "gg".repeat(32);
@@ -307,6 +311,18 @@ export async function runSurfaceChecks(api, lane) {
       ),
     "INVALID_INPUT",
     `${lane}: Lightning invalid signature`,
+  );
+  expectCode(
+    () =>
+      new api.WasmLightningClient(
+        validLightningPaymentHash,
+        mixedCaseLightningInvoice,
+        validLightningAmount,
+        null,
+      ),
+    "INVALID_INPUT",
+    `${lane}: Lightning mixed-case invoice`,
+    [mixedCaseLightningInvoice],
   );
   expectCode(
     () =>
@@ -398,6 +414,21 @@ export async function runSurfaceChecks(api, lane) {
   assert(lightning.get_status() === "Created", `${lane}: valid Lightning construction`);
   assert(!lightning.can_retry(), `${lane}: new Lightning client unexpectedly can retry`);
 
+  const uppercaseLightning = new api.WasmLightningClient(
+    validLightningPaymentHash,
+    uppercaseLightningInvoice,
+    validLightningAmount,
+    null,
+  );
+  assert(
+    uppercaseLightning.get_status() === "Created",
+    `${lane}: uppercase Lightning construction`,
+  );
+  assert(
+    !uppercaseLightning.can_retry(),
+    `${lane}: uppercase Lightning client unexpectedly can retry`,
+  );
+
   const factoryLightning = lightningConstructor.create_intent(
     validLightningPaymentHash,
     validLightningInvoice,
@@ -406,6 +437,33 @@ export async function runSurfaceChecks(api, lane) {
   );
   assert(factoryLightning.get_status() === "Created", `${lane}: valid Lightning factory construction`);
   assert(!factoryLightning.can_retry(), `${lane}: valid Lightning factory unexpectedly can retry`);
+
+  expectCode(
+    () =>
+      lightningConstructor.create_intent(
+        validLightningPaymentHash,
+        mixedCaseLightningInvoice,
+        validLightningAmount,
+        null,
+      ),
+    "INVALID_INPUT",
+    `${lane}: Lightning factory mixed-case invoice`,
+    [mixedCaseLightningInvoice],
+  );
+  const uppercaseFactoryLightning = lightningConstructor.create_intent(
+    validLightningPaymentHash,
+    uppercaseLightningInvoice,
+    validLightningAmount,
+    null,
+  );
+  assert(
+    uppercaseFactoryLightning.get_status() === "Created",
+    `${lane}: uppercase Lightning factory construction`,
+  );
+  assert(
+    !uppercaseFactoryLightning.can_retry(),
+    `${lane}: uppercase Lightning factory unexpectedly can retry`,
+  );
 
   // These direct protocol clients are deliberately zero-state. They do not
   // construct or retain a provider-backed ConclaveWasmClient, enclave, URL,
