@@ -16,6 +16,10 @@ use crate::enclave::attestation::{
 };
 use crate::enclave::replay_guard::ReplayGuard;
 
+fn random_nonce() -> [u8; 4] {
+    rand::random()
+}
+
 /// Mock attestation generator for different trust tiers
 struct MockAttestationGenerator {
     level: AttestationLevel,
@@ -140,7 +144,7 @@ mod trust_tier_tests {
     #[test]
     fn test_cloud_tee_attestation_valid() {
         let generator = MockAttestationGenerator::new(AttestationLevel::CloudTEE);
-        let nonce = [1, 2, 3, 4];
+        let nonce = random_nonce();
         let now = 1_000_000_u64;
 
         let report = generator.generate_valid_report(&nonce, now.saturating_sub(60));
@@ -153,7 +157,7 @@ mod trust_tier_tests {
     #[test]
     fn test_strongbox_attestation_valid() {
         let generator = MockAttestationGenerator::new(AttestationLevel::StrongBox);
-        let nonce = [1, 2, 3, 4];
+        let nonce = random_nonce();
         let now = 1_000_000_u64;
 
         let report = generator.generate_valid_report(&nonce, now.saturating_sub(60));
@@ -166,7 +170,7 @@ mod trust_tier_tests {
     #[test]
     fn test_tee_attestation_valid() {
         let generator = MockAttestationGenerator::new(AttestationLevel::TEE);
-        let nonce = [1, 2, 3, 4];
+        let nonce = random_nonce();
         let now = 1_000_000_u64;
 
         let report = generator.generate_valid_report(&nonce, now.saturating_sub(60));
@@ -179,7 +183,7 @@ mod trust_tier_tests {
     #[test]
     fn test_software_attestation_blocked_for_production() {
         let generator = MockAttestationGenerator::new(AttestationLevel::Software);
-        let nonce = [1, 2, 3, 4];
+        let nonce = random_nonce();
         let now = 1_000_000_u64;
 
         let report = generator.generate_valid_report(&nonce, now.saturating_sub(60));
@@ -220,7 +224,7 @@ mod hardware_provider_verifier_tests {
     #[test]
     fn test_hardware_chain_signature_verification_failure() {
         let generator = MockAttestationGenerator::new(AttestationLevel::StrongBox);
-        let nonce: [u8; 4] = rand::random();
+        let nonce: [u8; 4] = random_nonce();
         let report = generator.generate_valid_report(&nonce, 1_000_000);
 
         let policy = AttestationPolicy::production().with_hardware_provider(
@@ -249,7 +253,7 @@ mod freshness_tests {
     #[test]
     fn test_rejects_stale_attestation() {
         let generator = MockAttestationGenerator::new(AttestationLevel::TEE);
-        let nonce = [1, 2, 3, 4];
+        let nonce = random_nonce();
         let now = 1_000_000_u64;
 
         // Attestation older than MAX_ATTESTATION_AGE_SECS should be rejected
@@ -263,7 +267,7 @@ mod freshness_tests {
     #[test]
     fn test_accepts_fresh_attestation() {
         let generator = MockAttestationGenerator::new(AttestationLevel::TEE);
-        let nonce = [1, 2, 3, 4];
+        let nonce = random_nonce();
         let now = 1_000_000_u64;
 
         // Recent attestation should be accepted
@@ -277,7 +281,7 @@ mod freshness_tests {
     #[test]
     fn test_rejects_future_timestamp() {
         let generator = MockAttestationGenerator::new(AttestationLevel::TEE);
-        let nonce = [1, 2, 3, 4];
+        let nonce = random_nonce();
         let now = 1_000_000_u64;
 
         // Future timestamp should be rejected
@@ -292,11 +296,13 @@ mod freshness_tests {
     fn test_rejects_wrong_nonce() {
         let generator = MockAttestationGenerator::new(AttestationLevel::TEE);
         let now = 1_000_000_u64;
+        let nonce = random_nonce();
+        let wrong_nonce = [nonce[0] ^ 1, nonce[1], nonce[2], nonce[3]];
 
         // Report with wrong nonce should be rejected
-        let report = generator.generate_wrong_nonce_report(&[9, 8, 7, 6], now.saturating_sub(60));
+        let report = generator.generate_wrong_nonce_report(&wrong_nonce, now.saturating_sub(60));
         assert!(
-            !report.verify_at_time(&[1, 2, 3, 4], now),
+            !report.verify_at_time(&nonce, now),
             "Attestation with wrong nonce should be rejected"
         );
     }
@@ -353,7 +359,7 @@ mod crypto_verification_tests {
     #[test]
     fn test_rejects_invalid_signature() {
         let generator = MockAttestationGenerator::new(AttestationLevel::TEE);
-        let nonce = [1, 2, 3, 4];
+        let nonce = random_nonce();
         let now = 1_000_000_u64;
 
         let report = generator.generate_invalid_signature_report(&nonce, now.saturating_sub(60));
@@ -366,7 +372,7 @@ mod crypto_verification_tests {
     #[test]
     fn test_rejects_untrusted_root_ca() {
         let generator = MockAttestationGenerator::new(AttestationLevel::TEE);
-        let nonce = [1, 2, 3, 4];
+        let nonce = random_nonce();
         let now = 1_000_000_u64;
 
         let report = generator.generate_untrusted_root_report(&nonce, now.saturating_sub(60));
@@ -379,7 +385,7 @@ mod crypto_verification_tests {
     #[test]
     fn test_strongbox_requires_hardware_hardening() {
         let generator = MockAttestationGenerator::new(AttestationLevel::StrongBox);
-        let nonce = [1, 2, 3, 4];
+        let nonce = random_nonce();
         let now = 1_000_000_u64;
 
         // Report without hardware hardening should be rejected for StrongBox
@@ -394,7 +400,7 @@ mod crypto_verification_tests {
     #[test]
     fn test_cloud_tee_requires_hardware_hardening() {
         let generator = MockAttestationGenerator::new(AttestationLevel::CloudTEE);
-        let nonce = [1, 2, 3, 4];
+        let nonce = random_nonce();
         let now = 1_000_000_u64;
 
         // Report without hardware hardening should be rejected for CloudTEE
@@ -418,7 +424,7 @@ mod fingerprint_tests {
     #[test]
     fn test_fingerprint_deterministic() {
         let generator = MockAttestationGenerator::new(AttestationLevel::TEE);
-        let nonce = [1, 2, 3, 4];
+        let nonce = random_nonce();
         let timestamp = 1_000_000_u64;
 
         let report1 = generator.generate_valid_report(&nonce, timestamp);
@@ -442,8 +448,8 @@ mod fingerprint_tests {
         let gen1 = MockAttestationGenerator::new(AttestationLevel::TEE);
         let gen2 = MockAttestationGenerator::new(AttestationLevel::CloudTEE);
 
-        let report1 = gen1.generate_valid_report(&[1, 2, 3, 4], 1_000_000);
-        let report2 = gen2.generate_valid_report(&[1, 2, 3, 4], 1_000_000);
+        let report1 = gen1.generate_valid_report(&random_nonce(), 1_000_000);
+        let report2 = gen2.generate_valid_report(&random_nonce(), 1_000_000);
 
         let fp1 = report1.get_device_fingerprint();
         let fp2 = report2.get_device_fingerprint();
@@ -517,7 +523,7 @@ mod trust_enforcement_tests {
     fn test_production_signing_requires_hardware_attestation() {
         // Simulate a production signing request
         let generator = MockAttestationGenerator::new(AttestationLevel::Software);
-        let nonce = [1, 2, 3, 4];
+        let nonce = random_nonce();
         let now = 1_000_000_u64;
 
         let report = generator.generate_valid_report(&nonce, now.saturating_sub(60));
@@ -548,7 +554,7 @@ mod edge_case_tests {
             report_version: ATTESTATION_ENVELOPE_VERSION,
             report_type: AttestationReportType::DeviceIntegrity,
             level: AttestationLevel::TEE,
-            challenge_nonce: vec![1, 2, 3, 4],
+            challenge_nonce: random_nonce().to_vec(),
             signature: vec![], // Empty signature
             attested_operation_public_key: vec![0x42; 32],
             signer_key_binding: None,
@@ -561,7 +567,7 @@ mod edge_case_tests {
 
         // Empty signature should fail verification (signature is empty)
         assert!(
-            !report.verify(&[1, 2, 3, 4]),
+            !report.verify(&random_nonce()),
             "Empty signature should be rejected"
         );
     }
