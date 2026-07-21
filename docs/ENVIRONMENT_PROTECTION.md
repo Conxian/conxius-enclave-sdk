@@ -75,24 +75,20 @@ protection_rules:
 
 After environment is configured:
 
-1. **Tag creation** triggers the full-history secret-scan prerequisite, release evidence generation, and the single publisher path:
+1. **Tag creation** triggers automatic validation and the single publisher path:
    ```bash
    git tag -s v2.0.7 -m "Release v2.0.7"
    git push origin v2.0.7
    ```
 
 2. **Automatic publish** requires:
-   - Validation, full-history secret scan, and release-evidence jobs must pass
+   - Validation job and release-evidence job must pass
    - Required reviewers must approve (if configured)
-   - The downloaded crates.io crate must match the attested crate SHA-256 digest
-   - Only after that comparison succeeds can the GitHub Release creator run
 
 3. **Manual recovery publish** requires:
    - The same release tag and version to be selected in Actions → Release Strict
-   - Set exactly one of `publish_to_crates_io` or `recover_existing_registry` to `true`
-   - Validation, full-history secret scan, and release-evidence jobs must pass
+   - Validation job and release-evidence job must pass
    - Required reviewers must approve (if configured)
-   - Registry artifact verification must match the attested crate before release recovery
 
 ## Verification
 
@@ -112,8 +108,6 @@ If the `publish-crates-io` job waits indefinitely:
 1. Check environment protection rules are configured
 2. Verify `CARGO_REGISTRY_TOKEN` secret exists in `release` environment
 3. Ensure workflow is triggered against a release tag
-
-If registry verification reports that the artifact is not yet available, allow the bounded retry window to complete and inspect the retained attested evidence before retrying. Do not create a GitHub Release manually outside `Release Strict`.
 
 ### Token Expired
 

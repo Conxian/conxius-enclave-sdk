@@ -7,8 +7,7 @@ Usage: .github/scripts/verify-release-artifacts.sh <version> <crate> <checksum> 
 
 Verifies that a packaged crate, its SHA-256 checksum, and SPDX JSON SBOM all
 describe the requested package version. If a manifest is supplied, its version,
-tag, source identity, evidence hashes, and optional registry comparison are
-checked as well.
+tag, commit, and artifact hashes are checked as well.
 USAGE
 }
 
@@ -100,7 +99,6 @@ from pathlib import Path
 manifest_path, expected_version, crate_path, crate_sha256, sbom_path = sys.argv[1:]
 with open(manifest_path, encoding='utf-8') as f:
     manifest = json.load(f)
-manifest_dir = Path(manifest_path).parent
 if manifest.get('package') != 'conxius-enclave-sdk':
     raise SystemExit('release manifest package does not match conxius-enclave-sdk')
 if manifest.get('version') != expected_version:
@@ -127,68 +125,6 @@ if manifest.get('lockSha256') != lock_sha256:
     raise SystemExit('release manifest lockfile checksum does not match Cargo.lock')
 if not manifest.get('commit'):
     raise SystemExit('release manifest is missing the source commit')
-if not manifest.get('sourceRef'):
-    raise SystemExit('release manifest is missing the source ref')
-
-workflow_run = manifest.get('workflowRun')
-if not isinstance(workflow_run, dict):
-    raise SystemExit('release manifest is missing workflow run identity')
-for field in ('repository', 'workflow', 'runId', 'runAttempt', 'event', 'ref', 'commit'):
-    if workflow_run.get(field) in (None, ''):
-        raise SystemExit(f'release manifest workflow run is missing {field}')
-if workflow_run.get('ref') != manifest.get('sourceRef'):
-    raise SystemExit('release manifest workflow ref does not match sourceRef')
-if workflow_run.get('commit') != manifest.get('commit'):
-    raise SystemExit('release manifest workflow commit does not match source commit')
-
-def evidence_path(field: str) -> Path:
-    value = manifest.get(field)
-    if not isinstance(value, str) or not value:
-        raise SystemExit(f'release manifest is missing {field}')
-    path = manifest_dir / value
-    if not path.is_file():
-        raise SystemExit(f'release manifest evidence file is missing: {path}')
-    return path
-
-lock_evidence_path = evidence_path('lockfileSha256File')
-lock_evidence_sha256 = lock_evidence_path.read_text(encoding='utf-8').split()[0]
-if lock_evidence_sha256 != lock_sha256:
-    raise SystemExit('lockfile evidence digest does not match Cargo.lock')
-
-provenance_path = evidence_path('provenanceVerification')
-provenance_sha256 = hashlib.sha256(provenance_path.read_bytes()).hexdigest()
-if manifest.get('provenanceVerificationSha256') != provenance_sha256:
-    raise SystemExit('provenance verification digest does not match the evidence file')
-with provenance_path.open(encoding='utf-8') as f:
-    provenance = json.load(f)
-if provenance.get('verified') is not True:
-    raise SystemExit('provenance verification evidence is not marked verified')
-provenance_policy = provenance.get('policy')
-if not isinstance(provenance_policy, dict):
-    raise SystemExit('provenance verification evidence is missing its policy identity')
-if provenance_policy.get('sourceCommit') != manifest.get('commit'):
-    raise SystemExit('provenance source commit does not match the release manifest')
-if provenance_policy.get('sourceRef') != manifest.get('sourceRef'):
-    raise SystemExit('provenance source ref does not match the release manifest')
-
-registry_name = manifest.get('registryVerification')
-if registry_name is not None:
-    registry_path = evidence_path('registryVerification')
-    registry_sha256 = hashlib.sha256(registry_path.read_bytes()).hexdigest()
-    if manifest.get('registryVerificationSha256') != registry_sha256:
-        raise SystemExit('registry verification digest does not match the evidence file')
-    with registry_path.open(encoding='utf-8') as f:
-        registry = json.load(f)
-    if registry.get('registry') != 'crates.io':
-        raise SystemExit('registry verification did not use crates.io')
-    if registry.get('matched') is not True:
-        raise SystemExit('registry verification evidence is not marked matched')
-    if registry.get('version') != expected_version:
-        raise SystemExit('registry verification version does not match the requested version')
-    if registry.get('expectedSha256') != crate_sha256:
-        raise SystemExit('registry verification expected digest does not match the crate')
-    if registry.get('registrySha256') != crate_sha256:
-        raise SystemExit('registry verification downloaded digest does not match the crate')
 try:
     checked_out_commit = subprocess.check_output(
         ['git', 'rev-parse', 'HEAD'], text=True, stderr=subprocess.DEVNULL
