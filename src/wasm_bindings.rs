@@ -3,6 +3,7 @@ use crate::protocol::ethereum::EthereumManager;
 use crate::protocol::solana::SolanaManager;
 use crate::wasm_support::{self, WasmRuntime};
 use crate::ConclaveError;
+use bech32::{primitives::decode::CheckedHrpstring, Bech32};
 use hex;
 use serde_wasm_bindgen;
 use std::sync::Arc;
@@ -404,6 +405,142 @@ fn to_js_error<E: std::fmt::Display>(e: E) -> JsValue {
     wasm_error("CONXIAN_ERROR", &e.to_string())
 }
 
+const LIGHTNING_INVOICE_MAX_LENGTH: usize = 2048;
+const LIGHTNING_INVOICE_TIMESTAMP_DATA_LENGTH: usize = 7;
+const LIGHTNING_INVOICE_SIGNATURE_DATA_LENGTH: usize = 104;
+const LIGHTNING_PAYMENT_HASH_DATA_LENGTH: usize = 52;
+const BECH32_CHARSET: &[u8; 32] = b"qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+
+/// Validate caller-supplied Lightning construction fields without including
+/// any rejected value in the public error. The native state-machine
+/// constructor is intentionally infallible, so this validation belongs at
+/// both exported WASM construction paths.
+fn validate_lightning_constructor_inputs(
+    payment_hash: &str,
+    invoice: &str,
+    amount_msat: u64,
+) -> Result<(), JsValue> {
+    if !is_valid_lightning_payment_hash(payment_hash) {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "payment_hash must be 32 bytes encoded as 64 hexadecimal characters",
+        ));
+    }
+
+    if !is_valid_lightning_invoice(invoice) {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "invoice must be a valid BOLT11 payment request",
+        ));
+    }
+
+    if amount_msat == 0 {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "amount_msat must be greater than zero",
+        ));
+    }
+
+    Ok(())
+}
+
+fn is_valid_lightning_payment_hash(payment_hash: &str) -> bool {
+    payment_hash.len() == 64
+        && payment_hash
+            .as_bytes()
+            .iter()
+            .all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn is_valid_lightning_invoice(invoice: &str) -> bool {
+    if invoice.is_empty() || invoice.len() > LIGHTNING_INVOICE_MAX_LENGTH {
+        return false;
+    }
+
+    let Ok(checked) = CheckedHrpstring::new::<Bech32>(invoice) else {
+        return false;
+    };
+
+    let hrp = checked.hrp().to_string();
+    if !is_valid_lightning_invoice_hrp(&hrp) {
+        return false;
+    }
+
+    let Some(data): Option<Vec<u8>> = checked
+        .data_part_ascii_no_checksum()
+        .iter()
+        .map(|character| {
+            BECH32_CHARSET
+                .iter()
+                .position(|candidate| candidate == character)
+                .map(|value| value as u8)
+        })
+        .collect()
+    else {
+        return false;
+    };
+    let Some(tagged_data_end) = data
+        .len()
+        .checked_sub(LIGHTNING_INVOICE_SIGNATURE_DATA_LENGTH)
+    else {
+        return false;
+    };
+
+    if tagged_data_end < LIGHTNING_INVOICE_TIMESTAMP_DATA_LENGTH {
+        return false;
+    }
+
+    let mut offset = LIGHTNING_INVOICE_TIMESTAMP_DATA_LENGTH;
+    let mut payment_hash_fields = 0;
+    while offset < tagged_data_end {
+        if tagged_data_end - offset < 3 {
+            return false;
+        }
+
+        let tag = data[offset];
+        let field_length = (data[offset + 1] as usize) * 32 + data[offset + 2] as usize;
+        offset += 3;
+
+        if field_length > tagged_data_end - offset {
+            return false;
+        }
+
+        if tag == 1 {
+            if field_length != LIGHTNING_PAYMENT_HASH_DATA_LENGTH {
+                return false;
+            }
+            payment_hash_fields += 1;
+        }
+
+        offset += field_length;
+    }
+
+    offset == tagged_data_end && payment_hash_fields == 1
+}
+
+fn is_valid_lightning_invoice_hrp(hrp: &str) -> bool {
+    let amount = ["lnbcrt", "lntbs", "lnbc", "lntb", "lnsb"]
+        .iter()
+        .find_map(|prefix| hrp.strip_prefix(prefix));
+    let Some(amount) = amount else {
+        return false;
+    };
+
+    if amount.is_empty() || amount.as_bytes().iter().all(|byte| byte.is_ascii_digit()) {
+        return true;
+    }
+
+    if amount.len() < 2 {
+        return false;
+    }
+    let split_at = amount.len() - 1;
+    let (digits, multiplier) = amount.split_at(split_at);
+
+    !digits.is_empty()
+        && digits.as_bytes().iter().all(|byte| byte.is_ascii_digit())
+        && matches!(multiplier, "m" | "u" | "n" | "p")
+}
+
 fn invalid_input() -> JsValue {
     conclave_error_to_js(ConclaveError::InvalidPayload)
 }
@@ -515,6 +652,7 @@ impl WasmLightningClient {
         amount_msat: u64,
         expiry_secs: Option<u64>,
     ) -> Result<WasmLightningClient, JsValue> {
+        validate_lightning_constructor_inputs(payment_hash, invoice, amount_msat)?;
         let intent = crate::protocol::lightning::LightningPaymentIntent::new(
             payment_hash.to_string(),
             invoice.to_string(),
@@ -551,6 +689,11 @@ pub struct WasmLightningClientConstructor;
 
 #[wasm_bindgen]
 impl WasmLightningClientConstructor {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmLightningClientConstructor {
+        WasmLightningClientConstructor
+    }
+
     pub fn create_intent(
         &self,
         payment_hash: &str,
@@ -559,6 +702,12 @@ impl WasmLightningClientConstructor {
         expiry_secs: Option<u64>,
     ) -> Result<WasmLightningClient, JsValue> {
         WasmLightningClient::new(payment_hash, invoice, amount_msat, expiry_secs)
+    }
+}
+
+impl Default for WasmLightningClientConstructor {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

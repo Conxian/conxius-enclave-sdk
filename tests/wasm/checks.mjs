@@ -10,7 +10,7 @@ function codeOf(error) {
   return error && typeof error === "object" ? error.code : undefined;
 }
 
-export function expectCode(action, expectedCode, label) {
+export function expectCode(action, expectedCode, label, forbiddenFragments = []) {
   try {
     const result = action();
     assertNoSecretShapedResult(result, label);
@@ -27,6 +27,12 @@ export function expectCode(action, expectedCode, label) {
       typeof error?.message === "string" && error.message.startsWith(`${expectedCode}:`),
       `${label} did not preserve the stable error code in the message`,
     );
+    for (const fragment of forbiddenFragments) {
+      assert(
+        !error.message.includes(fragment),
+        `${label} echoed rejected caller input ${JSON.stringify(fragment)}`,
+      );
+    }
   }
 }
 
@@ -65,6 +71,42 @@ function assertNoSecretShapedResult(result, label) {
       `${label} returned secret-shaped fields: ${resultNames.join(", ")}`,
     );
   }
+}
+
+function buildValidLightningInvoice() {
+  const charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+  const generators = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+  const data = [
+    ...Array(7).fill(0),
+    1,
+    1,
+    20,
+    ...Array(52).fill(1),
+    ...Array(104).fill(1),
+  ];
+  const hrp = "lnbc";
+  let checksum = 1;
+  for (const value of [
+    ...[...hrp].map((character) => character.charCodeAt(0) >> 5),
+    0,
+    ...[...hrp].map((character) => character.charCodeAt(0) & 31),
+    ...data,
+    ...Array(6).fill(0),
+  ]) {
+    const top = checksum >> 25;
+    checksum = ((checksum & 0x1ffffff) << 5) ^ value;
+    for (let index = 0; index < generators.length; index += 1) {
+      if ((top >> index) & 1) {
+        checksum ^= generators[index];
+      }
+    }
+  }
+  checksum ^= 1;
+  const checksumValues = Array.from(
+    { length: 6 },
+    (_, index) => (checksum >> (5 * (5 - index))) & 31,
+  );
+  return `${hrp}1${[...data, ...checksumValues].map((value) => charset[value]).join("")}`;
 }
 
 function assertNoSecretExports(api, lane) {
@@ -114,6 +156,10 @@ function assertNoSecretExports(api, lane) {
   assert(
     typeof api.WasmLightningClient === "function",
     `${lane}: WasmLightningClient is missing`,
+  );
+  assert(
+    typeof api.WasmLightningClientConstructor === "function",
+    `${lane}: WasmLightningClientConstructor is missing`,
   );
   assert(
     typeof api.WasmArkClient === "function",
@@ -174,6 +220,66 @@ export async function runSurfaceChecks(api, lane) {
     "UNSUPPORTED_RUNTIME",
     `${lane}: provider construction with unknown runtime`,
   );
+
+  const validLightningPaymentHash = "11".repeat(32);
+  const validLightningInvoice = buildValidLightningInvoice();
+  expectCode(
+    () => new api.WasmLightningClient("payment-hash", validLightningInvoice, 1000n, null),
+    "INVALID_INPUT",
+    `${lane}: Lightning malformed payment hash`,
+    ["payment-hash"],
+  );
+  expectCode(
+    () => new api.WasmLightningClient(validLightningPaymentHash, "lnbc1-runtime-evidence", 1000n, null),
+    "INVALID_INPUT",
+    `${lane}: Lightning malformed invoice`,
+    ["lnbc1-runtime-evidence"],
+  );
+  expectCode(
+    () => new api.WasmLightningClient(validLightningPaymentHash, validLightningInvoice, 0n, null),
+    "INVALID_INPUT",
+    `${lane}: Lightning zero amount`,
+  );
+
+  const lightningConstructor = new api.WasmLightningClientConstructor();
+  expectCode(
+    () => lightningConstructor.create_intent("payment-hash", validLightningInvoice, 1000n, null),
+    "INVALID_INPUT",
+    `${lane}: Lightning factory malformed payment hash`,
+    ["payment-hash"],
+  );
+  expectCode(
+    () =>
+      lightningConstructor.create_intent(
+        validLightningPaymentHash,
+        "lnbc1-runtime-evidence",
+        1000n,
+        null,
+      ),
+    "INVALID_INPUT",
+    `${lane}: Lightning factory malformed invoice`,
+    ["lnbc1-runtime-evidence"],
+  );
+  expectCode(
+    () =>
+      lightningConstructor.create_intent(
+        validLightningPaymentHash,
+        validLightningInvoice,
+        0n,
+        null,
+      ),
+    "INVALID_INPUT",
+    `${lane}: Lightning factory zero amount`,
+  );
+
+  const lightning = new api.WasmLightningClient(
+    validLightningPaymentHash,
+    validLightningInvoice,
+    1000n,
+    null,
+  );
+  assert(lightning.get_status() === "Created", `${lane}: valid Lightning construction`);
+  assert(!lightning.can_retry(), `${lane}: new Lightning client unexpectedly can retry`);
 
   // These direct protocol clients are deliberately zero-state. They do not
   // construct or retain a provider-backed ConclaveWasmClient, enclave, URL,

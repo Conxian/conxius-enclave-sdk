@@ -21,7 +21,11 @@ env:
   WASM_EXPECTED_NODE_VERSION: 22.23.1
   WASM_EXPECTED_NPM_VERSION: 11.18.0
   WASM_EXPECTED_RUST_VERSION: 1.97.1
+  WASM_EXPECTED_PLAYWRIGHT_VERSION: 1.54.2
   WASM_STRICT_TOOLCHAIN: "1"
+  WASM_EXPECTED_TESTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+  WASM_PR_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || '' }}
+  WASM_MERGE_REF_SHA: ${{ github.event_name == 'pull_request' && github.sha || '' }}
 
 jobs:
   runtime:
@@ -31,6 +35,10 @@ jobs:
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
 
       - name: Install Rust and WASM target
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # Rust 1.97.1
@@ -60,4 +68,15 @@ jobs:
         run: tests/wasm/node_modules/.bin/playwright install --with-deps chromium
 
       - name: Execute Node, browser, worker, and bundler lanes
+        env:
+          WASM_RUNTIME_EVIDENCE_DIR: ${{ runner.temp }}/wasm-runtime-evidence
         run: ./scripts/wasm_runtime_evidence.sh
+
+      - name: Upload runtime evidence manifest
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wasm-runtime-evidence-${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/wasm-runtime-evidence
+          if-no-files-found: error
+          retention-days: 90

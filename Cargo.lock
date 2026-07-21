@@ -1627,6 +1627,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "bdk_wallet",
+ "bech32",
  "bitcoin 0.33.0-beta",
  "blake2",
  "bs58",
