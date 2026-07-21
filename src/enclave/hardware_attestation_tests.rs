@@ -15,7 +15,6 @@ use crate::enclave::attestation::{
     DeviceIntegrityReport, ATTESTATION_ENVELOPE_VERSION,
 };
 use crate::enclave::replay_guard::ReplayGuard;
-use rand::RngCore;
 
 /// Mock attestation generator for different trust tiers
 struct MockAttestationGenerator {
