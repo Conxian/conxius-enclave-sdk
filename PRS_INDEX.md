@@ -1,18 +1,36 @@
 # Conclave SDK Pull Requests Index
 
-> Auto-generated from GitHub. Last sync: 2026-07-20T21:25:15Z
+> Auto-generated from GitHub. Last sync: 2026-07-20T23:20:56Z
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
 
 ## Summary
-- **Total PRs**: 183
-- **Open PRs**: 2
-- **Merged PRs**: 169
+- **Total PRs**: 191
+- **Open PRs**: 8
+- **Merged PRs**: 171
 - **Closed PRs**: 12
 
 ## Open PRs
-- [ ] [**#206**](https://github.com/Conxian/conxius-enclave-sdk/pull/206): fix: reject unsupported BIP-110 spend scripts
+- [ ] [**#214**](https://github.com/Conxian/conxius-enclave-sdk/pull/214): fix: fail closed on unverifiable attestation and rail signing
+  - Author: charliecreates[bot]
+
+- [ ] [**#213**](https://github.com/Conxian/conxius-enclave-sdk/pull/213): fix(release): make toolchain and release evidence reproducible
+  - Author: charliecreates[bot]
+
+- [ ] [**#212**](https://github.com/Conxian/conxius-enclave-sdk/pull/212): fix: fail closed CCTP, account abstraction, and asset adapters
+  - Author: charliecreates[bot]
+
+- [ ] [**#211**](https://github.com/Conxian/conxius-enclave-sdk/pull/211): fix(wasm): close key and provider boundary
+  - Author: charliecreates[bot]
+
+- [ ] [**#210**](https://github.com/Conxian/conxius-enclave-sdk/pull/210): fix: harden telemetry privacy and delivery semantics
+  - Author: charliecreates[bot]
+
+- [ ] [**#209**](https://github.com/Conxian/conxius-enclave-sdk/pull/209): fix: fail closed on simulated threshold protocols
+  - Author: charliecreates[bot]
+
+- [ ] [**#208**](https://github.com/Conxian/conxius-enclave-sdk/pull/208): fix: canonicalize Bitcoin and Ethereum validation
   - Author: charliecreates[bot]
 
 - [ ] [**#205**](https://github.com/Conxian/conxius-enclave-sdk/pull/205): fix(attestation): make #195 freshness verification deterministic
@@ -20,6 +38,12 @@
 
 
 ## Recently Merged PRs
+- [x] [**#207**](https://github.com/Conxian/conxius-enclave-sdk/pull/207): docs: reconcile live issue and PR indexes
+  - Author: charliecreates[bot] | Merged: 2026-07-20
+
+- [x] [**#206**](https://github.com/Conxian/conxius-enclave-sdk/pull/206): fix: reject unsupported BIP-110 spend scripts
+  - Author: charliecreates[bot] | Merged: 2026-07-20
+
 - [x] [**#204**](https://github.com/Conxian/conxius-enclave-sdk/pull/204): docs: add machine-first capability evidence tracking
   - Author: charliecreates[bot] | Merged: 2026-07-20
 
@@ -73,12 +97,6 @@
 
 - [x] [**#170**](https://github.com/Conxian/conxius-enclave-sdk/pull/170): fix(ci): use valid provenance subject path
   - Author: charliecreates[bot] | Merged: 2026-07-13
-
-- [x] [**#168**](https://github.com/Conxian/conxius-enclave-sdk/pull/168): harden(frost): implement robust DKG Round 2 share verification against commitments
-  - Author: botshelomokoka | Merged: 2026-07-13
-
-- [x] [**#167**](https://github.com/Conxian/conxius-enclave-sdk/pull/167): fix(deps): support x509-cert 0.3
-  - Author: charliecreates[bot] | Merged: 2026-07-11
 
 
 ## Closed (Not Merged) PRs
