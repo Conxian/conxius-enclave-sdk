@@ -1,7 +1,11 @@
 //! BitVM2 Challenge Orchestration Module
 //!
-//! Implements the integration of Ark forfeit transactions with the BitVM2 optimistic
-//! challenge-response tree. This enables trust-minimized exits from Ark vTXOs.
+//! Defines the integration boundary for Ark forfeit transactions and BitVM2
+//! optimistic challenge-response state.
+//!
+//! Value-bearing commitment, proof, challenge, settlement, and signing
+//! operations remain explicitly unsupported until audited implementations and
+//! chain/proof evidence are available.
 //!
 //! Architecture (Q4 2025):
 //! - Permissionless challengers (existential honesty - 1-of-n)
@@ -14,8 +18,8 @@
 //! - ePrint IACR: https://eprint.iacr.org/2025/1158.pdf
 
 use crate::protocol::ark::{ArkManager, VUtxoDescriptor, VtxoTreeNode};
-use crate::protocol::bitvm::{BitVmChallenge, BitVmManager};
-use crate::{ConclaveError, ConclaveResult};
+use crate::protocol::bitvm::BitVmManager;
+use crate::{protocol_unsupported, ConclaveResult, UnsupportedOperation, UnsupportedProtocol};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -89,9 +93,11 @@ pub struct BitVm2ChallengeResponse {
 
 /// BitVM2 Orchestrator - manages challenge lifecycle
 pub struct BitVm2Orchestrator {
+    #[allow(dead_code)]
     ark_manager: Arc<ArkManager>,
     #[allow(dead_code)]
     bitvm_manager: Arc<BitVmManager>,
+    #[allow(dead_code)]
     active_challenges: std::collections::HashMap<String, BitVm2ChallengeStatus>,
 }
 
@@ -109,206 +115,85 @@ impl BitVm2Orchestrator {
     /// Integrates Ark vTXO with BitVM2 optimistic commitment
     pub fn create_forfeit_with_commitment(
         &self,
-        vutxo: VUtxoDescriptor,
-        vtxo_tree: VtxoTreeNode,
-        state_root_hash: [u8; 32],
-        taproot_internal_key: [u8; 32],
+        _vutxo: VUtxoDescriptor,
+        _vtxo_tree: VtxoTreeNode,
+        _state_root_hash: [u8; 32],
+        _taproot_internal_key: [u8; 32],
     ) -> ConclaveResult<BitVm2ForfeitTransaction> {
-        // Calculate merkle root from tree
-        let merkle_root = Self::calculate_tree_root(&vtxo_tree)?;
-
-        // Create commitment hash from state data
-        let mut commitment_data = Vec::new();
-        commitment_data.extend_from_slice(&state_root_hash);
-        commitment_data.extend_from_slice(&merkle_root);
-        commitment_data.extend_from_slice(&taproot_internal_key);
-
-        use blake2::{Blake2s256, Digest};
-        let mut hasher = Blake2s256::new();
-        hasher.update(&commitment_data);
-        let commitment_hash = hasher.finalize();
-        let mut hash = [0u8; 32];
-        hash.copy_from_slice(&commitment_hash);
-
-        Ok(BitVm2ForfeitTransaction {
-            vutxo,
-            tree_root: hex::encode(merkle_root),
-            commitment_hash: hash,
-            challenge_window: 42, // ~7 hours at 10min blocks
-            csv_delay: 144,       // ~24 hours
-        })
+        Err(protocol_unsupported(
+            UnsupportedProtocol::BitVm2,
+            UnsupportedOperation::ForfeitConstruction,
+        ))
     }
 
     /// Post an optimistic commitment for a batch of vTXOs
-    pub fn post_commitment(&mut self, commitment: BitVm2Commitment) -> ConclaveResult<String> {
-        // Generate a unique ID for this commitment
-        use blake2::{Blake2s256, Digest};
-        let mut hasher = Blake2s256::new();
-        hasher.update(commitment.state_root_hash);
-        hasher.update(commitment.block_height.to_le_bytes());
-        let commitment_id = hex::encode(hasher.finalize());
-
-        // Register the challenge status
-        self.active_challenges.insert(
-            commitment_id.clone(),
-            BitVm2ChallengeStatus {
-                phase: ChallengePhase::Commitment,
-                commitment_txid: None,
-                challenge_txid: None,
-                challenge_block: None,
-                resolution: None,
-            },
-        );
-
-        Ok(commitment_id)
+    pub fn post_commitment(&mut self, _commitment: BitVm2Commitment) -> ConclaveResult<String> {
+        Err(protocol_unsupported(
+            UnsupportedProtocol::BitVm2,
+            UnsupportedOperation::CommitmentPosting,
+        ))
     }
 
     /// Challenge an optimistic commitment (permissionless)
     /// Anyone can challenge - existential honesty model
     pub fn challenge_commitment(
         &mut self,
-        commitment_id: &str,
-        response: BitVm2ChallengeResponse,
+        _commitment_id: &str,
+        _response: BitVm2ChallengeResponse,
     ) -> ConclaveResult<()> {
-        let status = self
-            .active_challenges
-            .get_mut(commitment_id)
-            .ok_or(ConclaveError::InvalidPayload)?;
-
-        // Verify we're in commitment phase
-        if status.phase != ChallengePhase::Commitment {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
-        // Verify tap index is within bounds
-        if response.tap_index >= 364 {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
-        // Create BitVM challenge for SNARK verification
-        let _bitvm_challenge = BitVmChallenge {
-            challenge_hash: response.expected_output_hash,
-            tap_index: response.tap_index,
-            total_taps: 364,
-        };
-
-        // The challenge response contains a SNARK proof that would be verified
-        // on-chain. Here we just record the challenge.
-        status.phase = ChallengePhase::Challenge;
-        status.challenge_txid = Some(hex::encode(
-            response
-                .snark_proof
-                .iter()
-                .take(32)
-                .cloned()
-                .collect::<Vec<_>>(),
-        ));
-        status.challenge_block = Some(0); // Would be set on-chain
-
-        Ok(())
+        Err(protocol_unsupported(
+            UnsupportedProtocol::BitVm2,
+            UnsupportedOperation::ChallengeSubmission,
+        ))
     }
 
     /// Resolve a challenge after verification
     pub fn resolve_challenge(
         &mut self,
-        commitment_id: &str,
-        operator_punished: bool,
+        _commitment_id: &str,
+        _operator_punished: bool,
         _block_height: u64,
     ) -> ConclaveResult<()> {
-        let status = self
-            .active_challenges
-            .get_mut(commitment_id)
-            .ok_or(ConclaveError::InvalidPayload)?;
-
-        if status.phase != ChallengePhase::Challenge {
-            return Err(ConclaveError::InvalidPayload);
-        }
-
-        if operator_punished {
-            status.phase = ChallengePhase::ResolvedPenalty;
-            status.resolution = Some("Operator punished - forfeit released".to_string());
-        } else {
-            status.phase = ChallengePhase::ResolvedRelease;
-            status.resolution = Some("Challenge rejected - commitment valid".to_string());
-        }
-
-        Ok(())
+        Err(protocol_unsupported(
+            UnsupportedProtocol::BitVm2,
+            UnsupportedOperation::ChallengeResolution,
+        ))
     }
 
     /// Get the status of a challenge
     pub fn get_challenge_status(
         &self,
-        commitment_id: &str,
+        _commitment_id: &str,
     ) -> ConclaveResult<BitVm2ChallengeStatus> {
-        self.active_challenges
-            .get(commitment_id)
-            .cloned()
-            .ok_or(ConclaveError::InvalidPayload)
+        Err(protocol_unsupported(
+            UnsupportedProtocol::BitVm2,
+            UnsupportedOperation::ChallengeStatus,
+        ))
     }
 
     /// Check if a commitment is still within the challenge window
     pub fn is_within_challenge_window(
         &self,
-        commitment_id: &str,
+        _commitment_id: &str,
         _current_block: u64,
     ) -> ConclaveResult<bool> {
-        let status = self.get_challenge_status(commitment_id)?;
-
-        if status.phase != ChallengePhase::Commitment {
-            return Ok(false);
-        }
-
-        // Challenge window is 42 blocks (~7 hours)
-        // In production, we'd check the actual commitment block
-        Ok(true)
+        Err(protocol_unsupported(
+            UnsupportedProtocol::BitVm2,
+            UnsupportedOperation::ChallengeWindow,
+        ))
     }
 
     /// Sign a forfeit transaction for an exiting vTXO
     /// This is called when the challenge window expires without challenge
     pub fn sign_forfeit(
         &self,
-        forfeit_tx: &BitVm2ForfeitTransaction,
-        derivation_path: &str,
+        _forfeit_tx: &BitVm2ForfeitTransaction,
+        _derivation_path: &str,
     ) -> ConclaveResult<String> {
-        // Create a hash of the forfeit data for signing
-        use blake2::{Blake2s256, Digest};
-        let mut hasher = Blake2s256::new();
-        hasher.update(forfeit_tx.commitment_hash);
-        hasher.update(forfeit_tx.vutxo.vutxo_id.as_bytes());
-        let mut tx_hash = [0u8; 32];
-        tx_hash.copy_from_slice(&hasher.finalize());
-
-        self.ark_manager
-            .sign_forfeit_transaction(tx_hash, derivation_path)
-    }
-
-    /// Calculate the merkle root hash from a vTXO tree
-    fn calculate_tree_root(tree: &VtxoTreeNode) -> ConclaveResult<[u8; 32]> {
-        if tree.is_leaf {
-            use blake2::{Blake2s256, Digest};
-            let mut hasher = Blake2s256::new();
-            hasher.update(tree.tx_id.as_bytes());
-            let result = hasher.finalize();
-            let mut hash = [0u8; 32];
-            hash.copy_from_slice(&result);
-            Ok(hash)
-        } else {
-            let left_hash = Self::calculate_tree_root(
-                tree.left.as_ref().ok_or(ConclaveError::InvalidPayload)?,
-            )?;
-            let right_hash = Self::calculate_tree_root(
-                tree.right.as_ref().ok_or(ConclaveError::InvalidPayload)?,
-            )?;
-
-            use blake2::{Blake2s256, Digest};
-            let mut hasher = Blake2s256::new();
-            hasher.update(left_hash);
-            hasher.update(right_hash);
-            let result = hasher.finalize();
-            let mut hash = [0u8; 32];
-            hash.copy_from_slice(&result);
-            Ok(hash)
-        }
+        Err(protocol_unsupported(
+            UnsupportedProtocol::BitVm2,
+            UnsupportedOperation::ForfeitSigning,
+        ))
     }
 }
 
@@ -316,6 +201,7 @@ impl BitVm2Orchestrator {
 mod tests {
     use super::*;
     use crate::enclave::cloud::CloudEnclave;
+    use crate::ConclaveError;
 
     fn create_test_orchestrator() -> BitVm2Orchestrator {
         let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
@@ -325,49 +211,20 @@ mod tests {
     }
 
     #[test]
-    fn test_forfeit_with_commitment() {
-        let orch = create_test_orchestrator();
-
+    fn test_bitvm2_operations_are_explicitly_unsupported() {
+        let mut orch = create_test_orchestrator();
         let vutxo = VUtxoDescriptor {
             vutxo_id: "test_vutxo_1".to_string(),
             amount: 100000,
             derivation_index: 0,
             address: "bc1q_test".to_string(),
         };
-
         let tree = VtxoTreeNode {
             tx_id: "root".to_string(),
-            left: Some(Box::new(VtxoTreeNode {
-                tx_id: "left".to_string(),
-                left: None,
-                right: None,
-                is_leaf: true,
-            })),
-            right: Some(Box::new(VtxoTreeNode {
-                tx_id: "right".to_string(),
-                left: None,
-                right: None,
-                is_leaf: true,
-            })),
-            is_leaf: false,
+            left: None,
+            right: None,
+            is_leaf: true,
         };
-
-        let state_hash = [0u8; 32];
-        let taproot_key = [1u8; 32];
-
-        let forfeit = orch
-            .create_forfeit_with_commitment(vutxo.clone(), tree, state_hash, taproot_key)
-            .unwrap();
-
-        assert_eq!(forfeit.vutxo.vutxo_id, "test_vutxo_1");
-        assert_eq!(forfeit.challenge_window, 42);
-        assert_eq!(forfeit.csv_delay, 144);
-    }
-
-    #[test]
-    fn test_commitment_lifecycle() {
-        let mut orch = create_test_orchestrator();
-
         let commitment = BitVm2Commitment {
             state_root_hash: [2u8; 32],
             vtxo_count: 100,
@@ -375,14 +232,6 @@ mod tests {
             taproot_internal_key: [4u8; 32],
             block_height: 850000,
         };
-
-        let commitment_id = orch.post_commitment(commitment).unwrap();
-        assert!(!commitment_id.is_empty());
-
-        let status = orch.get_challenge_status(&commitment_id).unwrap();
-        assert_eq!(status.phase, ChallengePhase::Commitment);
-
-        // Post a challenge
         let response = BitVm2ChallengeResponse {
             tap_index: 100,
             snark_proof: vec![5u8; 64],
@@ -390,43 +239,73 @@ mod tests {
             expected_output_hash: [7u8; 32],
         };
 
-        orch.challenge_commitment(&commitment_id, response).unwrap();
-
-        let status = orch.get_challenge_status(&commitment_id).unwrap();
-        assert_eq!(status.phase, ChallengePhase::Challenge);
-
-        // Resolve
-        orch.resolve_challenge(&commitment_id, true, 850100)
-            .unwrap();
-
-        let status = orch.get_challenge_status(&commitment_id).unwrap();
-        assert_eq!(status.phase, ChallengePhase::ResolvedPenalty);
+        assert_unsupported(
+            orch.create_forfeit_with_commitment(vutxo.clone(), tree, [0u8; 32], [1u8; 32]),
+            UnsupportedOperation::ForfeitConstruction,
+        );
+        assert_unsupported(
+            orch.post_commitment(commitment),
+            UnsupportedOperation::CommitmentPosting,
+        );
+        assert!(orch.active_challenges.is_empty());
+        assert_unsupported(
+            orch.challenge_commitment("commitment", response),
+            UnsupportedOperation::ChallengeSubmission,
+        );
+        assert_unsupported(
+            orch.resolve_challenge("commitment", true, 850100),
+            UnsupportedOperation::ChallengeResolution,
+        );
+        assert_unsupported(
+            orch.get_challenge_status("commitment"),
+            UnsupportedOperation::ChallengeStatus,
+        );
+        assert_unsupported(
+            orch.is_within_challenge_window("commitment", 850100),
+            UnsupportedOperation::ChallengeWindow,
+        );
+        assert_unsupported(
+            orch.sign_forfeit(
+                &BitVm2ForfeitTransaction {
+                    vutxo,
+                    tree_root: "root".to_string(),
+                    commitment_hash: [0u8; 32],
+                    challenge_window: 42,
+                    csv_delay: 144,
+                },
+                "m/84'/0'/0'",
+            ),
+            UnsupportedOperation::ForfeitSigning,
+        );
     }
 
     #[test]
-    fn test_invalid_challenge() {
+    fn test_simulated_proof_cannot_succeed() {
         let mut orch = create_test_orchestrator();
 
-        // Tap index out of bounds
         let response = BitVm2ChallengeResponse {
-            tap_index: 400, // Should be < 364
-            snark_proof: vec![0u8; 64],
+            tap_index: 100,
+            snark_proof: Vec::new(),
             witness: vec![],
             expected_output_hash: [0u8; 32],
         };
 
-        let commitment = BitVm2Commitment {
-            state_root_hash: [0u8; 32],
-            vtxo_count: 10,
-            merkle_root: [0u8; 32],
-            taproot_internal_key: [0u8; 32],
-            block_height: 850000,
-        };
+        assert_unsupported(
+            orch.challenge_commitment("commitment", response),
+            UnsupportedOperation::ChallengeSubmission,
+        );
+        assert!(orch.active_challenges.is_empty());
+    }
 
-        let commitment_id = orch.post_commitment(commitment).unwrap();
-        let result = orch.challenge_commitment(&commitment_id, response);
-
-        assert!(result.is_err());
+    fn assert_unsupported<T>(result: ConclaveResult<T>, operation: UnsupportedOperation) {
+        match result {
+            Err(ConclaveError::ProtocolUnsupported {
+                protocol: UnsupportedProtocol::BitVm2,
+                operation: actual_operation,
+                reason: crate::UnsupportedReason::NoAuditedImplementation,
+            }) => assert_eq!(actual_operation, operation),
+            _ => panic!("expected typed BitVM2 unsupported error"),
+        }
     }
 
     #[test]

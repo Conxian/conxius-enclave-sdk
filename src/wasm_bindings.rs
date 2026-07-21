@@ -484,7 +484,7 @@ impl WasmFedimintClient {
 
     pub fn verify_note(&self, note: JsValue) -> Result<bool, JsValue> {
         let note_obj = serde_wasm_bindgen::from_value(note).map_err(to_js_error)?;
-        Ok(self.inner.verify_note(&note_obj))
+        self.inner.verify_note(&note_obj).map_err(to_js_error)
     }
 }
 
