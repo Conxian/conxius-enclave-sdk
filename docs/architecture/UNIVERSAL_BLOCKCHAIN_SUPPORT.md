@@ -19,7 +19,7 @@ Universal support is tiered based on security guarantees and implementation dept
     - Full hardware attestation (TEE/StrongBox) mandated for all signing operations.
     - High-performance Rust-native engines (Alloy-rs, BDK, Solana-SDK).
     - Direct Gateway/Nexus orchestration without intermediary custodial bridges.
-    - Support for advanced primitives (e.g., Taproot, EIP-1559, Account Abstraction).
+    - Support for the specific primitives evidenced for the target capability; current Ethereum evidence is limited to address and signed-message validation, not EIP-1559 transaction serialization or Account Abstraction execution.
 - **Boundary**: These chains are suitable for institutional settlement and large-value industrial payments.
 
 ### Tier 2 (Hybrid/Bridge-Mediated)
@@ -44,7 +44,7 @@ The `EnclaveManager` and `SignRequest` primitives now support multiple signing a
 To preserve our Bitcoin native moat, chain-specific logic is isolated into dedicated managers. While universal support is provided, Bitcoin remains the primary sellable primitive with the deepest feature set (Taproot, sBTC, Clarity integration).
 - `BitcoinManager`: Descriptor-based wallet management (BDK) and Taproot support.
 - `StacksManager`: Clarity-specific transaction and message handling.
-- `EthereumManager`: Universal EVM support (EIP-1559, recoverable signatures).
+- `EthereumManager`: Scoped Ethereum address and signed-message validation (Keccak, EIP-55, EIP-191, EIP-2098, EIP-155 `v`, and recoverable-signature parity); transaction serialization, EIP-1559, and EIP-712 remain outside this evidence scope.
 - `SolanaManager`: Native Ed25519 signing for Solana.
 - `ChainAbstractionService`: Orchestrates NEAR-style chain signatures and universal intent settlement.
 
@@ -56,7 +56,7 @@ The `Chain` enum and `AssetRegistry` support a vast taxonomy of assets.
   - **Axelar**: General Message Passing for cross-chain contract calls.
 
 ## 6. Hardware Attestation
-Universal operations maintain the same high-integrity standards as the Bitcoin stack. All signatures (regardless of chain) are accompanied by a `DeviceIntegrityReport` verifying the TEE/StrongBox environment.
+Value-bearing production operations are intended to require a `DeviceIntegrityReport` and hardware-backed policy, but the current repository evidence is simulated/conditional rather than provider-backed hardware support. The Ethereum capability documented here covers address and message/signature validation; it does not establish hardware-backed signing or provider/runtime evidence.
 
 ## 7. Integration Path
 Integrators access these capabilities via the `ConclaveWasmClient`:

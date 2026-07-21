@@ -54,7 +54,7 @@ This repository does **not** act as a complete wallet, DAO-facing governance sur
 | Fedimint | Typed secret-safe boundary; quarantined | Federation, mint, note, TBS/DLEQ, and threshold operations remain unsupported |
 | Ark / BitVM2 | Typed foundation; quarantined | Provider-owned Ark selection and legacy WASM BitVM challenge signing/aggregation fail closed; key derivation, recovery, tree/transaction construction, challenge, and settlement remain unsupported |
 | CCTP / account abstraction | API present; placeholder behavior | Production protocol integrations are not established |
-| Ethereum / Taproot / BIP-322 | API present; correctness gates open | Canonical hashing and cryptographic verification require remediation |
+| Ethereum / Taproot / BIP-322 | Scoped canonical verification/derivation | BIP-340/BIP-341/BIP-86, Ethereum address/message/signature validation, and native P2WPKH/P2TR key-path Simple verification are implemented in scope; broader script formats, Ethereum transaction construction, provider evidence, and production gates remain open |
 | 30+ Chains | Registry surface present | Address provenance and integration evidence are incomplete |
 | WASM | Boundary hardened; runtime support unsupported | Private-key export and software defaults are removed; browser/Node/bundler/worker and provider evidence remain open |
 
