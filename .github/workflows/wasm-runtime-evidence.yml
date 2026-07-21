@@ -1,0 +1,51 @@
+name: WASM Runtime Evidence
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-evidence:
+    name: WASM Runtime Evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_HTTP_MULTIPLEXING: false
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: 1
+      WASM_RUNTIME_REQUIRE_BROWSER: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust and WASM target
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: 1.97.1
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@a6b2e2dcd845ddd7f509ce4f3ed3d922b80cc5d9 # v2
+        with:
+          tool: wasm-pack@0.15.0
+
+      - name: Install pinned Chromium runtime
+        run: npx --yes playwright@1.61.1 install --with-deps chromium
+
+      - name: Build and execute runtime harnesses
+        run: ./scripts/run_wasm_runtime_evidence.sh "${RUNNER_TEMP}/wasm-runtime-evidence"
+
+      - name: Upload runtime evidence manifest
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wasm-runtime-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/wasm-runtime-evidence
+          if-no-files-found: error
+          retention-days: 90

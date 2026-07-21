@@ -23,12 +23,14 @@ The repository now enforces release readiness through GitHub Actions:
 - `CodeQL` workflow: Rust static analysis on push/PR/schedule.
 - `Release Strict` (`.github/workflows/release-strict.yml`) is the sole authoritative release workflow:
   - Runs automatically on `vX.Y.Z` tag push.
+  - Calls the reusable `Secret Scanning` workflow on the tag and requires its full-history Gitleaks check before release evidence or publication can proceed.
   - Validates the committed lockfile and pinned Rust toolchain.
-  - Packages the exact crate, records its checksum, generates an SPDX SBOM, and verifies build provenance.
-  - Creates the GitHub Release with the evidence bundle after validation.
-  - Publishes to crates.io through exactly one tag-triggered publisher protected by the `release` environment; the same job is available as a manual recovery path.
+  - Packages the exact crate, records its checksum and lockfile hash, generates an SPDX SBOM, and retains a concise provenance-verification identity record.
+  - Publishes to crates.io through exactly one tag-triggered publisher protected by the `release` environment, then downloads the registry crate with bounded retry/backoff and compares its SHA-256 digest with the attested crate.
+  - Creates the GitHub Release only after the publisher job and registry comparison succeed, attaching the final evidence bundle.
+  - Exposes the same job for controlled manual publication or recovery of an already-published registry artifact; no competing publisher exists.
 - `SBOM` (`.github/workflows/sbom.yml`) is non-release dependency validation and does not publish or attest a release.
-- `Secret Scanning` runs a pinned, checksum-verified MIT-licensed Gitleaks history scan.
+- `Secret Scanning` runs a pinned, checksum-verified MIT-licensed Gitleaks full-history scan. The release workflow reuses this same job on tag paths. Exact packaged-archive scanning is intentionally not a second boundary: the enforced source boundary is the complete checked-out history, while package contents are separately tied to the attested crate digest and manifest.
 
 ## Release Metadata Requirements
 
@@ -54,9 +56,10 @@ These checks are enforced by CI and release workflows.
 - Go to **Actions** → **Release Strict** → **Run workflow**.
 - Set **Use workflow from** to the release tag (`vX.Y.Z`).
 - Set `release_version` to `X.Y.Z` or `vX.Y.Z` matching the tag/Cargo version.
-- Set `publish_to_crates_io` to `true` only when recovering a validated tag run.
+- Set `publish_to_crates_io` to `true` only when the version is not already present on crates.io and publication needs recovery.
+- If crates.io publication already succeeded but GitHub Release creation needs recovery, set `recover_existing_registry` to `true` and leave `publish_to_crates_io` as `false`. Never set both inputs to `true`.
 - Verify `validate-release`, `sbom-provenance`, and provenance verification pass before approving the environment.
-- Verify the expected version appears on crates.io.
+- Verify the registry comparison evidence reports a matching SHA-256 digest before the workflow creates or recovers the GitHub Release.
 
 ## Release Flow
 
@@ -77,16 +80,18 @@ These checks are enforced by CI and release workflows.
 
 4. **Verify tag gate run**
    - The `Release Strict` workflow runs automatically on tag push.
-   - It validates metadata, runs locked tests/lint, packages the crate, writes a checksum, generates an SPDX SBOM, and verifies the package attestation.
-   - It creates the GitHub Release with the crate, checksum, SBOM, and release manifest.
-   - The single tag-triggered publisher runs after the validation, evidence, and provenance gates.
+   - It runs the full-history Gitleaks prerequisite, validates metadata, runs locked tests/lint, packages the crate, writes checksum and lockfile evidence, generates an SPDX SBOM, and retains provenance verification output/identity.
+   - The single tag-triggered publisher runs after the validation, secret-scan, evidence, and provenance gates.
+   - After publication, it downloads the crates.io artifact with bounded retry/backoff and fails closed unless its SHA-256 digest matches the packaged/attested crate.
+   - Only then does the workflow create the GitHub Release with the crate, checksum, lockfile hash, SBOM, provenance record, registry comparison, and release manifest.
 
 5. **Manual publish recovery (controlled)**
    - If the automatic publisher needs recovery, run the `Release Strict` workflow manually (`workflow_dispatch`) against the same tag with:
      - `release_version`: `X.Y.Z` or `vX.Y.Z`
-     - `publish_to_crates_io`: `true`
+     - `publish_to_crates_io`: `true` when the registry version is absent
+     - `recover_existing_registry`: `true` when the registry version is already present and only evidence/release creation needs recovery
    - Publishing requires `CARGO_REGISTRY_TOKEN` configured in the `release` environment.
-   - The recovery path uses the same publisher job and evidence checks; it is not a competing publisher.
+   - The recovery path uses the same publisher/registry-verification job and evidence checks; it is not a competing publisher. The two boolean inputs are mutually exclusive.
 
 6. **Optional WASM package publication**
    - Build and inspect package contents before publishing:
@@ -118,9 +123,11 @@ cargo package --locked
 cargo publish --locked --dry-run
 .github/scripts/verify-release-metadata.sh X.Y.Z
 .github/scripts/verify-release-artifacts.sh X.Y.Z <crate> <checksum> <sbom> [manifest]
+# Hosted-only after publication; retries crates.io propagation and writes registry-verification.json
+.github/scripts/verify-registry-artifact.sh X.Y.Z <crate> <checksum> <output-json>
 ```
 
-The current repository metadata declares `2.0.12`, while the latest visible release/tag evidence remains `v2.0.11`. This hardening change does not change versions, create a tag, publish a package, or establish release acceptance.
+The current repository metadata declares `2.0.12`, while the latest visible release/tag evidence remains `v2.0.11`. PR #213 and this follow-up improve repository controls only; they do not create a tag, publish a package, establish live `2.0.12` registry evidence, close issue #199, or satisfy the independent release-acceptance gate in issue #202.
 
 ## Mainnet Readiness and Security
 
