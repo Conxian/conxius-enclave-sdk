@@ -50,9 +50,9 @@ This repository does **not** act as a complete wallet, DAO-facing governance sur
 | Feature | Status | Description |
 |---------|--------|-------------|
 | Hardware Attestation | API present; simulated evidence | Vendor-backed production support is not established |
-| FROST DKG | Design/structural only | Production DKG and signing are not implemented. See the [treasury integration guide](docs/guides/FROST_TREASURY_INTEGRATION.md). |
-| Fedimint | Adapter present; threshold path simulated | Production threshold/BLS evidence is not established |
-| Ark / BitVM2 | API present; partial/simulated | Production challenge and settlement evidence is not established |
+| FROST DKG | Typed boundary; quarantined | RFC 9591 DKG, nonce, ciphersuite, attestation, and signing gates remain open |
+| Fedimint | Typed secret-safe boundary; quarantined | Federation, mint, note, TBS/DLEQ, and threshold operations remain unsupported |
+| Ark / BitVM2 | Typed foundation; quarantined | Key derivation, recovery, tree/transaction construction, challenge, and settlement remain unsupported |
 | CCTP / account abstraction | API present; placeholder behavior | Production protocol integrations are not established |
 | Ethereum / Taproot / BIP-322 | API present; correctness gates open | Canonical hashing and cryptographic verification require remediation |
 | 30+ Chains | Registry surface present | Address provenance and integration evidence are incomplete |
@@ -94,6 +94,7 @@ cargo clippy -- -D warnings
 - [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) - Release checklist
 - [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) - Findings, gates, unknowns, and public-safe evidence
 - [Capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) - API/evidence/support status by capability
+- [Protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) - requirements, boundaries, tests, CI/artifact gates, and non-production milestones
 - [WASM support matrix](./docs/architecture/WASM_SUPPORT_MATRIX.md) - Runtime/provider boundaries and evidence requirements
 - [WASM key-boundary migration](./docs/migrations/wasm-key-boundary.md) - Breaking API changes and migration guidance
 - [FROST Treasury Integration Guide](./docs/guides/FROST_TREASURY_INTEGRATION.md) - Design/runbook; production implementation is not yet available

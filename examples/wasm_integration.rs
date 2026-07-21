@@ -6,12 +6,12 @@ fn main() {
     println!("=== Conclave SDK: WASM Integration ===\n");
 
     // Available WASM Clients
-    println!("Available WASM Clients:");
-    println!("  ✓ ConclaveWasmClient (main entry)");
-    println!("  ✓ ark() - Ark vTXO operations");
-    println!("  ✓ bitvm() - BitVM2 challenges");
-    println!("  ✓ bitvm2() - BitVM2 orchestrator");
-    println!("  ✓ fedimint() - Federation operations");
+    println!("WASM boundary clients (API presence is not support):");
+    println!("  • ConclaveWasmClient (main entry; provider-gated)");
+    println!("  • ark() - typed Ark boundary; value-bearing methods fail closed");
+    println!("  • bitvm() - existing BitVM boundary; evidence remains required");
+    println!("  • bitvm2() - constructor/provider-gated; operations fail closed");
+    println!("  • fedimint() - secret-safe boundary; value-bearing methods fail closed");
     println!("  ✓ ethereum() - ERC-20 transfers");
     println!("  ✓ solana() - SPL transfers");
     println!("  ✓ lightning() - LND operations");
@@ -28,14 +28,12 @@ fn main() {
     println!("  // Use check_runtime_support() before loading a provider-backed artifact.");
     println!("  ConclaveWasmClient.check_runtime_support('browser');");
     println!();
-    println!("  // Ark operations");
-    println!("  // Approved provider integrations are not enabled by this release.");
-    println!("  // Future clients will expose public-key/signing capabilities only.");
-    println!("  const publicKey = arkClient.derive_vutxo_public_key(0);");
+    println!("  // Ark operations remain quarantined and return a typed unsupported error.");
+    println!("  // No seed, note secret, synthetic tree, or signature is returned.");
+    println!("  arkClient.derive_vutxo_public_key(0); // ProtocolUnsupported");
     println!();
-    println!("  // BitVM2 challenge");
-    println!("  const bitvm2 = client.bitvm2();");
-    println!("  const status = bitvm2.get_status(commitmentId);\n");
+    println!("  // BitVM2 construction is provider-gated and challenge methods fail closed.");
+    println!("  client.bitvm2(); // Unsupported provider until exact evidence exists\n");
 
     // Build Instructions
     println!("Build Instructions:");
@@ -43,5 +41,5 @@ fn main() {
     println!("  wasm-pack build --release --target nodejs");
     println!("  wasm-pack build --release --target web\n");
 
-    println!("Example completed successfully!");
+    println!("Example completed: boundary behavior only; no protocol operation succeeded.");
 }
