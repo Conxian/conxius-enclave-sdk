@@ -10,7 +10,7 @@
 
 ### Advanced Bitcoin Primitives
 - **Hardened BIP-322 Verification**: Full proof-of-ownership support for P2PKH, P2SH, SegWit, and Taproot.
-- **FROST DKG Round 1**: Structural/hash placeholder validation only; production RFC 9591-compatible DKG, signing, secure share storage, and aggregation are not implemented.
+- **FROST DKG Round 1**: Typed boundary/quarantine validation only; production RFC 9591-compatible DKG, signing, secure share storage, and aggregation are not implemented.
 - **Hardened Fedimint OPR**: local blinding and structural OPR (Oblivious Proof of Reserve) for community mints.
 - **BitVM2 Aggregation**: MuSig2-based Taproot tree aggregation for 364-tap verification floor.
 - **Ark Stateless Recovery**: Blake2s PRF-based V-UTXO restoration from master seed.

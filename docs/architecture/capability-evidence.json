@@ -429,20 +429,21 @@
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/protocol/frost.rs:1-330",
+        "src/protocol/frost.rs:1-716",
         "docs/guides/FROST_TREASURY_INTEGRATION.md:1-220",
+        "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
       ],
       "evidenceChain": [
-        {"stage": "requirement", "refs": ["docs/guides/FROST_TREASURY_INTEGRATION.md:1-220", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
-        {"stage": "code", "refs": ["src/protocol/frost.rs:1-330"]},
-        {"stage": "test", "refs": ["src/protocol/frost.rs:1-330"]},
+        {"stage": "requirement", "refs": ["docs/guides/FROST_TREASURY_INTEGRATION.md:1-220", "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
+        {"stage": "code", "refs": ["src/protocol/frost.rs:1-430"]},
+        {"stage": "test", "refs": ["src/protocol/frost.rs:431-716"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Structural/hash checks and a treasury runbook are not RFC-compatible FROST cryptography or production signing evidence.",
-      "notes": "Historical issue #180 and related documentation remain context only."
+      "exclusion": "Typed envelopes, validation, and quarantine tests are not RFC-compatible FROST cryptography or production signing evidence.",
+      "notes": "PR #209 establishes a versioned structural boundary only; RFC 9591, ciphersuite, DKG, nonce, zeroization, provider, attestation, and vector gates remain open."
     },
     {
       "id": "musig2",
@@ -480,20 +481,21 @@
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/protocol/nexus/fedimint.rs:1-500",
+        "src/protocol/nexus/fedimint.rs:1-766",
         "src/protocol/nexus/mod.rs:1-100",
+        "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
       ],
       "evidenceChain": [
-        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-220", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
-        {"stage": "code", "refs": ["src/protocol/nexus/fedimint.rs:1-500", "src/protocol/nexus/mod.rs:1-100"]},
-        {"stage": "test", "refs": ["src/protocol/nexus/fedimint.rs:1-500"]},
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-220", "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
+        {"stage": "code", "refs": ["src/protocol/nexus/fedimint.rs:1-540", "src/protocol/nexus/mod.rs:1-100"]},
+        {"stage": "test", "refs": ["src/protocol/nexus/fedimint.rs:541-766"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Federation adapters, simulated keys, structural DLEQ checks, and local tests are not production Fedimint cryptographic evidence.",
-      "notes": "The Nexus boundary is inventoried with Fedimint because the current material implementation is the federation adapter."
+      "exclusion": "Provider-owned handles, federation schemas, operation ledgers, and quarantine tests are not production Fedimint cryptographic, database, or federation evidence.",
+      "notes": "PR #209 removes the public serialized note secret and establishes typed/provider/persistence boundaries. DLEQ is not asserted as inherent to every current canonical issuance path; implementation, share verification, backup, and artifact gates remain open."
     },
     {
       "id": "ark",
@@ -505,20 +507,20 @@
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/protocol/ark.rs:1-360",
-        "src/protocol/ark.rs:1-360",
+        "src/protocol/ark.rs:1-482",
+        "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
       ],
       "evidenceChain": [
-        {"stage": "requirement", "refs": ["docs/architecture/GAP_SCORECARD.md:70-150", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
-        {"stage": "code", "refs": ["src/protocol/ark.rs:1-360"]},
-        {"stage": "test", "refs": ["src/protocol/ark.rs:1-360"]},
+        {"stage": "requirement", "refs": ["docs/architecture/GAP_SCORECARD.md:70-150", "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
+        {"stage": "code", "refs": ["src/protocol/ark.rs:1-350"]},
+        {"stage": "test", "refs": ["src/protocol/ark.rs:351-482"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "vTXO construction and recovery tests are structural/simulated evidence, not live Ark interoperability or settlement support.",
-      "notes": "Historical completion wording is retained only as implementation context."
+      "exclusion": "Typed IDs, descriptors, and structural validation are not live Ark interoperability, settlement, recovery, or unilateral-exit evidence.",
+      "notes": "PR #209 quarantines derivation, tree construction, forfeit signing, and recovery. A future milestone must choose and pin Arkade or Second; inspected Arkade v0.9.15 remains Alpha/do-not-use-in-production."
     },
     {
       "id": "bitvm",
@@ -555,20 +557,21 @@
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/protocol/bitvm2.rs:1-320",
-        "src/wasm_bindings.rs:700-820",
+        "src/protocol/bitvm2.rs:1-645",
+        "src/wasm_bindings.rs:748-854",
+        "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
       ],
       "evidenceChain": [
-        {"stage": "requirement", "refs": ["docs/architecture/GAP_SCORECARD.md:70-150", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
-        {"stage": "code", "refs": ["src/protocol/bitvm2.rs:1-320", "src/wasm_bindings.rs:700-820"]},
-        {"stage": "test", "refs": ["src/protocol/bitvm2.rs:1-320"]},
+        {"stage": "requirement", "refs": ["docs/architecture/GAP_SCORECARD.md:70-150", "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234", "https://github.com/Conxian/conxius-enclave-sdk/issues/197"]},
+        {"stage": "code", "refs": ["src/protocol/bitvm2.rs:1-430", "src/wasm_bindings.rs:748-854"]},
+        {"stage": "test", "refs": ["src/protocol/bitvm2.rs:431-645"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "WASM and Rust orchestration builds do not prove challenge-window correctness, proof verification, or provider/runtime support.",
-      "notes": "Merged implementation history is not a substitute for protocol-conformant evidence."
+      "exclusion": "Typed roles, observations, windows, and WASM mappings do not prove bridge graph correctness, proof/disprove verification, Bitcoin interoperability, or provider/runtime support.",
+      "notes": "PR #209 permits only externally observed, idempotent modeled events; posting, challenge, resolution, signing, and transaction construction remain unsupported."
     },
     {
       "id": "cctp",

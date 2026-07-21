@@ -1,5 +1,11 @@
 # Conclave SDK: Improvement Proposals (v2.0.7)
 
+> **Historical proposal archive:** The protocol implementation statements below
+> describe earlier structural work. Current FROST, Fedimint, Ark, and BitVM2
+> status is the typed foundation-plus-quarantine boundary in
+> [`PROTOCOL_IMPLEMENTATION_ROADMAP.md`](./PROTOCOL_IMPLEMENTATION_ROADMAP.md);
+> value-bearing operations remain unsupported.
+
 ## 1. Fedimint: Invite Code & Wasm Readiness (Hardened)
 **Context**: `FedimintAdapter` (v2.0.7) implements federation joining via invite codes.
 **Improvements**:

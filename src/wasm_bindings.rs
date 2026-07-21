@@ -84,8 +84,7 @@ impl WasmArkClient {
             .map_err(conclave_error_to_js)
     }
 
-    /// Ask the provider to sign a V-UTXO operation. The private key remains
-    /// behind the provider boundary; only the signature is returned.
+    /// Quarantined Ark signing entry point. No provider call is made.
     pub fn sign_vutxo(&self, tx_hash_hex: &str, index: u32) -> Result<String, JsValue> {
         let tx_hash: [u8; 32] = hex::decode(tx_hash_hex)
             .map_err(to_js_error)?
@@ -99,9 +98,10 @@ impl WasmArkClient {
 
     pub async fn recovery_scan(&self, gap_limit: u32, asp_url: &str) -> Result<JsValue, JsValue> {
         let _ = (gap_limit, asp_url);
-        Err(unsupported_provider(
-            "seed-based Ark recovery is not available in WASM; use an approved opaque provider capability",
-        ))
+        Err(conclave_error_to_js(crate::protocol_unsupported(
+            crate::UnsupportedProtocol::Ark,
+            crate::UnsupportedOperation::RecoveryScan,
+        )))
     }
 
     pub fn construct_vtxo_tree(&self, leaves: JsValue) -> Result<JsValue, JsValue> {
@@ -109,7 +109,7 @@ impl WasmArkClient {
         let root = self
             .inner
             .construct_vtxo_tree(leaves_vec)
-            .map_err(to_js_error)?;
+            .map_err(conclave_error_to_js)?;
         serde_wasm_bindgen::to_value(&root).map_err(to_js_error)
     }
 }
@@ -340,7 +340,7 @@ impl WasmFrostClient {
             total_signers,
             identifier,
         )
-        .map_err(to_js_error)?;
+        .map_err(conclave_error_to_js)?;
         serde_wasm_bindgen::to_value(&package).map_err(to_js_error)
     }
 }
@@ -413,6 +413,8 @@ fn to_js_error<E: std::fmt::Display>(e: E) -> JsValue {
 
 fn conclave_error_to_js(error: ConclaveError) -> JsValue {
     let code = match &error {
+        ConclaveError::ProtocolUnsupported { .. } => "PROTOCOL_UNSUPPORTED",
+        ConclaveError::BoundaryValidation(_) => "BOUNDARY_VALIDATION",
         ConclaveError::UnsupportedRuntime(_) => "UNSUPPORTED_RUNTIME",
         ConclaveError::UnsupportedProvider(_) => "UNSUPPORTED_PROVIDER",
         ConclaveError::SecretExportForbidden => "SECRET_EXPORT_FORBIDDEN",
@@ -436,10 +438,6 @@ fn unsupported_provider(message: &str) -> JsValue {
     wasm_error("UNSUPPORTED_PROVIDER", message)
 }
 
-fn secret_export_forbidden(message: &str) -> JsValue {
-    wasm_error("SECRET_EXPORT_FORBIDDEN", message)
-}
-
 #[wasm_bindgen]
 pub struct WasmFedimintClient {
     #[wasm_bindgen(skip)]
@@ -451,40 +449,46 @@ impl WasmFedimintClient {
     pub fn register_federation(&mut self, federation_id: &str) -> Result<(), JsValue> {
         self.inner
             .register_federation(federation_id)
-            .map_err(to_js_error)
+            .map_err(conclave_error_to_js)
     }
 
     pub fn join_federation(&mut self, invite_code: &str) -> Result<String, JsValue> {
-        self.inner.join_federation(invite_code).map_err(to_js_error)
+        self.inner
+            .join_federation(invite_code)
+            .map_err(conclave_error_to_js)
     }
 
     pub fn prepare_mint_intent(
         &self,
         federation_id: &str,
         amount_sats: u64,
-        secrets: JsValue,
+        opaque_handles: JsValue,
     ) -> Result<JsValue, JsValue> {
-        let _ = (federation_id, amount_sats, secrets);
-        Err(secret_export_forbidden(
-            "Fedimint secrets and blinding factors must remain provider-owned",
-        ))
+        let _ = (federation_id, amount_sats, opaque_handles);
+        Err(conclave_error_to_js(crate::protocol_unsupported(
+            crate::UnsupportedProtocol::Fedimint,
+            crate::UnsupportedOperation::Minting,
+        )))
     }
 
     pub fn issue_ecash(
         &self,
         intent: JsValue,
-        blinding_factors: JsValue,
-        original_secrets: JsValue,
+        blinding_handles: JsValue,
+        note_handles: JsValue,
     ) -> Result<JsValue, JsValue> {
-        let _ = (intent, blinding_factors, original_secrets);
-        Err(secret_export_forbidden(
-            "Fedimint secret material cannot be issued through the WASM boundary",
-        ))
+        let _ = (intent, blinding_handles, note_handles);
+        Err(conclave_error_to_js(crate::protocol_unsupported(
+            crate::UnsupportedProtocol::Fedimint,
+            crate::UnsupportedOperation::Minting,
+        )))
     }
 
     pub fn verify_note(&self, note: JsValue) -> Result<bool, JsValue> {
         let note_obj = serde_wasm_bindgen::from_value(note).map_err(to_js_error)?;
-        self.inner.verify_note(&note_obj).map_err(to_js_error)
+        self.inner
+            .verify_note(&note_obj)
+            .map_err(conclave_error_to_js)
     }
 }
 
@@ -810,7 +814,7 @@ impl WasmBitVm2Orchestrator {
             .inner
             .borrow()
             .create_forfeit_with_commitment(vutxo, tree, state_hash, taproot_internal_key)
-            .map_err(to_js_error)?;
+            .map_err(conclave_error_to_js)?;
 
         serde_wasm_bindgen::to_value(&forfeit).map_err(to_js_error)
     }
@@ -821,7 +825,7 @@ impl WasmBitVm2Orchestrator {
         self.inner
             .borrow_mut()
             .post_commitment(commitment)
-            .map_err(to_js_error)
+            .map_err(conclave_error_to_js)
     }
 
     pub fn challenge_commitment(
@@ -834,7 +838,7 @@ impl WasmBitVm2Orchestrator {
         self.inner
             .borrow_mut()
             .challenge_commitment(commitment_id, response)
-            .map_err(to_js_error)
+            .map_err(conclave_error_to_js)
     }
 
     pub fn resolve_challenge(
@@ -846,7 +850,7 @@ impl WasmBitVm2Orchestrator {
         self.inner
             .borrow_mut()
             .resolve_challenge(commitment_id, operator_punished, block_height)
-            .map_err(to_js_error)
+            .map_err(conclave_error_to_js)
     }
 
     pub fn get_status(&self, commitment_id: &str) -> Result<JsValue, JsValue> {
@@ -854,7 +858,7 @@ impl WasmBitVm2Orchestrator {
             .inner
             .borrow()
             .get_challenge_status(commitment_id)
-            .map_err(to_js_error)?;
+            .map_err(conclave_error_to_js)?;
         serde_wasm_bindgen::to_value(&status).map_err(to_js_error)
     }
 
@@ -866,7 +870,7 @@ impl WasmBitVm2Orchestrator {
         self.inner
             .borrow()
             .is_within_challenge_window(commitment_id, current_block)
-            .map_err(to_js_error)
+            .map_err(conclave_error_to_js)
     }
 }
 

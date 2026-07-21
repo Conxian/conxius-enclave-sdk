@@ -26,6 +26,43 @@ The preserved typed settlement/evidence work was selectively reconciled onto cur
 ### Remaining unsupported boundary
 Real StrongBox/Nitro/DCAP/SEV provider verification and signing, vendor roots/collateral, distributed replay authorization, provider-backed runtime tests, independent review, exact release/provenance artifacts, and a production-support decision remain open. Do not close issue #195 or claim production readiness.
 
+## Session: 2026-07-21 (PR #209 Protocol Boundary Foundation)
+
+### Summary
+
+Reconciled PR #209 with the latest `origin/main`, retained the PR's fail-closed
+Ark side during the merge conflict, and added a typed foundation plus quarantine
+for FROST, Fedimint, Ark, and BitVM2. This session does **not** enable protocol
+support or make a production-readiness claim.
+
+### Accomplishments
+
+- Added secret-safe typed boundary errors and exact unsupported-path handling.
+- Replaced raw FROST share/commitment/package payloads with versioned opaque
+  envelopes, typed participants/sessions/thresholds, ownership checks, and
+  duplicate submission rejection.
+- Replaced `EcashNote.secret: String` with a provider-owned opaque handle and
+  added typed federation/config/provider/operation/persistence contracts.
+- Added typed Ark VTXO/outpoint/round/server/connector/forfeit/recovery/expiry/
+  exit boundaries while keeping derivation, recovery, tree, and signing
+  unsupported.
+- Added typed BitVM2 roles/instances/commitments/windows/templates/disprove
+  envelopes and an external-observation ledger with idempotent duplicate
+  handling and replay-conflict rejection.
+- Updated WASM quarantine error codes and examples so no operation implies
+  success or emits secret-bearing payloads.
+- Added the canonical [`PROTOCOL_IMPLEMENTATION_ROADMAP.md`](docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md)
+  with pinned references, vectors, CI/artifact gates, dependencies, and staged
+  acceptance milestones.
+
+### Historical claim correction
+
+Earlier entries below that call Ark, BitVM2, Fedimint, examples, or structural
+FROST work “complete” or “implemented” are historical records only. They are
+superseded for current support decisions by the 2026-07-21 quarantine boundary,
+the capability evidence source, and the protocol roadmap; history is retained
+for traceability.
+
 ---
 
 ## Session: 2026-07-20 (End-of-sprint containment evidence and tracking refresh)
@@ -34,12 +71,14 @@ Real StrongBox/Nitro/DCAP/SEV provider verification and signing, vendor roots/co
 Created a separate documentation, knowledge-base, and tracking branch from the fetched `origin/main` at `a4c19ac0469a633bddca76a0f54ad6a867bdc700`. This entry records the partial containment evidence delivered by [PR #214](https://github.com/Conxian/conxius-enclave-sdk/pull/214) at `a877bf2eb1fa9acf06216f794dea4afc7217bb22`; it does **not** establish repository-wide production readiness or release acceptance. Later sessions superseded its typed-settlement gap notes.
 
 ### Audit and readiness trail
+
 - [PR #193](https://github.com/Conxian/conxius-enclave-sdk/pull/193) recorded the production-enablement audit.
 - [PR #204](https://github.com/Conxian/conxius-enclave-sdk/pull/204) added machine-first capability evidence tracking.
 - [PR #207](https://github.com/Conxian/conxius-enclave-sdk/pull/207) reconciled the live issue and pull-request indexes.
-- The generated `ISSUES_INDEX.md`, `PRS_INDEX.md`, and current PR detail snapshots were refreshed from GitHub, including `prs/0214.md`.
+- Generated issue/PR indexes and current PR detail snapshots were refreshed from GitHub, including `prs/0214.md`.
 
 ### PR #214 containment behavior
+
 - Attestation reports use a versioned, signed envelope; report type, version, and security-relevant fields are covered by the signature.
 - Typed policy tokens require the requested operation purpose, algorithm, provider, and trust requirements to match exactly.
 - Provider verification remains intentionally unavailable, so unverifiable evidence cannot become an acceptance path; the runtime bypass was removed.
@@ -48,13 +87,10 @@ Created a separate documentation, knowledge-base, and tracking branch from the f
 - Canonical complete-intent hashing binds the rail and dispatch/security context.
 - Rail execution is sealed behind the attested complete intent, and production raw broadcast is rejected before network dispatch.
 
-### Native and GitHub evidence
-The rebased PR head passed the native checks recorded in the PR evidence: `cargo fmt --all -- --check && cargo clippy --all-features -- -D warnings && cargo test` (157 unit tests and 4 integration tests), `cargo test --all-targets --all-features` (176 unit tests and 4 integration tests), all-target clippy, no-default-feature tests, documentation generation, metadata validation, and package creation. The metadata consistency check reported `2.0.12`, but the latest observed GitHub release remains `v2.0.11`; metadata consistency is not release evidence. The local WASM probe remained blocked by the existing `secp256k1-sys`/clang `memmove` issue, while both GitHub `WASM Build` checks passed on the PR head. Every GitHub check reported for PR #214 was passing at this snapshot, including Rust tests/linting, CodeQL, coverage, dependency review, hygiene, secret scanning, SBOM, security, audit/deny, and WASM checks.
-
 ### Explicit limitations and lane ownership
-- This is containment evidence only. The provider verifier is unavailable, distributed replay remains incomplete, and open [issue #195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) and [issue #202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) remain open. Typed operation key/algorithm/provider binding is recorded by the 2026-07-21 follow-up.
-- Draft [PR #205](https://github.com/Conxian/conxius-enclave-sdk/pull/205) was preserved at that snapshot and later merged; [PR #216](https://github.com/Conxian/conxius-enclave-sdk/pull/216) added the current signer-identity binding.
-- `docs/architecture/capability-evidence.json` and `docs/architecture/CAPABILITY_MATRIX.md` were inspected but intentionally left untouched at that snapshot because open [PR #210](https://github.com/Conxian/conxius-enclave-sdk/pull/210) owned both files. The later follow-up updates them with the typed containment evidence.
+- This is containment evidence only. The provider verifier is unavailable, distributed replay remains incomplete, and open [issue #195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) and [issue #202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) remain open. At that snapshot, typed operation key/algorithm/provider binding remained incomplete; the 2026-07-21 follow-up records the current containment binding.
+- Draft [PR #205](https://github.com/Conxian/conxius-enclave-sdk/pull/205) was preserved at that snapshot and later merged; mixed-scope provider-wrapper work remains subject to separate reconciliation. [PR #216](https://github.com/Conxian/conxius-enclave-sdk/pull/216) added the current signer-identity binding.
+- Capability evidence and matrix ownership remained with [PR #210](https://github.com/Conxian/conxius-enclave-sdk/pull/210) at that historical snapshot; the later follow-up updates them with typed containment evidence, and current status is governed by the canonical evidence source and newer protocol-boundary entry.
 
 ---
 

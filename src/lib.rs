@@ -74,6 +74,39 @@ pub enum UnsupportedReason {
     NoAuditedImplementation,
 }
 
+/// Secret-safe validation failures shared by the protocol boundary models.
+///
+/// These variants intentionally carry no caller-provided payload. That keeps
+/// `Debug`, `Display`, and serde output safe when a boundary rejects malformed
+/// or replayed protocol data.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, thiserror::Error,
+)]
+pub enum BoundaryValidationError {
+    #[error("threshold is out of bounds")]
+    InvalidThreshold,
+    #[error("identifier is invalid")]
+    InvalidIdentifier,
+    #[error("identifier is duplicated")]
+    DuplicateIdentifier,
+    #[error("encoding version is unsupported")]
+    InvalidEncodingVersion,
+    #[error("opaque envelope is invalid")]
+    InvalidEnvelope,
+    #[error("submission is duplicated")]
+    DuplicateSubmission,
+    #[error("session owner is not authorized")]
+    SessionOwnershipViolation,
+    #[error("replayed observation conflicts with the recorded observation")]
+    ReplayConflict,
+    #[error("state transition is invalid")]
+    InvalidStateTransition,
+    #[error("external observation is invalid")]
+    InvalidObservation,
+    #[error("challenge window is invalid")]
+    InvalidChallengeWindow,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, thiserror::Error)]
 pub enum ConclaveError {
     #[error("Hardware Enclave Error: {0}")]
@@ -98,6 +131,8 @@ pub enum ConclaveError {
         operation: UnsupportedOperation,
         reason: UnsupportedReason,
     },
+    #[error("protocol boundary validation failed: {0}")]
+    BoundaryValidation(BoundaryValidationError),
     #[error("Unsupported WASM runtime: {0}")]
     UnsupportedRuntime(String),
     #[error("Unsupported WASM provider: {0}")]

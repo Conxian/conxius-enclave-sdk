@@ -5,6 +5,13 @@ This document tracks the resolution of production-path logic, architectural gaps
 
 The [machine-readable capability evidence](./capability-evidence.json) and generated [capability matrix](./CAPABILITY_MATRIX.md) are authoritative for the distinction between API presence, implementation, integration, independent review, and production support. A completed structural/API task below does not promote a capability to production support.
 
+> **2026-07-21 status correction:** Entries below that describe FROST,
+> Fedimint, Ark, or BitVM2 work as implemented or complete are historical
+> structural/API records. They are superseded for current support decisions by
+> the typed foundation-plus-quarantine boundary and
+> [`PROTOCOL_IMPLEMENTATION_ROADMAP.md`](./PROTOCOL_IMPLEMENTATION_ROADMAP.md).
+> All four protocol capabilities remain `Production: No`.
+
 ## Scorecard Criteria
 - **Criticality**: [High, Medium, Low]
 - **Complexity**: [High, Medium, Low]

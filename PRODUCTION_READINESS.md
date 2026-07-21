@@ -3,7 +3,7 @@
 > This is a gated checklist, not a production-readiness claim.
 > Status: Beta / conditional | Last Updated: 2026-07-21
 
-The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), and [machine-readable evidence](./docs/architecture/capability-evidence.json) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.11`; `Cargo.toml` declaring `2.0.12` does not establish a supported release.
+The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), [machine-readable evidence](./docs/architecture/capability-evidence.json), and [protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.11`; `Cargo.toml` declaring `2.0.12` does not establish a supported release.
 
 Merged PR [#205](https://github.com/Conxian/conxius-enclave-sdk/pull/205), merged PR [#216](https://github.com/Conxian/conxius-enclave-sdk/pull/216), and the typed-settlement follow-up code checkpoint are containment and evidence-boundary work only. They make missing provider evidence fail closed and preserve signer-identity binding; they do not establish real hardware/provider integration, distributed replay, runtime support, independent review, release artifacts, or production readiness. Issue [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) remains open.
 
@@ -32,7 +32,9 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [ ] Replay protection verified on every value-bearing path (P0/P1)
 - [x] Typed error surface exists (`ConclaveResult`); production fail-closed behavior remains gated
 - [x] Typed value-bearing settlement containment and raw-dispatch rejection are implemented; this is not provider or production evidence
-- [ ] FROST treasury DKG and signing production readiness (issue #180; current `src/protocol/frost.rs` is a structural/hash placeholder, not production FROST cryptography)
+- [ ] FROST treasury DKG and signing production readiness (issue #180; current `src/protocol/frost.rs` is a typed boundary/quarantine, not production FROST cryptography)
+- [x] Protocol boundary quarantine for FROST, Fedimint, Ark, and BitVM2 (typed models and exact unsupported errors; see roadmap)
+- [ ] Protocol implementation, vector, provider, persistence, independent-review, and exact-artifact gates (issue #197 and roadmap)
 - [ ] Independent security audit (for >= 1.0.0)
 - [ ] Dependency audit passes (cargo audit)
 - [x] No hardcoded secrets or credentials
@@ -46,6 +48,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [ ] WASM runtime integration tests
 - [x] WASM private-key export path removed; provider/runtime support remains fail-closed
 - [x] Negative tests cover missing provider evidence, simulator exclusion, typed binding mismatches, and raw settlement dispatch rejection
+- [x] WASM FROST/Fedimint/Ark/BitVM2 quarantine methods propagate typed unsupported errors without secret-bearing outputs
 - [ ] Fuzz testing for critical paths
 
 ### 📦 Dependency Requirements
@@ -105,7 +108,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 
 | Version | Status | Notes |
 |---------|--------|-------|
-| 2.x line | Beta / conditional | Production enablement remains blocked by CON-1506 P0/P1 gates |
+| 2.x line | Beta / conditional | Production enablement remains blocked by CON-1506 P0/P1 gates and protocol roadmap milestones |
 | v2.0.11 | Latest visible GitHub release/tag | Verify artifacts and capability scope before use |
 | 2.0.12 | Cargo metadata only at audit time | No matching visible tag/release evidence was found |
 
