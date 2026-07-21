@@ -245,7 +245,7 @@ pub struct WasmAccountClient {
 impl WasmAccountClient {
     pub fn prepare_execution(&self, actions: JsValue) -> Result<JsValue, JsValue> {
         let acts = serde_wasm_bindgen::from_value(actions).map_err(to_js_error)?;
-        let execution = self.inner.prepare_execution(acts);
+        let execution = self.inner.prepare_execution(acts).map_err(to_js_error)?;
         serde_wasm_bindgen::to_value(&execution).map_err(to_js_error)
     }
 }
@@ -260,7 +260,9 @@ pub struct WasmCctpClient {
 impl WasmCctpClient {
     pub fn prepare_burn_payload(&self, intent: JsValue) -> Result<Vec<u8>, JsValue> {
         let intent_obj = serde_wasm_bindgen::from_value(intent).map_err(to_js_error)?;
-        Ok(self.inner.prepare_burn_payload(intent_obj))
+        self.inner
+            .prepare_burn_payload(intent_obj)
+            .map_err(to_js_error)
     }
 }
 

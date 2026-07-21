@@ -289,14 +289,7 @@ impl SettlementManager {
             chain: chain_enum,
             symbol: asset_symbol.to_string(),
         };
-        let asset = self
-            .asset_registry
-            .get_asset(&id)
-            .ok_or(ConclaveError::InvalidPayload)?;
-
-        if !asset.active {
-            return Err(ConclaveError::InvalidPayload);
-        }
+        self.asset_registry.validate_asset(&id)?;
 
         Ok(SettlementProposal::new(
             trigger.trigger_id.clone(),
@@ -330,7 +323,7 @@ mod tests {
                 "BITCOIN",
                 "BTC",
                 1000000,
-                "bc1q...".to_string(),
+                "bc1q9vza2e8x573nczrlzms0wvx3gsqjx7vavgkx0l".to_string(),
                 840000,
             )
             .unwrap();
@@ -346,6 +339,7 @@ mod tests {
 mod settlement_expanded_tests {
     use super::*;
     use crate::protocol::asset::AssetRegistry;
+    use crate::ConclaveError;
     use std::sync::Arc;
 
     #[test]
@@ -357,10 +351,13 @@ mod settlement_expanded_tests {
 
         let chains = vec!["MEZO", "BABYLON", "BOTANIX", "CITREA"];
         for chain in chains {
-            let proposal = manager
-                .create_proposal(&trigger, chain, "BTC", 1000, "recipient".to_string(), 100)
-                .unwrap();
-            assert_eq!(proposal.asset.chain.as_str(), chain);
+            let result =
+                manager.create_proposal(&trigger, chain, "BTC", 1000, "recipient".to_string(), 100);
+            assert!(matches!(
+                result,
+                Err(ConclaveError::Unsupported(message))
+                    if message.contains("quarantined")
+            ));
         }
     }
 }

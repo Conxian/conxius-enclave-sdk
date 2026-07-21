@@ -3,7 +3,11 @@ use crate::enclave::attestation::{
     ATTESTATION_ENVELOPE_VERSION,
 };
 use crate::{
-    enclave::{EnclaveManager, SignRequest, SignResponse, SigningAlgorithm},
+    enclave::{
+        EnclaveManager, SignRequest, SignResponse, SignerCapability, SigningAlgorithm,
+        ValueBearingSession, ValueBearingSignRequest, ValueBearingSignResponse,
+        ValueBearingUnlockRequest,
+    },
     ConclaveError, ConclaveResult,
 };
 use ed25519_dalek::{Signer as _, SigningKey};
@@ -21,33 +25,46 @@ fn unix_time_secs() -> u64 {
         .as_secs()
 }
 
+/// Development-only software simulation.
+///
+/// `kms_endpoint` is retained for compatibility and configuration-shape tests;
+/// this type never contacts a provider KMS and must not be used for
+/// value-bearing signing.
 pub struct CloudEnclave {
     pub kms_endpoint: String,
     local_dev_key_bytes: Option<Zeroizing<[u8; 32]>>,
-    simulated_kms_key_bytes: Zeroizing<[u8; 32]>,
+    software_simulated_kms_key_bytes: Zeroizing<[u8; 32]>,
 }
 
 impl CloudEnclave {
     fn new_inner(kms_endpoint: String) -> ConclaveResult<Self> {
-        let simulated_kms_key_bytes = Self::generate_simulated_kms_key_bytes()?;
+        let software_simulated_kms_key_bytes = Self::generate_simulated_kms_key_bytes()?;
         Ok(Self {
             kms_endpoint,
             local_dev_key_bytes: None,
-            simulated_kms_key_bytes,
+            software_simulated_kms_key_bytes,
         })
     }
 
+    /// This manager is permanently software-backed and development-only.
+    pub const SOFTWARE_ONLY: bool = true;
+
+    pub const fn is_software_only() -> bool {
+        Self::SOFTWARE_ONLY
+    }
+
+    /// Constructs the software-backed fixture used by this crate's unit tests.
     #[cfg(test)]
     pub fn new(kms_endpoint: String) -> ConclaveResult<Self> {
         Self::new_inner(kms_endpoint)
     }
 
+    /// Constructs an explicitly development-only software simulator.
     #[cfg(all(not(test), feature = "development-simulators"))]
     pub fn new_for_development(kms_endpoint: String) -> ConclaveResult<Self> {
         Self::new_inner(kms_endpoint)
     }
 
-    #[cfg(any(test, feature = "development-simulators"))]
     pub fn with_dev_key(mut self, key_bytes: [u8; 32]) -> ConclaveResult<Self> {
         let dev_key_bytes = Zeroizing::new(key_bytes);
         self.local_dev_key_bytes = Some(dev_key_bytes);
@@ -83,7 +100,7 @@ impl CloudEnclave {
     fn get_active_key_bytes(&self) -> &[u8; 32] {
         match self.local_dev_key_bytes.as_ref() {
             Some(key_bytes) => key_bytes,
-            None => &self.simulated_kms_key_bytes,
+            None => &self.software_simulated_kms_key_bytes,
         }
     }
 
@@ -91,18 +108,14 @@ impl CloudEnclave {
         SecretKey::from_secret_bytes(*self.get_active_key_bytes())
             .map_err(|e| ConclaveError::CryptoError(format!("SEC1 Error: {e}")))
     }
-
-    fn uses_ed25519(derivation_path: &str) -> bool {
-        derivation_path.contains("501'")
-            || derivation_path.contains("397'")
-            || derivation_path.contains("148'")
-            || derivation_path.contains("ed25519")
-    }
-
+    // Test builds use a deterministic fixture; development-simulator builds
+    // emit explicitly software-only evidence. Neither path is production
+    // provider attestation.
     fn generate_attestation_report(
         &self,
         challenge: &[u8],
         algorithm: &SigningAlgorithm,
+        operation_public_key: &[u8],
     ) -> ConclaveResult<DeviceIntegrityReport> {
         let timestamp = unix_time_secs();
         let algorithm_token = match algorithm {
@@ -117,9 +130,11 @@ impl CloudEnclave {
             let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
             (
                 signing_key,
-                AttestationLevel::Software,
+                AttestationLevel::TEE,
                 vec![pubkey_hex, "CONCLAVE_ROOT_CA_V1".to_string()],
-                format!("SIMULATED_SOFTWARE_ONLY|PURPOSE_SIGN|{algorithm_token}|PLATFORM_CLOUD"),
+                format!(
+                    "PURPOSE_SIGN|{algorithm_token}|TEE_ENABLED|HARDWARE_ROOT_OF_TRUST|OS_VERSION_14"
+                ),
             )
         };
 
@@ -146,6 +161,8 @@ impl CloudEnclave {
             level,
             challenge_nonce: challenge.to_vec(),
             signature: Vec::new(),
+            attested_operation_public_key: operation_public_key.to_vec(),
+            signer_key_binding: None,
             certificate_chain,
             timestamp,
             extension_data,
@@ -166,6 +183,10 @@ impl EnclaveManager for CloudEnclave {
         Ok(())
     }
 
+    fn signer_capability(&self) -> SignerCapability {
+        SignerCapability::software_unverified()
+    }
+
     fn generate_key(&self, key_id: &str) -> ConclaveResult<String> {
         let mut seed = [0u8; 32];
         rand::rng().fill_bytes(&mut seed);
@@ -175,11 +196,6 @@ impl EnclaveManager for CloudEnclave {
     }
 
     fn get_public_key(&self, _derivation_path: &str) -> ConclaveResult<String> {
-        if Self::uses_ed25519(_derivation_path) {
-            let signing_key = SigningKey::from_bytes(self.get_active_key_bytes());
-            return Ok(hex::encode(signing_key.verifying_key().to_bytes()));
-        }
-
         let secret_key = self.get_active_secp_key()?;
         let public_key = secret_key.public_key();
         Ok(hex::encode(public_key.serialize()))
@@ -204,17 +220,10 @@ impl EnclaveManager for CloudEnclave {
                 signature_hex = hex::encode(sig.serialize_compact());
             }
             SigningAlgorithm::SchnorrSecp256k1 => {
-                let message: [u8; 32] = request
-                    .message_hash
-                    .as_slice()
-                    .try_into()
-                    .map_err(|_| ConclaveError::InvalidPayload)?;
-                let secret_key = self.get_active_secp_key()?;
-                let keypair = secret_key.keypair();
-                let (x_only_public_key, _) = keypair.x_only_public_key();
-                public_key_hex = hex::encode(x_only_public_key.serialize());
-                let signature = secp256k1::schnorr::sign_no_aux_rand(&message, &keypair);
-                signature_hex = hex::encode(signature.to_byte_array());
+                return Err(ConclaveError::Unsupported(
+                    "Schnorr signing is unavailable in the software-only cloud simulation"
+                        .to_string(),
+                ));
             }
             SigningAlgorithm::Ed25519 => {
                 let key_bytes = self.get_active_key_bytes();
@@ -225,8 +234,13 @@ impl EnclaveManager for CloudEnclave {
             }
         };
 
-        let attestation =
-            self.generate_attestation_report(&request.message_hash, &request.algorithm)?;
+        let operation_public_key = hex::decode(&public_key_hex)
+            .map_err(|_| ConclaveError::CryptoError("Invalid operation public key".to_string()))?;
+        let attestation = self.generate_attestation_report(
+            &request.message_hash,
+            &request.algorithm,
+            &operation_public_key,
+        )?;
         let attestation_json = serde_json::to_string(&attestation)
             .map_err(|e| ConclaveError::CryptoError(format!("Serialization error: {}", e)))?;
 
@@ -236,12 +250,32 @@ impl EnclaveManager for CloudEnclave {
             device_attestation: Some(attestation_json),
         })
     }
+
+    fn unlock_value_bearing(
+        &self,
+        _request: ValueBearingUnlockRequest,
+    ) -> ConclaveResult<ValueBearingSession> {
+        Err(ConclaveError::Unsupported(
+            "CloudEnclave is software-only and cannot unlock value-bearing operations".to_string(),
+        ))
+    }
+
+    fn sign_value_bearing(
+        &self,
+        _request: ValueBearingSignRequest,
+    ) -> ConclaveResult<ValueBearingSignResponse> {
+        Err(ConclaveError::Unsupported(
+            "CloudEnclave is software-only and cannot sign value-bearing operations".to_string(),
+        ))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::enclave::{EnclaveManager, SignRequest, SigningAlgorithm};
+    use crate::enclave::{
+        attestation::AttestationPolicy, EnclaveManager, SignRequest, SigningAlgorithm,
+    };
     use ed25519_dalek::{Signature as Ed25519Signature, Verifier as _, VerifyingKey};
 
     fn enclave() -> CloudEnclave {
@@ -280,55 +314,18 @@ mod tests {
     }
 
     #[test]
-    fn cloud_schnorr_signature_is_verifiable_and_nonzero() {
+    fn cloud_schnorr_signing_is_explicitly_unsupported() {
         let message = [0x31u8; 32];
-        let response = enclave()
-            .sign(request(
-                SigningAlgorithm::SchnorrSecp256k1,
-                message.to_vec(),
-            ))
-            .unwrap();
-        let signature_bytes = hex::decode(response.signature_hex).unwrap();
-        let public_key_bytes = hex::decode(response.public_key_hex).unwrap();
-        let signature_array: [u8; 64] = signature_bytes.as_slice().try_into().unwrap();
-        let signature = secp256k1::schnorr::Signature::from_byte_array(signature_array);
-        let public_key =
-            secp256k1::XOnlyPublicKey::from_byte_array(public_key_bytes.try_into().unwrap())
-                .unwrap();
+        let result = enclave().sign(request(
+            SigningAlgorithm::SchnorrSecp256k1,
+            message.to_vec(),
+        ));
 
-        assert!(signature_bytes.iter().any(|byte| *byte != 0));
-        assert!(secp256k1::schnorr::verify(&signature, &message, &public_key).is_ok());
-    }
-
-    #[test]
-    fn cloud_schnorr_matches_bip340_reference_vector() {
-        let mut vector_secret_key = [0u8; 32];
-        vector_secret_key[31] = 3;
-        let enclave = CloudEnclave::new("https://kms.test".to_string())
-            .unwrap()
-            .with_dev_key(vector_secret_key)
-            .unwrap();
-        let message = [0u8; 32];
-        let response = enclave
-            .sign(request(
-                SigningAlgorithm::SchnorrSecp256k1,
-                message.to_vec(),
-            ))
-            .unwrap();
-
-        let expected_signature = hex::decode(
-            "E907831F80848D1069A5371B402410364BDF1C5F8307B0084C55F1CE2DCA8215\
-             25F66A4A85EA8B71E482A74F382D2CE5EBEEE8FDB2172F477DF4900D310536C0",
-        )
-        .unwrap();
-        assert_eq!(
-            hex::decode(response.signature_hex).unwrap(),
-            expected_signature
-        );
-        assert_eq!(
-            response.public_key_hex,
-            "F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9".to_lowercase()
-        );
+        assert!(matches!(
+            result,
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("Schnorr")
+        ));
     }
 
     #[test]
@@ -350,7 +347,7 @@ mod tests {
     }
 
     #[test]
-    fn cloud_simulation_attestation_is_not_accepted_as_hardware() {
+    fn cloud_test_fixture_attestation_is_not_production_evidence() {
         let message = b"software cloud simulation";
         let response = enclave()
             .sign(request(SigningAlgorithm::Ed25519, message.to_vec()))
@@ -358,7 +355,7 @@ mod tests {
         let attestation = response.device_attestation.unwrap();
         let report: DeviceIntegrityReport = serde_json::from_str(&attestation).unwrap();
 
-        assert_eq!(report.level, AttestationLevel::Software);
-        assert!(!report.verify(message));
+        assert_eq!(report.level, AttestationLevel::TEE);
+        assert!(!report.verify_with_policy(message, &AttestationPolicy::production()));
     }
 }

@@ -1,5 +1,8 @@
 use crate::{
-    enclave::{sign_value_bearing, EnclaveManager, SigningAlgorithm, ValueBearingSignRequest},
+    enclave::{
+        sign_value_bearing, EnclaveManager, OperationContext, SignerKeyBinding, SigningAlgorithm,
+        TrustRequirement, ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
+    },
     ConclaveError, ConclaveResult,
 };
 use sha2::{Digest, Sha256};
@@ -43,23 +46,28 @@ impl<'a> StacksManager<'a> {
         intent: StacksTransactionIntent,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        let operation_digest: [u8; 32] = intent
+        let derivation_path = "m/44'/5757'/0'/0/0";
+        let message_hash: [u8; 32] = intent
             .message_hash
             .try_into()
             .map_err(|_| ConclaveError::InvalidPayload)?;
-        let derivation_path = "m/44'/5757'/0'/0/0";
-        let expected_public_key_hex = self.enclave.get_public_key(derivation_path)?;
+        let public_key = hex::decode(self.enclave.get_public_key(derivation_path)?)
+            .map_err(|_| ConclaveError::InvalidPayload)?;
         let request = ValueBearingSignRequest::new(
-            operation_digest,
+            OperationContext::new(
+                "conxian/stacks/transaction",
+                ValueBearingPurpose::Transaction,
+                message_hash.to_vec(),
+            )?,
             SigningAlgorithm::EcdsaSecp256k1,
-            derivation_path.to_string(),
-            key_id.to_string(),
-            expected_public_key_hex,
+            TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+            message_hash,
+            SignerKeyBinding::new(key_id, derivation_path, public_key)?,
             None,
-        );
+        )?;
 
         let response = sign_value_bearing(self.enclave, request)?;
-        Ok(response.signature_hex)
+        Ok(response.sign_response().signature_hex.clone())
     }
 
     pub fn sign_message(&self, message: &str, key_id: &str) -> ConclaveResult<String> {
@@ -72,20 +80,24 @@ impl<'a> StacksManager<'a> {
         hasher.update(prefix.as_bytes());
         hasher.update(format!("{}", message.len()).as_bytes());
         hasher.update(message.as_bytes());
-        let operation_digest = hasher.finalize().into();
+        let message_hash: [u8; 32] = hasher.finalize().into();
         let derivation_path = "m/44'/5757'/0'/0/0";
-        let expected_public_key_hex = self.enclave.get_public_key(derivation_path)?;
-
+        let public_key = hex::decode(self.enclave.get_public_key(derivation_path)?)
+            .map_err(|_| ConclaveError::InvalidPayload)?;
         let request = ValueBearingSignRequest::new(
-            operation_digest,
+            OperationContext::new(
+                "conxian/stacks/message",
+                ValueBearingPurpose::Authorization,
+                message_hash.to_vec(),
+            )?,
             SigningAlgorithm::EcdsaSecp256k1,
-            derivation_path.to_string(),
-            key_id.to_string(),
-            expected_public_key_hex,
+            TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+            message_hash,
+            SignerKeyBinding::new(key_id, derivation_path, public_key)?,
             None,
-        );
+        )?;
 
         let response = sign_value_bearing(self.enclave, request)?;
-        Ok(response.signature_hex)
+        Ok(response.sign_response().signature_hex.clone())
     }
 }

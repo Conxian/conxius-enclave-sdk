@@ -1,5 +1,8 @@
 use crate::{
-    enclave::{sign_value_bearing, EnclaveManager, SigningAlgorithm, ValueBearingSignRequest},
+    enclave::{
+        sign_value_bearing, EnclaveManager, OperationContext, SignerKeyBinding, SigningAlgorithm,
+        TrustRequirement, ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
+    },
     ConclaveError, ConclaveResult,
 };
 use rand::Rng;
@@ -175,23 +178,29 @@ impl<'a> BusinessManager<'a> {
             metadata,
         };
 
-        let operation_digest: [u8; 32] = attribution
+        let message_hash: [u8; 32] = attribution
             .get_hash()
             .try_into()
             .map_err(|_| ConclaveError::InvalidPayload)?;
         let derivation_path = format!("m/44'/5757'/0'/0/business/{}", business_id);
-        let expected_public_key_hex = self.enclave.get_public_key(&derivation_path)?;
+        let key_id = format!("business_{}", business_id);
+        let public_key = hex::decode(self.enclave.get_public_key(&derivation_path)?)
+            .map_err(|_| ConclaveError::InvalidPayload)?;
         let request = ValueBearingSignRequest::new(
-            operation_digest,
+            OperationContext::new(
+                "conxian/business/attribution",
+                ValueBearingPurpose::Authorization,
+                message_hash.to_vec(),
+            )?,
             SigningAlgorithm::EcdsaSecp256k1,
-            derivation_path,
-            format!("business_{}", business_id),
-            expected_public_key_hex,
+            TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+            message_hash,
+            SignerKeyBinding::new(key_id, derivation_path, public_key)?,
             None,
-        );
+        )?;
 
         let response = sign_value_bearing(self.enclave, request)?;
-        attribution.signature = response.signature_hex;
+        attribution.signature = response.sign_response().signature_hex.clone();
 
         Ok(attribution)
     }

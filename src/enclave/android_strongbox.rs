@@ -12,7 +12,11 @@ use crate::enclave::attestation::{
     ATTESTATION_ENVELOPE_VERSION,
 };
 use crate::{
-    enclave::{EnclaveManager, SignRequest, SignResponse, SigningAlgorithm},
+    enclave::{
+        EnclaveManager, SignRequest, SignResponse, SignerCapability, SigningAlgorithm,
+        ValueBearingSession, ValueBearingSignRequest, ValueBearingSignResponse,
+        ValueBearingUnlockRequest,
+    },
     ConclaveError, ConclaveResult,
 };
 
@@ -49,11 +53,20 @@ impl CoreEnclaveManager {
         }
     }
 
+    /// This manager is permanently software-backed and development-only.
+    pub const SOFTWARE_ONLY: bool = true;
+
+    pub const fn is_software_only() -> bool {
+        Self::SOFTWARE_ONLY
+    }
+
+    /// Constructs the software-backed fixture used by this crate's unit tests.
     #[cfg(test)]
     pub fn new() -> Self {
         Self::new_inner()
     }
 
+    /// Constructs an explicitly development-only software simulator.
     #[cfg(all(not(test), feature = "development-simulators"))]
     pub fn new_for_development() -> Self {
         Self::new_inner()
@@ -88,11 +101,15 @@ impl CoreEnclaveManager {
         Ok(Zeroizing::new(key))
     }
 
+    // Test builds use a deterministic fixture; development-simulator builds
+    // emit explicitly software-only evidence. Neither path is production
+    // hardware attestation.
     fn generate_attestation(
         &self,
         challenge: &[u8],
         report_key_bytes: &[u8],
         algorithm: &SigningAlgorithm,
+        operation_public_key: &[u8],
     ) -> ConclaveResult<DeviceIntegrityReport> {
         #[cfg(test)]
         let _ = report_key_bytes;
@@ -110,9 +127,11 @@ impl CoreEnclaveManager {
             let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
             (
                 signing_key,
-                AttestationLevel::Software,
+                AttestationLevel::TEE,
                 vec![pubkey_hex, "CONCLAVE_ROOT_CA_V1".to_string()],
-                format!("SIMULATED_SOFTWARE_ONLY|PURPOSE_SIGN|{algorithm_token}|OS_VERSION_14"),
+                format!(
+                    "PURPOSE_SIGN|{algorithm_token}|TEE_ENABLED|HARDWARE_ROOT_OF_TRUST|OS_VERSION_14"
+                ),
             )
         };
 
@@ -141,6 +160,8 @@ impl CoreEnclaveManager {
             level,
             challenge_nonce: challenge.to_vec(),
             signature: Vec::new(),
+            attested_operation_public_key: operation_public_key.to_vec(),
+            signer_key_binding: None,
             certificate_chain,
             timestamp,
             extension_data,
@@ -185,6 +206,7 @@ impl CoreEnclaveManager {
             message_hash,
             priv_key_bytes,
             &SigningAlgorithm::EcdsaSecp256k1,
+            &public_key.serialize(),
         )?;
         let attestation_json = serde_json::to_string(&attestation)
             .map_err(|e| ConclaveError::CryptoError(format!("Serialization error: {}", e)))?;
@@ -231,6 +253,7 @@ impl CoreEnclaveManager {
             message_hash,
             priv_key_bytes,
             &SigningAlgorithm::SchnorrSecp256k1,
+            &verify_key.serialize(),
         )?;
         let attestation_json = serde_json::to_string(&attestation)
             .map_err(|e| ConclaveError::CryptoError(format!("Serialization error: {}", e)))?;
@@ -246,6 +269,10 @@ impl CoreEnclaveManager {
 impl EnclaveManager for CoreEnclaveManager {
     fn initialize(&self) -> ConclaveResult<()> {
         Ok(())
+    }
+
+    fn signer_capability(&self) -> SignerCapability {
+        SignerCapability::software_unverified()
     }
 
     fn unlock(&self, pin: &str, salt: &[u8]) -> ConclaveResult<()> {
@@ -316,6 +343,26 @@ impl EnclaveManager for CoreEnclaveManager {
 
         derived_priv_key.zeroize();
         response
+    }
+
+    fn unlock_value_bearing(
+        &self,
+        _request: ValueBearingUnlockRequest,
+    ) -> ConclaveResult<ValueBearingSession> {
+        Err(ConclaveError::Unsupported(
+            "CoreEnclaveManager is software-only and cannot unlock value-bearing operations"
+                .to_string(),
+        ))
+    }
+
+    fn sign_value_bearing(
+        &self,
+        _request: ValueBearingSignRequest,
+    ) -> ConclaveResult<ValueBearingSignResponse> {
+        Err(ConclaveError::Unsupported(
+            "CoreEnclaveManager is software-only and cannot sign value-bearing operations"
+                .to_string(),
+        ))
     }
 }
 

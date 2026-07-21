@@ -1,5 +1,8 @@
 use crate::{
-    enclave::{sign_value_bearing, EnclaveManager, SigningAlgorithm, ValueBearingSignRequest},
+    enclave::{
+        sign_value_bearing, EnclaveManager, OperationContext, SignerKeyBinding, SigningAlgorithm,
+        TrustRequirement, ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
+    },
     ConclaveResult,
 };
 use serde::{Deserialize, Serialize};
@@ -32,18 +35,23 @@ impl<'a> SolanaManager<'a> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        let expected_public_key_hex = self.enclave.get_public_key(derivation_path)?;
+        let public_key = hex::decode(self.enclave.get_public_key(derivation_path)?)
+            .map_err(|_| crate::ConclaveError::InvalidPayload)?;
         let request = ValueBearingSignRequest::new(
-            message_hash,
+            OperationContext::new(
+                "conxian/solana/transaction",
+                ValueBearingPurpose::Transaction,
+                message_hash.to_vec(),
+            )?,
             SigningAlgorithm::Ed25519,
-            derivation_path.to_string(),
-            key_id.to_string(),
-            expected_public_key_hex,
+            TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+            message_hash,
+            SignerKeyBinding::new(key_id, derivation_path, public_key)?,
             None,
-        );
+        )?;
 
         let response = sign_value_bearing(self.enclave, request)?;
-        Ok(response.signature_hex)
+        Ok(response.sign_response().signature_hex.clone())
     }
 
     /// Prepares a simple SPL token transfer instruction data.
