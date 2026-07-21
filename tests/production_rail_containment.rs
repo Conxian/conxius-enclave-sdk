@@ -113,6 +113,37 @@ fn production_default_policy_is_hardware_only_and_provider_unavailable() {
 }
 
 #[test]
+fn every_builtin_adapter_is_gated_before_http_dispatch() {
+    let adapters = [
+        ("bisq", include_str!("../src/protocol/rails/bisq.rs")),
+        ("boltz", include_str!("../src/protocol/rails/boltz.rs")),
+        (
+            "changelly",
+            include_str!("../src/protocol/rails/changelly.rs"),
+        ),
+        ("ntt", include_str!("../src/protocol/rails/ntt.rs")),
+        (
+            "wormhole",
+            include_str!("../src/protocol/rails/wormhole.rs"),
+        ),
+        ("x402", include_str!("../src/protocol/rails/x402.rs")),
+    ];
+
+    for (name, source) in adapters {
+        let gate = source
+            .find("super::reject_builtin_adapter_dispatch()?;")
+            .unwrap_or_else(|| panic!("{name} must call the shared containment gate"));
+        let network_dispatch = source
+            .find(".post(")
+            .unwrap_or_else(|| panic!("{name} must retain an explicit network boundary"));
+        assert!(
+            gate < network_dispatch,
+            "{name} must reject before constructing or sending an HTTP request"
+        );
+    }
+}
+
+#[test]
 fn prepare_intent_commits_to_the_complete_security_context() -> ConclaveResult<()> {
     let intent = proxy().prepare_intent("x402", request(), None)?;
     assert_eq!(intent.signable_hash, intent.canonical_hash());
