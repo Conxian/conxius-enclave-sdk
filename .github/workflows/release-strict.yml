@@ -212,6 +212,20 @@ jobs:
                       "sha256": sha256,
                   })
               certificate = (result.get("signature", {}) or {}).get("certificate", {}) or {}
+              required_identity = {
+                  key: certificate.get(key)
+                  for key in ("subjectAlternativeName", "issuer")
+              }
+              missing_identity = [
+                  key
+                  for key, value in required_identity.items()
+                  if not isinstance(value, str) or not value.strip()
+              ]
+              if missing_identity:
+                  raise SystemExit(
+                      "provenance certificate identity is missing required field(s): "
+                      + ", ".join(missing_identity)
+                  )
               identity = {
                   key: certificate[key]
                   for key in ("subjectAlternativeName", "issuer", "oidcIssuer")
@@ -446,7 +460,7 @@ jobs:
               || (github.event_name == 'workflow_dispatch' && inputs.publish_to_crates_io) }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --locked --token "${CARGO_REGISTRY_TOKEN}"
+        run: cargo publish --locked
 
       - name: Verify crates.io artifact matches the attested crate
         shell: bash
