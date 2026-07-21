@@ -26,6 +26,7 @@ aes = "0.9.1"
 aes-gcm = "0.11.0"
 bdk_wallet = { version = "3.1.0", default-features = false, features = ["std"] }
 bitcoin = { version = "0.33.0-beta", features = ["std", "rand"] }
+lightning-invoice = { version = "0.34.1", default-features = false }
 getrandom = { version = "0.4.2", features = ["wasm_js"] }
 hex = "0.4.3"
 hmac = "0.13.0"

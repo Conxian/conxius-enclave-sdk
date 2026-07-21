@@ -1,0 +1,15 @@
+{
+  "name": "conxius-enclave-sdk-wasm-runtime-harness",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.23.1"
+  },
+  "scripts": {
+    "runtime": "node ./run.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.9",
+    "playwright": "1.54.2"
+  }
+}

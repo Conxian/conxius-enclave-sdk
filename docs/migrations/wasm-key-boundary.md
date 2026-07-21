@@ -28,8 +28,12 @@ not a release claim; the repository's latest visible release/tag remains
   Callers should not parse error strings or retry with a software key.
 - BitVM2's public input is named `taproot_internal_key_hex` to distinguish a
   public Taproot internal key from private key material.
-- WASM Fedimint mint/issue methods return `SECRET_EXPORT_FORBIDDEN` rather than
-  serializing secrets or blinding factors.
+- WASM Fedimint methods that accept opaque handles currently return
+  `PROTOCOL_UNSUPPORTED`; the removed secret-bearing serialization path must
+  not be reintroduced. `SECRET_EXPORT_FORBIDDEN` is reserved for a future API
+  that explicitly exposes or accepts raw secret material.
+- Malformed hex, length, JSON, and shape inputs at the signing/covenant
+  boundary return `INVALID_INPUT` through the typed JS error mapping.
 
 ## Migration guidance
 
@@ -39,8 +43,9 @@ not a release claim; the repository's latest visible release/tag remains
    token. Use a provider-owned opaque handle or provider-backed public-key and
    signing operation once the matching adapter is available.
 3. Treat `UNSUPPORTED_RUNTIME`, `UNSUPPORTED_PROVIDER`, and
-   `SECRET_EXPORT_FORBIDDEN` as terminal capability errors, not prompts to fall
-   back to local software keys.
+   `PROTOCOL_UNSUPPORTED` as terminal capability errors, not prompts to fall
+   back to local software keys. Treat `SECRET_EXPORT_FORBIDDEN` the same way
+   when a future explicitly secret-bearing API returns it.
 4. Keep CloudEnclave, localhost, and mock providers confined to clearly marked
    tests. Their output is not production runtime or hardware evidence.
 
