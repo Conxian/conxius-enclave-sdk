@@ -119,31 +119,27 @@ impl<'a> OpportunityDispatcher<'a> {
                 let public_key = hex::decode(self.enclave.get_public_key(&derivation_path)?)
                     .map_err(|_| ConclaveError::InvalidPayload)?;
                 let operation_domain = format!("conxian/opportunity/{from_chain:?}");
-                let sign_resp = sign_value_bearing(
-                    self.enclave,
-                    ValueBearingSignRequest::new(
-                        OperationContext::new(
-                            operation_domain,
-                            ValueBearingPurpose::Transaction,
-                            message_digest.to_vec(),
-                        )?,
-                        algo,
-                        TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
-                        message_digest,
-                        SignerKeyBinding::new("opportunity_key", derivation_path, public_key)?,
-                        None,
+                let sign_request = ValueBearingSignRequest::new(
+                    OperationContext::new(
+                        operation_domain,
+                        ValueBearingPurpose::Settlement,
+                        message_digest.to_vec(),
                     )?,
+                    algo,
+                    TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+                    message_digest,
+                    SignerKeyBinding::new("opportunity_key", derivation_path, public_key)?,
+                    None,
                 )?;
-                let sign_response = sign_resp.sign_response();
-
-                #[allow(deprecated)]
+                let sign_response = sign_value_bearing(self.enclave, sign_request.clone())?;
+                let operation = self.rail_proxy.authorize_verified_operation(
+                    intent,
+                    &sign_request,
+                    sign_response,
+                )?;
                 let resp = self
                     .rail_proxy
-                    .broadcast_signed_intent(
-                        intent,
-                        sign_response.signature_hex.clone(),
-                        sign_response.device_attestation.clone(),
-                    )
+                    .dispatch_verified_operation(operation)
                     .await?;
 
                 Ok(resp.transaction_id)

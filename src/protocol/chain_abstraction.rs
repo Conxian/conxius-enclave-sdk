@@ -92,7 +92,7 @@ impl ChainAbstractionService {
         let sign_request = ValueBearingSignRequest::new(
             OperationContext::new(
                 operation_domain,
-                ValueBearingPurpose::Transaction,
+                ValueBearingPurpose::Authorization,
                 message_digest.to_vec(),
             )?,
             algorithm,

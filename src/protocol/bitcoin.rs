@@ -30,6 +30,25 @@ impl<'a> TaprootManager<'a> {
         key_id: &str,
         merkle_root: Option<[u8; 32]>,
     ) -> ConclaveResult<String> {
+        self.sign_taproot_operation(
+            sighash,
+            derivation_path,
+            key_id,
+            merkle_root,
+            ValueBearingPurpose::Transaction,
+            "conxian/bitcoin/taproot",
+        )
+    }
+
+    fn sign_taproot_operation(
+        &self,
+        sighash: [u8; 32],
+        derivation_path: &str,
+        key_id: &str,
+        merkle_root: Option<[u8; 32]>,
+        purpose: ValueBearingPurpose,
+        domain: &str,
+    ) -> ConclaveResult<String> {
         Self::validate_bip86_path(derivation_path)?;
 
         let tweak = self.calculate_taproot_tweak(derivation_path, merkle_root)?;
@@ -39,11 +58,7 @@ impl<'a> TaprootManager<'a> {
             ConclaveError::CryptoError(format!("Taproot key tweak failed: {error}"))
         })?;
         let request = ValueBearingSignRequest::new(
-            OperationContext::new(
-                "conxian/bitcoin/taproot",
-                ValueBearingPurpose::Transaction,
-                sighash.to_vec(),
-            )?,
+            OperationContext::new(domain, purpose, sighash.to_vec())?,
             SigningAlgorithm::SchnorrSecp256k1,
             TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
             sighash,
@@ -218,7 +233,14 @@ impl<'a> TaprootManager<'a> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        self.sign_taproot_sighash(challenge_hash, derivation_path, key_id)
+        self.sign_taproot_operation(
+            challenge_hash,
+            derivation_path,
+            key_id,
+            None,
+            ValueBearingPurpose::Authorization,
+            "conxian/bitcoin/bitvm-challenge",
+        )
     }
 }
 

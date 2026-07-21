@@ -448,12 +448,34 @@ impl ValueBearingSession {
     }
 }
 
-/// Typed result that can only be issued by a provider-verified signing path.
+/// Replay authorization issued only after a provider-verified value-bearing
+/// response has passed the manager-owned replay guard.
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ValueBearingReplayAuthorization {
+    operation_binding: [u8; 32],
+}
+
+impl ValueBearingReplayAuthorization {
+    fn new(operation_binding: [u8; 32]) -> Self {
+        Self { operation_binding }
+    }
+
+    pub(crate) fn operation_binding(&self) -> &[u8; 32] {
+        &self.operation_binding
+    }
+}
+
+/// Typed result that can only be issued by a provider-verified signing path.
+#[derive(Debug, Clone)]
 pub struct ValueBearingSignResponse {
     response: SignResponse,
     capability: SignerCapability,
     operation_binding: [u8; 32],
+    algorithm: SigningAlgorithm,
+    message_digest: [u8; 32],
+    key_binding: SignerKeyBinding,
+    attestation: DeviceIntegrityReport,
+    replay_authorization: Option<ValueBearingReplayAuthorization>,
 }
 
 impl ValueBearingSignResponse {
@@ -467,6 +489,39 @@ impl ValueBearingSignResponse {
 
     pub fn operation_binding(&self) -> &[u8; 32] {
         &self.operation_binding
+    }
+
+    pub fn algorithm(&self) -> SigningAlgorithm {
+        self.algorithm
+    }
+
+    pub fn message_digest(&self) -> &[u8; 32] {
+        &self.message_digest
+    }
+
+    pub fn key_binding(&self) -> &SignerKeyBinding {
+        &self.key_binding
+    }
+
+    /// Complete attestation evidence that was verified before this response
+    /// crossed the typed provider boundary.
+    pub fn attestation(&self) -> &DeviceIntegrityReport {
+        &self.attestation
+    }
+
+    /// Returns replay authorization only for responses returned by the common
+    /// manager boundary. Direct test-only evidence construction is not enough
+    /// to authorize settlement.
+    pub(crate) fn replay_authorization(&self) -> Option<&ValueBearingReplayAuthorization> {
+        self.replay_authorization.as_ref()
+    }
+
+    fn with_replay_authorization(
+        mut self,
+        replay_authorization: ValueBearingReplayAuthorization,
+    ) -> Self {
+        self.replay_authorization = Some(replay_authorization);
+        self
     }
 
     #[allow(dead_code)]
@@ -528,6 +583,11 @@ impl ValueBearingSignResponse {
             response,
             capability,
             operation_binding: request.operation_binding()?,
+            algorithm: request.algorithm(),
+            message_digest: *request.message_digest(),
+            key_binding: request.key_binding().clone(),
+            attestation: report,
+            replay_authorization: None,
         })
     }
 }
@@ -632,7 +692,9 @@ pub trait EnclaveManager: Send + Sync {
             .try_check_and_record(&replay_key, unix_time_secs())
             .map_err(map_replay_guard_error)?;
 
-        Ok(verified)
+        let operation_binding = *verified.operation_binding();
+        Ok(verified
+            .with_replay_authorization(ValueBearingReplayAuthorization::new(operation_binding)))
     }
 }
 
@@ -806,7 +868,7 @@ mod enclave_tests {
     use crate::enclave::android_strongbox::CoreEnclaveManager;
     use crate::enclave::cloud::CloudEnclave;
     use ed25519_dalek::{Signer as _, SigningKey};
-    use std::collections::VecDeque;
+    use std::collections::{HashMap, VecDeque};
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Mutex,
@@ -1423,13 +1485,59 @@ mod enclave_tests {
 
     #[test]
     fn migrated_primary_signers_never_call_legacy_raw_sign_when_typed_signing_rejects() {
-        let manager = DefaultMockEnclave {
+        let manager = std::sync::Arc::new(DefaultMockEnclave {
             raw_sign_calls: AtomicUsize::new(0),
-        };
-        let ethereum = crate::protocol::ethereum::EthereumManager::new(&manager);
+        });
+        let ethereum = crate::protocol::ethereum::EthereumManager::new(manager.as_ref());
+        let ark = crate::protocol::ark::ArkManager::new(manager.clone());
+        let bitvm = crate::protocol::bitvm::BitVmManager::new(manager.clone());
+        let business_registry = crate::protocol::business::BusinessRegistry::new();
+        business_registry.register_business(crate::protocol::business::BusinessProfile {
+            id: "test-business".to_string(),
+            name: "Test Business".to_string(),
+            public_key: String::new(),
+            active: true,
+        });
+        let business =
+            crate::protocol::business::BusinessManager::new(manager.as_ref(), &business_registry);
+        let chain_abstraction = crate::protocol::chain_abstraction::ChainAbstractionService::new(
+            manager.clone(),
+            std::sync::Arc::new(crate::protocol::asset::AssetRegistry::new()),
+        );
+        let yield_engine = crate::protocol::economy::YieldEngine::new(manager.as_ref());
 
         assert!(ethereum
             .sign_transaction_hash([0x11; 32], "m/44'/60'/0'/0/0", "legacy-mock")
+            .is_err());
+        assert!(ark
+            .sign_forfeit_transaction([0x11; 32], "m/44'/0'/0'/0/0")
+            .is_err());
+        assert!(bitvm
+            .sign_challenge(
+                crate::protocol::bitvm::BitVmChallenge {
+                    challenge_hash: [0x11; 32],
+                    tap_index: 0,
+                    total_taps: 364,
+                },
+                "m/86'/0'/0'/0/0",
+                "legacy-mock",
+            )
+            .is_err());
+        assert!(business
+            .generate_attribution("test-business", "user", HashMap::new())
+            .is_err());
+        assert!(chain_abstraction
+            .sign_for_chain(crate::protocol::chain_abstraction::ChainSignatureRequest {
+                target_chain: crate::protocol::asset::Chain::BITCOIN,
+                payload: vec![0x11; 32],
+                derivation_path: "m/44'/0'/0'/0/0".to_string(),
+            })
+            .is_err());
+        assert!(yield_engine
+            .prepare_gas_sponsored_tx(crate::protocol::economy::GasFeeIntent {
+                tx_payload: vec![0x11; 32],
+                estimated_fee_sbtc: 1,
+            })
             .is_err());
         assert_eq!(manager.raw_sign_calls.load(Ordering::Relaxed), 0);
     }
@@ -1460,6 +1568,54 @@ mod enclave_tests {
                 },
                 "stx-key",
             )
+            .is_err());
+
+        let ark = crate::protocol::ark::ArkManager::new(cloud.clone());
+        let bitvm = crate::protocol::bitvm::BitVmManager::new(cloud.clone());
+        let business_registry = crate::protocol::business::BusinessRegistry::new();
+        business_registry.register_business(crate::protocol::business::BusinessProfile {
+            id: "software-business".to_string(),
+            name: "Software Business".to_string(),
+            public_key: String::new(),
+            active: true,
+        });
+        let business =
+            crate::protocol::business::BusinessManager::new(cloud.as_ref(), &business_registry);
+        let chain_abstraction = crate::protocol::chain_abstraction::ChainAbstractionService::new(
+            cloud.clone(),
+            std::sync::Arc::new(crate::protocol::asset::AssetRegistry::new()),
+        );
+        let yield_engine = crate::protocol::economy::YieldEngine::new(cloud.as_ref());
+
+        assert!(ark
+            .sign_forfeit_transaction([0x22; 32], "m/44'/0'/0'/0/0")
+            .is_err());
+        assert!(bitvm
+            .sign_challenge(
+                crate::protocol::bitvm::BitVmChallenge {
+                    challenge_hash: [0x22; 32],
+                    tap_index: 0,
+                    total_taps: 364,
+                },
+                "m/86'/0'/0'/0/0",
+                "software-key",
+            )
+            .is_err());
+        assert!(business
+            .generate_attribution("software-business", "user", HashMap::new())
+            .is_err());
+        assert!(chain_abstraction
+            .sign_for_chain(crate::protocol::chain_abstraction::ChainSignatureRequest {
+                target_chain: crate::protocol::asset::Chain::BITCOIN,
+                payload: vec![0x22; 32],
+                derivation_path: "m/44'/0'/0'/0/0".to_string(),
+            })
+            .is_err());
+        assert!(yield_engine
+            .prepare_gas_sponsored_tx(crate::protocol::economy::GasFeeIntent {
+                tx_payload: vec![0x22; 32],
+                estimated_fee_sbtc: 1,
+            })
             .is_err());
     }
 }

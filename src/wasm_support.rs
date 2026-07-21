@@ -107,6 +107,9 @@ mod tests {
         assert!(!source.contains("master_seed_hex"));
         assert!(!source.contains("crate::enclave::cloud::CloudEnclave::new"));
         assert!(!source.contains("expect(\"Failed to create enclave\")"));
+        assert!(!source.contains("EnclaveManager::sign"));
+        assert!(!source.contains(".sign(request"));
+        assert!(!source.contains("new_for_development"));
         assert!(source.contains("derive_vutxo_public_key"));
         assert!(source.contains("sign_vutxo"));
         assert!(source.contains("SECRET_EXPORT_FORBIDDEN"));
