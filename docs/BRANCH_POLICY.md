@@ -18,6 +18,9 @@ The following checks must pass before a Pull Request can be merged:
 - **Linting** (`Linting`): `cargo fmt --check` and `cargo clippy -- -D warnings` must pass.
 - **Hygiene** (`Repository Hygiene`): No testnet principals (`ST...`), forbidden extensions (`.key`, `.pem`), or sensitive files (`.env`) permitted in production paths.
 - **WASM Build** (`WASM Build`): `wasm-pack build` must succeed for SDK repositories.
+- **WASM Runtime Evidence** (`WASM Runtime Evidence`): generated Node.js,
+  bundler, browser, and Web Worker harnesses must execute against artifacts
+  built from the checked-out commit; build-only output is not runtime evidence.
 - **Secret Scan** (`gitleaks`): Gitleaks findings must fail CI (fail-closed).
 - **Coverage** (`Coverage Threshold (>= 70%)`): line coverage must remain at or above 70%.
 

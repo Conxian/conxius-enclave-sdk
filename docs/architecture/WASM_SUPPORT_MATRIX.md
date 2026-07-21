@@ -10,10 +10,10 @@ and retained evidence are attached to the same release scope.
 
 | Runtime / packaging lane | Current status | What is verified | Explicitly unsupported |
 | --- | --- | --- | --- |
-| Browser / Web | Unsupported | Rust/WASM compilation only | Value-bearing signing, seed-based recovery, and default client construction |
-| Node.js | Unsupported | Rust/WASM compilation only | Value-bearing signing, seed-based recovery, and default client construction |
-| Bundler | Unsupported | Rust/WASM compilation only | Value-bearing signing, seed-based recovery, and default client construction |
-| Web Worker | Unsupported | Rust/WASM compilation only | Value-bearing signing, seed-based recovery, and default client construction |
+| Browser / Web | Unsupported | `scripts/run_wasm_runtime_evidence.sh` builds the web artifact, serves it over HTTP, and executes the browser harness | Value-bearing signing, seed-based recovery, and default client construction |
+| Node.js | Unsupported | The generated Node package runs the typed-boundary and lifecycle harness | Value-bearing signing, seed-based recovery, and default client construction |
+| Bundler | Unsupported | The generated bundler ESM package is imported with Node's WASM module loader and runs the typed-boundary harness | Value-bearing signing, seed-based recovery, and default client construction |
+| Web Worker | Unsupported | The browser harness starts a real module Web Worker and runs the same fail-closed checks | Value-bearing signing, seed-based recovery, and default client construction |
 
 ## Provider boundary
 
@@ -26,6 +26,9 @@ and retained evidence are attached to the same release scope.
   reintroduced.
 - Seed-based Ark recovery is not available through WASM. Native Rust recovery
   remains a separate, conditional API and is not evidence of browser support.
+- Malformed JSON and boundary decoding failures use the stable `INVALID_INPUT`
+  error code. Unsupported runtimes/providers remain typed failures and do not
+  create an inert `UnavailableEnclave` wrapper.
 - Legacy `WasmBitVmClient::sign_challenge` and
   `aggregate_challenge_signatures` return `PROTOCOL_UNSUPPORTED` before
   decoding inputs or producing a signature/aggregate. Generic MuSig2 values
@@ -34,11 +37,23 @@ and retained evidence are attached to the same release scope.
   until a provider-owned opaque flow exists.
 - Cloud, localhost, software-only, and mock implementations are test/development
   paths. They cannot satisfy production hardware or runtime evidence.
+- `new_for_development` constructors remain behind the
+  `development-simulators` feature and are absent from the default generated
+  artifacts. Simulator execution therefore cannot satisfy the production
+  attestation policy.
 
 ## Required evidence before support promotion
 
+The executable runtime evidence is intentionally narrower than support. The
+dedicated `wasm-runtime-evidence` workflow builds fresh `nodejs`, `bundler`,
+and `web` artifacts from the checked-out commit, runs the Node and Node
+`worker_threads` harnesses, imports the bundler package, and runs the browser
+plus module Web Worker harness against an HTTP-served web artifact. The runner
+records toolchain versions, artifact file sizes, SHA-256 digests, runtime
+versions, and the checked-out commit in an uploaded evidence manifest.
+
 For each runtime lane, retain all of the following for the exact artifact and
-provider configuration:
+provider configuration before promoting support:
 
 1. Browser, Node, bundler, and worker runtime tests covering initialization,
    public-key/signing requests, lifecycle, and failure paths.
@@ -48,4 +63,5 @@ provider configuration:
 4. CI results and the generated artifact/provenance for the same commit.
 
 Until then, the matrix remains explicitly unsupported and the repository's
-beta/conditional posture is unchanged. See [issue #200](https://github.com/Conxian/conxius-enclave-sdk/issues/200).
+beta/conditional posture is unchanged. Runtime execution proves neither an
+approved provider nor hardware attestation. See [issue #200](https://github.com/Conxian/conxius-enclave-sdk/issues/200).

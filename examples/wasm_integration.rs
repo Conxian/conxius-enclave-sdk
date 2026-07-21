@@ -33,7 +33,7 @@ fn main() {
     println!("  arkClient.derive_vutxo_public_key(0); // ProtocolUnsupported");
     println!();
     println!("  // BitVM2 construction is provider-gated and challenge methods fail closed.");
-    println!("  client.bitvm2(); // Unsupported provider until exact evidence exists\n");
+    println!("  try {{ client.bitvm2(); }} catch (error) {{ /* UNSUPPORTED_PROVIDER */ }}\n");
 
     // Build Instructions
     println!("Build Instructions:");
