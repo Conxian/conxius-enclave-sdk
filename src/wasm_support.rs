@@ -91,6 +91,21 @@ pub(crate) fn wasm_error_code(error: &ConclaveError) -> &'static str {
     }
 }
 
+/// Normalize a BOLT11 string for comparison with the parser's lowercase
+/// `Display` form while preserving Bech32's uniform-case requirement.
+///
+/// The parser remains the authority for the complete invoice grammar and
+/// rejects mixed-case input as defense-in-depth. This helper only permits the
+/// all-lowercase/all-uppercase distinction and never appears in public errors.
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) fn normalize_bolt11_case(invoice: &str) -> Option<String> {
+    let normalized = invoice.to_ascii_lowercase();
+    let is_all_lowercase = invoice == normalized;
+    let is_all_uppercase = invoice == invoice.to_ascii_uppercase();
+
+    (is_all_lowercase || is_all_uppercase).then_some(normalized)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -139,6 +154,19 @@ mod tests {
             wasm_error_code(&ConclaveError::SecretExportForbidden),
             "SECRET_EXPORT_FORBIDDEN"
         );
+    }
+
+    #[test]
+    fn bolt11_case_normalization_accepts_uniform_case_only() {
+        assert_eq!(
+            normalize_bolt11_case("lnbc1abc"),
+            Some("lnbc1abc".to_string())
+        );
+        assert_eq!(
+            normalize_bolt11_case("LNBC1ABC"),
+            Some("lnbc1abc".to_string())
+        );
+        assert_eq!(normalize_bolt11_case("lNbc1abc"), None);
     }
 
     #[test]

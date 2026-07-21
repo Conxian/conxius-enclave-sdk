@@ -70,6 +70,11 @@ async function runBrowserPage(browser, url, resultExpression, label) {
   await page.close();
 }
 
+const playwrightExecutable = chromium.executablePath();
+if (!playwrightExecutable || !existsSync(playwrightExecutable)) {
+  throw new Error("Playwright-managed Chromium executable is unavailable");
+}
+
 await fs.mkdir(join(root, ".generated/bundler"), { recursive: true });
 await fs.copyFile(
   join(root, ".generated/web/conxius_enclave_sdk_bg.wasm"),
@@ -88,7 +93,10 @@ await build({
 });
 
 const { server, origin } = await startStaticServer();
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  executablePath: playwrightExecutable,
+  headless: true,
+});
 try {
   await runBrowserPage(browser, `${origin}/browser.html`, "window.__wasmResult", "browser");
   await runBrowserPage(browser, `${origin}/worker.html`, "window.__workerResult", "worker");

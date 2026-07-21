@@ -4,6 +4,7 @@ use crate::protocol::solana::SolanaManager;
 use crate::wasm_support::{self, WasmRuntime};
 use crate::ConclaveError;
 use hex;
+use lightning_invoice::Bolt11Invoice;
 use serde_wasm_bindgen;
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
@@ -404,6 +405,113 @@ fn to_js_error<E: std::fmt::Display>(e: E) -> JsValue {
     wasm_error("CONXIAN_ERROR", &e.to_string())
 }
 
+const LIGHTNING_INVOICE_MAX_LENGTH: usize = 2048;
+
+/// Validate caller-supplied Lightning construction fields without including
+/// any rejected value in the public error. The native state-machine
+/// constructor is intentionally infallible, so this validation belongs at
+/// both exported WASM construction paths.
+fn validate_lightning_constructor_inputs(
+    payment_hash: &str,
+    invoice: &str,
+    amount_msat: u64,
+) -> Result<(), JsValue> {
+    if !is_valid_lightning_payment_hash(payment_hash) {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "payment_hash must be 32 bytes encoded as 64 hexadecimal characters",
+        ));
+    }
+
+    let parsed_invoice = parse_lightning_invoice(invoice)?;
+
+    if amount_msat == 0 {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "amount_msat must be greater than zero",
+        ));
+    }
+
+    let expected_payment_hash = hex::decode(payment_hash).map_err(|_| invalid_input())?;
+    let invoice_payment_hash: &[u8] = parsed_invoice.payment_hash().as_ref();
+    if invoice_payment_hash != expected_payment_hash.as_slice() {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "payment_hash does not match the invoice payment hash",
+        ));
+    }
+
+    let invoice_amount_msat = parsed_invoice.amount_milli_satoshis();
+    let invoice_encodes_amount = parsed_invoice
+        .clone()
+        .into_signed_raw()
+        .raw_invoice()
+        .hrp
+        .raw_amount
+        .is_some();
+    if invoice_encodes_amount && invoice_amount_msat.is_none() {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "invoice amount is out of range",
+        ));
+    }
+
+    if let Some(invoice_amount_msat) = invoice_amount_msat {
+        if invoice_amount_msat != amount_msat {
+            return Err(wasm_error(
+                "INVALID_INPUT",
+                "amount_msat does not match the invoice amount",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn is_valid_lightning_payment_hash(payment_hash: &str) -> bool {
+    payment_hash.len() == 64
+        && payment_hash
+            .as_bytes()
+            .iter()
+            .all(|byte| byte.is_ascii_hexdigit())
+}
+
+fn parse_lightning_invoice(invoice: &str) -> Result<Bolt11Invoice, JsValue> {
+    if invoice.is_empty() || invoice.len() > LIGHTNING_INVOICE_MAX_LENGTH {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "invoice must be a valid BOLT11 payment request",
+        ));
+    }
+
+    let normalized_invoice = wasm_support::normalize_bolt11_case(invoice).ok_or_else(|| {
+        wasm_error(
+            "INVALID_INPUT",
+            "invoice must be a canonical BOLT11 payment request",
+        )
+    })?;
+
+    let parsed_invoice = invoice.parse::<Bolt11Invoice>().map_err(|_| {
+        wasm_error(
+            "INVALID_INPUT",
+            "invoice must be a valid BOLT11 payment request",
+        )
+    })?;
+
+    // `lightning-invoice` normalizes the HRP amount and case while parsing.
+    // Requiring a canonical round trip against the safe lowercase copy rejects
+    // encodings such as a leading-zero amount, while the parser itself
+    // enforces the BOLT11 field, feature, and recoverable-signature semantics.
+    if parsed_invoice.to_string() != normalized_invoice {
+        return Err(wasm_error(
+            "INVALID_INPUT",
+            "invoice must be a canonical BOLT11 payment request",
+        ));
+    }
+
+    Ok(parsed_invoice)
+}
+
 fn invalid_input() -> JsValue {
     conclave_error_to_js(ConclaveError::InvalidPayload)
 }
@@ -515,6 +623,7 @@ impl WasmLightningClient {
         amount_msat: u64,
         expiry_secs: Option<u64>,
     ) -> Result<WasmLightningClient, JsValue> {
+        validate_lightning_constructor_inputs(payment_hash, invoice, amount_msat)?;
         let intent = crate::protocol::lightning::LightningPaymentIntent::new(
             payment_hash.to_string(),
             invoice.to_string(),
@@ -551,6 +660,11 @@ pub struct WasmLightningClientConstructor;
 
 #[wasm_bindgen]
 impl WasmLightningClientConstructor {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmLightningClientConstructor {
+        WasmLightningClientConstructor
+    }
+
     pub fn create_intent(
         &self,
         payment_hash: &str,
@@ -559,6 +673,12 @@ impl WasmLightningClientConstructor {
         expiry_secs: Option<u64>,
     ) -> Result<WasmLightningClient, JsValue> {
         WasmLightningClient::new(payment_hash, invoice, amount_msat, expiry_secs)
+    }
+}
+
+impl Default for WasmLightningClientConstructor {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
