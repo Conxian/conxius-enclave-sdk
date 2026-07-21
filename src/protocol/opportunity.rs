@@ -5,7 +5,7 @@ use crate::enclave::{
 use crate::protocol::asset::{AssetIdentifier, Chain};
 use crate::protocol::economy::{DualStackIntent, YieldEngine};
 use crate::protocol::intent::SwapRequest;
-use crate::protocol::rails::{RailProxy, SovereignHandshake};
+use crate::protocol::rails::{RailProxy, SovereignHandshake, SETTLEMENT_OPERATION_DOMAIN};
 use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -119,10 +119,9 @@ impl<'a> OpportunityDispatcher<'a> {
                     .map_err(|_| ConclaveError::InvalidPayload)?;
                 let public_key = hex::decode(self.enclave.get_public_key(&derivation_path)?)
                     .map_err(|_| ConclaveError::InvalidPayload)?;
-                let operation_domain = format!("conxian/opportunity/{from_chain:?}");
                 let sign_request = ValueBearingSignRequest::new(
                     OperationContext::new(
-                        operation_domain,
+                        SETTLEMENT_OPERATION_DOMAIN,
                         ValueBearingPurpose::Settlement,
                         message_digest.to_vec(),
                     )?,

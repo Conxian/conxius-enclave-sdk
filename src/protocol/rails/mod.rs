@@ -8,8 +8,8 @@ pub(crate) mod x402;
 use crate::enclave::attestation::{AttestationPolicy, DeviceIntegrityReport};
 use crate::enclave::replay_guard::{ReplayGuard, ReplayGuardError};
 use crate::enclave::{
-    SignerProvenance, SignerVerification, SigningAlgorithm, ValueBearingSignRequest,
-    ValueBearingSignResponse, VALUE_BEARING_POLICY_ID,
+    SignerProvenance, SignerVerification, SigningAlgorithm, ValueBearingPurpose,
+    ValueBearingSignRequest, ValueBearingSignResponse, VALUE_BEARING_POLICY_ID,
 };
 use crate::protocol::asset::AssetRegistry;
 use crate::protocol::business::BusinessRegistry;
@@ -39,6 +39,9 @@ pub enum TrustTier {
     /// T4: External & Permissionless (e.g., Wormhole, Uniswap, Changelly)
     T4,
 }
+
+/// Canonical operation-context domain for typed settlement authorization.
+pub const SETTLEMENT_OPERATION_DOMAIN: &str = "conxian/settlement/v1";
 
 /// Internal representation of a settlement rail (e.g. x402, Wormhole, NTT).
 ///
@@ -165,6 +168,25 @@ impl VerifiedOperation {
         if request.message_digest() != &canonical_intent_hash {
             return Err(ConclaveError::EnclaveFailure(
                 "typed settlement authorization digest does not match the canonical intent"
+                    .to_string(),
+            ));
+        }
+
+        let operation_context = request.operation_context();
+        if operation_context.purpose() != ValueBearingPurpose::Settlement {
+            return Err(ConclaveError::EnclaveFailure(
+                "typed settlement authorization requires settlement purpose".to_string(),
+            ));
+        }
+        if operation_context.domain() != SETTLEMENT_OPERATION_DOMAIN {
+            return Err(ConclaveError::EnclaveFailure(
+                "typed settlement authorization domain does not match the canonical settlement domain"
+                    .to_string(),
+            ));
+        }
+        if operation_context.context() != canonical_intent_hash.as_slice() {
+            return Err(ConclaveError::EnclaveFailure(
+                "typed settlement authorization context does not match the canonical intent"
                     .to_string(),
             ));
         }
@@ -440,10 +462,9 @@ impl RailProxy {
     /// Preflight the typed operation dispatch boundary before any provider
     /// public-key lookup or value-bearing signing occurs.
     ///
-    /// The production typed dispatch API is not available in this beta/
-    /// conditional build. Unit-test builds retain the internal fixture-only
-    /// compatibility path, while production callers fail closed before asking
-    /// a provider to sign an operation that cannot be dispatched.
+    /// Validate the typed dispatch boundary before any provider public-key
+    /// lookup or value-bearing signing occurs. Raw-signature rejection remains
+    /// confined to the deprecated `broadcast_signed_intent` shim below.
     pub(crate) fn preflight_typed_dispatch(&self, intent: &SwapIntent) -> ConclaveResult<()> {
         self.validate_request_assets(&intent.request)?;
         if intent.signable_hash != intent.canonical_hash() {
@@ -459,17 +480,7 @@ impl RailProxy {
             )));
         }
 
-        #[cfg(not(test))]
-        {
-            Err(ConclaveError::Unsupported(
-                "Typed operation-signature envelope required; raw signatures are not verified and are never forwarded in production"
-                    .to_string(),
-            ))
-        }
-        #[cfg(test)]
-        {
-            Ok(())
-        }
+        Ok(())
     }
 
     fn verify_hardware_integrity(
@@ -766,6 +777,32 @@ impl SovereignRail for CustomRail {
     }
 }
 
+#[cfg(test)]
+struct FailingRail;
+#[cfg(test)]
+impl sealed::SovereignRail for FailingRail {}
+#[async_trait(?Send)]
+#[cfg(test)]
+impl SovereignRail for FailingRail {
+    fn name(&self) -> &'static str {
+        "failing_partner"
+    }
+
+    fn trust_tier(&self) -> TrustTier {
+        TrustTier::T4
+    }
+
+    fn validate_request(&self, _request: &SwapRequest) -> ConclaveResult<Option<String>> {
+        Ok(Some("Valid failing fixture rail".to_string()))
+    }
+
+    async fn execute_swap(&self, _operation: VerifiedOperation) -> ConclaveResult<SwapResponse> {
+        Err(ConclaveError::RailError(
+            "fixture rail failed after replay authorization".to_string(),
+        ))
+    }
+}
+
 fn unix_time_secs() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -888,6 +925,22 @@ mod rail_proxy_tests {
         };
         intent.signable_hash = intent.canonical_hash();
         intent
+    }
+
+    #[test]
+    fn typed_dispatch_preflight_is_validation_only() {
+        let proxy = test_proxy();
+        let intent = test_intent(vec![30; 32]);
+
+        assert!(proxy.preflight_typed_dispatch(&intent).is_ok());
+
+        let mut legacy_intent = intent;
+        legacy_intent.signable_hash = legacy_intent.request.get_hash_bytes();
+        assert!(matches!(
+            proxy.preflight_typed_dispatch(&legacy_intent),
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("legacy request-only hashes are rejected")
+        ));
     }
 
     fn test_attestation_report(nonce: Vec<u8>, timestamp: u64) -> DeviceIntegrityReport {
@@ -1037,18 +1090,17 @@ mod rail_proxy_tests {
         }
     }
 
-    fn settlement_request(
+    fn settlement_request_with_context(
         digest: [u8; 32],
         public_key: Vec<u8>,
         policy_id: &str,
+        domain: &str,
+        purpose: ValueBearingPurpose,
+        context: Vec<u8>,
     ) -> ValueBearingSignRequest {
         ValueBearingSignRequest::new(
-            crate::enclave::OperationContext::new(
-                "conxian/test/settlement",
-                crate::enclave::ValueBearingPurpose::Settlement,
-                digest.to_vec(),
-            )
-            .expect("fixture operation context should be valid"),
+            crate::enclave::OperationContext::new(domain, purpose, context)
+                .expect("fixture operation context should be valid"),
             SigningAlgorithm::Ed25519,
             crate::enclave::TrustRequirement::hardware_backed(policy_id)
                 .expect("fixture policy should be valid"),
@@ -1064,9 +1116,31 @@ mod rail_proxy_tests {
         .expect("fixture signing request should be valid")
     }
 
+    fn settlement_request(
+        digest: [u8; 32],
+        public_key: Vec<u8>,
+        policy_id: &str,
+    ) -> ValueBearingSignRequest {
+        settlement_request_with_context(
+            digest,
+            public_key,
+            policy_id,
+            SETTLEMENT_OPERATION_DOMAIN,
+            ValueBearingPurpose::Settlement,
+            digest.to_vec(),
+        )
+    }
+
     fn custom_settlement_intent(seed: Vec<u8>) -> SwapIntent {
         let mut intent = test_intent(seed);
         intent.rail_type = "custom_partner".to_string();
+        intent.signable_hash = intent.canonical_hash();
+        intent
+    }
+
+    fn failing_settlement_intent(seed: Vec<u8>) -> SwapIntent {
+        let mut intent = custom_settlement_intent(seed);
+        intent.rail_type = "failing_partner".to_string();
         intent.signable_hash = intent.canonical_hash();
         intent
     }
@@ -1111,6 +1185,69 @@ mod rail_proxy_tests {
         let valid_response = provider
             .sign_value_bearing(valid_request.clone())
             .expect("fixture provider should issue typed evidence");
+
+        let wrong_purpose_request = settlement_request_with_context(
+            digest,
+            provider.operation_public_key(),
+            VALUE_BEARING_POLICY_ID,
+            SETTLEMENT_OPERATION_DOMAIN,
+            ValueBearingPurpose::Transaction,
+            digest.to_vec(),
+        );
+        let wrong_purpose_response = provider
+            .sign_value_bearing(wrong_purpose_request.clone())
+            .expect("fixture provider should issue wrong-purpose evidence");
+        assert!(matches!(
+            proxy.authorize_verified_operation(
+                intent.clone(),
+                &wrong_purpose_request,
+                wrong_purpose_response,
+            ),
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("requires settlement purpose")
+        ));
+
+        let wrong_domain_request = settlement_request_with_context(
+            digest,
+            provider.operation_public_key(),
+            VALUE_BEARING_POLICY_ID,
+            "conxian/settlement/other-v1",
+            ValueBearingPurpose::Settlement,
+            digest.to_vec(),
+        );
+        let wrong_domain_response = provider
+            .sign_value_bearing(wrong_domain_request.clone())
+            .expect("fixture provider should issue wrong-domain evidence");
+        assert!(matches!(
+            proxy.authorize_verified_operation(
+                intent.clone(),
+                &wrong_domain_request,
+                wrong_domain_response,
+            ),
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("canonical settlement domain")
+        ));
+
+        let wrong_context_request = settlement_request_with_context(
+            digest,
+            provider.operation_public_key(),
+            VALUE_BEARING_POLICY_ID,
+            SETTLEMENT_OPERATION_DOMAIN,
+            ValueBearingPurpose::Settlement,
+            vec![0xA5; 32],
+        );
+        let wrong_context_response = provider
+            .sign_value_bearing(wrong_context_request.clone())
+            .expect("fixture provider should issue same-digest altered-context evidence");
+        assert!(matches!(
+            proxy.authorize_verified_operation(
+                intent.clone(),
+                &wrong_context_request,
+                wrong_context_response,
+            ),
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("context does not match")
+        ));
 
         let mut tampered_intent = intent.clone();
         tampered_intent.chain_context = Some("tampered-context".to_string());
@@ -1217,6 +1354,29 @@ mod rail_proxy_tests {
         let replay = operation.clone();
 
         assert!(proxy.dispatch_verified_operation(operation).await.is_ok());
+        assert!(matches!(
+            proxy.dispatch_verified_operation(replay).await,
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("typed settlement authorization replay detected")
+        ));
+    }
+
+    #[tokio::test]
+    async fn typed_settlement_replay_is_consumed_before_downstream_failure() {
+        let mut proxy = test_proxy().with_min_trust_tier(TrustTier::T4);
+        proxy.register_rail(Box::new(FailingRail));
+        let provider = SettlementFixtureProvider::new(VALUE_BEARING_POLICY_ID);
+        let operation =
+            authorize_fixture_operation(&proxy, &provider, failing_settlement_intent(vec![34; 32]));
+        let replay = operation.clone();
+
+        // Replay authorization is intentionally consumed before adapter
+        // execution; this test documents the current process-local semantics.
+        assert!(matches!(
+            proxy.dispatch_verified_operation(operation).await,
+            Err(ConclaveError::RailError(message))
+                if message.contains("failed after replay authorization")
+        ));
         assert!(matches!(
             proxy.dispatch_verified_operation(replay).await,
             Err(ConclaveError::EnclaveFailure(message))
