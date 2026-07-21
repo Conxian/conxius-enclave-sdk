@@ -123,6 +123,8 @@ pub enum ConclaveError {
     NetworkError(String),
     #[error("Rail Error: {0}")]
     RailError(String),
+    #[error("BIP-322 error: {0}")]
+    Bip322(#[from] protocol::bip322::Bip322Error),
     #[error("Unsupported Chain or Feature: {0}")]
     Unsupported(String),
     #[error("{protocol} {operation} is unsupported: {reason}")]

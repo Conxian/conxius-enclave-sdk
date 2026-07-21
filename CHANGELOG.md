@@ -11,6 +11,8 @@
 - Removed the WASM `derive_vutxo_key` private-key export and added provider-backed public-key/signing capability names.
 - Made unsupported WASM runtimes, providers, BitVM2 construction, and secret-bearing Fedimint flows fail closed with typed error codes.
 - Added the [WASM runtime/provider support matrix](docs/architecture/WASM_SUPPORT_MATRIX.md) and [key-boundary migration note](docs/migrations/wasm-key-boundary.md).
+- Added canonical Bitcoin/Taproot and Ethereum verification/derivation behavior for issue #196, including public typed BIP-322 outcomes and `ConclaveError::Bip322`; malformed and unsupported inputs now fail closed within the documented conditional support boundary.
+- Tightened BIP-322 compatibility parsing to recognize only exact `smp`, `ful`, and `pof` tags; other inputs remain subject to strict unprefixed Simple decoding.
 
 ### Documentation
 
