@@ -254,6 +254,41 @@ impl RailProxy {
             ))
     }
 
+    /// Preflight the typed operation dispatch boundary before any provider
+    /// public-key lookup or value-bearing signing occurs.
+    ///
+    /// The production typed dispatch API is not available in this beta/
+    /// conditional build. Unit-test builds retain the internal fixture-only
+    /// compatibility path, while production callers fail closed before asking
+    /// a provider to sign an operation that cannot be dispatched.
+    pub(crate) fn preflight_typed_dispatch(&self, intent: &SwapIntent) -> ConclaveResult<()> {
+        self.validate_request_assets(&intent.request)?;
+        if intent.signable_hash != intent.canonical_hash() {
+            return Err(ConclaveError::EnclaveFailure(
+                "Swap intent canonical hash mismatch; legacy request-only hashes are rejected"
+                    .to_string(),
+            ));
+        }
+        if !self.rails.contains_key(&intent.rail_type) {
+            return Err(ConclaveError::RailError(format!(
+                "Rail {} not found",
+                intent.rail_type
+            )));
+        }
+
+        #[cfg(not(test))]
+        {
+            Err(ConclaveError::Unsupported(
+                "Typed operation-signature envelope required; raw signatures are not verified and are never forwarded in production"
+                    .to_string(),
+            ))
+        }
+        #[cfg(test)]
+        {
+            Ok(())
+        }
+    }
+
     fn verify_hardware_integrity(
         &self,
         intent: &SwapIntent,
