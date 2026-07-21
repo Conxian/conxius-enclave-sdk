@@ -1,6 +1,4 @@
 use crate::enclave::EnclaveManager;
-use crate::protocol::ark::ArkManager;
-use crate::protocol::bitvm::BitVmManager;
 use crate::protocol::ethereum::EthereumManager;
 use crate::protocol::solana::SolanaManager;
 use crate::wasm_support::{self, WasmRuntime};
@@ -56,44 +54,49 @@ impl ConclaveWasmClient {
     }
 
     pub fn ark(&self) -> WasmArkClient {
-        WasmArkClient {
-            inner: Arc::new(ArkManager::new(self.enclave.clone())),
-        }
+        WasmArkClient::new()
     }
 
     pub fn bitvm(&self) -> WasmBitVmClient {
-        WasmBitVmClient {
-            inner: Arc::new(BitVmManager::new(self.enclave.clone())),
-        }
+        WasmBitVmClient::new()
     }
 }
 
 #[wasm_bindgen]
-pub struct WasmArkClient {
-    #[wasm_bindgen(skip)]
-    pub inner: Arc<ArkManager>,
-}
+pub struct WasmArkClient;
 
 #[wasm_bindgen]
 impl WasmArkClient {
+    /// Construct the stateless, quarantined Ark boundary. It retains no
+    /// provider, enclave, URL, key, or sensitive state.
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmArkClient {
+        WasmArkClient
+    }
+
     /// Retrieve a provider-owned public key without accepting or returning a
-    /// seed/private key.
+    /// seed/private key. The direct client remains quarantined until the
+    /// provider and protocol evidence exist.
     pub fn derive_vutxo_public_key(&self, index: u32) -> Result<String, JsValue> {
-        self.inner
-            .derive_vutxo_public_key(index)
-            .map_err(conclave_error_to_js)
+        let _ = index;
+        Err(conclave_error_to_js(crate::protocol_unsupported(
+            crate::UnsupportedProtocol::Ark,
+            crate::UnsupportedOperation::VutxoKeyDerivation,
+        )))
     }
 
     /// Quarantined Ark signing entry point. No provider call is made.
     pub fn sign_vutxo(&self, tx_hash_hex: &str, index: u32) -> Result<String, JsValue> {
-        let tx_hash: [u8; 32] = hex::decode(tx_hash_hex)
+        let _tx_hash: [u8; 32] = hex::decode(tx_hash_hex)
             .map_err(|_| invalid_input())?
             .try_into()
             .map_err(|_| invalid_input())?;
+        let _ = index;
 
-        self.inner
-            .sign_vutxo(tx_hash, index)
-            .map_err(conclave_error_to_js)
+        Err(conclave_error_to_js(crate::protocol_unsupported(
+            crate::UnsupportedProtocol::Ark,
+            crate::UnsupportedOperation::ForfeitSigning,
+        )))
     }
 
     pub async fn recovery_scan(&self, gap_limit: u32, asp_url: &str) -> Result<JsValue, JsValue> {
@@ -105,23 +108,27 @@ impl WasmArkClient {
     }
 
     pub fn construct_vtxo_tree(&self, leaves: JsValue) -> Result<JsValue, JsValue> {
-        let leaves_vec = serde_wasm_bindgen::from_value(leaves).map_err(|_| invalid_input())?;
-        let root = self
-            .inner
-            .construct_vtxo_tree(leaves_vec)
-            .map_err(conclave_error_to_js)?;
-        serde_wasm_bindgen::to_value(&root).map_err(to_js_error)
+        let _: Vec<crate::protocol::ark::VUtxoDescriptor> =
+            serde_wasm_bindgen::from_value(leaves).map_err(|_| invalid_input())?;
+        Err(conclave_error_to_js(crate::protocol_unsupported(
+            crate::UnsupportedProtocol::Ark,
+            crate::UnsupportedOperation::VtxoTreeConstruction,
+        )))
     }
 }
 
 #[wasm_bindgen]
-pub struct WasmBitVmClient {
-    #[wasm_bindgen(skip)]
-    pub inner: Arc<BitVmManager>,
-}
+pub struct WasmBitVmClient;
 
 #[wasm_bindgen]
 impl WasmBitVmClient {
+    /// Construct the stateless, quarantined legacy BitVM boundary. It retains
+    /// no provider, enclave, URL, key, or sensitive state.
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> WasmBitVmClient {
+        WasmBitVmClient
+    }
+
     /// Legacy BitVM signing is not BitVM2 challenge evidence. Keep this
     /// compatibility surface present, but fail before decoding inputs or
     /// invoking the native MuSig2 implementation.
@@ -131,7 +138,7 @@ impl WasmBitVmClient {
         path: &str,
         key_id: &str,
     ) -> Result<String, JsValue> {
-        let _ = (&self.inner, challenge, path, key_id);
+        let _ = (challenge, path, key_id);
         Err(legacy_bitvm2_error(
             crate::UnsupportedOperation::ChallengeSubmission,
         ))
@@ -146,13 +153,7 @@ impl WasmBitVmClient {
         partial_sigs_hex: JsValue,
         challenge: JsValue,
     ) -> Result<JsValue, JsValue> {
-        let _ = (
-            &self.inner,
-            pubkeys_hex,
-            pub_nonces_hex,
-            partial_sigs_hex,
-            challenge,
-        );
+        let _ = (pubkeys_hex, pub_nonces_hex, partial_sigs_hex, challenge);
         Err(legacy_bitvm2_error(
             crate::UnsupportedOperation::ThresholdAggregation,
         ))
@@ -615,6 +616,23 @@ impl WasmDlcClient {
     ) -> Result<JsValue, JsValue> {
         let contract: crate::protocol::dlc::DlcContract =
             serde_json::from_str(contract_json).map_err(|_| invalid_input())?;
+        let accepted = self
+            .inner
+            .accept_contract(contract, remote_pubkey.to_string())
+            .map_err(conclave_error_to_js)?;
+        serde_wasm_bindgen::to_value(&accepted).map_err(to_js_error)
+    }
+
+    /// Accept a lifecycle contract directly from JavaScript without requiring
+    /// JSON stringification of u64 values. The operation is pure: a rejected
+    /// transition cannot mutate the caller's contract object.
+    pub fn accept_contract_value(
+        &self,
+        contract: JsValue,
+        remote_pubkey: &str,
+    ) -> Result<JsValue, JsValue> {
+        let contract: crate::protocol::dlc::DlcContract =
+            serde_wasm_bindgen::from_value(contract).map_err(|_| invalid_input())?;
         let accepted = self
             .inner
             .accept_contract(contract, remote_pubkey.to_string())

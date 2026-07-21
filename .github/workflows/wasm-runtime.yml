@@ -11,15 +11,22 @@ concurrency:
   group: wasm-runtime-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   CARGO_HTTP_MULTIPLEXING: false
   RUST_BACKTRACE: full
+  WASM_EXPECTED_NODE_VERSION: 22.23.1
+  WASM_EXPECTED_NPM_VERSION: 11.18.0
+  WASM_EXPECTED_RUST_VERSION: 1.97.1
+  WASM_STRICT_TOOLCHAIN: "1"
 
 jobs:
   runtime:
     name: Generated WASM runtime lanes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - name: Checkout exact commit
@@ -42,6 +49,9 @@ jobs:
           node-version: 22.23.1
           cache: npm
           cache-dependency-path: tests/wasm/package-lock.json
+
+      - name: Install pinned npm
+        run: npm install --global --no-audit --no-fund npm@11.18.0
 
       - name: Install harness dependencies
         run: npm ci --prefix tests/wasm

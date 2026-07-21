@@ -23,15 +23,41 @@ Each lane remains conditional/unsupported until the same release scope has an
 approved provider, hardware/attestation evidence, resolved dependency and
 lockfile evidence, exact artifact/provenance, and a retained CI result.
 
+## Exact generated-runtime assertions
+
+The shared checks run in Node.js, a real browser page, a real module Worker,
+and the browser-executed esbuild bundle. In every lane they:
+
+- instantiate direct `WasmArkClient` and `WasmBitVmClient` objects that retain
+  no provider, enclave, URL, key, secret, or mock hardware;
+- call valid-shaped Ark public-key derivation, signing, and async recovery
+  requests and require `PROTOCOL_UNSUPPORTED`;
+- pass a malformed Ark signing digest and require `INVALID_INPUT`;
+- pass malformed legacy BitVM signing and aggregation values and require the
+  typed `PROTOCOL_UNSUPPORTED` response before decode, with no signature or
+  aggregate result;
+- run a valid DLC `Offered -> Accepted` transition, verify the remote public
+  key and state, then reject a repeated acceptance without mutating the
+  accepted contract; and
+- verify that no signing-shaped success, secret-shaped result, private-key
+  export, or development constructor is exposed.
+
+These assertions are negative containment/runtime evidence and a pure
+in-memory lifecycle check. They do not enable Ark, BitVM, DLC signing,
+provider/network access, hardware-backed operations, attestation, artifact
+provenance, or production support.
+
 ## Provider boundary
 
 - `ConclaveWasmClient::new` no longer creates `CloudEnclave` or a localhost
   software-backed key. It returns `UNSUPPORTED_PROVIDER`.
 - `WasmBitVm2Orchestrator::new` is fallible and returns
   `UNSUPPORTED_PROVIDER`; it never uses a localhost or simulated enclave.
-- `WasmArkClient` exposes public-key and signing capability names only. The
-  removed `derive_vutxo_key` API did not provide a safe boundary and must not be
-  reintroduced.
+- `WasmArkClient` has a direct zero-state constructor and exposes only
+  quarantined public-key/signing/recovery capability names. Valid-shaped calls
+  return `PROTOCOL_UNSUPPORTED`; malformed signing digests return
+  `INVALID_INPUT`. The removed `derive_vutxo_key` API did not provide a safe
+  boundary and must not be reintroduced.
 - Seed-based Ark recovery is not available through WASM. Native Rust recovery
   remains a separate, conditional API and is not evidence of browser support.
 - Legacy `WasmBitVmClient::sign_challenge` and

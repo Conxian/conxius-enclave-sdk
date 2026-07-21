@@ -177,12 +177,63 @@ mod tests {
         assert!(bitvm_surface.contains("legacy_bitvm2_error"));
         assert!(bitvm_surface.contains("UnsupportedOperation::ChallengeSubmission"));
         assert!(bitvm_surface.contains("UnsupportedOperation::ThresholdAggregation"));
+        assert!(bitvm_surface.contains("pub fn new() -> WasmBitVmClient"));
         assert!(bitvm_surface.contains("Err(legacy_bitvm2_error("));
+        assert!(!bitvm_surface.contains("pub inner"));
         assert!(!bitvm_surface.contains("serde_wasm_bindgen::from_value"));
         assert!(!bitvm_surface.contains("serde_json::from_str"));
         assert!(!bitvm_surface.contains(".inner\n            .sign_challenge("));
         assert!(!bitvm_surface.contains(".inner\n            .aggregate_challenge_signatures("));
         assert!(!bitvm_surface.contains("to_value(&aggregate)"));
+    }
+
+    #[test]
+    fn direct_ark_and_legacy_bitvm_clients_are_stateless_and_quarantined() {
+        let source = include_str!("wasm_bindings.rs");
+        let ark_surface = source
+            .split("pub struct WasmArkClient;")
+            .nth(1)
+            .and_then(|rest| {
+                rest.split("#[wasm_bindgen]\npub struct WasmBitVmClient;")
+                    .next()
+            })
+            .unwrap_or("");
+        let bitvm_surface = source
+            .split("pub struct WasmBitVmClient;")
+            .nth(1)
+            .and_then(|rest| {
+                rest.split("#[wasm_bindgen]\npub struct Iso20022Wrapper")
+                    .next()
+            })
+            .unwrap_or("");
+
+        assert!(ark_surface.contains("pub fn new() -> WasmArkClient"));
+        assert!(ark_surface.contains("UnsupportedOperation::VutxoKeyDerivation"));
+        assert!(ark_surface.contains("UnsupportedOperation::ForfeitSigning"));
+        assert!(ark_surface.contains("UnsupportedOperation::RecoveryScan"));
+        assert!(!ark_surface.contains("pub inner"));
+        assert!(!ark_surface.contains("Arc<ArkManager>"));
+        assert!(!ark_surface.contains("Arc<dyn EnclaveManager>"));
+        assert!(!ark_surface.contains("CloudEnclave"));
+        assert!(!ark_surface.contains("new_for_development"));
+        assert!(!ark_surface.contains("master_seed"));
+        assert!(!ark_surface.contains("private_key"));
+        assert!(!ark_surface.contains("secret"));
+
+        assert!(bitvm_surface.contains("pub fn new() -> WasmBitVmClient"));
+        assert!(bitvm_surface.contains("Err(legacy_bitvm2_error("));
+        assert!(!bitvm_surface.contains("pub inner"));
+        assert!(!bitvm_surface.contains("Arc<BitVmManager>"));
+        assert!(!bitvm_surface.contains("Arc<dyn EnclaveManager>"));
+        assert!(!bitvm_surface.contains("CloudEnclave"));
+        assert!(!bitvm_surface.contains("new_for_development"));
+        assert!(!bitvm_surface.contains("private_key"));
+        assert!(!bitvm_surface.contains("secret"));
+
+        assert!(source.contains("pub fn ark(&self) -> WasmArkClient"));
+        assert!(source.contains("pub fn bitvm(&self) -> WasmBitVmClient"));
+        assert!(source.contains("WasmArkClient::new()"));
+        assert!(source.contains("WasmBitVmClient::new()"));
     }
 
     #[test]

@@ -13,6 +13,7 @@ function codeOf(error) {
 export function expectCode(action, expectedCode, label) {
   try {
     const result = action();
+    assertNoSecretShapedResult(result, label);
     throw new Error(`${label} unexpectedly succeeded: ${String(result)}`);
   } catch (error) {
     if (codeOf(error) !== expectedCode) {
@@ -32,6 +33,7 @@ export function expectCode(action, expectedCode, label) {
 export async function expectCodeAsync(action, expectedCode, label) {
   try {
     const result = await action();
+    assertNoSecretShapedResult(result, label);
     throw new Error(`${label} unexpectedly succeeded: ${String(result)}`);
   } catch (error) {
     if (codeOf(error) !== expectedCode) {
@@ -44,6 +46,23 @@ export async function expectCodeAsync(action, expectedCode, label) {
     assert(
       typeof error?.message === "string" && error.message.startsWith(`${expectedCode}:`),
       `${label} did not preserve the stable error code in the message`,
+    );
+  }
+}
+
+function assertNoSecretShapedResult(result, label) {
+  if (typeof result === "string") {
+    assert(
+      !/signature|aggregate|private.?key|secret|seed/i.test(result),
+      `${label} returned a secret-shaped result`,
+    );
+    return;
+  }
+  if (result && typeof result === "object") {
+    const resultNames = Object.keys(result);
+    assert(
+      !resultNames.some((name) => /signature|aggregate|private.?key|secret|seed/i.test(name)),
+      `${label} returned secret-shaped fields: ${resultNames.join(", ")}`,
     );
   }
 }
@@ -97,6 +116,18 @@ function assertNoSecretExports(api, lane) {
     `${lane}: WasmLightningClient is missing`,
   );
   assert(
+    typeof api.WasmArkClient === "function",
+    `${lane}: direct WasmArkClient is missing`,
+  );
+  assert(
+    typeof api.WasmBitVmClient === "function",
+    `${lane}: direct WasmBitVmClient is missing`,
+  );
+  assert(
+    typeof api.WasmDlcClient === "function",
+    `${lane}: direct WasmDlcClient is missing`,
+  );
+  assert(
     !("new_for_development" in api.ConclaveWasmClient),
     `${lane}: default artifact exposes ConclaveWasmClient.new_for_development`,
   );
@@ -142,6 +173,51 @@ export async function runSurfaceChecks(api, lane) {
     () => api.ConclaveWasmClient.new_with_provider("unknown", {}),
     "UNSUPPORTED_RUNTIME",
     `${lane}: provider construction with unknown runtime`,
+  );
+
+  // These direct protocol clients are deliberately zero-state. They do not
+  // construct or retain a provider-backed ConclaveWasmClient, enclave, URL,
+  // key, or secret. Their valid-shaped value-bearing requests remain typed
+  // unsupported, while malformed boundary data is rejected first.
+  const ark = new api.WasmArkClient();
+  const bitvm = new api.WasmBitVmClient();
+  assertNoSecretShapedResult(ark, `${lane}: direct Ark client`);
+  assertNoSecretShapedResult(bitvm, `${lane}: direct legacy BitVM client`);
+  expectCode(
+    () => ark.derive_vutxo_public_key(0),
+    "PROTOCOL_UNSUPPORTED",
+    `${lane}: Ark valid-shaped public-key derivation`,
+  );
+  expectCode(
+    () => ark.sign_vutxo("00".repeat(32), 0),
+    "PROTOCOL_UNSUPPORTED",
+    `${lane}: Ark valid-shaped signing`,
+  );
+  expectCode(
+    () => ark.sign_vutxo("00", 0),
+    "INVALID_INPUT",
+    `${lane}: Ark malformed signing digest`,
+  );
+  await expectCodeAsync(
+    () => ark.recovery_scan(20, "https://asp.invalid"),
+    "PROTOCOL_UNSUPPORTED",
+    `${lane}: Ark async recovery scan`,
+  );
+  expectCode(
+    () => bitvm.sign_challenge({ challenge_hash: "not-hex" }, "not-a-path", "not-a-key"),
+    "PROTOCOL_UNSUPPORTED",
+    `${lane}: legacy BitVM malformed signing request`,
+  );
+  expectCode(
+    () =>
+      bitvm.aggregate_challenge_signatures(
+        ["not-hex"],
+        ["not-hex"],
+        ["not-hex"],
+        { challenge_hash: "not-hex" },
+      ),
+    "PROTOCOL_UNSUPPORTED",
+    `${lane}: legacy BitVM malformed aggregation request`,
   );
 
   // Covenant construction is structural and does not require a provider. Its
@@ -193,6 +269,28 @@ export async function runSurfaceChecks(api, lane) {
   assert(
     !Object.keys(offer).some((name) => /private|secret|seed/i.test(name)),
     `${lane}: secret-shaped lifecycle result`,
+  );
+  const accepted = dlc.accept_contract_value(offer, "remote_pubkey_hex");
+  assert(accepted.state === "Accepted", `${lane}: Offered to Accepted lifecycle state`);
+  assert(
+    accepted.remote_pubkey === "remote_pubkey_hex",
+    `${lane}: accepted lifecycle remote public key`,
+  );
+  assert(
+    !Object.keys(accepted).some((name) => /private|secret|seed/i.test(name)),
+    `${lane}: secret-shaped accepted lifecycle result`,
+  );
+  const acceptedState = accepted.state;
+  const acceptedRemoteKey = accepted.remote_pubkey;
+  expectCode(
+    () => dlc.accept_contract_value(accepted, "second_remote_pubkey"),
+    "CONXIAN_ERROR",
+    `${lane}: repeated DLC acceptance transition`,
+  );
+  assert(accepted.state === acceptedState, `${lane}: invalid transition mutated state`);
+  assert(
+    accepted.remote_pubkey === acceptedRemoteKey,
+    `${lane}: invalid transition mutated remote public key`,
   );
 
   return { lane, ok: true };
