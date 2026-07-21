@@ -31,7 +31,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [ ] Hardware-backed attestation integration and vendor evidence (P0)
 - [ ] Replay protection verified on every value-bearing path (P0/P1)
 - [x] Typed error surface exists (`ConclaveResult`); production fail-closed behavior remains gated
-- [x] Typed value-bearing settlement containment and raw-dispatch rejection are implemented; this is not provider or production evidence
+- [x] Typed value-bearing settlement containment enforces settlement purpose/domain/context and raw-dispatch rejection; Opportunity preflight is validation-only, and this remains containment rather than provider or production evidence
 - [ ] FROST treasury DKG and signing production readiness (issue #180; current `src/protocol/frost.rs` is a typed boundary/quarantine, not production FROST cryptography)
 - [x] Protocol boundary quarantine for FROST, Fedimint, Ark, and BitVM2 (typed models and exact unsupported errors; see roadmap)
 - [ ] Protocol implementation, vector, provider, persistence, independent-review, and exact-artifact gates (issue #197 and roadmap)

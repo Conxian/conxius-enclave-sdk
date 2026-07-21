@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "schemaVersion": 1,
   "repository": "Conxian/conxius-enclave-sdk",
-  "reviewedRef": "5a936ba97373ebdbd809580c5e9c9f4df1966b40",
+  "reviewedRef": "57726f3e5fca29ec953b1f58445eae7530414924",
   "lastVerified": "2026-07-21",
   "maturity": "beta-conditional",
   "statusVocabulary": {
@@ -68,7 +68,7 @@
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Software-backed and simulated drivers are test/development-only and cannot satisfy the typed production policy; no real provider verifier or exact release artifact is available.",
-      "notes": "The reviewed checkpoint adds fail-closed typed value-bearing requests/responses, canonical operation and key binding, typed settlement propagation, raw-signing exclusion, and preserves PR #216 signer-identity evidence. Provider-issued hardware evidence, deployment integration, independent review, and artifact evidence remain open."
+      "notes": "The reviewed checkpoint adds fail-closed typed value-bearing requests/responses, canonical operation and key binding, settlement purpose/domain/context checks, typed settlement propagation, raw-signing exclusion, and preserves PR #216 signer-identity evidence. Provider-issued hardware evidence, deployment integration, independent review, and artifact evidence remain open."
     },
     {
       "id": "enclave-attestation",
@@ -125,7 +125,7 @@
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Replay authorization is process-local and fixture-tested; it is not distributed replay coordination or exact-artifact production evidence.",
-      "notes": "Manager and rail paths now consume replay authorization only after typed provider evidence passes. Distributed replay state, deployment integration, independent review, and artifacts remain open."
+      "notes": "Manager and rail paths now consume replay authorization only after typed provider evidence passes; a downstream adapter failure does not roll back the process-local replay record. Distributed replay state, deployment integration, independent review, and artifacts remain open."
     },
     {
       "id": "rail-policy",
@@ -148,7 +148,7 @@
       "evidenceChain": [
         {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-190", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
         {"stage": "code", "refs": ["src/protocol/rails/mod.rs:1-760", "src/enclave/mod.rs:430-760", "src/protocol/opportunity.rs:90-150"]},
-        {"stage": "test", "refs": ["src/protocol/rails/mod.rs:900-1190", "tests/production_rail_containment.rs:1-130"]},
+        {"stage": "test", "refs": ["src/protocol/rails/mod.rs:900-1380", "tests/production_rail_containment.rs:1-200"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/security.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
@@ -166,7 +166,7 @@
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/protocol/rails/mod.rs:1-635",
+        "src/protocol/rails/mod.rs:1-760",
         "src/protocol/rails/x402.rs:1-200",
         "src/protocol/rails/wormhole.rs:1-200",
         "src/protocol/rails/boltz.rs:1-200",
@@ -178,14 +178,14 @@
       ],
       "evidenceChain": [
         {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-200", "https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/198"]},
-        {"stage": "code", "refs": ["src/protocol/rails/mod.rs:1-635", "src/protocol/rails/x402.rs:1-200", "src/protocol/rails/wormhole.rs:1-200", "src/protocol/rails/boltz.rs:1-200", "src/protocol/rails/ntt.rs:1-200", "src/protocol/rails/bisq.rs:1-200", "src/protocol/rails/changelly.rs:1-200"]},
-        {"stage": "test", "refs": ["src/protocol/rails/mod.rs:450-635"]},
+        {"stage": "code", "refs": ["src/protocol/rails/mod.rs:1-760", "src/protocol/rails/x402.rs:1-200", "src/protocol/rails/wormhole.rs:1-200", "src/protocol/rails/boltz.rs:1-200", "src/protocol/rails/ntt.rs:1-200", "src/protocol/rails/bisq.rs:1-200", "src/protocol/rails/changelly.rs:1-200"]},
+        {"stage": "test", "refs": ["src/protocol/rails/mod.rs:450-1380", "tests/production_rail_containment.rs:1-200"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/198", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Adapter interfaces and local tests do not establish live-network, address-provenance, or settlement support.",
-      "notes": "Rail families are inventoried together because their shared policy boundary is the production gate."
+      "notes": "Rail families are inventoried together because their shared policy boundary is the production gate. Typed settlement authorization requires the Settlement purpose, canonical settlement domain, and canonical intent digest context; the preflight is validation-only while the legacy raw-signature shim remains rejected."
     },
     {
       "id": "bitcoin-ecdsa",
@@ -857,7 +857,7 @@
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Dispatcher/API and WASM build evidence do not establish market, counterparty, or production decision support.",
-      "notes": "Opportunity is explicit because it is a named WASM sub-client and business-facing API."
+      "notes": "Opportunity is explicit because it is a named WASM sub-client and business-facing API. Its typed settlement preflight is validation-only in non-test builds and reaches the provider boundary; the default software/unverified provider still fails closed, so no production support is claimed."
     },
     {
       "id": "solver",

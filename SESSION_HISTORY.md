@@ -11,12 +11,13 @@ This document tracks what was accomplished in previous sessions so future agents
 ### Summary
 Verified that PR [#205](https://github.com/Conxian/conxius-enclave-sdk/pull/205) merged at `35f7843a1ee8994de98b00cfacbae7dab1a1eaf5` and PR [#216](https://github.com/Conxian/conxius-enclave-sdk/pull/216) merged at `0bdb323255279893c246f06659ec05875338c296`, while issue [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) remains open. Current `origin/main` was fetched at `1d9ef9b8d1745c51366d34a1624a8d3c76426769`, including later signer-binding and code-scanning follow-ups.
 
-The preserved typed settlement/evidence work was selectively reconciled onto current `main` as code commit `5a936ba97373ebdbd809580c5e9c9f4df1966b40`, including the current-main fix that keeps WASM development constructors explicitly feature-gated. The separate documentation commit records this checkpoint and keeps all unsupported production gates explicit.
+The preserved typed settlement/evidence work was selectively reconciled onto current `main` with merge/update commit `913c7b60c7e43e6b0c54d13d9623409dc10915e9` and code/test commit `57726f3e5fca29ec953b1f58445eae7530414924`, including the current-main fix that keeps WASM development constructors explicitly feature-gated. The separate documentation commit records this checkpoint and keeps all unsupported production gates explicit.
 
 ### Containment and evidence boundary
-- Typed value-bearing requests/responses bind canonical intent and operation context, digest, algorithm, operation key identity, verified signature, attestation/provenance/policy identity, and manager-issued replay authorization before settlement dispatch.
+- Typed value-bearing requests/responses bind canonical intent and operation context, digest, algorithm, operation key identity, verified signature, attestation/provenance/policy identity, and manager-issued replay authorization before settlement dispatch. The rail boundary requires `ValueBearingPurpose::Settlement`, canonical domain `conxian/settlement/v1`, and the canonical intent digest as context.
 - PR #216 signer identity evidence remains enforced for requested key ID, derivation path, expected and returned public keys, operation digest, operation purpose, attestation purpose, and algorithm.
-- Raw production settlement dispatch is rejected; opportunity and each built-in rail adapter (`bisq`, `boltz`, `changelly`, `ntt`, `wormhole`, and `x402`) carry the typed authorization envelope instead of an opaque raw signature.
+- Raw production settlement dispatch is rejected; Opportunity preflight is validation-only in non-test builds, and Opportunity plus each built-in rail adapter (`bisq`, `boltz`, `changelly`, `ntt`, `wormhole`, and `x402`) carry the typed authorization envelope instead of an opaque raw signature.
+- Replay authorization remains process-local and is consumed before downstream adapter execution; adapter failure does not imply rollback or distributed replay semantics.
 - WASM defaults and software simulators remain fail closed or explicitly development/test-only. This is containment evidence, not hardware/provider, runtime, deployment, independent-review, or release-artifact evidence.
 
 ### Verification checkpoint
