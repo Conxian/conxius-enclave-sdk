@@ -5,6 +5,22 @@
 > **Priority Order**: P1 → P2 → P3
 > **Knowledge Base**: v0.4.2
 
+## Ordered end-of-sprint follow-up (2026-07-20)
+
+This sequence advances [issue #191](https://github.com/Conxian/conxius-enclave-sdk/issues/191) while keeping containment evidence separate from production-readiness claims:
+
+1. Obtain review and merge [PR #214](https://github.com/Conxian/conxius-enclave-sdk/pull/214), which records the current fail-closed containment slice and remains the implementation system of record for that work.
+2. After #214 is reviewed, inspect draft [PR #205](https://github.com/Conxian/conxius-enclave-sdk/pull/205) and split/reconcile only the valuable provider-wrapper changes into independently reviewable work; do not wholesale-merge, overwrite, or close the draft.
+3. Keep WASM secret-boundary and runtime/platform evidence under [issue #200](https://github.com/Conxian/conxius-enclave-sdk/issues/200) and [PR #211](https://github.com/Conxian/conxius-enclave-sdk/pull/211); do not move that lane into the containment or tracking PR.
+4. Implement the typed operation/provider envelope and complete key/algorithm/provider binding under [issue #195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), preserving the fail-closed behavior while provider verification and hardware evidence are incomplete.
+5. Once the implementation and provider evidence are independently reviewable, pursue the independent security review and release acceptance gate in [issue #202](https://github.com/Conxian/conxius-enclave-sdk/issues/202). Do not treat passing local or GitHub checks as a substitute for this gate.
+
+### Deferred capability evidence-index update
+
+Open [PR #210](https://github.com/Conxian/conxius-enclave-sdk/pull/210) owns `docs/architecture/capability-evidence.json` and the generated `docs/architecture/CAPABILITY_MATRIX.md`; open [PR #211](https://github.com/Conxian/conxius-enclave-sdk/pull/211) owns the WASM documentation lane. The current capability validator passes, but this branch intentionally leaves both evidence files untouched to avoid overlap. After #210 is resolved, add explicit PR #214 containment/test references only if the schema still supports them, keep `productionSupport` false or conditional as appropriate, and regenerate the matrix through the validator.
+
+Do not change `README.md`, `PRODUCTION_READINESS.md`, security/releasing documents, or workflows in this tracking PR; those paths remain owned by the open lanes and the repository remains Beta / conditional.
+
 ## Current Follow-up
 
 The machine-first capability evidence follow-up to merged PR #193 is recorded in `docs/architecture/capability-evidence.json` and generated into `docs/architecture/CAPABILITY_MATRIX.md`. The next session must continue with evidence work, not infer production support from API rows, unit tests, WASM builds, or historical closed issues.
