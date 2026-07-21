@@ -13,6 +13,30 @@ Remaining gates are already tracked by GitHub #195–#202. Prioritize hardware-b
 
 ---
 
+## Current handoff: PR #209 protocol foundation
+
+The 2026-07-21 PR #209 update is a foundation-plus-quarantine change. The
+typed FROST, Fedimint, Ark, and BitVM2 models and idempotency helpers are
+structural only; every value-bearing operation remains `ProtocolUnsupported`.
+The canonical next steps are in
+[`docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md`](docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md).
+
+### Required next work
+
+1. Select and pin one external implementation/revision per protocol before
+   adding cryptographic, network, script, or persistence code.
+2. Add official and independent vectors, mutation/negative tests, provider and
+   attestation binding, and durable operation/recovery evidence.
+3. Review the exact artifact, SBOM/provenance, CI results, and independent
+   security findings before changing any capability row or support decision.
+4. Keep all four protocol rows at `Production: No`; do not infer support from
+   local tests, WASM compilation, historical issue closure, or typed APIs.
+
+Historical “complete” sections below are retained for continuity and are
+superseded as current status by the quarantine roadmap.
+
+---
+
 ## Session Startup Checklist
 
 ```bash
@@ -37,15 +61,15 @@ cat ISSUES_INDEX.md
 
 ---
 
-## ✅ Completed Items
+## Historical completion records (superseded for current support decisions)
 
-### ARCH-001 - WASM Bindings Completeness Audit (DONE)
+### ARCH-001 - WASM Bindings Completeness Audit (historical API inventory)
 - All 12+ modules now have WASM bindings
 - Lightning, Swap Router, Settlement Service, Solver, ZKML, DLC
 - Stablecoin Orchestrator, MMR, Opportunity, Business Logic, A2P
 - All CI checks passing ✅
 
-### G-002 - Ark BitVM2 Challenge Orchestration (DONE)
+### G-002 - Ark BitVM2 Challenge Orchestration (historical structural work)
 - Initial implementation complete
 - `WasmBitVm2Orchestrator` with RefCell for interior mutability
 - Challenge lifecycle management working
@@ -54,7 +78,7 @@ cat ISSUES_INDEX.md
 
 ---
 
-## ✅ Completed: DOC-002 - Examples Directory
+## Historical: DOC-002 - Examples Directory
 
 ### Implementation Complete (Cycle 6)
 - `examples/` directory created with 6 practical examples
@@ -67,7 +91,7 @@ cat ISSUES_INDEX.md
 
 ---
 
-## ✅ Completed: G-002 - Ark BitVM2 Challenge Orchestration
+## Historical: G-002 - Ark BitVM2 Challenge Orchestration
 
 ### Implementation Complete (Cycle 8)
 - `BitVm2Orchestrator` with full commitment lifecycle

@@ -26,6 +26,19 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 
 ### P1 - Critical
 
+#### PROTO-001: Protocol implementation boundaries and evidence
+- **Category**: Architecture / Security / Testing
+- **Priority**: P1
+- **Description**: FROST, Fedimint, Ark, and BitVM2 require typed boundaries and
+  an explicit requirement → code → vector/test → CI → artifact chain before any
+  value-bearing implementation can be enabled.
+- **Current**: Foundation plus quarantine in `src/protocol/{frost,ark,bitvm2}.rs`
+  and `src/protocol/nexus/fedimint.rs`; unsupported operations remain fail-closed.
+- **Risk**: Structural models or historical completion wording could be mistaken
+  for protocol correctness, integration, or production support.
+- **Recommendation**: Follow [`docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md`](docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md), pin one external implementation per protocol, add official/independent vectors, and retain exact artifact evidence.
+- **Status**: Active; production support remains `No` for all four protocols.
+
 #### DEP-001: Beta/Release Candidate Dependencies
 - **Category**: Dependency
 - **Priority**: P1
@@ -126,10 +139,11 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 ## Resolved Debt
 
 - **BIP-110**: Added BIP-110 compliant message validation and chunking validation into BIP-322 message verification, hardened compact size serialization, and added comprehensive commitment segmentation tests (Resolved: 2026-07-15).
-- **SEC-001**: Added structural FROST DKG Round 2 verification in `src/protocol/frost.rs` to validate received shares against expected polynomial commitments and identifiers. This resolves the placeholder validation only; production RFC 9591-compatible DKG, signing, secure share storage, and real aggregation remain open (reclassified: 2026-07-20).
+- **SEC-001**: Historical structural FROST DKG validation wording is superseded by the foundation-plus-quarantine boundary in `src/protocol/frost.rs`. Typed package/session validation remains; RFC 9591-compatible DKG, authenticated encryption, one-use nonces, secure share storage, signing, and aggregation remain open (reclassified: 2026-07-21).
 - **TEST-001**: Comprehensive hardware attestation simulation/unit suite in `src/enclave/hardware_attestation_tests.rs` covering trust tiers, freshness, replay protection, cryptographic verification, and trust enforcement with 25 tests (evidence recorded: 2026-07-14; production hardware/provider gate remains open in #195).
 - **ARCH-001**: WASM API inventory updated with explicit required sub-client rows (API evidence recorded: 2026-07-15; runtime/platform/secret-boundary gate remains open in #200).
 - **DOC-002**: Examples directory created with 6 practical usage examples (Resolved: 2026-07-15).
+- **PROTO-001**: Historical Ark/BitVM2/Fedimint/FROST “implemented” or “complete” wording is retained only as history and is superseded by the typed foundation/quarantine roadmap (reclassified: 2026-07-21).
 - **CI-001**: Node.js 24 compliance - Updated all GitHub Actions to compatible versions (Resolved: 2026-07-15).
 
 ## Maintenance Notes

@@ -6,8 +6,8 @@
 > Conxius as the signing mechanism and contract principals as the custody
 > layer. It does **not** make the current SDK production-ready for FROST.
 >
-> In `v2.0.12`, [`src/protocol/frost.rs`](../../src/protocol/frost.rs) is a
-> structural/hash placeholder. It does not implement production FROST
+> In the current 2.x line, [`src/protocol/frost.rs`](../../src/protocol/frost.rs)
+> is a typed structural boundary/quarantine. It does not implement production FROST
 > cryptography, RFC 9591-compatible DKG, secure share encryption, real share
 > verification, nonce management, or real signature-share aggregation. The
 > current `EnclaveManager` surface also lacks secure FROST share storage and

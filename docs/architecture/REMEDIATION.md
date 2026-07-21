@@ -1,5 +1,12 @@
 # Conclave SDK Remediation & Alignment Report (v2.0.0)
 
+> **Historical archive:** This report preserves prior remediation claims for
+> traceability. Current protocol status is governed by the
+> [capability evidence](./capability-evidence.json), [capability matrix](./CAPABILITY_MATRIX.md),
+> and [protocol implementation roadmap](./PROTOCOL_IMPLEMENTATION_ROADMAP.md).
+> FROST, Fedimint, Ark, and BitVM2 are currently typed foundation/quarantine
+> surfaces only; their value-bearing operations remain unsupported.
+
 ## Status: v2.0.0 Bleeding Edge Aligned
 
 ### 1. Business Attribution & Verification

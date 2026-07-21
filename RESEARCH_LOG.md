@@ -1,13 +1,79 @@
 # Conclave SDK Research Log
 
 > External research findings, technology monitoring, and industry analysis
-> **Version**: v1.1.0 | **Last Updated**: 2026-07-20
+> **Version**: v1.1.0 | **Last Updated**: 2026-07-21
 
 ---
 
 ## Overview
 
 This document captures external research findings relevant to the Conclave SDK's development trajectory. Each entry includes source links and applicability notes for future reference.
+
+---
+
+## Protocol boundary research and quarantine (2026-07-21)
+
+This session replaces historical implementation/completion wording with a
+foundation-plus-quarantine boundary. The local SDK now carries typed public
+metadata and idempotency contracts only; value-bearing protocol operations
+remain unsupported until the requirement → code → test → CI → artifact chain
+is complete. See [`PROTOCOL_IMPLEMENTATION_ROADMAP.md`](docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md).
+
+### FROST
+
+- RFC 9591: <https://datatracker.ietf.org/doc/html/rfc9591>
+- Zcash Foundation implementation: <https://github.com/ZcashFoundation/frost>
+- Inspected `frost-secp256k1/v3.0.0` at commit
+  `2016e44ba4a4757a996300350063b937a2ad33e8`.
+- Future acceptance must cover DKG validation and authenticated encryption,
+  one-use nonces, ciphersuite/serialization compatibility, zeroization,
+  BIP340/provider/attestation binding, and official/independent vectors.
+- The SDK boundary intentionally does not implement cryptography, keygen, DKG,
+  signing, verification, or aggregation.
+
+### Fedimint
+
+- Source: <https://github.com/fedimint/fedimint>
+- Documentation: <https://docs.fedimint.org/>
+- Stable `v0.11.1`: `2620789610a2c65c1068de973ebb5657d08d549d`.
+- Prerelease `v0.11.2-alpha.1`:
+  `b934260695c3a15178df7ddd33db8f66e1c9a153`.
+- Future acceptance must cover BLS12-381 TBS, client/config/API compatibility,
+  database and operation-log durability, share verification, unblinding, note
+  state, backup/restore, and provider ownership.
+- **DLEQ qualification:** no evidence was found in the inspected current
+  canonical Fedimint mint flow that DLEQ is inherently part of every current
+  canonical issuance path. The SDK keeps only a typed DLEQ-shaped boundary and
+  makes no issuance claim.
+
+### Ark
+
+- Protocol overview: <https://ark-protocol.org/>.
+- Arkade daemon: <https://github.com/arkade-os/arkd>.
+- Bitcoin implementations: <https://gitlab.com/ark-bitcoin>.
+- Implementations are evolving. Inspected Arkade `v0.9.15` is Alpha and should
+  not be used in production. A future milestone must choose and pin Arkade or
+  Second before implementation work resumes.
+- Required acceptance areas are rounds, VTXOs/outpoints, connectors, ASP,
+  forfeits, transactions, expiry, persistence, recovery, and unilateral exit.
+
+### BitVM2
+
+- Overview: <https://bitvm.org/bitvm2>.
+- Bridge paper: <https://bitvm.org/bitvm_bridge.pdf>.
+- Implementation repository: <https://github.com/chainwayxyz/bitvm>.
+- The inspected material is experimental/research-oriented, explicitly says
+  not to use in production, and contains incomplete paths.
+- Required acceptance areas are roles, bridge graph, templates, commitments,
+  disprove scripts/proofs, timeouts, chain monitoring, durable idempotency, and
+  provider/attestation boundaries.
+
+### Research action
+
+Keep FROST, Fedimint, Ark, and BitVM2 capability rows at `Production: No`.
+Do not treat typed models, local tests, WASM compilation, historical issue
+closure, or a passing structural check as protocol, integration, review, or
+release evidence.
 
 ---
 
@@ -100,7 +166,9 @@ This document captures external research findings relevant to the Conclave SDK's
 ### Applicability
 - `src/protocol/bitvm.rs`: Challenge orchestration
 - `src/protocol/ark.rs`: Forfeit transaction integration
-- `src/protocol/bitvm2.rs`: Already implemented with forfeit/commitment methods
+- `src/protocol/bitvm2.rs`: Historical implementation note only; the current
+  boundary retains typed forfeit/commitment models but keeps those operations
+  unsupported.
 - GAP item G-002: Ark BitVM2 Challenge Orchestration
 
 ---

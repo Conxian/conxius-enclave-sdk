@@ -1,9 +1,9 @@
 # Production Enablement Checklist
 
 > This is a gated checklist, not a production-readiness claim.
-> Status: Beta / conditional | Last Updated: 2026-07-20
+> Status: Beta / conditional | Last Updated: 2026-07-21
 
-The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), and [machine-readable evidence](./docs/architecture/capability-evidence.json) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.11`; `Cargo.toml` declaring `2.0.12` does not establish a supported release.
+The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), [machine-readable evidence](./docs/architecture/capability-evidence.json), and [protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.11`; `Cargo.toml` declaring `2.0.12` does not establish a supported release.
 
 Issue #145 is a **historical CI/CD baseline**, not current release-acceptance evidence. Residual toolchain, dependency, publisher, scanning, SBOM, provenance, and exact-artifact work is tracked by [issue #199](https://github.com/Conxian/conxius-enclave-sdk/issues/199). Historical issues #145, #154, #169, #172, #173, #174, and #180 provide context only and must not be used as current production proof.
 
@@ -29,7 +29,9 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [ ] Hardware-backed attestation integration and vendor evidence (P0)
 - [ ] Replay protection verified on every value-bearing path (P0/P1)
 - [x] Typed error surface exists (`ConclaveResult`); production fail-closed behavior remains gated
-- [ ] FROST treasury DKG and signing production readiness (issue #180; current `src/protocol/frost.rs` is a structural/hash placeholder, not production FROST cryptography)
+- [ ] FROST treasury DKG and signing production readiness (issue #180; current `src/protocol/frost.rs` is a typed boundary/quarantine, not production FROST cryptography)
+- [x] Protocol boundary quarantine for FROST, Fedimint, Ark, and BitVM2 (typed models and exact unsupported errors; see roadmap)
+- [ ] Protocol implementation, vector, provider, persistence, independent-review, and exact-artifact gates (issue #197 and roadmap)
 - [ ] Independent security audit (for >= 1.0.0)
 - [ ] Dependency audit passes (cargo audit)
 - [x] No hardcoded secrets or credentials
@@ -42,6 +44,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [ ] **Hardware attestation integration tests** (P0/P1)
 - [ ] WASM runtime integration tests
 - [x] WASM private-key export path removed; provider/runtime support remains fail-closed
+- [x] WASM FROST/Fedimint/Ark/BitVM2 quarantine methods propagate typed unsupported errors without secret-bearing outputs
 - [ ] Fuzz testing for critical paths
 
 ### 📦 Dependency Requirements
@@ -100,7 +103,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 
 | Version | Status | Notes |
 |---------|--------|-------|
-| 2.x line | Beta / conditional | Production enablement remains blocked by CON-1506 P0/P1 gates |
+| 2.x line | Beta / conditional | Production enablement remains blocked by CON-1506 P0/P1 gates and protocol roadmap milestones |
 | v2.0.11 | Latest visible GitHub release/tag | Verify artifacts and capability scope before use |
 | 2.0.12 | Cargo metadata only at audit time | No matching visible tag/release evidence was found |
 

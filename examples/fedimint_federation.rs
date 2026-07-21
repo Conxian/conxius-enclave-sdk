@@ -1,43 +1,21 @@
-//! Fedimint Federation Example
+//! Fedimint Federation Boundary Example
 //!
-//! This example demonstrates how to join a Fedimint federation and mint e-cash.
+//! This example demonstrates the fail-closed Fedimint boundary. Federation
+//! joins, minting, note verification, DLEQ, and threshold operations are not
+//! implemented in this SDK path.
 
 fn main() {
-    println!("=== Conclave SDK: Fedimint Federation ===\n");
+    println!("=== Conxius SDK: Fedimint Boundary ===\n");
 
-    // Federation Join
-    println!("1. Join Federation");
-    println!("   - Parse invite code");
-    println!("   - Derive federation state");
-    println!("   - Register with federation\n");
+    println!("1. Typed boundary models");
+    println!("   - Versioned federation and provider identifiers");
+    println!("   - Provider-owned opaque note/blinding handles");
+    println!("   - Idempotent operation IDs and redacted note metadata\n");
 
-    let invite_code = "fed11qgqzrzhahq0gwa3age9qhux23u6cmtmkqgsfx".to_string();
-    println!("   Invite code: {}...", &invite_code[..20]);
-    println!("   Federation ID: Derived from invite code\n");
+    println!("2. Quarantined value-bearing operations");
+    println!("   - Federation registration/join: ProtocolUnsupported");
+    println!("   - Minting and note verification: ProtocolUnsupported");
+    println!("   - TBS/DLEQ and threshold aggregation: ProtocolUnsupported\n");
 
-    // Minting e-Cash
-    println!("2. Mint e-Cash");
-    println!("   - Generate secrets");
-    println!("   - Create blinded note");
-    println!("   - Get threshold BLS signature\n");
-
-    let amount_sats = 100_000;
-    println!("   Amount: {} sats", amount_sats);
-    println!("   Blinded secret: Generated");
-    println!("   Guardian signatures: 3/5 required\n");
-
-    // Spending e-Cash
-    println!("3. Spend e-Cash");
-    println!("   - Receive blinded note");
-    println!("   - Unblind with blinding factor");
-    println!("   - Verify signature\n");
-
-    // Security Features
-    println!("Security Features:");
-    println!("   ✓ Threshold BLS blind signatures");
-    println!("   ✓ DLEQ proofs for issuance");
-    println!("   ✓ Chaumian privacy model");
-    println!("   ✓ Guardian key threshold: 3/5\n");
-
-    println!("Example completed successfully!");
+    println!("No invite code, note secret, blinding factor, network call, or synthetic signature is emitted.");
 }

@@ -23,8 +23,8 @@ wasm-pack build --release --target bundler
 |---------|-------------|
 | `basic_signing.rs` | Basic Bitcoin transaction signing |
 | `attestation_verification.rs` | Hardware attestation verification |
-| `ark_vutxo_derivation.rs` | Ark vTXO key derivation |
-| `fedimint_federation.rs` | Fedimint federation operations |
+| `ark_vutxo_derivation.rs` | Ark typed boundary and fail-closed quarantine |
+| `fedimint_federation.rs` | Fedimint typed boundary and secret-safe quarantine |
 | `multi_chain_signing.rs` | Multi-chain signing examples |
 | `wasm_integration.rs` | WASM bindings usage |
 
@@ -35,9 +35,9 @@ Examples depend on the local SDK. Ensure you're in the workspace root.
 ## WASM Clients Available
 
 The SDK provides WASM bindings for:
-- **Ark**: vTXO operations, recovery scan, tree construction
-- **BitVM2**: Challenge orchestration, commitment lifecycle
-- **Fedimint**: Federation join, mint, spend e-cash
+- **Ark**: Typed vTXO/exit boundary; value-bearing operations return `ProtocolUnsupported`
+- **BitVM2**: Typed observation/commitment boundary; posting and challenge operations return `ProtocolUnsupported`
+- **Fedimint**: Typed federation/note boundary; raw secrets never cross the API and value-bearing operations return `ProtocolUnsupported`
 - **Ethereum**: ERC-20 transfers
 - **Solana**: SPL transfers
 - **Lightning**: LND operations

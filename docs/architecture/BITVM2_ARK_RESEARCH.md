@@ -1,5 +1,11 @@
 # Research: BitVM2 Aggregation & Ark Stateless Recovery (v1.9.2)
 
+> **Historical research archive:** The implementation paths below are research
+> notes, not current SDK support. The current code intentionally exposes typed
+> boundaries only; key derivation, recovery, tree/transaction construction,
+> proof verification, challenge execution, and signing remain unsupported.
+> See [`PROTOCOL_IMPLEMENTATION_ROADMAP.md`](./PROTOCOL_IMPLEMENTATION_ROADMAP.md).
+
 ## 1. BitVM2 Aggregation (Recursive SNARKs)
 BitVM2 leverages Groth16 SNARKs to verify complex computations on Bitcoin. To handle large proofs within Bitcoin's 100KB block limit and script constraints, BitVM2 employs **script chunking** and **recursive aggregation**.
 

@@ -1,8 +1,47 @@
 # Session History
 
-> **Last Updated**: 2026-07-15 | **Agent Version**: v0.4.2
+> **Last Updated**: 2026-07-21 | **Agent Version**: v0.4.2
 
 This document tracks what was accomplished in previous sessions so future agents can continue the work seamlessly.
+
+---
+
+## Session: 2026-07-21 (PR #209 Protocol Boundary Foundation)
+
+### Summary
+
+Reconciled PR #209 with the latest `origin/main`, retained the PR's fail-closed
+Ark side during the merge conflict, and added a typed foundation plus quarantine
+for FROST, Fedimint, Ark, and BitVM2. This session does **not** enable protocol
+support or make a production-readiness claim.
+
+### Accomplishments
+
+- Added secret-safe typed boundary errors and exact unsupported-path handling.
+- Replaced raw FROST share/commitment/package payloads with versioned opaque
+  envelopes, typed participants/sessions/thresholds, ownership checks, and
+  duplicate submission rejection.
+- Replaced `EcashNote.secret: String` with a provider-owned opaque handle and
+  added typed federation/config/provider/operation/persistence contracts.
+- Added typed Ark VTXO/outpoint/round/server/connector/forfeit/recovery/expiry/
+  exit boundaries while keeping derivation, recovery, tree, and signing
+  unsupported.
+- Added typed BitVM2 roles/instances/commitments/windows/templates/disprove
+  envelopes and an external-observation ledger with idempotent duplicate
+  handling and replay-conflict rejection.
+- Updated WASM quarantine error codes and examples so no operation implies
+  success or emits secret-bearing payloads.
+- Added the canonical [`PROTOCOL_IMPLEMENTATION_ROADMAP.md`](docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md)
+  with pinned references, vectors, CI/artifact gates, dependencies, and staged
+  acceptance milestones.
+
+### Historical claim correction
+
+Earlier entries below that call Ark, BitVM2, Fedimint, examples, or structural
+FROST work “complete” or “implemented” are historical records only. They are
+superseded for current support decisions by the 2026-07-21 quarantine boundary,
+the capability evidence source, and the protocol roadmap; history is retained
+for traceability.
 
 ---
 
