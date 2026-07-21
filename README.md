@@ -52,7 +52,7 @@ This repository does **not** act as a complete wallet, DAO-facing governance sur
 | Hardware Attestation | API present; simulated evidence | Vendor-backed production support is not established |
 | FROST DKG | Typed boundary; quarantined | RFC 9591 DKG, nonce, ciphersuite, attestation, and signing gates remain open |
 | Fedimint | Typed secret-safe boundary; quarantined | Federation, mint, note, TBS/DLEQ, and threshold operations remain unsupported |
-| Ark / BitVM2 | Typed foundation; quarantined | Provider-owned Ark selection and legacy WASM BitVM challenge signing/aggregation fail closed; key derivation, recovery, tree/transaction construction, challenge, and settlement remain unsupported |
+| Ark / BitVM2 | Typed foundation; quarantined | Key derivation, recovery, tree/transaction construction, challenge, and settlement remain unsupported |
 | CCTP / account abstraction | API present; placeholder behavior | Production protocol integrations are not established |
 | Ethereum / Taproot / BIP-322 | Scoped canonical verification/derivation | BIP-340/BIP-341/BIP-86, Ethereum address/message/signature validation, and native P2WPKH/P2TR key-path Simple verification are implemented in scope; broader script formats, Ethereum transaction construction, provider evidence, and production gates remain open |
 | 30+ Chains | Registry surface present | Address provenance and integration evidence are incomplete |
@@ -98,6 +98,9 @@ cargo clippy -- -D warnings
 - [WASM support matrix](./docs/architecture/WASM_SUPPORT_MATRIX.md) - Runtime/provider boundaries and evidence requirements
 - [WASM key-boundary migration](./docs/migrations/wasm-key-boundary.md) - Breaking API changes and migration guidance
 - [FROST Treasury Integration Guide](./docs/guides/FROST_TREASURY_INTEGRATION.md) - Design/runbook; production implementation is not yet available
+- [Telemetry operations](./docs/operations/TELEMETRY_OPERATIONS.md) - Minimized payload, delivery, failure-isolation, and retention contract
+- [Public operations runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md) - Monitoring, disablement, incident, evidence, and rollback boundaries
+- [Release recovery runbook](./docs/operations/RELEASE_RECOVERY_RUNBOOK.md) - Exact-candidate hold, recovery, and rollback evidence
 - [TRACKING.md](./TRACKING.md) - Issue and PR tracking
 - [REPOSITORY_ANALYSIS.md](./REPOSITORY_ANALYSIS.md) - Capabilities and gaps
 - [docs/architecture/](docs/architecture/) - Architecture documentation

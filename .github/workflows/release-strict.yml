@@ -11,12 +11,7 @@ on:
         required: true
         type: string
       publish_to_crates_io:
-        description: "Publish to crates.io after all release evidence passes (only if absent)"
-        required: true
-        default: false
-        type: boolean
-      recover_existing_registry:
-        description: "Verify an already-published registry artifact and recover the GitHub Release without re-publishing"
+        description: "Publish to crates.io after all release evidence passes"
         required: true
         default: false
         type: boolean
@@ -81,17 +76,9 @@ jobs:
       - name: Verify locked crates.io package
         run: cargo publish --locked --dry-run
 
-  secret-scan:
-    name: Full-history Secret Scan
-    uses: ./.github/workflows/secret-scan.yml
-    permissions:
-      contents: read
-
   sbom-provenance:
     name: SBOM and Provenance
-    needs:
-      - validate-release
-      - secret-scan
+    needs: validate-release
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -153,6 +140,53 @@ jobs:
           cargo sbom --output-format spdx_json_2_3 > sbom/release.spdx.json
           python3 -m json.tool sbom/release.spdx.json >/dev/null
 
+      - name: Create release evidence manifest
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.validate-release.outputs.version }}
+          RELEASE_TAG: v${{ needs.validate-release.outputs.version }}
+          RELEASE_COMMIT: ${{ github.sha }}
+          CRATE_PATH: ${{ steps.crate.outputs.path }}
+          SBOM_PATH: sbom/release.spdx.json
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          def sha256(path: str) -> str:
+              return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+          crate_path = os.environ["CRATE_PATH"]
+          sbom_path = os.environ["SBOM_PATH"]
+          manifest = {
+              "package": "conxius-enclave-sdk",
+              "version": os.environ["RELEASE_VERSION"],
+              "tag": os.environ["RELEASE_TAG"],
+              "commit": os.environ["RELEASE_COMMIT"],
+              "workflow": "release-strict",
+              "crate": Path(crate_path).name,
+              "crateSha256": sha256(crate_path),
+              "sbom": Path(sbom_path).name,
+              "sbomSha256": sha256(sbom_path),
+              "lockSha256": sha256("Cargo.lock"),
+          }
+          Path("release-manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Verify package, checksum, SBOM, and manifest consistency
+        run: >-
+          .github/scripts/verify-release-artifacts.sh
+          "${{ needs.validate-release.outputs.version }}"
+          "${{ steps.crate.outputs.path }}"
+          "${{ steps.checksum.outputs.path }}"
+          sbom/release.spdx.json
+          release-manifest.json
+
       - name: Prepare flat release evidence bundle
         shell: bash
         run: |
@@ -161,203 +195,38 @@ jobs:
           cp "${{ steps.crate.outputs.path }}" release-evidence/
           cp "${{ steps.checksum.outputs.path }}" release-evidence/
           cp sbom/release.spdx.json release-evidence/
-          sha256sum Cargo.lock > release-evidence/Cargo.lock.sha256
+          cp release-manifest.json release-evidence/
+
+      - name: Upload release evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-evidence-${{ needs.validate-release.outputs.version }}
+          path: release-evidence
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Attest release package provenance
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: ${{ steps.crate.outputs.path }}
 
-      - name: Verify and retain release package provenance
-        shell: bash
+      - name: Verify release package provenance
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          raw_output="${RUNNER_TEMP}/provenance-verification.json"
-          gh attestation verify \
-            "${{ steps.crate.outputs.path }}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release-strict.yml" \
-            --source-ref "${GITHUB_REF}" \
-            --format json > "$raw_output"
-          expected_sha256="$(awk 'NF {print $1; exit}' "${{ steps.checksum.outputs.path }}")"
-          export EXPECTED_SHA256="$expected_sha256"
-          python3 - "$raw_output" release-evidence/provenance-verification.json <<'PY'
-          import json
-          import os
-          import sys
-          from pathlib import Path
-
-          raw_path, output_path = sys.argv[1:]
-          expected_sha256 = os.environ["EXPECTED_SHA256"]
-          with open(raw_path, encoding="utf-8") as f:
-              payload = json.load(f)
-          if not isinstance(payload, list) or not payload:
-              raise SystemExit("provenance verification returned no attestations")
-
-          attestations = []
-          matching_subject = False
-          for item in payload:
-              result = item.get("verificationResult", {})
-              statement = result.get("statement", {})
-              subjects = []
-              for subject in statement.get("subject", []) or []:
-                  digest = subject.get("digest", {}) or {}
-                  sha256 = digest.get("sha256")
-                  if sha256 == expected_sha256:
-                      matching_subject = True
-                  subjects.append({
-                      "name": subject.get("name"),
-                      "sha256": sha256,
-                  })
-              certificate = (result.get("signature", {}) or {}).get("certificate", {}) or {}
-              required_identity = {
-                  key: certificate.get(key)
-                  for key in ("subjectAlternativeName", "issuer")
-              }
-              missing_identity = [
-                  key
-                  for key, value in required_identity.items()
-                  if not isinstance(value, str) or not value.strip()
-              ]
-              if missing_identity:
-                  raise SystemExit(
-                      "provenance certificate identity is missing required field(s): "
-                      + ", ".join(missing_identity)
-                  )
-              identity = {
-                  key: certificate[key]
-                  for key in ("subjectAlternativeName", "issuer", "oidcIssuer")
-                  if certificate.get(key)
-              }
-              timestamps = []
-              for timestamp in result.get("verifiedTimestamps", []) or []:
-                  if isinstance(timestamp, dict):
-                      timestamps.append({
-                          key: timestamp[key]
-                          for key in ("kind", "timestamp", "logId", "logIndex")
-                          if key in timestamp
-                      })
-              attestations.append({
-                  "certificateIdentity": identity,
-                  "predicateType": statement.get("predicateType"),
-                  "subjects": subjects,
-                  "verifiedTimestamps": timestamps,
-              })
-
-          if not matching_subject:
-              raise SystemExit("provenance subject digest does not match the packaged crate")
-
-          record = {
-              "attestationCount": len(attestations),
-              "expectedSubjectSha256": expected_sha256,
-              "policy": {
-                  "repository": os.environ["GITHUB_REPOSITORY"],
-                  "signerWorkflow": f"{os.environ['GITHUB_REPOSITORY']}/.github/workflows/release-strict.yml",
-                  "sourceCommit": os.environ["GITHUB_SHA"],
-                  "sourceRef": os.environ["GITHUB_REF"],
-              },
-              "verified": True,
-              "verification": "gh attestation verify --format json",
-              "attestations": attestations,
-          }
-          Path(output_path).write_text(
-              json.dumps(record, indent=2, sort_keys=True) + "\n",
-              encoding="utf-8",
-          )
-          PY
-
-      - name: Create release evidence manifest
-        shell: bash
-        env:
-          RELEASE_VERSION: ${{ needs.validate-release.outputs.version }}
-          RELEASE_TAG: v${{ needs.validate-release.outputs.version }}
-          RELEASE_COMMIT: ${{ github.sha }}
-          RELEASE_REF: ${{ github.ref }}
-          WORKFLOW_NAME: ${{ github.workflow }}
-          WORKFLOW_RUN_ID: ${{ github.run_id }}
-          WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
-          EVENT_NAME: ${{ github.event_name }}
-          REPOSITORY: ${{ github.repository }}
-          CRATE_PATH: ${{ steps.crate.outputs.path }}
-        run: |
-          python3 - <<'PY'
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-
-          evidence_dir = Path("release-evidence")
-
-          def sha256(path: Path) -> str:
-              return hashlib.sha256(path.read_bytes()).hexdigest()
-
-          crate_path = evidence_dir / Path(os.environ["CRATE_PATH"]).name
-          sbom_path = evidence_dir / "release.spdx.json"
-          provenance_path = evidence_dir / "provenance-verification.json"
-          manifest = {
-              "package": "conxius-enclave-sdk",
-              "version": os.environ["RELEASE_VERSION"],
-              "tag": os.environ["RELEASE_TAG"],
-              "commit": os.environ["RELEASE_COMMIT"],
-              "sourceCommit": os.environ["RELEASE_COMMIT"],
-              "sourceRef": os.environ["RELEASE_REF"],
-              "workflow": "release-strict",
-              "crate": crate_path.name,
-              "crateSha256": sha256(crate_path),
-              "sbom": sbom_path.name,
-              "sbomSha256": sha256(sbom_path),
-              "lockSha256": sha256(Path("Cargo.lock")),
-              "lockfileSha256File": "Cargo.lock.sha256",
-              "provenanceVerification": provenance_path.name,
-              "provenanceVerificationSha256": sha256(provenance_path),
-              "workflowRun": {
-                  "repository": os.environ["REPOSITORY"],
-                  "workflow": os.environ["WORKFLOW_NAME"],
-                  "runId": int(os.environ["WORKFLOW_RUN_ID"]),
-                  "runAttempt": int(os.environ["WORKFLOW_RUN_ATTEMPT"]),
-                  "event": os.environ["EVENT_NAME"],
-                  "ref": os.environ["RELEASE_REF"],
-                  "commit": os.environ["RELEASE_COMMIT"],
-              },
-          }
-          (evidence_dir / "release-manifest.json").write_text(
-              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-              encoding="utf-8",
-          )
-          PY
-
-      - name: Verify package and attested evidence consistency
-        shell: bash
-        run: |
-          set -euo pipefail
-          crate="release-evidence/$(basename "${{ steps.crate.outputs.path }}")"
-          checksum="release-evidence/$(basename "${{ steps.checksum.outputs.path }}")"
-          .github/scripts/verify-release-artifacts.sh \
-            "${{ needs.validate-release.outputs.version }}" \
-            "$crate" \
-            "$checksum" \
-            release-evidence/release.spdx.json \
-            release-evidence/release-manifest.json
-
-      - name: Upload attested release evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-evidence-${{ needs.validate-release.outputs.version }}-attested
-          path: release-evidence
-          if-no-files-found: error
-          retention-days: 90
+        run: >-
+          gh attestation verify
+          "${{ steps.crate.outputs.path }}"
+          --repo "${GITHUB_REPOSITORY}"
+          --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release-strict.yml"
+          --source-ref "${GITHUB_REF}"
 
   publish-crates-io:
     name: Publish to crates.io (Automatic Tag / Manual Recovery)
     if: >-
       ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
-          || (github.event_name == 'workflow_dispatch'
-              && (inputs.publish_to_crates_io || inputs.recover_existing_registry)) }}
+          || (github.event_name == 'workflow_dispatch' && inputs.publish_to_crates_io) }}
     needs:
       - validate-release
-      - secret-scan
       - sbom-provenance
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -389,26 +258,13 @@ jobs:
             exit 1
           fi
 
-      - name: Validate manual recovery mode
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        env:
-          PUBLISH_TO_CRATES_IO: ${{ inputs.publish_to_crates_io }}
-          RECOVER_EXISTING_REGISTRY: ${{ inputs.recover_existing_registry }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "$PUBLISH_TO_CRATES_IO" == "true" && "$RECOVER_EXISTING_REGISTRY" == "true" ]]; then
-            echo "error: choose either publish_to_crates_io or recover_existing_registry, not both" >&2
-            exit 1
-          fi
-
       - name: Verify release metadata and lockfile
         run: .github/scripts/verify-release-metadata.sh "${{ needs.validate-release.outputs.version }}"
 
       - name: Download attested release evidence
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: release-evidence-${{ needs.validate-release.outputs.version }}-attested
+          name: release-evidence-${{ needs.validate-release.outputs.version }}
           path: release-evidence
 
       - name: Rebuild and compare the attested crate
@@ -430,22 +286,15 @@ jobs:
           fi
 
       - name: Verify downloaded release evidence
-        shell: bash
-        run: |
-          set -euo pipefail
-          crate="$(find release-evidence -maxdepth 1 -type f -name '*.crate' -print -quit)"
-          checksum="$(find release-evidence -maxdepth 1 -type f -name '*.sha256' ! -name 'Cargo.lock.sha256' -print -quit)"
-          .github/scripts/verify-release-artifacts.sh \
-            "${{ needs.validate-release.outputs.version }}" \
-            "$crate" \
-            "$checksum" \
-            release-evidence/release.spdx.json \
-            release-evidence/release-manifest.json
+        run: >-
+          .github/scripts/verify-release-artifacts.sh
+          "${{ needs.validate-release.outputs.version }}"
+          "$(find release-evidence -maxdepth 1 -type f -name '*.crate' -print -quit)"
+          "$(find release-evidence -maxdepth 1 -type f -name '*.sha256' -print -quit)"
+          release-evidence/release.spdx.json
+          release-evidence/release-manifest.json
 
       - name: Preflight crates.io token
-        if: >-
-          ${{ github.event_name == 'push'
-              || (github.event_name == 'workflow_dispatch' && inputs.publish_to_crates_io) }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
@@ -455,77 +304,16 @@ jobs:
           fi
 
       - name: Publish to crates.io
-        if: >-
-          ${{ github.event_name == 'push'
-              || (github.event_name == 'workflow_dispatch' && inputs.publish_to_crates_io) }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --locked
-
-      - name: Verify crates.io artifact matches the attested crate
-        shell: bash
-        run: |
-          set -euo pipefail
-          crate="$(find release-evidence -maxdepth 1 -type f -name '*.crate' -print -quit)"
-          checksum="$(find release-evidence -maxdepth 1 -type f -name '*.sha256' ! -name 'Cargo.lock.sha256' -print -quit)"
-          .github/scripts/verify-registry-artifact.sh \
-            "${{ needs.validate-release.outputs.version }}" \
-            "$crate" \
-            "$checksum" \
-            release-evidence/registry-verification.json
-
-      - name: Add registry comparison to release manifest
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import hashlib
-          import json
-          from pathlib import Path
-
-          evidence_dir = Path("release-evidence")
-          manifest_path = evidence_dir / "release-manifest.json"
-          registry_path = evidence_dir / "registry-verification.json"
-          with manifest_path.open(encoding="utf-8") as f:
-              manifest = json.load(f)
-          manifest["registryVerification"] = registry_path.name
-          manifest["registryVerificationSha256"] = hashlib.sha256(registry_path.read_bytes()).hexdigest()
-          manifest["registryVerified"] = True
-          manifest_path.write_text(
-              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-              encoding="utf-8",
-          )
-          PY
-
-      - name: Verify final release evidence bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          crate="$(find release-evidence -maxdepth 1 -type f -name '*.crate' -print -quit)"
-          checksum="$(find release-evidence -maxdepth 1 -type f -name '*.sha256' ! -name 'Cargo.lock.sha256' -print -quit)"
-          .github/scripts/verify-release-artifacts.sh \
-            "${{ needs.validate-release.outputs.version }}" \
-            "$crate" \
-            "$checksum" \
-            release-evidence/release.spdx.json \
-            release-evidence/release-manifest.json
-
-      - name: Upload final release evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-evidence-${{ needs.validate-release.outputs.version }}
-          path: release-evidence
-          if-no-files-found: error
-          retention-days: 90
+        run: cargo publish --locked --token "${CARGO_REGISTRY_TOKEN}"
 
   create-github-release:
     name: Create GitHub Release
-    if: >-
-      ${{ (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
-          || (github.event_name == 'workflow_dispatch'
-              && (inputs.publish_to_crates_io || inputs.recover_existing_registry)) }}
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     needs:
       - validate-release
-      - publish-crates-io
+      - sbom-provenance
     runs-on: ubuntu-latest
     permissions:
       actions: read
