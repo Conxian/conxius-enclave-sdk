@@ -373,7 +373,7 @@ impl Bip322Bridge {
     fn validate_taproot_control_block_shape(control_block: &[u8]) -> ConclaveResult<()> {
         if !(TAPROOT_CONTROL_BLOCK_MIN_BYTES..=TAPROOT_CONTROL_BLOCK_MAX_BYTES)
             .contains(&control_block.len())
-            || (control_block.len() - TAPROOT_CONTROL_BLOCK_MIN_BYTES) % 32 != 0
+            || !(control_block.len() - TAPROOT_CONTROL_BLOCK_MIN_BYTES).is_multiple_of(32)
         {
             return Err(ConclaveError::InvalidPayload);
         }
