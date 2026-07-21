@@ -98,6 +98,9 @@ cargo clippy -- -D warnings
 - [WASM support matrix](./docs/architecture/WASM_SUPPORT_MATRIX.md) - Runtime/provider boundaries and evidence requirements
 - [WASM key-boundary migration](./docs/migrations/wasm-key-boundary.md) - Breaking API changes and migration guidance
 - [FROST Treasury Integration Guide](./docs/guides/FROST_TREASURY_INTEGRATION.md) - Design/runbook; production implementation is not yet available
+- [Telemetry operations](./docs/operations/TELEMETRY_OPERATIONS.md) - Minimized payload, delivery, failure-isolation, and retention contract
+- [Public operations runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md) - Monitoring, disablement, incident, evidence, and rollback boundaries
+- [Release recovery runbook](./docs/operations/RELEASE_RECOVERY_RUNBOOK.md) - Exact-candidate hold, recovery, and rollback evidence
 - [TRACKING.md](./TRACKING.md) - Issue and PR tracking
 - [REPOSITORY_ANALYSIS.md](./REPOSITORY_ANALYSIS.md) - Capabilities and gaps
 - [docs/architecture/](docs/architecture/) - Architecture documentation

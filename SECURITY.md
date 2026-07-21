@@ -6,6 +6,7 @@ The 2.x line is **Beta / conditional**. The repository contains security-sensiti
 
 - [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md)
 - [Capability and evidence matrix](./docs/architecture/CAPABILITY_MATRIX.md)
+- [Public operations and incident runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md)
 
 ## Supported Versions
 
