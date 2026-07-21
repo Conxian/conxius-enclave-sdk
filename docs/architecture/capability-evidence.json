@@ -184,8 +184,8 @@
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/198", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Adapter interfaces and local tests do not establish live-network, address-provenance, or settlement support.",
-      "notes": "Rail families are inventoried together because their shared policy boundary is the production gate. Typed settlement authorization requires the Settlement purpose, canonical settlement domain, and canonical intent digest context; the preflight is validation-only while the legacy raw-signature shim remains rejected."
+      "exclusion": "Built-in adapter dispatch is explicitly disabled before request-body serialization and network I/O. Adapter interfaces and local tests do not establish live-network, address-provenance, or settlement support.",
+      "notes": "Rail families are inventoried together because their shared policy boundary is the production gate. Typed settlement authorization containment is present and requires the Settlement purpose, canonical settlement domain, and canonical intent digest context; built-in adapter dispatch remains disabled pending a versioned wire contract and gateway compatibility evidence. The legacy raw-signature shim remains rejected."
     },
     {
       "id": "bitcoin-ecdsa",
