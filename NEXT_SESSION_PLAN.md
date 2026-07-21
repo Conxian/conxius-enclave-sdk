@@ -5,27 +5,37 @@
 > **Priority Order**: P1 → P2 → P3
 > **Knowledge Base**: v0.4.2
 
-## Ordered end-of-sprint follow-up (2026-07-20)
+## Historical ordered end-of-sprint follow-up (2026-07-20)
 
 This sequence advances [issue #191](https://github.com/Conxian/conxius-enclave-sdk/issues/191) while keeping containment evidence separate from production-readiness claims:
 
-1. Obtain review and merge [PR #214](https://github.com/Conxian/conxius-enclave-sdk/pull/214), which records the current fail-closed containment slice and remains the implementation system of record for that work.
-2. After #214 is reviewed, inspect draft [PR #205](https://github.com/Conxian/conxius-enclave-sdk/pull/205) and split/reconcile only the valuable provider-wrapper changes into independently reviewable work; do not wholesale-merge, overwrite, or close the draft.
+1. Obtain review and merge [PR #214](https://github.com/Conxian/conxius-enclave-sdk/pull/214), which recorded the fail-closed containment slice at that snapshot.
+2. After #214 was reviewed, preserve and selectively reconcile the valuable provider-wrapper changes from [PR #205](https://github.com/Conxian/conxius-enclave-sdk/pull/205); PR #205 is now merged and must not be recreated or force-pushed.
 3. Keep WASM secret-boundary and runtime/platform evidence under [issue #200](https://github.com/Conxian/conxius-enclave-sdk/issues/200) and [PR #211](https://github.com/Conxian/conxius-enclave-sdk/pull/211); do not move that lane into the containment or tracking PR.
-4. Implement the typed operation/provider envelope and complete key/algorithm/provider binding under [issue #195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), preserving the fail-closed behavior while provider verification and hardware evidence are incomplete.
+4. Implement the typed operation/provider envelope and complete key/algorithm/provider binding under [issue #195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), preserving fail-closed behavior while provider verification and hardware evidence are incomplete. This containment slice is now recorded by the follow-up code commit below.
 5. Once the implementation and provider evidence are independently reviewable, pursue the independent security review and release acceptance gate in [issue #202](https://github.com/Conxian/conxius-enclave-sdk/issues/202). Do not treat passing local or GitHub checks as a substitute for this gate.
 
-### Deferred capability evidence-index update
+### Historical capability evidence-index ownership note
 
-Open [PR #210](https://github.com/Conxian/conxius-enclave-sdk/pull/210) owns `docs/architecture/capability-evidence.json` and the generated `docs/architecture/CAPABILITY_MATRIX.md`; open [PR #211](https://github.com/Conxian/conxius-enclave-sdk/pull/211) owns the WASM documentation lane. The current capability validator passes, but this branch intentionally leaves both evidence files untouched to avoid overlap. After #210 is resolved, add explicit PR #214 containment/test references only if the schema still supports them, keep `productionSupport` false or conditional as appropriate, and regenerate the matrix through the validator.
+At that snapshot, open [PR #210](https://github.com/Conxian/conxius-enclave-sdk/pull/210) owned `docs/architecture/capability-evidence.json` and the generated `docs/architecture/CAPABILITY_MATRIX.md`; open [PR #211](https://github.com/Conxian/conxius-enclave-sdk/pull/211) owned the WASM documentation lane. The current follow-up has since updated the evidence files, keeps `productionSupport` unsupported or conditional as appropriate, and regenerates the matrix through the validator.
 
-Do not change `README.md`, `PRODUCTION_READINESS.md`, security/releasing documents, or workflows in this tracking PR; those paths remain owned by the open lanes and the repository remains Beta / conditional.
+Do not change workflows or unrelated release lanes; the repository remains Beta / conditional. `PRODUCTION_READINESS.md` is updated in the focused containment follow-up only to keep its public claim boundary accurate.
 
 ## Current Follow-up
 
-The machine-first capability evidence follow-up to merged PR #193 is recorded in `docs/architecture/capability-evidence.json` and generated into `docs/architecture/CAPABILITY_MATRIX.md`. The next session must continue with evidence work, not infer production support from API rows, unit tests, WASM builds, or historical closed issues.
+The machine-first capability evidence follow-up now records merged PR #205, merged PR #216 signer identity binding, and the reconciled typed-settlement containment checkpoint `5a936ba97373ebdbd809580c5e9c9f4df1966b40` in `docs/architecture/capability-evidence.json`, generated into `docs/architecture/CAPABILITY_MATRIX.md`. The next session must continue with evidence work, not infer production support from API rows, unit tests, WASM builds, or historical closed issues.
 
-Remaining gates are already tracked by GitHub #195–#202. Prioritize hardware-backed signing/attestation, canonical cryptographic verification, placeholder quarantine, reproducible release artifacts, and WASM runtime/secret-boundary evidence. Do not create duplicate issues.
+Remaining gates are already tracked by GitHub #195–#202. PR #205 and the typed-settlement follow-up are containment/evidence-boundary work only; issue #195 remains open. Do not create duplicate issues.
+
+## Immediate blockers to prioritize
+
+1. Define and integrate the real provider verifier/signer contract, including hardware-generated keys, provider response/key binding, vendor roots, and collateral.
+2. Replace process-local replay containment with independently reviewed distributed replay authorization for the deployment scope.
+3. Add provider-backed hardware/runtime integration tests, including WASM runtime/platform evidence where supported; compilation is not runtime evidence.
+4. Obtain independent security/cryptographic review for the exact reviewed code and attach the findings.
+5. Produce exact release artifacts with digests, SBOM, provenance, retained CI results, and a scoped support decision.
+
+Keep `UnavailableEnclave`, simulator exclusion, typed settlement propagation, and raw-dispatch rejection fail closed until all gates are evidenced.
 
 ---
 

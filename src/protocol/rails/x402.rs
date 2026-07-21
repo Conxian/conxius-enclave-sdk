@@ -47,19 +47,22 @@ impl SovereignRail for X402Rail {
     }
 
     async fn execute_swap(&self, operation: VerifiedOperation) -> ConclaveResult<SwapResponse> {
-        let (intent, signature) = operation.into_parts();
+        let (intent, authorization) = operation.into_parts();
         let url = format!("{}/v1/rails/x402/settle", self.gateway_url);
 
         #[derive(Serialize)]
         struct X402SettleRequest {
             intent: SwapIntent,
-            signature: String,
+            authorization: super::VerifiedOperationAuthorization,
         }
 
         let response = self
             .http_client
             .post(&url)
-            .json(&X402SettleRequest { intent, signature })
+            .json(&X402SettleRequest {
+                intent,
+                authorization,
+            })
             .send()
             .await
             .map_err(|e| ConclaveError::RailError(format!("x402 settlement failed: {}", e)))?;

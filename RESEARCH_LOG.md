@@ -77,6 +77,14 @@ release evidence.
 
 ---
 
+## Typed provider evidence boundary (2026-07-21)
+
+- Simulated attestation, software-driver tests, and successful WASM compilation establish containment or build evidence only; they do not establish hardware, provider, runtime, deployment, or release support.
+- Reviewed code checkpoint `57726f3e5fca29ec953b1f58445eae7530414924` keeps value-bearing signing behind a fail-closed typed provider verifier/signer boundary that binds the operation, key, algorithm, attestation, policy, and replay authorization. The rail boundary additionally requires `ValueBearingPurpose::Settlement`, the canonical `conxian/settlement/v1` domain, and the canonical intent digest as operation context; typed Opportunity preflight is validation-only while the legacy raw-signature shim remains rejected. The real provider verifier/signer remains unavailable, so production support is not claimed.
+- The current replay authorization is process-local. Distributed replay coordination, provider-backed runtime tests, independent review, and exact artifacts remain required before promotion.
+
+---
+
 ## Production-enablement evidence schema research (2026-07-20)
 
 ### Artifact provenance

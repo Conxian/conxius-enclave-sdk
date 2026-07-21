@@ -13,7 +13,7 @@ pub(crate) struct ChangellyRail {
 #[derive(Debug, Serialize, Deserialize)]
 struct BroadcastSwapRequest {
     intent: SwapIntent,
-    signature: String,
+    authorization: super::VerifiedOperationAuthorization,
 }
 
 impl super::sealed::SovereignRail for ChangellyRail {}
@@ -38,9 +38,12 @@ impl SovereignRail for ChangellyRail {
     }
 
     async fn execute_swap(&self, operation: VerifiedOperation) -> ConclaveResult<SwapResponse> {
-        let (intent, signature) = operation.into_parts();
+        let (intent, authorization) = operation.into_parts();
         let url = format!("{}/v1/swap/execute", self.gateway_url);
-        let payload = BroadcastSwapRequest { intent, signature };
+        let payload = BroadcastSwapRequest {
+            intent,
+            authorization,
+        };
 
         let response = self
             .http_client

@@ -108,6 +108,23 @@ mod tests {
         assert!(!source.contains("crate::enclave::cloud::CloudEnclave::new("));
         assert!(source.contains("UnavailableEnclave"));
         assert!(!source.contains("expect(\"Failed to create enclave\")"));
+        assert!(!source.contains("EnclaveManager::sign"));
+        assert!(!source.contains(".sign(request"));
+        let source_lines: Vec<&str> = source.lines().collect();
+        let mut gated_development_constructors = 0;
+        for (index, line) in source_lines.iter().enumerate() {
+            if line.trim_start().starts_with("pub fn new_for_development") {
+                gated_development_constructors += 1;
+                assert_eq!(
+                    source_lines
+                        .get(index.saturating_sub(1))
+                        .map(|line| line.trim()),
+                    Some("#[cfg(feature = \"development-simulators\")]"),
+                    "WASM development constructors must remain explicitly feature-gated"
+                );
+            }
+        }
+        assert_eq!(gated_development_constructors, 2);
         assert!(source.contains("derive_vutxo_public_key"));
         assert!(source.contains("sign_vutxo"));
         assert!(source.contains("SECRET_EXPORT_FORBIDDEN"));

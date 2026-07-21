@@ -70,7 +70,7 @@ impl EnclaveManager for CountingEnclave {
     fn get_public_key(&self, _derivation_path: &str) -> ConclaveResult<String> {
         self.provider_calls.fetch_add(1, Ordering::Relaxed);
         Err(ConclaveError::EnclaveFailure(
-            "provider public-key lookup should not be reached".to_string(),
+            "typed opportunity reached provider key boundary".to_string(),
         ))
     }
 
@@ -87,7 +87,7 @@ impl EnclaveManager for CountingEnclave {
     ) -> ConclaveResult<SignResponse> {
         self.provider_calls.fetch_add(1, Ordering::Relaxed);
         Err(ConclaveError::EnclaveFailure(
-            "typed provider signing should not be reached".to_string(),
+            "typed provider signing boundary reached".to_string(),
         ))
     }
 }
@@ -139,7 +139,7 @@ async fn production_raw_broadcast_is_rejected_before_any_network_dispatch() {
 }
 
 #[tokio::test]
-async fn production_opportunity_dispatch_rejects_before_provider_signing() {
+async fn production_opportunity_dispatch_reaches_provider_boundary() {
     let enclave = CountingEnclave::new();
     let dispatcher = OpportunityDispatcher::new(&enclave, Arc::new(proxy()));
     let payload = OpportunityPayload::Swap {
@@ -156,10 +156,13 @@ async fn production_opportunity_dispatch_rejects_before_provider_signing() {
 
     assert!(matches!(
         result,
-        Err(ConclaveError::Unsupported(message))
-            if message.contains("Typed operation-signature envelope required")
+        Err(ConclaveError::EnclaveFailure(message))
+            if message.contains("typed opportunity reached provider key boundary")
     ));
-    assert_eq!(enclave.provider_calls.load(Ordering::Relaxed), 0);
+    // The default integration fixture remains software/unverified, so the
+    // provider signing callback is intentionally still fail-closed. Reaching
+    // key lookup proves the non-test preflight no longer rejects the typed path.
+    assert_eq!(enclave.provider_calls.load(Ordering::Relaxed), 1);
 }
 
 #[test]

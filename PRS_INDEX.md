@@ -1,48 +1,66 @@
 # Conclave SDK Pull Requests Index
 
-> Auto-generated from GitHub. Last sync: 2026-07-20T23:20:56Z
+> Auto-generated from GitHub. Last sync: 2026-07-21T03:52:30Z
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
 
 ## Summary
-- **Total PRs**: 191
-- **Open PRs**: 8
-- **Merged PRs**: 171
+- **Total PRs**: 197
+- **Open PRs**: 1
+- **Merged PRs**: 184
 - **Closed PRs**: 12
 
 ## Open PRs
-- [ ] [**#214**](https://github.com/Conxian/conxius-enclave-sdk/pull/214): fix: fail closed on unverifiable attestation and rail signing
-  - Author: charliecreates[bot]
-
-- [ ] [**#213**](https://github.com/Conxian/conxius-enclave-sdk/pull/213): fix(release): make toolchain and release evidence reproducible
-  - Author: charliecreates[bot]
-
-- [ ] [**#212**](https://github.com/Conxian/conxius-enclave-sdk/pull/212): fix: fail closed CCTP, account abstraction, and asset adapters
-  - Author: charliecreates[bot]
-
-- [ ] [**#211**](https://github.com/Conxian/conxius-enclave-sdk/pull/211): fix(wasm): close key and provider boundary
-  - Author: charliecreates[bot]
-
-- [ ] [**#210**](https://github.com/Conxian/conxius-enclave-sdk/pull/210): fix: harden telemetry privacy and delivery semantics
-  - Author: charliecreates[bot]
-
-- [ ] [**#209**](https://github.com/Conxian/conxius-enclave-sdk/pull/209): fix: fail closed on simulated threshold protocols
-  - Author: charliecreates[bot]
-
-- [ ] [**#208**](https://github.com/Conxian/conxius-enclave-sdk/pull/208): fix: canonicalize Bitcoin and Ethereum validation
-  - Author: charliecreates[bot]
-
-- [ ] [**#205**](https://github.com/Conxian/conxius-enclave-sdk/pull/205): fix(attestation): make #195 freshness verification deterministic
+- [ ] [**#220**](https://github.com/Conxian/conxius-enclave-sdk/pull/220): fix(enclave): carry typed evidence through settlement authorization
   - Author: charliecreates[bot]
 
 
 ## Recently Merged PRs
+- [x] [**#219**](https://github.com/Conxian/conxius-enclave-sdk/pull/219): feat: add typed protocol boundary foundation
+  - Author: charliecreates[bot] | Merged: 2026-07-21
+
+- [x] [**#218**](https://github.com/Conxian/conxius-enclave-sdk/pull/218): Potential fix for code scanning alert no. 18: Hard-coded cryptographic value
+  - Author: botshelomokoka | Merged: 2026-07-21
+
+- [x] [**#217**](https://github.com/Conxian/conxius-enclave-sdk/pull/217): fix: close post-review signing and ECDSA binding gaps
+  - Author: charliecreates[bot] | Merged: 2026-07-21
+
+- [x] [**#216**](https://github.com/Conxian/conxius-enclave-sdk/pull/216): fix(enclave): quarantine software value signing paths
+  - Author: charliecreates[bot] | Merged: 2026-07-21
+
+- [x] [**#215**](https://github.com/Conxian/conxius-enclave-sdk/pull/215): docs: record containment evidence and refresh tracking
+  - Author: charliecreates[bot] | Merged: 2026-07-21
+
+- [x] [**#214**](https://github.com/Conxian/conxius-enclave-sdk/pull/214): fix: fail closed on unverifiable attestation and rail signing
+  - Author: charliecreates[bot] | Merged: 2026-07-20
+
+- [x] [**#213**](https://github.com/Conxian/conxius-enclave-sdk/pull/213): fix(release): make toolchain and release evidence reproducible
+  - Author: charliecreates[bot] | Merged: 2026-07-21
+
+- [x] [**#212**](https://github.com/Conxian/conxius-enclave-sdk/pull/212): fix: fail closed CCTP, account abstraction, and asset adapters
+  - Author: charliecreates[bot] | Merged: 2026-07-20
+
+- [x] [**#211**](https://github.com/Conxian/conxius-enclave-sdk/pull/211): fix(wasm): close key and provider boundary
+  - Author: charliecreates[bot] | Merged: 2026-07-20
+
+- [x] [**#210**](https://github.com/Conxian/conxius-enclave-sdk/pull/210): fix: harden telemetry privacy and delivery semantics
+  - Author: charliecreates[bot] | Merged: 2026-07-21
+
+- [x] [**#209**](https://github.com/Conxian/conxius-enclave-sdk/pull/209): fix: fail closed on simulated threshold protocols
+  - Author: charliecreates[bot] | Merged: 2026-07-21
+
+- [x] [**#208**](https://github.com/Conxian/conxius-enclave-sdk/pull/208): fix: canonicalize Bitcoin and Ethereum validation
+  - Author: charliecreates[bot] | Merged: 2026-07-20
+
 - [x] [**#207**](https://github.com/Conxian/conxius-enclave-sdk/pull/207): docs: reconcile live issue and PR indexes
   - Author: charliecreates[bot] | Merged: 2026-07-20
 
 - [x] [**#206**](https://github.com/Conxian/conxius-enclave-sdk/pull/206): fix: reject unsupported BIP-110 spend scripts
   - Author: charliecreates[bot] | Merged: 2026-07-20
+
+- [x] [**#205**](https://github.com/Conxian/conxius-enclave-sdk/pull/205): fix(attestation): make #195 freshness verification deterministic
+  - Author: charliecreates[bot] | Merged: 2026-07-21
 
 - [x] [**#204**](https://github.com/Conxian/conxius-enclave-sdk/pull/204): docs: add machine-first capability evidence tracking
   - Author: charliecreates[bot] | Merged: 2026-07-20
@@ -58,45 +76,6 @@
 
 - [x] [**#190**](https://github.com/Conxian/conxius-enclave-sdk/pull/190): docs: add FROST treasury integration runbook
   - Author: charliecreates[bot] | Merged: 2026-07-20
-
-- [x] [**#189**](https://github.com/Conxian/conxius-enclave-sdk/pull/189): Fully implement BIP-110 compliance for BIP-322 message signing
-  - Author: botshelomokoka | Merged: 2026-07-20
-
-- [x] [**#188**](https://github.com/Conxian/conxius-enclave-sdk/pull/188): chore(deps): bump actions/checkout from 4.3.1 to 7.0.1
-  - Author: dependabot[bot] | Merged: 2026-07-20
-
-- [x] [**#187**](https://github.com/Conxian/conxius-enclave-sdk/pull/187): chore(deps): bump actions/download-artifact from 5.0.0 to 8.0.1
-  - Author: dependabot[bot] | Merged: 2026-07-20
-
-- [x] [**#186**](https://github.com/Conxian/conxius-enclave-sdk/pull/186): chore(deps): bump taiki-e/install-action from 2.83.1 to 2.84.0
-  - Author: dependabot[bot] | Merged: 2026-07-20
-
-- [x] [**#185**](https://github.com/Conxian/conxius-enclave-sdk/pull/185): chore(deps): bump github/codeql-action/analyze from 4.37.0 to 4.37.1
-  - Author: dependabot[bot] | Merged: 2026-07-20
-
-- [x] [**#184**](https://github.com/Conxian/conxius-enclave-sdk/pull/184): chore(deps): bump softprops/action-gh-release from 2 to 3
-  - Author: dependabot[bot] | Merged: 2026-07-18
-
-- [x] [**#183**](https://github.com/Conxian/conxius-enclave-sdk/pull/183): chore(deps): bump actions/dependency-review-action from 4 to 5
-  - Author: dependabot[bot] | Merged: 2026-07-18
-
-- [x] [**#182**](https://github.com/Conxian/conxius-enclave-sdk/pull/182): chore(deps): bump actions/upload-artifact from 5 to 7
-  - Author: dependabot[bot] | Merged: 2026-07-18
-
-- [x] [**#181**](https://github.com/Conxian/conxius-enclave-sdk/pull/181): chore(deps): bump github/codeql-action/autobuild from 4.37.0 to 4.37.1
-  - Author: dependabot[bot] | Merged: 2026-07-20
-
-- [x] [**#178**](https://github.com/Conxian/conxius-enclave-sdk/pull/178): chore: bump version to 2.0.12
-  - Author: charliecreates[bot] | Merged: 2026-07-15
-
-- [x] [**#177**](https://github.com/Conxian/conxius-enclave-sdk/pull/177): fix(release): prevent duplicate crates.io publishing
-  - Author: charliecreates[bot] | Merged: 2026-07-15
-
-- [x] [**#171**](https://github.com/Conxian/conxius-enclave-sdk/pull/171): fix(contracts): replace hardcoded SIP-010 trait principal
-  - Author: botshelomokoka | Merged: 2026-07-13
-
-- [x] [**#170**](https://github.com/Conxian/conxius-enclave-sdk/pull/170): fix(ci): use valid provenance subject path
-  - Author: charliecreates[bot] | Merged: 2026-07-13
 
 
 ## Closed (Not Merged) PRs

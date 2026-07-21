@@ -6,6 +6,27 @@ This document tracks what was accomplished in previous sessions so future agents
 
 ---
 
+## Session: 2026-07-21 (Merged PR #205/#216 and typed settlement evidence follow-up)
+
+### Summary
+Verified that PR [#205](https://github.com/Conxian/conxius-enclave-sdk/pull/205) merged at `35f7843a1ee8994de98b00cfacbae7dab1a1eaf5` and PR [#216](https://github.com/Conxian/conxius-enclave-sdk/pull/216) merged at `0bdb323255279893c246f06659ec05875338c296`, while issue [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) remains open. Current `origin/main` was fetched at `1d9ef9b8d1745c51366d34a1624a8d3c76426769`, including later signer-binding and code-scanning follow-ups.
+
+The preserved typed settlement/evidence work was selectively reconciled onto current `main` with merge/update commit `913c7b60c7e43e6b0c54d13d9623409dc10915e9` and code/test commit `57726f3e5fca29ec953b1f58445eae7530414924`, including the current-main fix that keeps WASM development constructors explicitly feature-gated. The separate documentation commit records this checkpoint and keeps all unsupported production gates explicit.
+
+### Containment and evidence boundary
+- Typed value-bearing requests/responses bind canonical intent and operation context, digest, algorithm, operation key identity, verified signature, attestation/provenance/policy identity, and manager-issued replay authorization before settlement dispatch. The rail boundary requires `ValueBearingPurpose::Settlement`, canonical domain `conxian/settlement/v1`, and the canonical intent digest as context.
+- PR #216 signer identity evidence remains enforced for requested key ID, derivation path, expected and returned public keys, operation digest, operation purpose, attestation purpose, and algorithm.
+- Raw production settlement dispatch is rejected; Opportunity preflight is validation-only in non-test builds, and Opportunity plus each built-in rail adapter (`bisq`, `boltz`, `changelly`, `ntt`, `wormhole`, and `x402`) carry the typed authorization envelope instead of an opaque raw signature.
+- Replay authorization remains process-local and is consumed before downstream adapter execution; adapter failure does not imply rollback or distributed replay semantics.
+- WASM defaults and software simulators remain fail closed or explicitly development/test-only. This is containment evidence, not hardware/provider, runtime, deployment, independent-review, or release-artifact evidence.
+
+### Verification checkpoint
+- Mandatory initialization passed on Rust `1.97.1` (newer than the required `1.94.1` baseline).
+- Focused enclave, typed rail authorization, production rail containment, formatting, clippy, and diff checks passed before documentation work.
+
+### Remaining unsupported boundary
+Real StrongBox/Nitro/DCAP/SEV provider verification and signing, vendor roots/collateral, distributed replay authorization, provider-backed runtime tests, independent review, exact release/provenance artifacts, and a production-support decision remain open. Do not close issue #195 or claim production readiness.
+
 ## Session: 2026-07-21 (PR #209 Protocol Boundary Foundation)
 
 ### Summary
@@ -48,8 +69,7 @@ for traceability.
 ## Session: 2026-07-20 (End-of-sprint containment evidence and tracking refresh)
 
 ### Summary
-
-This entry records the partial containment evidence delivered by [PR #214](https://github.com/Conxian/conxius-enclave-sdk/pull/214) at `a877bf2eb1fa9acf06216f794dea4afc7217bb22`; it does **not** establish repository-wide production readiness or release acceptance.
+Created a separate documentation, knowledge-base, and tracking branch from the fetched `origin/main` at `a4c19ac0469a633bddca76a0f54ad6a867bdc700`. This entry records the partial containment evidence delivered by [PR #214](https://github.com/Conxian/conxius-enclave-sdk/pull/214) at `a877bf2eb1fa9acf06216f794dea4afc7217bb22`; it does **not** establish repository-wide production readiness or release acceptance. Later sessions superseded its typed-settlement gap notes.
 
 ### Audit and readiness trail
 
@@ -69,10 +89,9 @@ This entry records the partial containment evidence delivered by [PR #214](https
 - Rail execution is sealed behind the attested complete intent, and production raw broadcast is rejected before network dispatch.
 
 ### Explicit limitations and lane ownership
-
-- This is containment evidence only. The provider verifier is unavailable, typed operation key/algorithm/provider binding remains incomplete, and open [issue #195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) and [issue #202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) remain open.
-- Draft [PR #205](https://github.com/Conxian/conxius-enclave-sdk/pull/205) was preserved rather than overwritten; its mixed-scope provider-wrapper work must be split and reconciled separately.
-- Capability evidence and matrix ownership remained with [PR #210](https://github.com/Conxian/conxius-enclave-sdk/pull/210) at that historical snapshot; current status is governed by the canonical evidence source and the newer protocol-boundary entry above.
+- This is containment evidence only. The provider verifier is unavailable, distributed replay remains incomplete, and open [issue #195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) and [issue #202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) remain open. At that snapshot, typed operation key/algorithm/provider binding remained incomplete; the 2026-07-21 follow-up records the current containment binding.
+- Draft [PR #205](https://github.com/Conxian/conxius-enclave-sdk/pull/205) was preserved at that snapshot and later merged; mixed-scope provider-wrapper work remains subject to separate reconciliation. [PR #216](https://github.com/Conxian/conxius-enclave-sdk/pull/216) added the current signer-identity binding.
+- Capability evidence and matrix ownership remained with [PR #210](https://github.com/Conxian/conxius-enclave-sdk/pull/210) at that historical snapshot; the later follow-up updates them with typed containment evidence, and current status is governed by the canonical evidence source and newer protocol-boundary entry.
 
 ---
 

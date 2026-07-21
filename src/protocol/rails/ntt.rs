@@ -32,11 +32,11 @@ impl SovereignRail for NTTRail {
     }
 
     async fn execute_swap(&self, operation: VerifiedOperation) -> ConclaveResult<SwapResponse> {
-        let (intent, signature) = operation.into_parts();
+        let (intent, authorization) = operation.into_parts();
         let url = format!("{}/v1/rails/ntt/execute", self.gateway_url);
         let payload = json!({
             "intent": intent,
-            "signature": signature,
+            "authorization": authorization,
             "framework": "wormhole-ntt"
         });
 

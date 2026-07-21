@@ -1,14 +1,14 @@
 # Conclave SDK Issues Index
 
-> Auto-generated from GitHub. Last sync: 2026-07-20T23:20:56Z
+> Auto-generated from GitHub. Last sync: 2026-07-21T03:52:30Z
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
 
 ## Summary
 - **Total Issues**: 23
-- **Open Issues**: 10
-- **Closed Issues**: 13
+- **Open Issues**: 9
+- **Closed Issues**: 14
 
 ## Open Issues
 - [ ] [**#202**](https://github.com/Conxian/conxius-enclave-sdk/issues/202): [P0] Complete independent security review and release acceptance evidence
@@ -47,11 +47,9 @@
   - Labels: enhancement, architecture
   - Assigned: unassigned
 
-- [ ] [**#191**](https://github.com/Conxian/conxius-enclave-sdk/issues/191): production enablement
-  - Assigned: botshelomokoka
-
 
 ## Closed Issues
+- [x] [**#191**](https://github.com/Conxian/conxius-enclave-sdk/issues/191): production enablement
 - [x] [**#180**](https://github.com/Conxian/conxius-enclave-sdk/issues/180): [SDK-001] FROST DKG Treasury Integration Guide
   - Labels: frost-dkg, treasury, priority-critical
 
