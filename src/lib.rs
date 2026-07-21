@@ -3,6 +3,7 @@ pub mod enclave;
 pub mod protocol;
 pub mod state;
 pub mod telemetry;
+pub mod wasm_support;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm_bindings;
@@ -81,6 +82,8 @@ pub enum ConclaveError {
     CryptoError(String),
     #[error("Invalid Payload provided")]
     InvalidPayload,
+    #[error("Invalid configuration: {0}")]
+    InvalidConfiguration(String),
     #[error("ISO 20022 Error: {0}")]
     IsoError(String),
     #[error("Network error: {0}")]
@@ -95,6 +98,12 @@ pub enum ConclaveError {
         operation: UnsupportedOperation,
         reason: UnsupportedReason,
     },
+    #[error("Unsupported WASM runtime: {0}")]
+    UnsupportedRuntime(String),
+    #[error("Unsupported WASM provider: {0}")]
+    UnsupportedProvider(String),
+    #[error("WASM secret export is forbidden")]
+    SecretExportForbidden,
 }
 
 pub(crate) fn protocol_unsupported(

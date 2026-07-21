@@ -56,7 +56,7 @@ This repository does **not** act as a complete wallet, DAO-facing governance sur
 | CCTP / account abstraction | API present; placeholder behavior | Production protocol integrations are not established |
 | Ethereum / Taproot / BIP-322 | API present; correctness gates open | Canonical hashing and cryptographic verification require remediation |
 | 30+ Chains | Registry surface present | Address provenance and integration evidence are incomplete |
-| WASM | Bindings present | Runtime, platform, and hardware matrices are incomplete |
+| WASM | Boundary hardened; runtime support unsupported | Private-key export and software defaults are removed; browser/Node/bundler/worker and provider evidence remain open |
 
 ## Development
 
@@ -69,6 +69,10 @@ cargo test
 
 # WASM build
 wasm-pack build
+
+# WASM support boundary
+# See docs/architecture/WASM_SUPPORT_MATRIX.md and
+# docs/migrations/wasm-key-boundary.md before integrating signing or recovery.
 
 # Format check
 cargo fmt --all -- --check
@@ -90,6 +94,8 @@ cargo clippy -- -D warnings
 - [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) - Release checklist
 - [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) - Findings, gates, unknowns, and public-safe evidence
 - [Capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) - API/evidence/support status by capability
+- [WASM support matrix](./docs/architecture/WASM_SUPPORT_MATRIX.md) - Runtime/provider boundaries and evidence requirements
+- [WASM key-boundary migration](./docs/migrations/wasm-key-boundary.md) - Breaking API changes and migration guidance
 - [FROST Treasury Integration Guide](./docs/guides/FROST_TREASURY_INTEGRATION.md) - Design/runbook; production implementation is not yet available
 - [TRACKING.md](./TRACKING.md) - Issue and PR tracking
 - [REPOSITORY_ANALYSIS.md](./REPOSITORY_ANALYSIS.md) - Capabilities and gaps
