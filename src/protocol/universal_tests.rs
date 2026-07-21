@@ -56,7 +56,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chain_abstraction_signature() {
+    fn test_chain_abstraction_signature_fails_closed_without_provider() {
         let enclave = Arc::new(CloudEnclave::new("test".to_string()).unwrap());
         let assets = Arc::new(AssetRegistry::new());
         let service = ChainAbstractionService::new(enclave, assets);
@@ -67,9 +67,7 @@ mod tests {
             derivation_path: "m/44'/501'/0'/0'".to_string(),
         };
 
-        let response = service.sign_for_chain(request).unwrap();
-        assert!(!response.signature_hex.is_empty());
-        assert!(!response.target_address.is_empty());
+        assert!(service.sign_for_chain(request).is_err());
     }
 
     #[test]
