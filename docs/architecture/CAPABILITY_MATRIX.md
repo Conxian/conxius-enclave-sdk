@@ -26,6 +26,17 @@ The SDK now exposes separate taxonomy and composition types for six exact proof 
 
 This is **composition support only**, not provider or production support. The production verifier registry is intentionally unavailable; test fixtures are compiled only for tests and cannot satisfy a production policy. `DeviceIntegrityReport` remains the current device/TEE adapter and is not silently converted into server, user, phone, FIDO2, or TPM proofs. No production claim is made for any of the six categories until provider roots/collateral, runtime integration, replay coordination, independent review, and exact release-artifact evidence are available.
 
+The value-bearing settlement containment boundary now requires the canonical
+`ProofBoundValueBearingAuthorization` from `src/enclave/proofs.rs`. It checks
+the exact six-proof set, policy/envelope/context digests, operation/purpose/
+audience/nonce binding, trusted-clock freshness, process-local replay
+reservation, signer/key evidence, and manager replay before dispatch. The
+legacy `src/enclave/proof.rs` types remain for compatibility only and cannot
+authorize that boundary. `OpportunityDispatcher::execute_with_proofs` reaches
+the canonical route but stops at the unavailable production verifier before
+provider key lookup; this is containment evidence, not production hardware or
+rail support.
+
 ## Generated capability inventory
 
 Run the dependency-free validator from the repository root:

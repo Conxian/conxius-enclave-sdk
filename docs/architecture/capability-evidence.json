@@ -114,24 +114,26 @@
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
+        "src/enclave/proofs.rs:1-1800",
         "src/enclave/proof.rs:1-2015",
-        "src/enclave/mod.rs:480-660",
-        "src/protocol/rails/mod.rs:75-340",
-        "src/enclave/proof.rs:1327-2015",
-        "src/protocol/rails/mod.rs:1240-1450",
-        "tests/production_rail_containment.rs:1-200",
+        "src/enclave/mod.rs:330-525",
+        "src/protocol/rails/mod.rs:75-760",
+        "src/protocol/opportunity.rs:1-280",
+        "src/enclave/proofs.rs:1450-1800",
+        "src/protocol/rails/mod.rs:900-2000",
+        "tests/production_rail_containment.rs:1-280",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
       ],
       "evidenceChain": [
         {"stage": "requirement", "refs": ["https://linear.app/conxian-labs/issue/CON-1512/p0-enforce-hardware-backed-signing-and-mandatory-attestation-for-value#comment-42bb83ff", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
-        {"stage": "code", "refs": ["src/enclave/proof.rs:1-1326", "src/enclave/mod.rs:480-660", "src/protocol/rails/mod.rs:75-340"]},
-        {"stage": "test", "refs": ["src/enclave/proof.rs:1327-2015", "src/protocol/rails/mod.rs:1240-1450", "tests/production_rail_containment.rs:1-200"]},
+        {"stage": "code", "refs": ["src/enclave/proofs.rs:1-1800", "src/enclave/mod.rs:330-525", "src/protocol/rails/mod.rs:75-760", "src/protocol/opportunity.rs:1-280"]},
+        {"stage": "test", "refs": ["src/enclave/proofs.rs:1450-1800", "src/protocol/rails/mod.rs:900-2000", "tests/production_rail_containment.rs:1-280"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/security.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Server identity, user authorization, phone/device attestation, TEE attestation, FIDO2/WebAuthn assertions, and TPM quotes are taxonomy and fail-closed composition support only. The production registry has no concrete provider verifier; test fixtures are test-only and cannot satisfy a production policy. No production server, user, phone, TEE, FIDO2, TPM, StrongBox, collateral, runtime, distributed replay, independent-review, or release-artifact support is claimed.",
-      "notes": "Phase A adds bounded raw evidence, private-field exact verified proof types, canonical domain-separated contexts, independent typed verifier dispatch, and explicit all-required proof-set composition. SingleMechanismAttestationResult and SingleMechanismReplayAuthorization are explicitly scoped to one mechanism and cannot satisfy or convert into complete all-required authorization; only the explicit proof-bundle composition path can do so. Existing DeviceIntegrityReport remains the current device/TEE adapter and is never silently upgraded into the new proof categories."
+      "notes": "Phase A adds bounded raw evidence, private-field exact verified proof types, canonical domain-separated contexts, independent typed verifier dispatch, and explicit all-required proof-set composition. The canonical authorization is required by value-bearing rail dispatch; legacy proof.rs types remain compatibility-only. SingleMechanismAttestationResult and SingleMechanismReplayAuthorization are explicitly scoped to one mechanism and cannot satisfy or convert into complete all-required authorization; only the explicit proof-bundle composition path can do so. Existing DeviceIntegrityReport remains the current device/TEE adapter and is never silently upgraded into the new proof categories."
     },
     {
       "id": "replay-protection",
@@ -180,21 +182,23 @@
         "src/protocol/rails/mod.rs:1-760",
         "src/protocol/rails/mod.rs:900-1190",
         "src/enclave/mod.rs:430-760",
-        "src/protocol/opportunity.rs:90-150",
+        "src/enclave/proofs.rs:1450-1800",
+        "src/protocol/opportunity.rs:90-280",
+        "tests/production_rail_containment.rs:150-280",
         "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-190",
         "https://github.com/Conxian/conxius-enclave-sdk/pull/216",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
       ],
       "evidenceChain": [
         {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-190", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
-        {"stage": "code", "refs": ["src/protocol/rails/mod.rs:1-760", "src/enclave/mod.rs:430-760", "src/protocol/opportunity.rs:90-150"]},
-        {"stage": "test", "refs": ["src/protocol/rails/mod.rs:900-1380", "tests/production_rail_containment.rs:1-200"]},
+        {"stage": "code", "refs": ["src/protocol/rails/mod.rs:1-760", "src/enclave/mod.rs:430-760", "src/enclave/proofs.rs:1450-1800", "src/protocol/opportunity.rs:90-280"]},
+        {"stage": "test", "refs": ["src/protocol/rails/mod.rs:900-2000", "tests/production_rail_containment.rs:1-280"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/security.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Typed fixture authorization, process-local replay, and local rail tests are containment evidence only; no real provider-backed rail settlement support is claimed.",
-      "notes": "Raw production settlement dispatch is rejected and built-in rails receive typed verified-operation envelopes carrying canonical intent, operation/key binding, signature, attestation, provenance, policy, and replay authorization. Real provider verification, distributed replay, independent review, and artifacts remain open."
+      "notes": "Raw production settlement dispatch is rejected and built-in rails receive typed verified-operation envelopes only after canonical six-proof authorization, trusted-clock freshness, process-local replay, and signer/key evidence checks. The production registry remains unavailable, so the explicit opportunity proof route stops before provider key lookup. Real provider verification, authenticated roots/collateral/revocation, distributed replay, runtime integration, independent review, and artifacts remain open."
     },
     {
       "id": "rail-adapters",
