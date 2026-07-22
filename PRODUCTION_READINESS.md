@@ -1,11 +1,13 @@
 # Production Enablement Checklist
 
 > This is a gated checklist, not a production-readiness claim.
-> Status: Beta / conditional | Last Updated: 2026-07-21
+> Status: Beta / conditional | Last Updated: 2026-07-22
 
 The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), [machine-readable evidence](./docs/architecture/capability-evidence.json), [public operations runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md), [release recovery runbook](./docs/operations/RELEASE_RECOVERY_RUNBOOK.md), and [protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.11`; `Cargo.toml` declaring `2.0.12` does not establish a supported release.
 
 Merged PR [#205](https://github.com/Conxian/conxius-enclave-sdk/pull/205), merged PR [#216](https://github.com/Conxian/conxius-enclave-sdk/pull/216), and the typed-settlement follow-up code checkpoint are containment and evidence-boundary work only. They make missing provider evidence fail closed and preserve signer-identity binding; they do not establish real hardware/provider integration, distributed replay, runtime support, independent review, release artifacts, or production readiness. Issue [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) remains open.
+
+Phase A of CON-1512 adds an explicit proof-factor taxonomy and fail-closed composition boundary for server identity, user authorization, phone/device attestation, TEE attestation, FIDO2/WebAuthn assertions, and TPM quotes. These are independently typed API/composition categories only: the production verifier registry is intentionally unavailable, test fixtures are test-only, and no category is production-supported until concrete provider roots/collateral, runtime integration, replay coordination, independent review, and exact release artifacts exist. Existing `DeviceIntegrityReport` remains the current device/TEE adapter and is never silently promoted into the new proof categories.
 
 Issue #145 is a **historical CI/CD baseline**, not current release-acceptance evidence. Repository-control work for toolchain, dependency, publisher, scanning, SBOM, provenance, and exact-artifact evidence is tracked by [issue #199](https://github.com/Conxian/conxius-enclave-sdk/issues/199); independent review and release acceptance remain open in [issue #202](https://github.com/Conxian/conxius-enclave-sdk/issues/202). Historical issues #145, #154, #169, #172, #173, #174, and #180 provide context only and must not be used as current production proof.
 
@@ -32,6 +34,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [ ] Replay protection verified on every value-bearing path (P0/P1)
 - [x] Typed error surface exists (`ConclaveResult`); production fail-closed behavior remains gated
 - [x] Typed value-bearing settlement containment enforces settlement purpose/domain/context and raw-dispatch rejection; Opportunity preflight is validation-only and all built-in adapter dispatch is disabled pending a versioned wire contract and gateway compatibility evidence; this remains containment rather than provider or production evidence
+- [x] Phase A typed proof-factor taxonomy and explicit all-required proof-set composition are bounded, independently diagnosable, and fail closed; server, user, phone/device, TEE, FIDO2/WebAuthn, and TPM categories remain unsupported for production without concrete provider evidence
 - [ ] FROST treasury DKG and signing production readiness (issue #180; current `src/protocol/frost.rs` is a typed boundary/quarantine, not production FROST cryptography)
 - [x] Protocol boundary quarantine for FROST, Fedimint, Ark, and BitVM2 (typed models and exact unsupported errors; see roadmap)
 - [ ] Protocol implementation, vector, provider, persistence, independent-review, and exact-artifact gates (issue #197 and roadmap)
@@ -47,7 +50,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [ ] **Hardware attestation integration tests** (P0/P1)
 - [x] Tracked WASM runtime execution harness covers Node, browser, bundler, and worker lanes; passing negative/runtime tests do not establish provider, hardware, or production support
 - [x] WASM private-key export path removed; provider/runtime support remains fail-closed
-- [x] Negative tests cover missing provider evidence, simulator exclusion, typed binding mismatches, and raw settlement dispatch rejection
+- [x] Negative tests cover missing provider evidence, simulator exclusion, typed proof-factor/context mismatches, incomplete proof sets, typed binding mismatches, and raw settlement dispatch rejection
 - [x] WASM FROST/Fedimint/Ark/BitVM2 quarantine methods propagate typed unsupported errors without secret-bearing outputs; legacy BitVM challenge signing/aggregation also fail with `PROTOCOL_UNSUPPORTED` before decoding
 - [ ] Fuzz testing for critical paths
 
@@ -184,4 +187,4 @@ git push origin vX.Y.Z
 ---
 
 *Checklist maintained by: SDK Team*
-*Last reviewed: 2026-07-21*
+*Last reviewed: 2026-07-22*

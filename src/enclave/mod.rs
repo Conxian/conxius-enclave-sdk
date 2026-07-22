@@ -3,6 +3,7 @@ pub mod android_strongbox;
 pub mod attestation;
 #[cfg(any(test, feature = "development-simulators"))]
 pub mod cloud;
+pub mod proof;
 pub mod replay_guard;
 
 #[cfg(test)]
@@ -23,6 +24,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Domain separator for all value-bearing signing request bindings.
 pub const VALUE_BEARING_SIGNING_DOMAIN: &str = "CONXIAN-VALUE-BEARING-SIGNING/v1";
+pub const VALUE_BEARING_PROOF_POLICY_DOMAIN: &str = "CONXIAN-VALUE-BEARING-PROOF-POLICY/v1";
 pub const VALUE_BEARING_POLICY_ID: &str = "conxian.production.signing.v1";
 
 const MAX_CONTEXT_BYTES: usize = 4096;
@@ -320,6 +322,7 @@ pub struct ValueBearingSignRequest {
     message_digest: [u8; 32],
     key_binding: SignerKeyBinding,
     taproot_tweak: Option<Vec<u8>>,
+    expected_proof_policy: Option<proof::ProofSetPolicy>,
 }
 
 impl ValueBearingSignRequest {
@@ -348,6 +351,7 @@ impl ValueBearingSignRequest {
             message_digest,
             key_binding,
             taproot_tweak,
+            expected_proof_policy: None,
         })
     }
 
@@ -375,6 +379,37 @@ impl ValueBearingSignRequest {
         self.taproot_tweak.as_deref()
     }
 
+    /// Returns the exact proof policy expected for this value-bearing request.
+    /// A missing policy remains source-compatible for existing callers, but
+    /// the private value-bearing rail boundary rejects such a request.
+    pub fn expected_proof_policy(&self) -> Option<&proof::ProofSetPolicy> {
+        self.expected_proof_policy.as_ref()
+    }
+
+    pub fn expected_proof_policy_digest(&self) -> Option<&[u8; 32]> {
+        self.expected_proof_policy
+            .as_ref()
+            .map(proof::ProofSetPolicy::canonical_digest)
+    }
+
+    /// Binds a complete, exact proof policy to this request. The operation,
+    /// purpose, and signer policy identity must agree before the policy can
+    /// enter the signing domain.
+    pub fn with_proof_policy(
+        mut self,
+        expected_proof_policy: proof::ProofSetPolicy,
+    ) -> ConclaveResult<Self> {
+        if expected_proof_policy.policy_id() != self.trust_requirement.policy_id()
+            || expected_proof_policy.operation_digest() != &self.message_digest
+            || expected_proof_policy.purpose() != self.operation_context.purpose()
+        {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        self.expected_proof_policy = Some(expected_proof_policy);
+        Ok(self)
+    }
+
     /// Returns the canonical digest binding every security-relevant request
     /// field under [`VALUE_BEARING_SIGNING_DOMAIN`].
     pub fn operation_binding(&self) -> ConclaveResult<[u8; 32]> {
@@ -389,6 +424,14 @@ impl ValueBearingSignRequest {
             Some(tweak) => {
                 canonical.push(1);
                 append_len_prefixed(&mut canonical, tweak)?;
+            }
+            None => canonical.push(0),
+        }
+        append_len_prefixed(&mut canonical, VALUE_BEARING_PROOF_POLICY_DOMAIN.as_bytes())?;
+        match self.expected_proof_policy_digest() {
+            Some(policy_digest) => {
+                canonical.push(1);
+                append_len_prefixed(&mut canonical, policy_digest)?;
             }
             None => canonical.push(0),
         }
@@ -486,6 +529,7 @@ pub struct ValueBearingSignResponse {
     message_digest: [u8; 32],
     key_binding: SignerKeyBinding,
     attestation: DeviceIntegrityReport,
+    proof_set: Option<proof::VerifiedProofSet>,
     replay_authorization: Option<ValueBearingReplayAuthorization>,
 }
 
@@ -520,6 +564,12 @@ impl ValueBearingSignResponse {
         &self.attestation
     }
 
+    /// Independently verified proof factors attached to this response. Legacy
+    /// device reports are never silently upgraded into this set.
+    pub fn proof_set(&self) -> Option<&proof::VerifiedProofSet> {
+        self.proof_set.as_ref()
+    }
+
     /// Returns replay authorization only for responses returned by the common
     /// manager boundary. Direct test-only evidence construction is not enough
     /// to authorize settlement.
@@ -533,6 +583,55 @@ impl ValueBearingSignResponse {
     ) -> Self {
         self.replay_authorization = Some(replay_authorization);
         self
+    }
+
+    /// Attaches a verified proof set only after checking the exact request
+    /// binding and expected canonical policy digest. There is intentionally no
+    /// unchecked public attachment path.
+    pub fn with_verified_proof_set(
+        mut self,
+        request: &ValueBearingSignRequest,
+        proof_set: proof::VerifiedProofSet,
+    ) -> ConclaveResult<Self> {
+        let expected_policy = request.expected_proof_policy().ok_or_else(|| {
+            ConclaveError::Unsupported(
+                "verified proof attachment requires an expected proof policy".to_string(),
+            )
+        })?;
+        let request_binding = request.operation_binding()?;
+        if self.operation_binding != request_binding
+            || self.message_digest != *request.message_digest()
+            || self.algorithm != request.algorithm()
+            || self.key_binding != *request.key_binding()
+        {
+            return Err(ConclaveError::EnclaveFailure(
+                "verified proof attachment does not match the signing request".to_string(),
+            ));
+        }
+        if proof_set.proof_count() == 0
+            || !proof_set.matches_binding(
+                expected_policy,
+                request.message_digest(),
+                request.operation_context().purpose(),
+            )
+        {
+            return Err(ConclaveError::EnclaveFailure(
+                "verified proof attachment does not match the exact expected proof policy"
+                    .to_string(),
+            ));
+        }
+
+        self.proof_set = Some(proof_set);
+        Ok(self)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_test_proof_set(
+        self,
+        request: &ValueBearingSignRequest,
+    ) -> ConclaveResult<Self> {
+        let proof_set = proof::test_fixture_set_for_request(request)?;
+        self.with_verified_proof_set(request, proof_set)
     }
 
     #[allow(dead_code)]
@@ -615,6 +714,7 @@ impl ValueBearingSignResponse {
             message_digest: *request.message_digest(),
             key_binding: request.key_binding().clone(),
             attestation: report,
+            proof_set: None,
             replay_authorization: None,
         })
     }

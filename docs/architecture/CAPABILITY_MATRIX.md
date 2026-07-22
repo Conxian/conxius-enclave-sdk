@@ -20,6 +20,12 @@ The controlled evidence vocabulary is `yes`, `partial`, `no`, and `not-evidenced
 
 Build or compilation evidence, including WASM compilation, is not runtime, provider, hardware, secret-boundary, integration, independent-review, or production-artifact evidence.
 
+## Phase A proof-factor boundary
+
+The SDK now exposes separate taxonomy and composition types for six exact proof mechanisms: server identity, user authorization, phone/device attestation, TEE attestation, FIDO2/WebAuthn assertion, and TPM quote. Each raw evidence item is independently verified through an exact-type registry and can enter a value-bearing authorization only through an explicit all-required proof-set policy bound to the operation, purpose, policy, issuer/trust identity, subject binding, freshness, nonce, and replay identity.
+
+This is **composition support only**, not provider or production support. The production verifier registry is intentionally unavailable; test fixtures are compiled only for tests and cannot satisfy a production policy. `DeviceIntegrityReport` remains the current device/TEE adapter and is not silently converted into server, user, phone, FIDO2, or TPM proofs. No production claim is made for any of the six categories until provider roots/collateral, runtime integration, replay coordination, independent review, and exact release-artifact evidence are available.
+
 ## Generated capability inventory
 
 Run the dependency-free validator from the repository root:
@@ -63,6 +69,7 @@ The validator also checks the schema version, full reviewed commit, unique IDs, 
 | replay-protection | Attestation replay and freshness protection | enclave | Yes | Partial | Partial | Not evidenced | Conditional | [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
 | enclave-attestation | Enclave hardware attestation | enclave | Yes | Partial | No | Not evidenced | Conditional | [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
 | enclave-signing | Enclave signing | enclave | Yes | Partial | Partial | Not evidenced | Conditional | [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
+| proof-composition | Typed proof-factor taxonomy and composition | enclave | Yes | Partial | No | Not evidenced | No | [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
 | fedimint-nexus | Fedimint and Nexus federation adapter | federation | Yes | No | No | Not evidenced | No | [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
 | economy | Economy and incentive helpers | fiat-and-economy | Yes | Partial | No | Not evidenced | Conditional | [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
 | fiat | Fiat session preparation | fiat-and-economy | Yes | Partial | No | Not evidenced | Conditional | [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) |
