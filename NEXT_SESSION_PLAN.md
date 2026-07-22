@@ -5,6 +5,22 @@
 > **Priority Order**: P1 → P2 → P3
 > **Knowledge Base**: v0.4.2
 
+## 2026-07-22 PR #237 follow-up
+
+The proof-policy hardening and provider research boundary are recorded in
+[`docs/architecture/PROOF_POLICY_SPEC.md`](docs/architecture/PROOF_POLICY_SPEC.md)
+and
+[`docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md`](docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md).
+PR #237 was already merged before the branch continuation; do not create a
+replacement PR or force-push its recreated source branch. Keep all provider
+rows unsupported until exact provider/runtime/roots/collateral/replay/review
+and artifact evidence is available.
+
+Immediate next work is provider-specific evidence only: choose one provider
+scope, pin its official verifier/runtime and roots/collateral, add independent
+vectors and negative tests, and attach exact CI/artifact/review evidence before
+changing any production-support status.
+
 ## Historical ordered end-of-sprint follow-up (2026-07-20)
 
 This sequence advances [issue #191](https://github.com/Conxian/conxius-enclave-sdk/issues/191) while keeping containment evidence separate from production-readiness claims:

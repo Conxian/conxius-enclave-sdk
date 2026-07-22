@@ -17,6 +17,12 @@ The [machine-readable capability evidence](./capability-evidence.json) and gener
 - **Complexity**: [High, Medium, Low]
 - **Status**: [Completed, In Progress, Backlog]
 
+## Technical Resolutions (2026-07-22, PR #237)
+
+### 1. Proof-policy integrity and provider research boundary
+- **Resolution**: Added a versioned, domain-separated digest for the complete exact proof policy; carried the request-derived expected digest through response, rail authorization, and final dispatch; refactored test fixtures to satisfy locked clippy; and added public-safe provider research/specification artifacts plus conservative capability rows.
+- **Status**: Composer and typed-boundary containment evidence is implemented and tested. TLS, WebAuthn/FIDO, TPM, Android, Apple, Intel, AMD, AWS, ARM, collateral/revocation, provider/runtime, distributed replay, independent review, and release-artifact evidence remain unsupported; see [`PROOF_POLICY_SPEC.md`](./PROOF_POLICY_SPEC.md) and [`PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md`](../audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md).
+
 ## Technical Resolutions (v2.0.13)
 
 ### 1. BIP-110: Compliance & Alignment (Issue #179)

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "schemaVersion": 1,
   "repository": "Conxian/conxius-enclave-sdk",
-  "reviewedRef": "ecd4ca912f112d73a7b2d5304101660e7c879ce2",
+  "reviewedRef": "75452598eb03fe5384df2fcfc9f7f0bec1cd21e5",
   "lastVerified": "2026-07-22",
   "maturity": "beta-conditional",
   "statusVocabulary": {
@@ -1520,6 +1520,321 @@
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "WASM compilation/build evidence is not application integration, secret-boundary, runtime, or production evidence.",
       "notes": "A2P remains explicit and conditional as required by the repository analysis and WASM requirements."
+    },
+    {
+      "id": "tls-server-identity",
+      "name": "TLS 1.3 server identity",
+      "family": "identity-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://www.rfc-editor.org/rfc/rfc8446.html", "https://www.rfc-editor.org/rfc/rfc9266.html"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "TLS identity research is not TEE, provider, runtime, integration, or production evidence.",
+      "notes": "RFC research is recorded for claim separation only; no TLS server-identity verifier is claimed."
+    },
+    {
+      "id": "webauthn-authorization",
+      "name": "WebAuthn user authorization",
+      "family": "identity-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://www.w3.org/TR/webauthn-3/"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "WebAuthn specification research is not a repository WebAuthn verifier or production authorization integration.",
+      "notes": "User authorization remains distinct from FIDO authenticator provenance."
+    },
+    {
+      "id": "fido-provenance",
+      "name": "FIDO authenticator provenance",
+      "family": "identity-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://fidoalliance.org/specs/mds/fido-metadata-service-v3.1.1-rd02-20260105.pdf", "https://fidoalliance.org/fido-technotes-the-truth-about-attestation/"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "FIDO metadata and attestation research is not MDS, chain, revocation, or production verifier evidence.",
+      "notes": "FIDO provenance is not substituted for WebAuthn user authorization."
+    },
+    {
+      "id": "tpm-quote",
+      "name": "TPM 2.0 quote verification",
+      "family": "attestation-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://trustedcomputinggroup.org/resource/tpm-library-specification/", "https://trustedcomputinggroup.org/wp-content/uploads/Trusted-Platform-Module-2.0-Library-Part-2-Structures_Version-185_pub.pdf"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "TPM specification research is not a quote, AK/EK, PCR, event-log, or replay verifier implementation.",
+      "notes": "Qualifying data, PCR selection/digest, key provenance, and event-log semantics remain provider-specific gaps."
+    },
+    {
+      "id": "android-tee-key-attestation",
+      "name": "Android TEE key attestation",
+      "family": "attestation-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://developer.android.com/privacy-and-security/security-key-attestation", "https://android.googleapis.com/attestation/status"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Android attestation research is not Android certificate-chain, status, verified-boot, or runtime evidence.",
+      "notes": "Challenge, app identity, boot state, patch state, and status must be verified together."
+    },
+    {
+      "id": "android-strongbox",
+      "name": "Android StrongBox key operation",
+      "family": "attestation-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://developer.android.com/privacy-and-security/security-key-attestation"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "StrongBox specification research is not a StrongBox provider, key-origin, or deployment integration.",
+      "notes": "StrongBox and generic Android TEE claims remain distinct unsupported provider rows."
+    },
+    {
+      "id": "apple-app-attest",
+      "name": "Apple App Attest",
+      "family": "attestation-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://developer.apple.com/documentation/devicecheck/validating-apps-that-connect-to-your-server", "https://developer.apple.com/documentation/DeviceCheck/establishing-your-apps-integrity"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "App Attest documentation is not a repository App Attest server verifier or production integration.",
+      "notes": "App integrity claims remain separate from Secure Enclave key isolation."
+    },
+    {
+      "id": "apple-secure-enclave",
+      "name": "Apple Secure Enclave key operation",
+      "family": "attestation-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://developer.apple.com/documentation/Security/protecting-keys-with-the-secure-enclave"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Secure Enclave key-isolation documentation is not generic remote Secure Enclave attestation evidence.",
+      "notes": "No generic remote Secure Enclave attestation claim is made."
+    },
+    {
+      "id": "intel-sgx-dcap",
+      "name": "Intel SGX DCAP",
+      "family": "attestation-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://download.01.org/intel-sgx/sgx-dcap/1.23/linux/docs/DCAP_ECDSA_Orientation.pdf"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "SGX DCAP research is not quote, QE/PCK, collateral, TCB, CRL, or provider runtime evidence.",
+      "notes": "PCK/QE/collateral/revocation verification remains unavailable."
+    },
+    {
+      "id": "intel-tdx",
+      "name": "Intel TDX",
+      "family": "attestation-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://www.intel.com/content/www/us/en/developer/tools/trust-domain-extensions/documentation.html"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "TDX documentation is not a TDX report, quote, collateral, TCB, or runtime integration.",
+      "notes": "TDX is kept separate from SGX DCAP and generic TEE taxonomy."
+    },
+    {
+      "id": "amd-sev-snp",
+      "name": "AMD SEV-SNP",
+      "family": "attestation-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://www.amd.com/content/dam/amd/en/documents/developer/56860.pdf"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "SEV-SNP research is not REPORT_DATA, VCEK/VLEK, TCB, policy, migration, or runtime evidence.",
+      "notes": "SEV-SNP report-data and certificate semantics remain unsupported."
+    },
+    {
+      "id": "aws-nitro",
+      "name": "AWS Nitro attestation",
+      "family": "attestation-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://docs.aws.amazon.com/enclaves/latest/user/verify-root.html", "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/attestation-get-doc.html"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Nitro documentation is not an NSM, COSE, AWS-root, PCR, nonce, or runtime verifier implementation.",
+      "notes": "Nitro root/debug boundaries remain explicit research requirements."
+    },
+    {
+      "id": "arm-psa",
+      "name": "ARM PSA attestation",
+      "family": "attestation-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://developer.arm.com/-/media/Files/pdf/PlatformSecurityArchitecture/Implement/IHI0085-PSA_Attestation_API-1.0.2.pdf", "https://www.rfc-editor.org/rfc/rfc9783.html"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "PSA/EAT research is not an EAT/COSE, lifecycle, platform, or provider verifier implementation.",
+      "notes": "Challenge and lifecycle semantics remain research-only."
+    },
+    {
+      "id": "arm-cca-realm-platform",
+      "name": "ARM CCA Realm and Platform attestation",
+      "family": "attestation-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://www.rfc-editor.org/rfc/rfc9783.html", "https://developer.arm.com/-/media/Files/pdf/PlatformSecurityArchitecture/Implement/IHI0085-PSA_Attestation_API-1.0.2.pdf"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "CCA Realm/Platform research is not realm/platform runtime, EAT/COSE, lifecycle, or provider evidence.",
+      "notes": "Realm and platform claims must remain distinct from generic PSA or TEE claims."
+    },
+    {
+      "id": "collateral-revocation-verification",
+      "name": "Attestation collateral and revocation verification",
+      "family": "attestation-research",
+      "api": "no",
+      "implementation": "no",
+      "integration": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"],
+      "evidenceChain": [
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
+        {"stage": "code", "refs": []},
+        {"stage": "test", "refs": []},
+        {"stage": "ci", "refs": []},
+        {"stage": "artifact", "refs": []}
+      ],
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/199", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Research bibliography is not provider collateral, root, CRL/status, TCB, metadata, freshness, or revocation evidence.",
+      "notes": "Collateral and revocation are a separate production gate and cannot be inferred from quote or token parsing."
     }
   ]
 }
