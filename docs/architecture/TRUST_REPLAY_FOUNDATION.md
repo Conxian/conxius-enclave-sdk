@@ -9,9 +9,13 @@ Issue [#240](https://github.com/Conxian/conxius-enclave-sdk/issues/240) adds a
 bounded contract boundary for trust collateral and replay authorization. The
 durable provider-facing entry points are additive, while legacy process-local
 proof authorization helpers are crate-test-only containment paths. The public
-`EnclaveManager::sign_value_bearing` method remains only as a source-compatible
-fail-closed shim: it rejects before provider invocation and cannot authorize
-production signing with process-local replay.
+`RailProxy` value-bearing integrity and typed dispatch paths are durable-only:
+`RailProxy::new` has no replay store until `with_replay_store` accepts one that
+reports `ReplayStoreDurability::DurableProvider`. Missing, process-local,
+unavailable, or indeterminate replay state fails closed before authorization or
+rail execution. The public `EnclaveManager::sign_value_bearing` method remains
+only as a source-compatible fail-closed shim: it rejects before provider
+invocation and cannot authorize production signing with process-local replay.
 
 ## 1. Trust-bundle contract
 
@@ -104,12 +108,24 @@ backend. `ReplayGuard` implements the contract for compatibility and local
 containment, but its durability is explicitly `ProcessLocal`: it is not
 restart-safe, multi-replica, cross-region, or production replay coordination.
 No distributed database or arbitrary persistence technology is selected by
-this foundation.
+this foundation. Any in-memory store used by crate tests to exercise the
+`DurableProvider` contract is a test fixture only; it is not evidence of a
+distributed backend.
 
-The additive proof APIs are:
+`RailProxy::with_replay_store` rejects `ProcessLocal` and `Unavailable` stores
+at configuration time. A proxy created without a store fails closed at its
+public attestation/integrity boundary and before typed rail dispatch can emit
+telemetry or invoke a rail. The production-facing rail reservation uses the
+complete `ReplayBinding` with rail/provider identity, an explicit
+rail-attestation subject and mechanism, nonce or replay token, operation,
+settlement purpose, policy digest, operation-key identity, and an attestation
+or combined evidence digest. Only the reservation digest and retention horizon
+cross into the store; raw reports and secrets do not.
 
-- `ProofVerifierRegistry::verify_bundle_with_store` for an explicit store
-  contract, including local fixture/contract tests; and
+The crate-internal `ProofVerifierRegistry::verify_bundle_with_store` helper
+exercises the explicit store contract for local fixture/contract tests. The
+public durable APIs are:
+
 - `ProofVerifierRegistry::verify_bundle_with_durable_store`,
   `authorize_value_bearing_with_durable_store`, and
   `authorize_settlement_with_durable_store` for value-bearing boundaries that
@@ -161,6 +177,11 @@ upgraded into the new durable path. The final signing path consumes its
 distinct operation reservation immediately before provider signing, and the
 carrier is one-shot and signer-bound so reuse across manager instances cannot
 produce a second signature.
+
+The rail path uses the same complete-binding rule for attestation and typed
+settlement authorization. Its local `ReplayGuard` and durable-contract fixtures
+exist only under crate-test containment and must not be described as restart-
+safe, multi-replica, or distributed evidence.
 
 ## 5. Evidence and remaining gates
 

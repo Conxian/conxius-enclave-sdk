@@ -1,11 +1,50 @@
-use conxius_enclave_sdk::enclave::replay_guard::ReplayGuard;
+use conxius_enclave_sdk::enclave::replay_guard::{
+    ReplayBatchOutcome, ReplayConsumeOutcome, ReplayGuard, ReplayReservation, ReplayStore,
+    ReplayStoreDurability, ReplayStoreError,
+};
 use conxius_enclave_sdk::enclave::{
-    ProofBundle, ProofEnvelope, ProofKind, ProofPolicy, ProofVerificationContext,
-    ProofVerifierRegistry, ProofVerifierStatus, PROOF_ENVELOPE_VERSION,
+    ProofBundle, ProofEnvelope, ProofKind, ProofPolicy, ProofReplayBindingContext,
+    ProofVerificationContext, ProofVerifierRegistry, ProofVerifierStatus, PROOF_ENVELOPE_VERSION,
 };
 use conxius_enclave_sdk::ConclaveError;
 
 const NOW: u64 = 2_000_000;
+
+/// Test-only replay contract fixture. This is not distributed durability or
+/// production replay evidence.
+struct DurableTestStore {
+    guard: ReplayGuard,
+}
+
+impl DurableTestStore {
+    fn new(max_entries: usize) -> Self {
+        Self {
+            guard: ReplayGuard::new(300, max_entries),
+        }
+    }
+}
+
+impl ReplayStore for DurableTestStore {
+    fn durability(&self) -> ReplayStoreDurability {
+        ReplayStoreDurability::DurableProvider
+    }
+
+    fn consume_once(
+        &self,
+        reservation: &ReplayReservation,
+        now_secs: u64,
+    ) -> Result<ReplayConsumeOutcome, ReplayStoreError> {
+        self.guard.consume_once(reservation, now_secs)
+    }
+
+    fn consume_once_batch(
+        &self,
+        reservations: &[ReplayReservation],
+        now_secs: u64,
+    ) -> Result<ReplayBatchOutcome, ReplayStoreError> {
+        self.guard.consume_once_batch(reservations, now_secs)
+    }
+}
 
 fn context() -> ProofVerificationContext {
     ProofVerificationContext::new(
@@ -58,13 +97,17 @@ fn well_shaped_production_bundle_is_not_structural_success() {
             .collect(),
     )
     .expect("bundle shape should be valid");
+    let binding_context = ProofReplayBindingContext::new("integration-test", b"integration-key")
+        .expect("binding context should be valid");
+    let store = DurableTestStore::new(32);
 
     assert!(matches!(
-        ProofVerifierRegistry::production().verify_bundle(
+        ProofVerifierRegistry::production().verify_bundle_with_durable_store(
             &bundle,
             &ProofPolicy::production(),
             &context,
-            &ReplayGuard::new(300, 32),
+            &binding_context,
+            &store,
         ),
         Err(ConclaveError::Unsupported(_))
     ));
@@ -100,9 +143,12 @@ fn exact_context_binding_rejects_wrong_digest_without_fallback() {
         false,
     )
     .expect("policy should be valid");
+    let binding_context = ProofReplayBindingContext::new("integration-test", b"integration-key")
+        .expect("binding context should be valid");
+    let store = DurableTestStore::new(32);
 
     assert!(ProofVerifierRegistry::production()
-        .verify_bundle(&bundle, &policy, &context(), &ReplayGuard::new(300, 32),)
+        .verify_bundle_with_durable_store(&bundle, &policy, &context(), &binding_context, &store,)
         .is_err());
 }
 

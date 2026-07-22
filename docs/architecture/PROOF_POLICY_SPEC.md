@@ -2,8 +2,8 @@
 
 > **Status:** Phase A implementation for policy integrity, all-required
 > composition, and the provider-neutral trust/replay contract foundation is
-> present. Provider verification, vendor collateral, durable replay
-> integration, runtime integration, and production support remain unsupported.
+> present. Provider verification, vendor collateral, a real durable replay
+> backend, runtime integration, and production support remain unsupported.
 
 This document defines the public-safe contract for `ProofSetPolicy` and its
 use at value-bearing authorization boundaries. It deliberately separates
@@ -108,13 +108,25 @@ security-relevant policy inputs and are included in the canonical policy
 digest. Value-bearing settlement additionally binds the request to the
 canonical intent hash and the `conxian/settlement/v1` operation domain.
 
-deployment boundary.
+The production-facing `RailProxy` replay path is durable-only. `RailProxy::new`
+starts without a replay store, and its public attestation/integrity boundary
+fails closed with a durable-replay-required error until a store is configured.
+`RailProxy::with_replay_store` accepts only a `ReplayStore` reporting
+`ReplayStoreDurability::DurableProvider`; process-local `ReplayGuard` and
+unavailable stores are rejected before replay consumption. Rail reservations
+use the complete `ReplayBinding` contract: rail/provider identity,
+rail-attestation subject and mechanism, nonce or replay token, operation,
+settlement purpose, policy digest, operation-key identity, and an attestation
+or combined evidence digest. Stores retain only the resulting binding digest
+and retention horizon; raw reports and secrets are not persisted.
+
 The public `EnclaveManager::sign_value_bearing` method remains a
 source-compatible fail-closed shim: it returns a durable-proof/replay-required
 error before capability checks, replay checks, or provider invocation. It never
-uses a process-local `ReplayGuard` as production authorization. The explicit
-`ReplayGuard` containment helper is compiled only for crate tests and its name
-and documentation make that scope non-production.
+uses a process-local `ReplayGuard` as production authorization. Explicit
+`ReplayGuard` adapters and in-memory durable-contract fixtures are compiled
+only for crate tests; they are containment/contract tests, not distributed
+replay evidence.
 
 The additive `ReplayStore` contract and canonical `ReplayBinding` are
 documented in [`TRUST_REPLAY_FOUNDATION.md`](./TRUST_REPLAY_FOUNDATION.md). The
@@ -187,7 +199,7 @@ part of the public policy surface.
 | Scope | Status | Meaning |
 | --- | --- | --- |
 | Policy digest, exact requirement digests, all-required composition | **Implemented, beta/conditional** | Repository code and negative/unit tests cover the composer and typed binding. |
-| Request/response/rail/final-dispatch policy-digest checks | **Implemented, beta/conditional** | The path fails closed on independently derived digest mismatch. |
+| Request/response/rail/final-dispatch policy-digest checks and durable-only RailProxy replay boundary | **Implemented, beta/conditional** | The path fails closed on independently derived digest mismatch, missing durable replay configuration, process-local stores, unavailable stores, and uncertain store outcomes. |
 | Provider-neutral trust bundle, authenticated digest/verifier boundary, canonical replay binding, replay-store contract, and durable final-signing boundary | **Implemented, beta/conditional** | Versioned types, bounded validation, explicit unavailable production routes, local atomic contract tests, exact-policy issuance, and durable-gated final signing exist; provider roots, a real durable backend, and deployment evidence remain open. |
 | TLS identity, WebAuthn authorization, FIDO provenance, TPM, Android, Apple, SGX, TDX, SEV-SNP, Nitro, PSA, CCA | **Research/design only** | Provider-specific verification is not implemented or production-supported. |
 | Vendor roots, collateral, revocation, runtime/provider integration | **Unsupported** | No exact repository evidence chain exists. |

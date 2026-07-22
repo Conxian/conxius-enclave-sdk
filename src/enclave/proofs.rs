@@ -6,9 +6,11 @@
 //! satisfy the production registry.
 
 use crate::enclave::replay_guard::{
-    ReplayBinding, ReplayConsumeOutcome, ReplayGuard, ReplayGuardError, ReplayReservation,
-    ReplayStore, ReplayStoreDurability, ReplayStoreError,
+    ReplayBinding, ReplayConsumeOutcome, ReplayReservation, ReplayStore, ReplayStoreDurability,
+    ReplayStoreError,
 };
+#[cfg(test)]
+use crate::enclave::replay_guard::{ReplayGuard, ReplayGuardError};
 use crate::enclave::{
     EnclaveManager, SignerKeyBinding, ValueBearingSignRequest, ValueBearingSignResponse,
 };
@@ -346,10 +348,11 @@ impl ProofKind {
 /// A versioned proof envelope received from an external provider.
 ///
 /// The fields are public for transport ergonomics, but callers must pass the
-/// envelope through [`ProofVerifierRegistry::verify_bundle`] before treating
-/// it as evidence. Deserialization rejects unknown object fields and
-/// verification rechecks every bound and version because public fields may be
-/// mutated after construction.
+/// envelope through [`ProofVerifierRegistry::verify_bundle_with_durable_store`]
+/// with an accepted durable replay store before treating it as value-bearing
+/// evidence. Deserialization rejects unknown object fields and verification
+/// rechecks every bound and version because public fields may be mutated after
+/// construction.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ProofEnvelope {
@@ -886,16 +889,6 @@ impl ProofBundle {
     pub fn digest(&self) -> ConclaveResult<[u8; 32]> {
         Ok(Sha256::digest(self.canonical_bytes()?).into())
     }
-
-    pub fn verify(
-        &self,
-        registry: &ProofVerifierRegistry,
-        policy: &ProofPolicy,
-        context: &ProofVerificationContext,
-        replay_guard: &ReplayGuard,
-    ) -> ConclaveResult<VerifiedProofSet> {
-        registry.verify_bundle(self, policy, context, replay_guard)
-    }
 }
 
 impl TryFrom<Vec<ProofEnvelope>> for ProofBundle {
@@ -1082,7 +1075,8 @@ impl ProofVerifierRegistry {
     /// Verifies every supplied proof independently, applies the explicit
     /// required/unlisted policy, and atomically consumes all proof replay keys
     /// only after the complete bundle passes.
-    pub fn verify_bundle(
+    #[cfg(test)]
+    pub(crate) fn verify_bundle(
         &self,
         bundle: &ProofBundle,
         policy: &ProofPolicy,
@@ -1114,7 +1108,7 @@ impl ProofVerifierRegistry {
     /// Verifies a proof bundle and consumes complete provider-neutral replay
     /// reservations through the additive store contract. The process-local
     /// `ReplayGuard` path above remains an explicit containment-only API.
-    pub fn verify_bundle_with_store(
+    pub(crate) fn verify_bundle_with_store(
         &self,
         bundle: &ProofBundle,
         policy: &ProofPolicy,
@@ -1287,6 +1281,7 @@ impl Default for ProofVerifierRegistry {
     }
 }
 
+#[cfg(test)]
 fn map_replay_error(error: ReplayGuardError) -> ConclaveError {
     match error {
         ReplayGuardError::Duplicate => {
@@ -2011,6 +2006,15 @@ fn sign_value_bearing_with_proof_authorization_and_durable_store_at(
     replay_store: &dyn ReplayStore,
     now_secs: u64,
 ) -> ConclaveResult<ValueBearingSignResponse> {
+    if !enclave
+        .signer_capability()
+        .satisfies(request.trust_requirement())
+    {
+        return Err(ConclaveError::Unsupported(
+            "value-bearing signing requires a provider-verified hardware enclave".to_string(),
+        ));
+    }
+
     if replay_store.durability() != ReplayStoreDurability::DurableProvider {
         return Err(ConclaveError::Unsupported(
             "durable replay store is required for proof-authorized final signing".to_string(),
@@ -2497,6 +2501,52 @@ mod tests {
         ) -> ConclaveResult<SignResponse> {
             self.provider_calls.fetch_add(1, AtomicOrdering::Relaxed);
             Ok(self.response_for(request))
+        }
+    }
+
+    struct SoftwareCapabilityProvider {
+        provider_calls: AtomicUsize,
+    }
+
+    impl SoftwareCapabilityProvider {
+        fn new() -> Self {
+            Self {
+                provider_calls: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    impl EnclaveManager for SoftwareCapabilityProvider {
+        fn initialize(&self) -> ConclaveResult<()> {
+            Ok(())
+        }
+
+        fn generate_key(&self, key_id: &str) -> ConclaveResult<String> {
+            Ok(key_id.to_string())
+        }
+
+        fn get_public_key(&self, _derivation_path: &str) -> ConclaveResult<String> {
+            Ok(String::new())
+        }
+
+        fn sign(&self, _request: crate::enclave::SignRequest) -> ConclaveResult<SignResponse> {
+            Err(ConclaveError::EnclaveFailure(
+                "software fixture raw sign must not be called".to_string(),
+            ))
+        }
+
+        fn signer_capability(&self) -> SignerCapability {
+            SignerCapability::software_unverified()
+        }
+
+        fn sign_value_bearing_provider(
+            &self,
+            _request: &ValueBearingSignRequest,
+        ) -> ConclaveResult<SignResponse> {
+            self.provider_calls.fetch_add(1, AtomicOrdering::Relaxed);
+            Err(ConclaveError::EnclaveFailure(
+                "software fixture provider must not be invoked".to_string(),
+            ))
         }
     }
 
@@ -3707,6 +3757,64 @@ mod tests {
             Err(ConclaveError::Unsupported(message))
                 if message.contains("durable replay store")
         ));
+    }
+
+    #[test]
+    fn durable_final_signing_rejects_software_capability_before_replay_or_provider() {
+        let now_secs =
+            crate::enclave::trusted_unix_time_secs().expect("test host clock should be available");
+        let context = context_at(now_secs);
+        let durable_provider = DurableFixtureProvider::new();
+        let request = durable_provider.request(&context);
+        let binding_context =
+            ProofReplayBindingContext::for_signer_key("fixture-provider", request.key_binding())
+                .expect("binding context");
+        let store = DurableFixtureReplayStore::new(64);
+        let authorization = authorize_value_bearing_with_durable_store(
+            &ProofVerifierRegistry::test_fixture_all_six(),
+            &fixture_bundle_at(now_secs),
+            &ProofPolicy::production(),
+            &context,
+            &binding_context,
+            &store,
+        )
+        .expect("durable authorization");
+        let software_provider = SoftwareCapabilityProvider::new();
+
+        assert!(matches!(
+            sign_value_bearing_with_proof_authorization_and_durable_store(
+                &software_provider,
+                request.clone(),
+                &authorization,
+                &store,
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("provider-verified hardware enclave")
+        ));
+        assert_eq!(
+            software_provider
+                .provider_calls
+                .load(AtomicOrdering::Relaxed),
+            0
+        );
+
+        // A successful retry with the same durable store proves the rejected
+        // capability did not consume the operation replay reservation.
+        assert!(
+            sign_value_bearing_with_proof_authorization_and_durable_store(
+                &durable_provider,
+                request,
+                &authorization,
+                &store,
+            )
+            .is_ok()
+        );
+        assert_eq!(
+            durable_provider
+                .provider_calls
+                .load(AtomicOrdering::Relaxed),
+            1
+        );
     }
 
     #[test]

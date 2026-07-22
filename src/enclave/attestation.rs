@@ -187,6 +187,13 @@ fn append_len_prefixed(output: &mut Vec<u8>, value: &[u8]) -> Option<()> {
     Some(())
 }
 
+fn append_digest_component(output: &mut Vec<u8>, value: &[u8]) -> ConclaveResult<()> {
+    let length = u32::try_from(value.len()).map_err(|_| ConclaveError::InvalidPayload)?;
+    output.extend_from_slice(&length.to_be_bytes());
+    output.extend_from_slice(value);
+    Ok(())
+}
+
 /// Versioned domain separator for value-bearing signer identity evidence.
 pub const VALUE_BEARING_BINDING_VERSION: u16 = 1;
 pub const VALUE_BEARING_BINDING_DOMAIN: &str = "CONXIAN-VALUE-BEARING-BINDING/v1";
@@ -527,6 +534,68 @@ impl AttestationPolicy {
 
     pub fn required_extensions(&self) -> &[AttestationExtension] {
         &self.required_extensions
+    }
+
+    /// Returns the canonical digest of every attestation-policy input that
+    /// affects verification. Rail replay reservations retain only this digest,
+    /// never the policy contents or provider evidence.
+    pub(crate) fn canonical_digest(&self) -> ConclaveResult<[u8; 32]> {
+        let mut canonical = Vec::new();
+        canonical.extend_from_slice(b"CONXIAN-ATTESTATION-POLICY/v1");
+        canonical.extend_from_slice(&1u16.to_be_bytes());
+
+        let mut allowed_levels = self
+            .allowed_levels
+            .iter()
+            .map(|level| level_tag(*level))
+            .collect::<Vec<_>>();
+        allowed_levels.sort_unstable();
+        append_digest_component(&mut canonical, &allowed_levels)?;
+        canonical.extend_from_slice(&self.max_age_secs.to_be_bytes());
+        canonical.extend_from_slice(&self.max_future_skew_secs.to_be_bytes());
+        canonical.push(match self.required_purpose {
+            AttestationPurpose::Sign => 1,
+            AttestationPurpose::Verify => 2,
+        });
+        canonical.push(match self.required_algorithm {
+            AttestationAlgorithm::Ed25519 => 1,
+            AttestationAlgorithm::EcdsaSecp256k1 => 2,
+            AttestationAlgorithm::SchnorrSecp256k1 => 3,
+        });
+
+        let mut required_extensions = self
+            .required_extensions
+            .iter()
+            .map(|extension| {
+                let (tag, value) = extension.canonical_parts();
+                let mut encoded = vec![tag];
+                encoded.extend_from_slice(value.unwrap_or_default().as_bytes());
+                encoded
+            })
+            .collect::<Vec<_>>();
+        required_extensions.sort();
+        for extension in required_extensions {
+            append_digest_component(&mut canonical, &extension)?;
+        }
+
+        match &self.provider_verifier {
+            ProviderVerifier::Unavailable => canonical.push(0),
+            #[cfg(test)]
+            ProviderVerifier::TestFixture {
+                trusted_roots,
+                leaf_public_key,
+            } => {
+                canonical.push(1);
+                let mut trusted_roots = trusted_roots.clone();
+                trusted_roots.sort();
+                for root in trusted_roots {
+                    append_digest_component(&mut canonical, root.as_bytes())?;
+                }
+                append_digest_component(&mut canonical, leaf_public_key)?;
+            }
+        }
+
+        Ok(Sha256::digest(canonical).into())
     }
 
     pub fn provider_verifier_status(&self) -> ProviderVerifierStatus {
