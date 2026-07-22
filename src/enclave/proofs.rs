@@ -1518,7 +1518,7 @@ impl ProofBoundValueBearingAuthorization {
         self.authorization_expires_at
     }
 
-    fn observe_and_validate_at(&self, now_secs: u64) -> ConclaveResult<()> {
+    pub(crate) fn observe_and_validate_at(&self, now_secs: u64) -> ConclaveResult<()> {
         let mut last_observed_secs = self.last_observed_secs.load(Ordering::Acquire);
         loop {
             if now_secs < last_observed_secs {
@@ -1548,17 +1548,32 @@ impl ProofBoundValueBearingAuthorization {
         Ok(())
     }
 
-    fn matches_request(&self, request: &ValueBearingSignRequest) -> bool {
+    pub(crate) fn matches_request(&self, request: &ValueBearingSignRequest) -> bool {
         let expected_policy_digest = ProofPolicy::production().digest().ok();
+        let expected_proof_set_digest = self.verified_proofs.digest().ok();
         self.policy_digest == *self.verified_proofs.policy_digest()
             && expected_policy_digest.as_ref() == Some(&self.policy_digest)
             && request.trust_requirement().policy_id() == crate::enclave::VALUE_BEARING_POLICY_ID
+            && request.canonical_proof_policy_digest() == Some(&self.policy_digest)
+            && request.canonical_proof_context_binding() == Some(self.context_binding())
+            && request.canonical_proof_set_digest() == expected_proof_set_digest.as_ref()
             && !self.verified_proofs.is_empty()
             && self.verified_proofs.operation_digest() == request.message_digest()
             && self.verified_proofs.purpose()
                 == request.operation_context().purpose().canonical_token()
             && self.verified_proofs.audience() == request.operation_context().domain()
             && request.operation_context().context() == request.message_digest()
+    }
+
+    pub(crate) fn proof_set_digest(&self) -> ConclaveResult<[u8; 32]> {
+        self.verified_proofs.digest()
+    }
+
+    pub(crate) fn has_exact_production_proof_set(&self) -> bool {
+        self.verified_proofs.len() == ProofKind::all().len()
+            && ProofKind::all()
+                .into_iter()
+                .all(|kind| self.verified_proofs.contains_kind(kind))
     }
 }
 
@@ -1615,10 +1630,9 @@ fn authorize_value_bearing_with_proofs_at(
 
 /// Builds proof authorization for a canonical settlement intent. The legacy
 /// timestamp argument is retained for source compatibility but ignored; the
-/// SDK trusted process clock controls proof freshness. The rail entry point is
-/// intentionally deferred: `RailProxy`'s legacy containment path cannot consume
-/// this carrier, and no existing serialized request or response shape is
-/// widened here.
+/// SDK trusted process clock controls proof freshness. The resulting
+/// constructor-controlled carrier is required by the value-bearing settlement
+/// rail boundary.
 pub fn authorize_settlement_with_proofs(
     registry: &ProofVerifierRegistry,
     bundle: &ProofBundle,
@@ -1709,12 +1723,61 @@ fn sign_value_bearing_with_proof_authorization_at(
     now_secs: u64,
 ) -> ConclaveResult<ValueBearingSignResponse> {
     authorization.observe_and_validate_at(now_secs)?;
+    let request = request.with_proof_authorization(authorization)?;
     if !authorization.matches_request(&request) {
         return Err(ConclaveError::Unsupported(
             "proof authorization does not match value-bearing operation context".to_string(),
         ));
     }
     enclave.sign_value_bearing(request)
+}
+
+#[cfg(test)]
+pub(crate) fn test_fixture_settlement_authorization(
+    intent: &SwapIntent,
+    nonce: Vec<u8>,
+    now_secs: u64,
+) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
+    let replay_guard = ReplayGuard::new(300, 32);
+    test_fixture_settlement_authorization_with_replay_guard(intent, nonce, now_secs, &replay_guard)
+}
+
+#[cfg(test)]
+pub(crate) fn test_fixture_settlement_authorization_with_replay_guard(
+    intent: &SwapIntent,
+    nonce: Vec<u8>,
+    now_secs: u64,
+    replay_guard: &ReplayGuard,
+) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
+    let context = ProofVerificationContext::for_settlement(intent, nonce, now_secs)?;
+    let bundle = ProofBundle::new(
+        ProofKind::all()
+            .into_iter()
+            .enumerate()
+            .map(|(index, kind)| {
+                ProofEnvelope::new(
+                    kind,
+                    format!("rail-fixture-proof-{index}"),
+                    kind.production_verifier_id(),
+                    context.operation_digest,
+                    context.purpose.clone(),
+                    context.audience.clone(),
+                    context.nonce.clone(),
+                    now_secs.saturating_sub(10),
+                    now_secs.saturating_add(60),
+                    format!("fixture:{}", kind.canonical_name()).into_bytes(),
+                )
+            })
+            .collect::<ConclaveResult<Vec<_>>>()?,
+    )?;
+
+    authorize_value_bearing_with_proofs_at(
+        &ProofVerifierRegistry::test_fixture_all_six(),
+        &bundle,
+        &ProofPolicy::production(),
+        &context,
+        replay_guard,
+    )
 }
 
 #[cfg(test)]

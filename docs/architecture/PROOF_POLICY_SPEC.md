@@ -4,8 +4,12 @@
 > composition is present. Provider verification, vendor collateral, runtime
 > integration, and production support remain unsupported.
 
-This document defines the public-safe contract for `ProofSetPolicy` and its
-use at value-bearing authorization boundaries. It deliberately separates
+This document defines the public-safe contract for the canonical
+`ProofPolicy`/`ProofBoundValueBearingAuthorization` types in
+`src/enclave/proofs.rs` and their use at value-bearing authorization
+boundaries. The older `ProofSetPolicy` and `VerifiedProofSet` types in
+`src/enclave/proof.rs` remain source-compatible legacy types; they are not an
+authorization substitute at the canonical rail boundary. It deliberately separates
 identity, user authorization, device provenance, and secure-hardware claims;
 one claim must not be silently promoted into another.
 
@@ -73,25 +77,38 @@ requirement must never be interpreted as an alternative.
 
 ## 4. Request, authorization, and dispatch binding
 
-The exact binding is:
+The canonical value-bearing rail binding is:
 
-1. The request carries the complete expected `ProofSetPolicy`. The request-side
-   authorization boundary derives the expected policy digest from that object;
-   it does not accept a digest supplied by evidence as the source of truth.
-2. The provider response can receive a proof set only after the proof set's
-   verified digest, operation digest, purpose, count, and exact policy match
-   the request. The response stores the independently derived expected digest
-   alongside the verified set.
-3. Rail authorization checks the response-side expected digest and the
-   `VerifiedProofSet` digest against the request-side policy digest, then checks
-   the full policy binding again. `policy_id` is only a label/policy-selection
-   value; it cannot satisfy this check.
-4. Final dispatch rechecks the two stored policy-digest values, rejects zero or
-   unequal values, and only then allows the private verified-operation envelope
-   to reach the rail boundary.
-5. The set digest remains bound to the operation's canonical intent, operation
-   context, purpose, key binding, signature, attestation, and replay
-   authorization through the existing typed settlement envelope.
+1. `ProofVerificationContext::for_settlement` derives the exact operation
+   digest, settlement purpose, settlement audience/domain, nonce/challenge,
+   freshness window, and replay identity from the intent and trusted process
+   clock. Callers cannot supply an independent policy or context digest.
+2. `authorize_settlement_with_proofs` requires the exact six-proof production
+   policy: server identity, user authorization, phone/device attestation, TEE
+   attestation, FIDO2/WebAuthn assertion, and TPM quote. It verifies every
+   independently typed envelope, reserves the process-local replay identity
+   before returning, and rejects clock rollback. The production registry is
+   intentionally unavailable, so this path fails closed before signing.
+3. `ValueBearingSignRequest::with_proof_authorization` binds the constructor-
+   controlled canonical policy digest and proof-context binding into the
+   request's operation binding. `sign_value_bearing_with_proof_authorization`
+   rechecks freshness, exact policy, operation, purpose, audience, nonce, and
+   request binding before any provider signing call.
+4. `RailProxy::authorize_verified_operation` requires the canonical
+   `ProofBoundValueBearingAuthorization`, rechecks its trusted-clock state,
+   exact six-proof membership, policy digest, context binding, signer/key
+   evidence, typed response operation binding, and manager replay
+   authorization. Final dispatch repeats the policy/count/freshness checks
+   before a private verified-operation envelope can reach a rail.
+5. The canonical proof-set digest remains bound to the operation's intent,
+   operation context, purpose, key identity/evidence, signature, attestation,
+   policy, and replay authorization through the typed settlement envelope.
+
+The legacy `ProofSetPolicy`/`VerifiedProofSet` fields remain available for
+compatibility with older serialized or provider-facing shapes. There is no
+implicit conversion from those legacy fields into canonical rail
+authorization, and a legacy-only request or raw signature cannot bypass the
+canonical carrier.
 
 This repeated check is intentional defense in depth. A digest mismatch at any
 boundary is an authorization failure, not a warning or a provider-verification
@@ -104,8 +121,19 @@ security-relevant policy inputs and are included in the canonical policy
 digest. Value-bearing settlement additionally binds the request to the
 canonical intent hash and the `conxian/settlement/v1` operation domain.
 
-The current manager/rail replay authorization is process-local. It is consumed
-before downstream rail execution and is not a distributed replay protocol.
+The current canonical proof and manager/rail replay authorization is
+process-local. It is reserved before downstream rail execution and is not a
+distributed replay protocol.
+
+`RailProxy` keeps canonical proof-envelope reservations and final settlement
+replay tokens in separate bounded replay domains. The default final-token
+domain retains 300 settlement entries, while the proof domain retains six
+entries per settlement (1,800 entries for that same default capacity). A
+successful proof authorization deliberately consumes its proof reservations;
+if final-token admission later fails because its own domain is saturated, the
+proof reservations are not rolled back, but they also cannot consume or
+accelerate saturation of final-token capacity. The legacy attestation replay
+path remains on the final/settlement domain for compatibility.
 Restart-safe, multi-replica, provider-coordinated, or cross-region replay
 semantics are **unsupported** until specified, implemented, independently
 reviewed, and tested against the deployment boundary.
@@ -140,6 +168,7 @@ evidence that a provider verifier exists today.
 The following conditions reject value-bearing authorization:
 
 - no expected policy or no request-derived policy digest;
+- no canonical six-proof authorization at the value-bearing rail boundary;
 - a policy/set/response digest mismatch or zero digest;
 - a missing, duplicate, conflicting, substituted, stale, future, malformed,
   or fixture-only proof;
@@ -156,8 +185,9 @@ part of the public policy surface.
 
 | Scope | Status | Meaning |
 | --- | --- | --- |
-| Policy digest, exact requirement digests, all-required composition | **Implemented, beta/conditional** | Repository code and negative/unit tests cover the composer and typed binding. |
-| Request/response/rail/final-dispatch policy-digest checks | **Implemented, beta/conditional** | The path fails closed on independently derived digest mismatch. |
+| Policy digest, exact requirement digests, all-required composition | **Implemented, beta/conditional** | Repository code and negative/unit tests cover the canonical composer and typed binding. |
+| Canonical six-proof request/signing/rail/final-dispatch boundary | **Implemented, beta/conditional** | The rail requires `ProofBoundValueBearingAuthorization`; production verifier routes remain unavailable and fail closed. |
+| Legacy `ProofSetPolicy`/`VerifiedProofSet` compatibility types | **Compatibility only** | Public/serialized shapes remain available, but legacy fields do not authorize canonical value-bearing rail dispatch. |
 | TLS identity, WebAuthn authorization, FIDO provenance, TPM, Android, Apple, SGX, TDX, SEV-SNP, Nitro, PSA, CCA | **Research/design only** | Provider-specific verification is not implemented or production-supported. |
 | Vendor roots, collateral, revocation, runtime/provider integration | **Unsupported** | No exact repository evidence chain exists. |
 | Distributed replay, independent review, release artifact/provenance, production support | **Unsupported** | These gates remain open and are not inferred from local tests or documentation. |
