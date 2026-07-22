@@ -5,6 +5,7 @@
 //! semantic proof kind. No structural, simulated, or software verifier can
 //! satisfy the production registry.
 
+use crate::enclave::android_authorization::ANDROID_KEYMINT_PROOF_VERIFIER_ID;
 use crate::enclave::replay_guard::{ReplayGuard, ReplayGuardError};
 use crate::enclave::{EnclaveManager, ValueBearingSignRequest, ValueBearingSignResponse};
 use crate::protocol::intent::SwapIntent;
@@ -39,7 +40,10 @@ pub const SETTLEMENT_PROOF_AUDIENCE: &str = "conxian/settlement/v1";
 
 pub const SERVER_PROOF_VERIFIER_ID: &str = "conxian.proof.server.unavailable.v1";
 pub const USER_PROOF_VERIFIER_ID: &str = "conxian.proof.user.unavailable.v1";
-pub const PHONE_PROOF_VERIFIER_ID: &str = "conxian.proof.phone.unavailable.v1";
+/// Explicit Android KeyMint route for the phone proof kind. The route remains
+/// unavailable in the production registry until provider qualification is
+/// complete.
+pub const PHONE_PROOF_VERIFIER_ID: &str = ANDROID_KEYMINT_PROOF_VERIFIER_ID;
 pub const TEE_PROOF_VERIFIER_ID: &str = "conxian.proof.tee.unavailable.v1";
 pub const FIDO_PROOF_VERIFIER_ID: &str = "conxian.proof.fido.unavailable.v1";
 pub const TPM_PROOF_VERIFIER_ID: &str = "conxian.proof.tpm.unavailable.v1";
