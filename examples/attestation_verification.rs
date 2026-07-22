@@ -24,7 +24,7 @@ fn main() {
 
     // Example: Trust Tier Enforcement
     println!("Trust Tier Enforcement:");
-    println!("  - High-value operations require CloudTEE or StrongBox");
+    println!("  - High-value operations remain blocked until provider-verified CloudTEE or StrongBox support is integrated.");
     println!("  - Development tier allows testing without hardware");
     println!("  - Software tier is always blocked for production\n");
 
