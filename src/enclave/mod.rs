@@ -6,17 +6,37 @@ pub mod cloud;
 pub mod proof;
 pub mod proofs;
 pub mod replay_guard;
+pub mod trust;
 
 pub use proofs::{
-    authorize_settlement_with_proofs, authorize_value_bearing_with_proofs,
+    authorize_settlement_with_durable_store, authorize_settlement_with_proofs,
+    authorize_value_bearing_with_durable_store, authorize_value_bearing_with_proofs,
     deserialize_proof_bundle_json, sign_value_bearing_with_proof_authorization,
     ProofBoundValueBearingAuthorization, ProofBundle, ProofEnvelope, ProofKind, ProofPolicy,
-    ProofReplayKey, ProofRequirement, ProofVerificationContext, ProofVerifier,
-    ProofVerifierRegistry, ProofVerifierStatus, UnlistedProofPolicy, VerifiedProofReceipt,
-    VerifiedProofSet, FIDO_PROOF_VERIFIER_ID, MAX_PROOF_TRANSPORT_BYTES, PHONE_PROOF_VERIFIER_ID,
-    PROOF_CONTEXT_DOMAIN, PROOF_ENVELOPE_DOMAIN, PROOF_ENVELOPE_VERSION, PROOF_POLICY_DOMAIN,
-    PROOF_REPLAY_DOMAIN, SERVER_PROOF_VERIFIER_ID, SETTLEMENT_PROOF_AUDIENCE,
+    ProofReplayBindingContext, ProofReplayKey, ProofRequirement, ProofVerificationContext,
+    ProofVerifier, ProofVerifierRegistry, ProofVerifierStatus, UnlistedProofPolicy,
+    VerifiedProofReceipt, VerifiedProofSet, FIDO_PROOF_VERIFIER_ID, MAX_PROOF_TRANSPORT_BYTES,
+    PHONE_PROOF_VERIFIER_ID, PROOF_CONTEXT_DOMAIN, PROOF_ENVELOPE_DOMAIN, PROOF_ENVELOPE_VERSION,
+    PROOF_POLICY_DOMAIN, PROOF_REPLAY_DOMAIN, SERVER_PROOF_VERIFIER_ID, SETTLEMENT_PROOF_AUDIENCE,
     SETTLEMENT_PROOF_PURPOSE, TEE_PROOF_VERIFIER_ID, TPM_PROOF_VERIFIER_ID, USER_PROOF_VERIFIER_ID,
+};
+
+pub use trust::{
+    deserialize_trust_bundle_json, TrustBundleCache, TrustBundleEnvelope, TrustBundleSnapshot,
+    TrustBundleSource, TrustBundleValidator, TrustBundleVerifier, TrustBundleVerifierRegistry,
+    TrustBundleVerifierStatus, TrustClockObservation, TrustEvidence, TrustRefreshOutcome,
+    TrustRefreshState, TrustValidationError, TrustValidationReceipt,
+    MAX_TRUST_BUNDLE_TRANSPORT_BYTES, TRUST_BUNDLE_DOMAIN, TRUST_BUNDLE_SCHEMA_VERSION,
+    TRUST_PROVIDER_AMD_SEV_SNP, TRUST_PROVIDER_ANDROID_KEYMINT, TRUST_PROVIDER_AWS_NITRO,
+    TRUST_PROVIDER_FIDO, TRUST_PROVIDER_INTEL_DCAP, TRUST_PROVIDER_TPM, TRUST_VERIFIER_AMD_SEV_SNP,
+    TRUST_VERIFIER_ANDROID_KEYMINT, TRUST_VERIFIER_AWS_NITRO, TRUST_VERIFIER_FIDO,
+    TRUST_VERIFIER_INTEL_DCAP, TRUST_VERIFIER_TPM,
+};
+
+pub use replay_guard::{
+    ReplayBatchFailure, ReplayBatchOutcome, ReplayBinding, ReplayBindingError,
+    ReplayConsumeOutcome, ReplayReservation, ReplayStore, ReplayStoreDurability, ReplayStoreError,
+    UnavailableReplayStore, REPLAY_BINDING_DOMAIN, REPLAY_BINDING_VERSION,
 };
 
 #[cfg(test)]

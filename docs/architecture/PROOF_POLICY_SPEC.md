@@ -1,8 +1,9 @@
 # Proof Policy Specification
 
-> **Status:** Phase A implementation for policy integrity and all-required
-> composition is present. Provider verification, vendor collateral, runtime
-> integration, and production support remain unsupported.
+> **Status:** Phase A implementation for policy integrity, all-required
+> composition, and the provider-neutral trust/replay contract foundation is
+> present. Provider verification, vendor collateral, durable replay
+> integration, runtime integration, and production support remain unsupported.
 
 This document defines the public-safe contract for `ProofSetPolicy` and its
 use at value-bearing authorization boundaries. It deliberately separates
@@ -105,10 +106,14 @@ digest. Value-bearing settlement additionally binds the request to the
 canonical intent hash and the `conxian/settlement/v1` operation domain.
 
 The current manager/rail replay authorization is process-local. It is consumed
-before downstream rail execution and is not a distributed replay protocol.
-Restart-safe, multi-replica, provider-coordinated, or cross-region replay
-semantics are **unsupported** until specified, implemented, independently
-reviewed, and tested against the deployment boundary.
+before downstream rail execution and is not a distributed replay protocol. The
+additive `ReplayStore` contract and canonical `ReplayBinding` are documented in
+[`TRUST_REPLAY_FOUNDATION.md`](./TRUST_REPLAY_FOUNDATION.md). The new durable
+proof/authorization entry points reject process-local stores, but no durable
+store implementation is shipped. Restart-safe, multi-replica,
+provider-coordinated, or cross-region replay semantics are **unsupported**
+until specified, implemented, independently reviewed, and tested against the
+deployment boundary.
 
 ## 6. Trust roots and collateral
 
@@ -119,8 +124,12 @@ digests and must match the verifier's independently established identity.
 The repository does not currently ship or activate vendor roots, certificate
 chains, revocation lists, quote collateral, TCB policy, Android status
 handling, FIDO metadata validation, or provider-specific trust stores for the
-listed hardware/platforms. Research and type-level fields do not establish
-those integrations.
+listed hardware/platforms. The provider-neutral trust bundle and authenticated
+digest/verifier boundary are contract foundations only; production verifier
+routes remain explicitly unavailable. Research and type-level fields do not
+establish those integrations. See
+[`TRUST_REPLAY_FOUNDATION.md`](./TRUST_REPLAY_FOUNDATION.md) for the bounded
+validation and refresh state model.
 
 ## 7. Provider extension namespaces
 
@@ -143,10 +152,14 @@ The following conditions reject value-bearing authorization:
 - a policy/set/response digest mismatch or zero digest;
 - a missing, duplicate, conflicting, substituted, stale, future, malformed,
   or fixture-only proof;
+- an unknown or unauthenticated trust bundle, stale/expired collateral,
+  revoked evidence, unacceptable TCB/measurement, sequence rollback, fixture
+  promotion, or untrusted security clock;
 - a policy, operation, purpose, nonce, replay, subject, issuer, trust identity,
   key, signature, or attestation binding mismatch; or
-- missing provider verification, trust roots, collateral, replay state, or
-  exact release evidence where the deployment requires it.
+- missing provider verification, trust roots, collateral, durable replay state,
+  atomic replay outcome, or exact release evidence where the deployment
+  requires it.
 
 Errors expose bounded diagnostic text and identifiers only. Raw evidence,
 secrets, credentials, private keys, and privileged operational details are not
@@ -158,6 +171,7 @@ part of the public policy surface.
 | --- | --- | --- |
 | Policy digest, exact requirement digests, all-required composition | **Implemented, beta/conditional** | Repository code and negative/unit tests cover the composer and typed binding. |
 | Request/response/rail/final-dispatch policy-digest checks | **Implemented, beta/conditional** | The path fails closed on independently derived digest mismatch. |
+| Provider-neutral trust bundle, authenticated digest/verifier boundary, canonical replay binding, and replay-store contract | **Implemented, beta/conditional** | Versioned types, bounded validation, explicit unavailable production routes, local atomic contract tests, and additive durable-gated proof APIs exist; provider roots, durable backends, and deployment evidence remain open. |
 | TLS identity, WebAuthn authorization, FIDO provenance, TPM, Android, Apple, SGX, TDX, SEV-SNP, Nitro, PSA, CCA | **Research/design only** | Provider-specific verification is not implemented or production-supported. |
 | Vendor roots, collateral, revocation, runtime/provider integration | **Unsupported** | No exact repository evidence chain exists. |
 | Distributed replay, independent review, release artifact/provenance, production support | **Unsupported** | These gates remain open and are not inferred from local tests or documentation. |
@@ -166,3 +180,5 @@ The canonical evidence inventory is
 [`capability-evidence.json`](./capability-evidence.json), and the research and
 gap boundaries are recorded in
 [`docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md`](../audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md).
+The trust/replay contract details and remaining gaps are recorded in
+[`TRUST_REPLAY_FOUNDATION.md`](./TRUST_REPLAY_FOUNDATION.md).

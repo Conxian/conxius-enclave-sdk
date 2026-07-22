@@ -5,7 +5,10 @@
 //! semantic proof kind. No structural, simulated, or software verifier can
 //! satisfy the production registry.
 
-use crate::enclave::replay_guard::{ReplayGuard, ReplayGuardError};
+use crate::enclave::replay_guard::{
+    ReplayBinding, ReplayGuard, ReplayGuardError, ReplayReservation, ReplayStore,
+    ReplayStoreDurability, ReplayStoreError,
+};
 use crate::enclave::{EnclaveManager, ValueBearingSignRequest, ValueBearingSignResponse};
 use crate::protocol::intent::SwapIntent;
 use crate::{ConclaveError, ConclaveResult};
@@ -979,6 +982,56 @@ impl std::fmt::Debug for ProofVerifierRegistry {
     }
 }
 
+/// Provider and key identity context required by the complete replay binding.
+/// The key identity is reduced to a digest before this context is retained.
+#[derive(Clone, PartialEq, Eq)]
+pub struct ProofReplayBindingContext {
+    provider: String,
+    key_identity_digest: [u8; 32],
+}
+
+impl std::fmt::Debug for ProofReplayBindingContext {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ProofReplayBindingContext")
+            .field("provider", &self.provider)
+            .field("key_identity_digest", &self.key_identity_digest)
+            .finish()
+    }
+}
+
+impl ProofReplayBindingContext {
+    pub fn new(provider: impl Into<String>, key_identity: &[u8]) -> ConclaveResult<Self> {
+        let provider = provider.into();
+        let probe = ReplayBinding::new(
+            provider.clone(),
+            "proof-subject",
+            "proof-mechanism",
+            b"proof-nonce",
+            [0; 32],
+            "PROOF",
+            [1; 32],
+            key_identity,
+            [2; 32],
+            Option::<String>::None,
+            Option::<String>::None,
+        )
+        .map_err(|_| invalid_payload())?;
+        Ok(Self {
+            provider,
+            key_identity_digest: *probe.key_identity_digest(),
+        })
+    }
+
+    pub fn provider(&self) -> &str {
+        &self.provider
+    }
+
+    pub fn key_identity_digest(&self) -> &[u8; 32] {
+        &self.key_identity_digest
+    }
+}
+
 impl ProofVerifierRegistry {
     /// Builds the only production registry currently supported. Every real
     /// provider verifier is explicit and unavailable.
@@ -1014,6 +1067,95 @@ impl ProofVerifierRegistry {
         context: &ProofVerificationContext,
         replay_guard: &ReplayGuard,
     ) -> ConclaveResult<VerifiedProofSet> {
+        let receipts = self.verify_bundle_evidence(bundle, policy, context)?;
+
+        let replay_reservations = bundle
+            .proofs
+            .iter()
+            .map(|proof| {
+                context
+                    .effective_valid_until(proof)
+                    .and_then(|valid_until| {
+                        proof
+                            .replay_key()
+                            .map(|key| (key.as_str().to_string(), valid_until))
+                    })
+            })
+            .collect::<ConclaveResult<Vec<_>>>()?;
+        replay_guard
+            .try_check_and_record_batch_with_horizons(replay_reservations, context.now_secs)
+            .map_err(map_replay_error)?;
+
+        VerifiedProofSet::from_verified(context, policy, receipts)
+    }
+
+    /// Verifies a proof bundle and consumes complete provider-neutral replay
+    /// reservations through the additive store contract. The process-local
+    /// `ReplayGuard` path above remains source-compatible containment only.
+    pub fn verify_bundle_with_store(
+        &self,
+        bundle: &ProofBundle,
+        policy: &ProofPolicy,
+        context: &ProofVerificationContext,
+        binding_context: &ProofReplayBindingContext,
+        replay_store: &dyn ReplayStore,
+    ) -> ConclaveResult<VerifiedProofSet> {
+        let receipts = self.verify_bundle_evidence(bundle, policy, context)?;
+        let policy_digest = policy.digest()?;
+        let reservations = bundle
+            .proofs
+            .iter()
+            .zip(receipts.iter())
+            .map(|(proof, receipt)| {
+                let binding = ReplayBinding::from_component_digests(
+                    binding_context.provider().to_string(),
+                    proof.proof_id.clone(),
+                    proof.verifier_id.clone(),
+                    *receipt.nonce_digest(),
+                    proof.operation_digest,
+                    proof.purpose.clone(),
+                    policy_digest,
+                    *binding_context.key_identity_digest(),
+                    *receipt.evidence_digest(),
+                    Some(proof.proof_id.clone()),
+                    Some(proof.audience.clone()),
+                )
+                .map_err(|_| invalid_payload())?;
+                let valid_until = context.effective_valid_until(proof)?;
+                ReplayReservation::new(&binding, valid_until).map_err(|_| invalid_payload())
+            })
+            .collect::<ConclaveResult<Vec<_>>>()?;
+        replay_store
+            .consume_once_batch(&reservations, context.now_secs)
+            .map_err(map_replay_store_error)?;
+
+        VerifiedProofSet::from_verified(context, policy, receipts)
+    }
+
+    /// Production-facing additive boundary. A process-local or unavailable
+    /// store is rejected before proof authorization can be issued.
+    pub fn verify_bundle_with_durable_store(
+        &self,
+        bundle: &ProofBundle,
+        policy: &ProofPolicy,
+        context: &ProofVerificationContext,
+        binding_context: &ProofReplayBindingContext,
+        replay_store: &dyn ReplayStore,
+    ) -> ConclaveResult<VerifiedProofSet> {
+        if replay_store.durability() != ReplayStoreDurability::DurableProvider {
+            return Err(ConclaveError::Unsupported(
+                "durable replay store is required for production proof authorization".to_string(),
+            ));
+        }
+        self.verify_bundle_with_store(bundle, policy, context, binding_context, replay_store)
+    }
+
+    fn verify_bundle_evidence(
+        &self,
+        bundle: &ProofBundle,
+        policy: &ProofPolicy,
+        context: &ProofVerificationContext,
+    ) -> ConclaveResult<Vec<VerifiedProofReceipt>> {
         bundle.validate()?;
         policy.validate()?;
         context.validate()?;
@@ -1038,25 +1180,7 @@ impl ProofVerifierRegistry {
         }
 
         self.validate_policy_composition(bundle, policy)?;
-
-        let replay_reservations = bundle
-            .proofs
-            .iter()
-            .map(|proof| {
-                context
-                    .effective_valid_until(proof)
-                    .and_then(|valid_until| {
-                        proof
-                            .replay_key()
-                            .map(|key| (key.as_str().to_string(), valid_until))
-                    })
-            })
-            .collect::<ConclaveResult<Vec<_>>>()?;
-        replay_guard
-            .try_check_and_record_batch_with_horizons(replay_reservations, context.now_secs)
-            .map_err(map_replay_error)?;
-
-        VerifiedProofSet::from_verified(context, policy, receipts)
+        Ok(receipts)
     }
 
     fn verify_one(
@@ -1152,6 +1276,26 @@ fn map_replay_error(error: ReplayGuardError) -> ConclaveError {
         ReplayGuardError::InvalidInput => ConclaveError::InvalidPayload,
         ReplayGuardError::LockPoisoned => ConclaveError::EnclaveFailure(
             "independent proof replay guard is unavailable".to_string(),
+        ),
+    }
+}
+
+fn map_replay_store_error(error: ReplayStoreError) -> ConclaveError {
+    match error {
+        ReplayStoreError::ClockRollback => ConclaveError::ClockRollback,
+        ReplayStoreError::InvalidKey | ReplayStoreError::InvalidRetention => {
+            ConclaveError::InvalidPayload
+        }
+        ReplayStoreError::AtomicBatchFailure(_) => ConclaveError::EnclaveFailure(
+            "independent proof replay batch failed atomically".to_string(),
+        ),
+        ReplayStoreError::BackendUnavailable
+        | ReplayStoreError::TransactionIndeterminate
+        | ReplayStoreError::LockPoisoned => ConclaveError::Unsupported(
+            "independent proof replay store is unavailable or indeterminate".to_string(),
+        ),
+        ReplayStoreError::CapacitySaturated => ConclaveError::EnclaveFailure(
+            "independent proof replay store capacity is saturated".to_string(),
         ),
     }
 }
@@ -1569,6 +1713,28 @@ pub fn authorize_value_bearing_with_proofs(
     )
 }
 
+/// Additive production-gated authorization path. It requires both the exact
+/// production proof policy and a durable replay store; process-local replay
+/// cannot silently satisfy this boundary.
+pub fn authorize_value_bearing_with_durable_store(
+    registry: &ProofVerifierRegistry,
+    bundle: &ProofBundle,
+    policy: &ProofPolicy,
+    context: &ProofVerificationContext,
+    binding_context: &ProofReplayBindingContext,
+    replay_store: &dyn ReplayStore,
+) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
+    let trusted_context = context.with_now_secs(crate::enclave::trusted_unix_time_secs()?)?;
+    let verified_proofs = registry.verify_bundle_with_durable_store(
+        bundle,
+        policy,
+        &trusted_context,
+        binding_context,
+        replay_store,
+    )?;
+    ProofBoundValueBearingAuthorization::from_verified(verified_proofs)
+}
+
 fn authorize_value_bearing_with_proofs_with_trusted_clock(
     registry: &ProofVerifierRegistry,
     bundle: &ProofBundle,
@@ -1623,6 +1789,32 @@ pub fn authorize_settlement_with_proofs(
         replay_guard,
         crate::enclave::trusted_unix_time_secs(),
     )
+}
+
+/// Settlement-specific durable replay entry point. The SDK trusted clock
+/// controls freshness; no caller-supplied timestamp is accepted.
+pub fn authorize_settlement_with_durable_store(
+    registry: &ProofVerifierRegistry,
+    bundle: &ProofBundle,
+    policy: &ProofPolicy,
+    intent: &SwapIntent,
+    nonce: Vec<u8>,
+    binding_context: &ProofReplayBindingContext,
+    replay_store: &dyn ReplayStore,
+) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
+    let context = ProofVerificationContext::for_settlement(
+        intent,
+        nonce,
+        crate::enclave::trusted_unix_time_secs()?,
+    )?;
+    let verified_proofs = registry.verify_bundle_with_durable_store(
+        bundle,
+        policy,
+        &context,
+        binding_context,
+        replay_store,
+    )?;
+    ProofBoundValueBearingAuthorization::from_verified(verified_proofs)
 }
 
 fn authorize_settlement_with_proofs_with_trusted_clock(
@@ -2974,5 +3166,98 @@ mod tests {
             });
         assert!(oversized_result.is_err());
         assert_eq!(calls.load(AtomicOrdering::Relaxed), 0);
+    }
+
+    #[test]
+    fn complete_replay_binding_store_path_is_atomic_and_ordered() {
+        let registry = ProofVerifierRegistry::test_fixture_all_six();
+        let policy = ProofPolicy::production();
+        let context = context();
+        let binding_context = ProofReplayBindingContext::new("aws.nitro", b"key-id|public-key")
+            .expect("binding context");
+        let store = ReplayGuard::new(300, 32);
+
+        let verified = registry
+            .verify_bundle_with_store(
+                &fixture_bundle(),
+                &policy,
+                &context,
+                &binding_context,
+                &store,
+            )
+            .expect("fixture store path should verify");
+        assert_eq!(verified.len(), ProofKind::all().len());
+        assert!(matches!(
+            registry.verify_bundle_with_store(
+                &fixture_bundle(),
+                &policy,
+                &context,
+                &binding_context,
+                &store,
+            ),
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("replay batch")
+        ));
+    }
+
+    #[test]
+    fn durable_store_gate_rejects_process_local_replay() {
+        let registry = ProofVerifierRegistry::test_fixture_all_six();
+        let binding_context =
+            ProofReplayBindingContext::new("aws.nitro", b"key-id").expect("binding context");
+        assert!(matches!(
+            registry.verify_bundle_with_durable_store(
+                &fixture_bundle(),
+                &ProofPolicy::production(),
+                &context(),
+                &binding_context,
+                &ReplayGuard::new(300, 32),
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("durable replay store")
+        ));
+    }
+
+    struct IndeterminateReplayStore;
+
+    impl ReplayStore for IndeterminateReplayStore {
+        fn durability(&self) -> crate::enclave::ReplayStoreDurability {
+            crate::enclave::ReplayStoreDurability::DurableProvider
+        }
+
+        fn consume_once(
+            &self,
+            _reservation: &crate::enclave::ReplayReservation,
+            _now_secs: u64,
+        ) -> Result<crate::enclave::ReplayConsumeOutcome, crate::enclave::ReplayStoreError>
+        {
+            Err(crate::enclave::ReplayStoreError::TransactionIndeterminate)
+        }
+
+        fn consume_once_batch(
+            &self,
+            _reservations: &[crate::enclave::ReplayReservation],
+            _now_secs: u64,
+        ) -> Result<crate::enclave::ReplayBatchOutcome, crate::enclave::ReplayStoreError> {
+            Err(crate::enclave::ReplayStoreError::TransactionIndeterminate)
+        }
+    }
+
+    #[test]
+    fn indeterminate_replay_store_outcome_fails_closed() {
+        let registry = ProofVerifierRegistry::test_fixture_all_six();
+        let binding_context =
+            ProofReplayBindingContext::new("aws.nitro", b"key-id").expect("binding context");
+        assert!(matches!(
+            registry.verify_bundle_with_store(
+                &fixture_bundle(),
+                &ProofPolicy::production(),
+                &context(),
+                &binding_context,
+                &IndeterminateReplayStore,
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("unavailable or indeterminate")
+        ));
     }
 }
