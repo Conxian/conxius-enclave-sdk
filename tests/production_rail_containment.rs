@@ -3,6 +3,10 @@ use conxius_enclave_sdk::enclave::attestation::{
 };
 #[cfg(feature = "development-simulators")]
 use conxius_enclave_sdk::enclave::cloud::CloudEnclave;
+use conxius_enclave_sdk::enclave::replay_guard::{
+    ReplayBatchOutcome, ReplayConsumeOutcome, ReplayGuard, ReplayReservation, ReplayStore,
+    ReplayStoreDurability, ReplayStoreError,
+};
 use conxius_enclave_sdk::enclave::{
     EnclaveManager, ProofBundle, ProofEnvelope, ProofKind, ProofPolicy, ProofVerificationContext,
     SignRequest, SignResponse, ValueBearingSignRequest,
@@ -28,6 +32,48 @@ fn proxy() -> RailProxy {
         Arc::new(AssetRegistry::new()),
         Arc::new(BusinessRegistry::new()),
     )
+}
+
+/// Test-only replay contract fixture. This is not distributed durability or
+/// production replay evidence.
+struct DurableTestStore {
+    guard: ReplayGuard,
+}
+
+impl DurableTestStore {
+    fn new() -> Self {
+        Self {
+            guard: ReplayGuard::new(300, 128),
+        }
+    }
+}
+
+impl ReplayStore for DurableTestStore {
+    fn durability(&self) -> ReplayStoreDurability {
+        ReplayStoreDurability::DurableProvider
+    }
+
+    fn consume_once(
+        &self,
+        reservation: &ReplayReservation,
+        now_secs: u64,
+    ) -> Result<ReplayConsumeOutcome, ReplayStoreError> {
+        self.guard.consume_once(reservation, now_secs)
+    }
+
+    fn consume_once_batch(
+        &self,
+        reservations: &[ReplayReservation],
+        now_secs: u64,
+    ) -> Result<ReplayBatchOutcome, ReplayStoreError> {
+        self.guard.consume_once_batch(reservations, now_secs)
+    }
+}
+
+fn proxy_with_durable_test_store() -> RailProxy {
+    proxy()
+        .with_replay_store(Arc::new(DurableTestStore::new()))
+        .expect("test durable replay fixture should configure")
 }
 
 fn request() -> SwapRequest {
@@ -259,7 +305,7 @@ async fn production_explicit_proof_path_stops_at_unavailable_verifier() {
 
 #[test]
 fn production_verification_rejects_legacy_request_only_hashes() {
-    let rail_proxy = proxy();
+    let rail_proxy = proxy_with_durable_test_store();
     let mut intent = rail_proxy
         .prepare_intent("x402", request(), None)
         .expect("x402 request should prepare");

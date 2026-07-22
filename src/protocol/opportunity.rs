@@ -1,10 +1,11 @@
 use crate::enclave::proofs::{
-    authorize_settlement_with_proofs, sign_value_bearing_with_proof_authorization,
+    authorize_settlement_with_durable_store,
+    sign_value_bearing_with_proof_authorization_and_durable_store,
 };
 use crate::enclave::{
-    EnclaveManager, OperationContext, ProofBundle, ProofPolicy, ProofVerifierRegistry,
-    SignerKeyBinding, SigningAlgorithm, TrustRequirement, ValueBearingPurpose,
-    ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
+    EnclaveManager, OperationContext, ProofBundle, ProofPolicy, ProofReplayBindingContext,
+    ProofVerificationContext, ProofVerifierRegistry, SignerKeyBinding, SigningAlgorithm,
+    TrustRequirement, ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
 };
 use crate::protocol::asset::{AssetIdentifier, Chain};
 use crate::protocol::economy::{DualStackIntent, YieldEngine};
@@ -161,14 +162,15 @@ impl<'a> OpportunityDispatcher<'a> {
         self.rail_proxy.preflight_typed_dispatch(&intent)?;
 
         let policy = ProofPolicy::production();
-        let authorization = authorize_settlement_with_proofs(
-            &ProofVerifierRegistry::production(),
+        let preflight_context = ProofVerificationContext::for_settlement(
+            &intent,
+            nonce.clone(),
+            crate::enclave::trusted_unix_time_secs()?,
+        )?;
+        ProofVerifierRegistry::production().preflight_production_bundle(
             bundle,
             &policy,
-            &intent,
-            nonce,
-            0,
-            self.rail_proxy.proof_replay_guard(),
+            &preflight_context,
         )?;
 
         let (algo, derivation_path) = match from_chain {
@@ -196,6 +198,19 @@ impl<'a> OpportunityDispatcher<'a> {
             .map_err(|_| ConclaveError::InvalidPayload)?;
         let public_key = hex::decode(self.enclave.get_public_key(&derivation_path)?)
             .map_err(|_| ConclaveError::InvalidPayload)?;
+        let key_binding = SignerKeyBinding::new("opportunity_key", derivation_path, public_key)?;
+        let replay_store = self.rail_proxy.durable_replay_store()?;
+        let binding_context =
+            ProofReplayBindingContext::for_signer_key("opportunity", &key_binding)?;
+        let authorization = authorize_settlement_with_durable_store(
+            &ProofVerifierRegistry::production(),
+            bundle,
+            &policy,
+            &intent,
+            nonce,
+            &binding_context,
+            replay_store,
+        )?;
         let sign_request = ValueBearingSignRequest::new(
             OperationContext::new(
                 SETTLEMENT_OPERATION_DOMAIN,
@@ -205,14 +220,15 @@ impl<'a> OpportunityDispatcher<'a> {
             algo,
             TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
             message_digest,
-            SignerKeyBinding::new("opportunity_key", derivation_path, public_key)?,
+            key_binding,
             None,
         )?
         .with_proof_authorization(&authorization)?;
-        let sign_response = sign_value_bearing_with_proof_authorization(
+        let sign_response = sign_value_bearing_with_proof_authorization_and_durable_store(
             self.enclave,
             sign_request.clone(),
             &authorization,
+            replay_store,
         )?;
         let operation = self.rail_proxy.authorize_verified_operation(
             intent,

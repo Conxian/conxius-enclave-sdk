@@ -1,3 +1,4 @@
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -5,6 +6,608 @@ use std::sync::Mutex;
 pub const MAX_REPLAY_BATCH_KEYS: usize = 128;
 /// Maximum UTF-8 byte length of one replay key.
 pub const MAX_REPLAY_KEY_BYTES: usize = 512;
+/// Version for the complete provider-neutral replay binding.
+pub const REPLAY_BINDING_VERSION: u16 = 1;
+/// Domain separator for complete replay bindings.
+pub const REPLAY_BINDING_DOMAIN: &str = "CONXIAN-REPLAY-BINDING/v1";
+
+const MAX_BINDING_IDENTIFIER_BYTES: usize = 256;
+const MAX_BINDING_NONCE_BYTES: usize = 128;
+const MAX_BINDING_KEY_IDENTITY_BYTES: usize = 512;
+
+fn validate_binding_identifier(value: &str) -> Result<(), ReplayBindingError> {
+    if value.is_empty()
+        || value.len() > MAX_BINDING_IDENTIFIER_BYTES
+        || value.chars().any(char::is_control)
+    {
+        return Err(ReplayBindingError::InvalidIdentifier);
+    }
+    Ok(())
+}
+
+fn append_len_prefixed(output: &mut Vec<u8>, value: &[u8]) -> Result<(), ReplayBindingError> {
+    let length = u32::try_from(value.len()).map_err(|_| ReplayBindingError::OversizedInput)?;
+    output.extend_from_slice(&length.to_be_bytes());
+    output.extend_from_slice(value);
+    Ok(())
+}
+
+fn hash_binding_component(label: &str, value: &[u8]) -> Result<[u8; 32], ReplayBindingError> {
+    let mut canonical = Vec::new();
+    append_len_prefixed(&mut canonical, REPLAY_BINDING_DOMAIN.as_bytes())?;
+    canonical.extend_from_slice(&REPLAY_BINDING_VERSION.to_be_bytes());
+    append_len_prefixed(&mut canonical, label.as_bytes())?;
+    append_len_prefixed(&mut canonical, value)?;
+    Ok(Sha256::digest(canonical).into())
+}
+
+pub(crate) fn key_identity_digest(key_identity: &[u8]) -> Result<[u8; 32], ReplayBindingError> {
+    if key_identity.is_empty() {
+        return Err(ReplayBindingError::EmptyInput);
+    }
+    if key_identity.len() > MAX_BINDING_KEY_IDENTITY_BYTES {
+        return Err(ReplayBindingError::OversizedInput);
+    }
+    hash_binding_component("key-identity", key_identity)
+}
+
+/// Construction failures for the canonical replay binding. Raw nonce, key
+/// identity, and evidence bytes are hashed and never retained by the binding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum ReplayBindingError {
+    #[error("replay binding identifier is invalid")]
+    InvalidIdentifier,
+    #[error("replay binding input is empty")]
+    EmptyInput,
+    #[error("replay binding component is missing: {0}")]
+    MissingComponent(&'static str),
+    #[error("replay binding input exceeds its bound")]
+    OversizedInput,
+}
+
+/// Complete domain-separated replay binding for provider-backed authorization.
+///
+/// The binding covers provider, proof subject/mechanism, nonce, operation,
+/// purpose, policy digest, key identity, evidence digest, and optional proof
+/// and audience identifiers. Only fixed-size digests of nonce, key identity,
+/// and evidence cross the storage boundary.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ReplayBinding {
+    domain: String,
+    provider: String,
+    proof_subject: String,
+    proof_mechanism: String,
+    nonce_digest: [u8; 32],
+    operation_digest: [u8; 32],
+    purpose: String,
+    policy_digest: [u8; 32],
+    key_identity_digest: [u8; 32],
+    evidence_digest: [u8; 32],
+    proof_id: Option<String>,
+    audience: Option<String>,
+}
+
+impl std::fmt::Debug for ReplayBinding {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ReplayBinding")
+            .field("digest", &self.digest().ok())
+            .field("domain", &self.domain)
+            .field("provider", &self.provider)
+            .field("proof_subject", &self.proof_subject)
+            .field("proof_mechanism", &self.proof_mechanism)
+            .field("nonce_digest", &self.nonce_digest)
+            .field("operation_digest", &self.operation_digest)
+            .field("purpose", &self.purpose)
+            .field("policy_digest", &self.policy_digest)
+            .field("key_identity_digest", &self.key_identity_digest)
+            .field("evidence_digest", &self.evidence_digest)
+            .field("proof_id", &self.proof_id)
+            .field("audience", &self.audience)
+            .finish()
+    }
+}
+
+/// Digest-only replay binding inputs used by internal authorization paths.
+///
+/// Unlike the public builder, this type accepts already-derived component
+/// digests and never carries raw nonce, key-identity, or evidence bytes.
+#[derive(Debug, Clone)]
+pub(crate) struct ReplayBindingDigestInput {
+    pub(crate) provider: String,
+    pub(crate) proof_subject: String,
+    pub(crate) proof_mechanism: String,
+    pub(crate) nonce_digest: [u8; 32],
+    pub(crate) operation_digest: [u8; 32],
+    pub(crate) purpose: String,
+    pub(crate) policy_digest: [u8; 32],
+    pub(crate) key_identity_digest: [u8; 32],
+    pub(crate) evidence_digest: [u8; 32],
+    pub(crate) proof_id: Option<String>,
+    pub(crate) audience: Option<String>,
+}
+
+impl ReplayBinding {
+    /// Starts construction of a complete replay binding.
+    ///
+    /// The builder makes every security-relevant dimension explicit while
+    /// keeping raw nonce, key-identity, and evidence bytes transient.
+    pub fn builder<'a>() -> ReplayBindingBuilder<'a> {
+        ReplayBindingBuilder::default()
+    }
+
+    fn from_builder(builder: ReplayBindingBuilder<'_>) -> Result<Self, ReplayBindingError> {
+        let domain = builder.domain;
+        let provider = builder
+            .provider
+            .ok_or(ReplayBindingError::MissingComponent("provider"))?;
+        let proof_subject = builder
+            .proof_subject
+            .ok_or(ReplayBindingError::MissingComponent("proof subject"))?;
+        let proof_mechanism = builder
+            .proof_mechanism
+            .ok_or(ReplayBindingError::MissingComponent("proof mechanism"))?;
+        let nonce = builder
+            .nonce
+            .ok_or(ReplayBindingError::MissingComponent("nonce"))?;
+        let operation_digest = builder
+            .operation_digest
+            .ok_or(ReplayBindingError::MissingComponent("operation digest"))?;
+        let purpose = builder
+            .purpose
+            .ok_or(ReplayBindingError::MissingComponent("purpose"))?;
+        let policy_digest = builder
+            .policy_digest
+            .ok_or(ReplayBindingError::MissingComponent("policy digest"))?;
+        let key_identity = builder
+            .key_identity
+            .ok_or(ReplayBindingError::MissingComponent("key identity"))?;
+        let evidence_digest = builder
+            .evidence_digest
+            .ok_or(ReplayBindingError::MissingComponent("evidence digest"))?;
+        let proof_id = builder.proof_id;
+        let audience = builder.audience;
+
+        validate_binding_identifier(&domain)?;
+        validate_binding_identifier(&provider)?;
+        validate_binding_identifier(&proof_subject)?;
+        validate_binding_identifier(&proof_mechanism)?;
+        validate_binding_identifier(&purpose)?;
+        if let Some(proof_id) = &proof_id {
+            validate_binding_identifier(proof_id)?;
+        }
+        if let Some(audience) = &audience {
+            validate_binding_identifier(audience)?;
+        }
+        if nonce.is_empty() || key_identity.is_empty() {
+            return Err(ReplayBindingError::EmptyInput);
+        }
+        if nonce.len() > MAX_BINDING_NONCE_BYTES {
+            return Err(ReplayBindingError::OversizedInput);
+        }
+        if key_identity.len() > MAX_BINDING_KEY_IDENTITY_BYTES {
+            return Err(ReplayBindingError::OversizedInput);
+        }
+
+        Ok(Self {
+            domain,
+            provider,
+            proof_subject,
+            proof_mechanism,
+            nonce_digest: hash_binding_component("nonce", nonce)?,
+            operation_digest,
+            purpose,
+            policy_digest,
+            key_identity_digest: key_identity_digest(key_identity)?,
+            evidence_digest,
+            proof_id,
+            audience,
+        })
+    }
+
+    pub fn provider(&self) -> &str {
+        &self.provider
+    }
+
+    pub fn domain(&self) -> &str {
+        &self.domain
+    }
+
+    pub fn proof_subject(&self) -> &str {
+        &self.proof_subject
+    }
+
+    pub fn proof_mechanism(&self) -> &str {
+        &self.proof_mechanism
+    }
+
+    pub fn nonce_digest(&self) -> &[u8; 32] {
+        &self.nonce_digest
+    }
+
+    pub fn operation_digest(&self) -> &[u8; 32] {
+        &self.operation_digest
+    }
+
+    pub fn purpose(&self) -> &str {
+        &self.purpose
+    }
+
+    pub fn policy_digest(&self) -> &[u8; 32] {
+        &self.policy_digest
+    }
+
+    pub fn key_identity_digest(&self) -> &[u8; 32] {
+        &self.key_identity_digest
+    }
+
+    pub fn evidence_digest(&self) -> &[u8; 32] {
+        &self.evidence_digest
+    }
+
+    pub fn proof_id(&self) -> Option<&str> {
+        self.proof_id.as_deref()
+    }
+
+    pub fn audience(&self) -> Option<&str> {
+        self.audience.as_deref()
+    }
+
+    pub fn canonical_bytes(&self) -> Result<Vec<u8>, ReplayBindingError> {
+        let mut output = Vec::new();
+        append_len_prefixed(&mut output, self.domain.as_bytes())?;
+        output.extend_from_slice(&REPLAY_BINDING_VERSION.to_be_bytes());
+        append_len_prefixed(&mut output, self.provider.as_bytes())?;
+        append_len_prefixed(&mut output, self.proof_subject.as_bytes())?;
+        append_len_prefixed(&mut output, self.proof_mechanism.as_bytes())?;
+        output.extend_from_slice(&self.nonce_digest);
+        output.extend_from_slice(&self.operation_digest);
+        append_len_prefixed(&mut output, self.purpose.as_bytes())?;
+        output.extend_from_slice(&self.policy_digest);
+        output.extend_from_slice(&self.key_identity_digest);
+        output.extend_from_slice(&self.evidence_digest);
+        match &self.proof_id {
+            Some(proof_id) => {
+                output.push(1);
+                append_len_prefixed(&mut output, proof_id.as_bytes())?;
+            }
+            None => output.push(0),
+        }
+        match &self.audience {
+            Some(audience) => {
+                output.push(1);
+                append_len_prefixed(&mut output, audience.as_bytes())?;
+            }
+            None => output.push(0),
+        }
+        Ok(output)
+    }
+
+    pub fn digest(&self) -> Result<[u8; 32], ReplayBindingError> {
+        Ok(Sha256::digest(self.canonical_bytes()?).into())
+    }
+
+    pub fn as_key(&self) -> Result<String, ReplayBindingError> {
+        Ok(format!("{}:{}", self.domain, hex::encode(self.digest()?)))
+    }
+
+    pub(crate) fn from_component_digests(
+        input: ReplayBindingDigestInput,
+    ) -> Result<Self, ReplayBindingError> {
+        Self::from_component_digests_with_domain(REPLAY_BINDING_DOMAIN, input)
+    }
+
+    pub(crate) fn from_component_digests_with_domain(
+        domain: impl Into<String>,
+        input: ReplayBindingDigestInput,
+    ) -> Result<Self, ReplayBindingError> {
+        let ReplayBindingDigestInput {
+            provider,
+            proof_subject,
+            proof_mechanism,
+            nonce_digest,
+            operation_digest,
+            purpose,
+            policy_digest,
+            key_identity_digest,
+            evidence_digest,
+            proof_id,
+            audience,
+        } = input;
+        let domain = domain.into();
+        validate_binding_identifier(&domain)?;
+        validate_binding_identifier(&provider)?;
+        validate_binding_identifier(&proof_subject)?;
+        validate_binding_identifier(&proof_mechanism)?;
+        validate_binding_identifier(&purpose)?;
+        if let Some(proof_id) = &proof_id {
+            validate_binding_identifier(proof_id)?;
+        }
+        if let Some(audience) = &audience {
+            validate_binding_identifier(audience)?;
+        }
+        Ok(Self {
+            domain,
+            provider,
+            proof_subject,
+            proof_mechanism,
+            nonce_digest,
+            operation_digest,
+            purpose,
+            policy_digest,
+            key_identity_digest,
+            evidence_digest,
+            proof_id,
+            audience,
+        })
+    }
+}
+
+/// Typed builder for a complete provider-neutral replay binding.
+pub struct ReplayBindingBuilder<'a> {
+    domain: String,
+    provider: Option<String>,
+    proof_subject: Option<String>,
+    proof_mechanism: Option<String>,
+    nonce: Option<&'a [u8]>,
+    operation_digest: Option<[u8; 32]>,
+    purpose: Option<String>,
+    policy_digest: Option<[u8; 32]>,
+    key_identity: Option<&'a [u8]>,
+    evidence_digest: Option<[u8; 32]>,
+    proof_id: Option<String>,
+    audience: Option<String>,
+}
+
+impl std::fmt::Debug for ReplayBindingBuilder<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ReplayBindingBuilder")
+            .field("domain", &self.domain)
+            .field("provider", &self.provider)
+            .field("proof_subject", &self.proof_subject)
+            .field("proof_mechanism", &self.proof_mechanism)
+            .field("nonce_present", &self.nonce.is_some())
+            .field("operation_digest", &self.operation_digest)
+            .field("purpose", &self.purpose)
+            .field("policy_digest", &self.policy_digest)
+            .field("key_identity_present", &self.key_identity.is_some())
+            .field("evidence_digest", &self.evidence_digest)
+            .field("proof_id", &self.proof_id)
+            .field("audience", &self.audience)
+            .finish()
+    }
+}
+
+impl<'a> Default for ReplayBindingBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            domain: REPLAY_BINDING_DOMAIN.to_string(),
+            provider: None,
+            proof_subject: None,
+            proof_mechanism: None,
+            nonce: None,
+            operation_digest: None,
+            purpose: None,
+            policy_digest: None,
+            key_identity: None,
+            evidence_digest: None,
+            proof_id: None,
+            audience: None,
+        }
+    }
+}
+
+impl<'a> ReplayBindingBuilder<'a> {
+    pub fn domain(mut self, domain: impl Into<String>) -> Self {
+        self.domain = domain.into();
+        self
+    }
+
+    pub fn provider(mut self, provider: impl Into<String>) -> Self {
+        self.provider = Some(provider.into());
+        self
+    }
+
+    pub fn proof_subject(mut self, proof_subject: impl Into<String>) -> Self {
+        self.proof_subject = Some(proof_subject.into());
+        self
+    }
+
+    pub fn proof_mechanism(mut self, proof_mechanism: impl Into<String>) -> Self {
+        self.proof_mechanism = Some(proof_mechanism.into());
+        self
+    }
+
+    pub fn nonce(mut self, nonce: &'a [u8]) -> Self {
+        self.nonce = Some(nonce);
+        self
+    }
+
+    pub fn operation_digest(mut self, operation_digest: [u8; 32]) -> Self {
+        self.operation_digest = Some(operation_digest);
+        self
+    }
+
+    pub fn purpose(mut self, purpose: impl Into<String>) -> Self {
+        self.purpose = Some(purpose.into());
+        self
+    }
+
+    pub fn policy_digest(mut self, policy_digest: [u8; 32]) -> Self {
+        self.policy_digest = Some(policy_digest);
+        self
+    }
+
+    pub fn key_identity(mut self, key_identity: &'a [u8]) -> Self {
+        self.key_identity = Some(key_identity);
+        self
+    }
+
+    pub fn evidence_digest(mut self, evidence_digest: [u8; 32]) -> Self {
+        self.evidence_digest = Some(evidence_digest);
+        self
+    }
+
+    pub fn proof_id(mut self, proof_id: impl Into<String>) -> Self {
+        self.proof_id = Some(proof_id.into());
+        self
+    }
+
+    pub fn audience(mut self, audience: impl Into<String>) -> Self {
+        self.audience = Some(audience.into());
+        self
+    }
+
+    pub fn build(self) -> Result<ReplayBinding, ReplayBindingError> {
+        ReplayBinding::from_builder(self)
+    }
+}
+
+/// A retention horizon paired with one complete binding. Only the binding
+/// digest is retained by the replay store.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplayReservation {
+    domain: String,
+    binding_digest: [u8; 32],
+    retain_until: u64,
+}
+
+impl ReplayReservation {
+    pub fn new(binding: &ReplayBinding, retain_until: u64) -> Result<Self, ReplayBindingError> {
+        Ok(Self {
+            domain: binding.domain.clone(),
+            binding_digest: binding.digest()?,
+            retain_until,
+        })
+    }
+
+    pub fn from_digest(binding_digest: [u8; 32], retain_until: u64) -> Self {
+        Self {
+            domain: REPLAY_BINDING_DOMAIN.to_string(),
+            binding_digest,
+            retain_until,
+        }
+    }
+
+    pub fn binding_digest(&self) -> &[u8; 32] {
+        &self.binding_digest
+    }
+
+    pub fn retain_until(&self) -> u64 {
+        self.retain_until
+    }
+
+    fn has_valid_digest(&self) -> bool {
+        self.binding_digest.iter().any(|byte| *byte != 0)
+    }
+
+    fn encoded_key(&self) -> String {
+        format!("{}:{}", self.domain, hex::encode(self.binding_digest))
+    }
+}
+
+/// Whether a replay store can support production durability requirements.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplayStoreDurability {
+    ProcessLocal,
+    DurableProvider,
+    Unavailable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplayConsumeOutcome {
+    Accepted,
+    Duplicate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReplayBatchOutcome {
+    accepted_count: usize,
+}
+
+impl ReplayBatchOutcome {
+    pub fn accepted_count(self) -> usize {
+        self.accepted_count
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplayBatchFailure {
+    Duplicate,
+    InvalidKey,
+    InvalidRetention,
+    CapacitySaturated,
+    BackendUnavailable,
+    TransactionIndeterminate,
+    ClockRollback,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum ReplayStoreError {
+    #[error("replay key is invalid")]
+    InvalidKey,
+    #[error("replay retention horizon is invalid or expired")]
+    InvalidRetention,
+    #[error("replay backend is unavailable")]
+    BackendUnavailable,
+    #[error("replay transaction outcome is indeterminate")]
+    TransactionIndeterminate,
+    #[error("replay clock moved backwards")]
+    ClockRollback,
+    #[error("replay capacity is saturated")]
+    CapacitySaturated,
+    #[error("replay backend state is unavailable")]
+    LockPoisoned,
+    #[error("atomic replay batch failed: {0:?}")]
+    AtomicBatchFailure(ReplayBatchFailure),
+}
+
+/// Provider-neutral consume-once contract. Implementations must make batch
+/// reservations atomic and must fail closed when the transaction result is
+/// uncertain.
+pub trait ReplayStore: Send + Sync {
+    fn durability(&self) -> ReplayStoreDurability;
+
+    fn consume_once(
+        &self,
+        reservation: &ReplayReservation,
+        now_secs: u64,
+    ) -> Result<ReplayConsumeOutcome, ReplayStoreError>;
+
+    fn consume_once_batch(
+        &self,
+        reservations: &[ReplayReservation],
+        now_secs: u64,
+    ) -> Result<ReplayBatchOutcome, ReplayStoreError>;
+}
+
+/// Explicit unavailable backend used by production/provider boundaries until a
+/// real durable implementation is integrated.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct UnavailableReplayStore;
+
+impl ReplayStore for UnavailableReplayStore {
+    fn durability(&self) -> ReplayStoreDurability {
+        ReplayStoreDurability::Unavailable
+    }
+
+    fn consume_once(
+        &self,
+        _reservation: &ReplayReservation,
+        _now_secs: u64,
+    ) -> Result<ReplayConsumeOutcome, ReplayStoreError> {
+        Err(ReplayStoreError::BackendUnavailable)
+    }
+
+    fn consume_once_batch(
+        &self,
+        _reservations: &[ReplayReservation],
+        _now_secs: u64,
+    ) -> Result<ReplayBatchOutcome, ReplayStoreError> {
+        Err(ReplayStoreError::BackendUnavailable)
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ReplayGuardError {
@@ -31,6 +634,9 @@ struct ReplayState {
     last_observed_secs: Option<u64>,
 }
 
+/// Process-local replay implementation retained for compatibility and local
+/// containment tests. It is explicitly not durable, restart-safe, or
+/// multi-replica production replay coordination.
 #[derive(Debug)]
 pub struct ReplayGuard {
     state: Mutex<ReplayState>,
@@ -110,7 +716,7 @@ impl ReplayGuard {
             }
 
             let key = key.as_ref();
-            if key.is_empty() || key.len() > MAX_REPLAY_KEY_BYTES || retain_until < now_secs {
+            if key.is_empty() || key.len() > MAX_REPLAY_KEY_BYTES || retain_until <= now_secs {
                 return Err(ReplayGuardError::InvalidInput);
             }
             requested.push((key.to_string(), retain_until));
@@ -168,16 +774,90 @@ impl ReplayGuard {
 
     fn prune_expired_entries(entries: &mut HashMap<String, ReplayEntry>, now_secs: u64) {
         entries.retain(|_, entry| {
-            // Retain through the inclusive horizon. A clock rollback also
-            // keeps future-dated entries live until the clock catches up.
-            now_secs <= entry.retain_until
+            // Expiry is exclusive: now >= retain_until rejects the entry. A
+            // clock rollback is rejected before pruning and cannot revive it.
+            now_secs < entry.retain_until
         });
+    }
+}
+
+impl ReplayStore for ReplayGuard {
+    fn durability(&self) -> ReplayStoreDurability {
+        ReplayStoreDurability::ProcessLocal
+    }
+
+    fn consume_once(
+        &self,
+        reservation: &ReplayReservation,
+        now_secs: u64,
+    ) -> Result<ReplayConsumeOutcome, ReplayStoreError> {
+        if !reservation.has_valid_digest() {
+            return Err(ReplayStoreError::InvalidKey);
+        }
+        if reservation.retain_until <= now_secs {
+            return Err(ReplayStoreError::InvalidRetention);
+        }
+        match self.try_check_and_record_batch_with_horizons(
+            [(reservation.encoded_key(), reservation.retain_until)],
+            now_secs,
+        ) {
+            Ok(()) => Ok(ReplayConsumeOutcome::Accepted),
+            Err(ReplayGuardError::Duplicate) => Ok(ReplayConsumeOutcome::Duplicate),
+            Err(ReplayGuardError::CapacitySaturated) => Err(ReplayStoreError::CapacitySaturated),
+            Err(ReplayGuardError::ClockRollback) => Err(ReplayStoreError::ClockRollback),
+            Err(ReplayGuardError::InvalidInput) => Err(ReplayStoreError::InvalidKey),
+            Err(ReplayGuardError::LockPoisoned) => Err(ReplayStoreError::LockPoisoned),
+        }
+    }
+
+    fn consume_once_batch(
+        &self,
+        reservations: &[ReplayReservation],
+        now_secs: u64,
+    ) -> Result<ReplayBatchOutcome, ReplayStoreError> {
+        let requested = reservations
+            .iter()
+            .map(|reservation| {
+                if !reservation.has_valid_digest() {
+                    return Err(ReplayStoreError::AtomicBatchFailure(
+                        ReplayBatchFailure::InvalidKey,
+                    ));
+                }
+                if reservation.retain_until <= now_secs {
+                    return Err(ReplayStoreError::AtomicBatchFailure(
+                        ReplayBatchFailure::InvalidRetention,
+                    ));
+                }
+                Ok((reservation.encoded_key(), reservation.retain_until))
+            })
+            .collect::<Result<Vec<_>, ReplayStoreError>>()?;
+
+        match self.try_check_and_record_batch_with_horizons(requested, now_secs) {
+            Ok(()) => Ok(ReplayBatchOutcome {
+                accepted_count: reservations.len(),
+            }),
+            Err(ReplayGuardError::Duplicate) => Err(ReplayStoreError::AtomicBatchFailure(
+                ReplayBatchFailure::Duplicate,
+            )),
+            Err(ReplayGuardError::CapacitySaturated) => Err(ReplayStoreError::AtomicBatchFailure(
+                ReplayBatchFailure::CapacitySaturated,
+            )),
+            Err(ReplayGuardError::ClockRollback) => Err(ReplayStoreError::ClockRollback),
+            Err(ReplayGuardError::InvalidInput) => Err(ReplayStoreError::AtomicBatchFailure(
+                ReplayBatchFailure::InvalidKey,
+            )),
+            Err(ReplayGuardError::LockPoisoned) => Err(ReplayStoreError::BackendUnavailable),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::ReplayGuard;
+    use super::{
+        ReplayBatchFailure, ReplayBinding, ReplayConsumeOutcome, ReplayGuard, ReplayReservation,
+        ReplayStore, ReplayStoreDurability, ReplayStoreError, UnavailableReplayStore,
+    };
+    use sha2::{Digest, Sha256};
 
     #[test]
     fn accepts_new_key() {
@@ -199,6 +879,21 @@ mod tests {
 
         assert!(guard.check_and_record("attestation-1", 100));
         assert!(guard.check_and_record("attestation-1", 111));
+    }
+
+    #[test]
+    fn retention_horizon_is_exclusive_at_equality() {
+        let guard = ReplayGuard::new(10, 128);
+        let reservation = ReplayReservation::new(&binding(), 110).expect("reservation");
+
+        assert_eq!(
+            guard.consume_once(&reservation, 100),
+            Ok(ReplayConsumeOutcome::Accepted)
+        );
+        assert_eq!(
+            guard.consume_once(&reservation, 110),
+            Err(ReplayStoreError::InvalidRetention)
+        );
     }
 
     #[test]
@@ -359,5 +1054,241 @@ mod tests {
         // Forward recovery is allowed, and the rejected rollback did not
         // reinsert the pruned key.
         assert_eq!(guard.try_check_and_record("proof", 112), Ok(()));
+    }
+
+    #[derive(Clone, Copy)]
+    struct BindingFixture {
+        provider: &'static str,
+        subject: &'static str,
+        mechanism: &'static str,
+        fixture_label: &'static str,
+        operation: [u8; 32],
+        purpose: &'static str,
+        policy: [u8; 32],
+        key_identity: &'static [u8],
+        evidence: [u8; 32],
+        proof_id: Option<&'static str>,
+        audience: Option<&'static str>,
+    }
+
+    impl BindingFixture {
+        fn base() -> Self {
+            Self {
+                provider: "aws.nitro",
+                subject: "subject-1",
+                mechanism: "quote-v1",
+                fixture_label: "canonical/base",
+                operation: [1; 32],
+                purpose: "SETTLEMENT",
+                policy: [2; 32],
+                key_identity: b"key-id|derivation|public-key",
+                evidence: [3; 32],
+                proof_id: Some("proof-1"),
+                audience: Some("conxian/settlement/v1"),
+            }
+        }
+
+        fn with_provider(mut self, provider: &'static str) -> Self {
+            self.provider = provider;
+            self
+        }
+
+        fn with_subject(mut self, subject: &'static str) -> Self {
+            self.subject = subject;
+            self
+        }
+
+        fn with_mechanism(mut self, mechanism: &'static str) -> Self {
+            self.mechanism = mechanism;
+            self
+        }
+
+        fn with_fixture_label(mut self, fixture_label: &'static str) -> Self {
+            self.fixture_label = fixture_label;
+            self
+        }
+
+        fn with_operation(mut self, operation: [u8; 32]) -> Self {
+            self.operation = operation;
+            self
+        }
+
+        fn with_purpose(mut self, purpose: &'static str) -> Self {
+            self.purpose = purpose;
+            self
+        }
+
+        fn with_policy(mut self, policy: [u8; 32]) -> Self {
+            self.policy = policy;
+            self
+        }
+
+        fn with_key_identity(mut self, key_identity: &'static [u8]) -> Self {
+            self.key_identity = key_identity;
+            self
+        }
+
+        fn with_evidence(mut self, evidence: [u8; 32]) -> Self {
+            self.evidence = evidence;
+            self
+        }
+
+        fn with_proof_id(mut self, proof_id: Option<&'static str>) -> Self {
+            self.proof_id = proof_id;
+            self
+        }
+
+        fn with_audience(mut self, audience: Option<&'static str>) -> Self {
+            self.audience = audience;
+            self
+        }
+    }
+
+    /// Deterministic test-only input derivation. The domain separator makes
+    /// this fixture material distinct from production nonce generation.
+    fn deterministic_fixture_input(label: &str) -> Vec<u8> {
+        let mut material = b"CONXIAN-TEST-REPLAY-FIXTURE/v1".to_vec();
+        material.extend_from_slice(label.as_bytes());
+        Sha256::digest(material).to_vec()
+    }
+
+    fn binding_with(fixture: BindingFixture) -> ReplayBinding {
+        let fixture_input = deterministic_fixture_input(fixture.fixture_label);
+        let mut builder = ReplayBinding::builder()
+            .provider(fixture.provider)
+            .proof_subject(fixture.subject)
+            .proof_mechanism(fixture.mechanism)
+            .nonce(&fixture_input)
+            .operation_digest(fixture.operation)
+            .purpose(fixture.purpose)
+            .policy_digest(fixture.policy)
+            .key_identity(fixture.key_identity)
+            .evidence_digest(fixture.evidence);
+        if let Some(proof_id) = fixture.proof_id {
+            builder = builder.proof_id(proof_id);
+        }
+        if let Some(audience) = fixture.audience {
+            builder = builder.audience(audience);
+        }
+        builder.build().expect("binding should be valid")
+    }
+
+    fn binding() -> ReplayBinding {
+        binding_with(BindingFixture::base())
+    }
+
+    #[test]
+    fn canonical_binding_changes_for_every_security_dimension() {
+        let base = binding().digest().expect("base digest");
+        let variants = [
+            binding_with(BindingFixture::base().with_provider("android.keymint")),
+            binding_with(BindingFixture::base().with_subject("subject-2")),
+            binding_with(BindingFixture::base().with_mechanism("quote-v2")),
+            binding_with(BindingFixture::base().with_fixture_label("canonical/alternate-input")),
+            binding_with(BindingFixture::base().with_operation([4; 32])),
+            binding_with(BindingFixture::base().with_purpose("AUTHORIZATION")),
+            binding_with(BindingFixture::base().with_policy([5; 32])),
+            binding_with(BindingFixture::base().with_key_identity(b"different-key-identity")),
+            binding_with(BindingFixture::base().with_evidence([6; 32])),
+            binding_with(BindingFixture::base().with_proof_id(Some("proof-2"))),
+            binding_with(BindingFixture::base().with_audience(Some("different-audience"))),
+        ];
+
+        for variant in variants {
+            assert_ne!(base, variant.digest().expect("variant digest"));
+        }
+    }
+
+    #[test]
+    fn replay_binding_builder_debug_redacts_transient_inputs() {
+        let fixture_input = deterministic_fixture_input("builder/debug");
+        let debug = format!(
+            "{:?}",
+            ReplayBinding::builder()
+                .nonce(&fixture_input)
+                .key_identity(b"fixture-key-identity")
+        );
+        assert!(!debug.contains(&hex::encode(&fixture_input)));
+        assert!(!debug.contains("fixture-key-identity"));
+    }
+
+    #[test]
+    fn replay_store_contract_is_atomic_and_secret_safe() {
+        let guard = ReplayGuard::new(300, 8);
+        assert_eq!(guard.durability(), ReplayStoreDurability::ProcessLocal);
+        let reservation = ReplayReservation::new(&binding(), 500).expect("reservation");
+        assert_eq!(
+            guard.consume_once(&reservation, 100),
+            Ok(ReplayConsumeOutcome::Accepted)
+        );
+        assert_eq!(
+            guard.consume_once(&reservation, 101),
+            Ok(ReplayConsumeOutcome::Duplicate)
+        );
+
+        let second_binding = binding_with(
+            BindingFixture::base()
+                .with_subject("subject-2")
+                .with_fixture_label("atomic/second-input")
+                .with_operation([4; 32])
+                .with_key_identity(b"key-2")
+                .with_evidence([5; 32])
+                .with_proof_id(Some("proof-2")),
+        );
+        let second = ReplayReservation::new(&second_binding, 500).expect("second reservation");
+        assert_eq!(
+            guard.consume_once_batch(&[reservation.clone(), second.clone()], 102),
+            Err(ReplayStoreError::AtomicBatchFailure(
+                ReplayBatchFailure::Duplicate
+            ))
+        );
+        assert_eq!(
+            guard.consume_once(&second, 102),
+            Ok(ReplayConsumeOutcome::Accepted)
+        );
+
+        let debug = format!("{:?}", binding());
+        assert!(!debug.contains("key-id|derivation|public-key"));
+        assert!(!debug.contains(&hex::encode(deterministic_fixture_input("canonical/base",))));
+        assert!(!debug.contains("raw-evidence"));
+        assert!(!binding().as_key().expect("key").contains("canonical/base"));
+    }
+
+    #[test]
+    fn replay_store_rejects_invalid_retention_and_clock_rollback() {
+        let guard = ReplayGuard::new(300, 8);
+        let reservation = ReplayReservation::new(&binding(), 99).expect("reservation");
+        assert_eq!(
+            guard.consume_once(&reservation, 100),
+            Err(ReplayStoreError::InvalidRetention)
+        );
+        let valid = ReplayReservation::new(&binding(), 500).expect("valid reservation");
+        assert_eq!(
+            guard.consume_once(&valid, 200),
+            Ok(ReplayConsumeOutcome::Accepted)
+        );
+        assert_eq!(
+            guard.consume_once(&ReplayReservation::from_digest([8; 32], 600), 199),
+            Err(ReplayStoreError::ClockRollback)
+        );
+        assert_eq!(
+            guard.consume_once(&ReplayReservation::from_digest([0; 32], 600), 201),
+            Err(ReplayStoreError::InvalidKey)
+        );
+    }
+
+    #[test]
+    fn unavailable_backend_is_explicit() {
+        let backend = UnavailableReplayStore;
+        let reservation = ReplayReservation::new(&binding(), 500).expect("reservation");
+        assert_eq!(backend.durability(), ReplayStoreDurability::Unavailable);
+        assert_eq!(
+            backend.consume_once(&reservation, 100),
+            Err(ReplayStoreError::BackendUnavailable)
+        );
+        assert_eq!(
+            backend.consume_once_batch(&[reservation], 100),
+            Err(ReplayStoreError::BackendUnavailable)
+        );
     }
 }

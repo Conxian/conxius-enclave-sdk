@@ -145,29 +145,32 @@
       "independentReview": "not-evidenced",
       "productionSupport": "conditional",
       "evidenceRefs": [
+        "src/enclave/trust.rs",
         "src/enclave/replay_guard.rs:1-103",
         "src/enclave/durable_replay.rs",
+        "src/enclave/proofs.rs",
         "src/enclave/attestation.rs:1-251",
-        "src/enclave/trust.rs",
         "src/enclave/mod.rs:700-760",
+        "docs/architecture/TRUST_REPLAY_FOUNDATION.md",
         "src/protocol/rails/mod.rs:560-620",
         "src/enclave/hardware_attestation_tests.rs:1-450",
         "tests/issue_240_phase_a.rs",
         "docs/architecture/ISSUE-240_PHASE_A_CONTRACT.md",
         "docs/architecture/SDK_BOUNDARY_CONTRACT.md",
         ".github/workflows/ci.yml:1-100",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/240",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
       ],
       "evidenceChain": [
-        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150", "docs/architecture/ISSUE-240_PHASE_A_CONTRACT.md", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
-        {"stage": "code", "refs": ["src/enclave/replay_guard.rs:1-103", "src/enclave/durable_replay.rs", "src/enclave/trust.rs", "src/enclave/attestation.rs:1-251", "src/enclave/mod.rs:700-760", "src/protocol/rails/mod.rs:560-620"]},
-        {"stage": "test", "refs": ["src/enclave/hardware_attestation_tests.rs:1-450", "src/enclave/replay_guard.rs:1-103", "src/enclave/durable_replay.rs", "src/enclave/trust.rs", "tests/issue_240_phase_a.rs", "src/enclave/mod.rs:1000-1618", "src/protocol/rails/mod.rs:900-1190"]},
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150", "docs/architecture/TRUST_REPLAY_FOUNDATION.md", "https://github.com/Conxian/conxius-enclave-sdk/issues/240", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
+        {"stage": "code", "refs": ["src/enclave/replay_guard.rs:1-103", "src/enclave/durable_replay.rs", "src/enclave/trust.rs", "src/enclave/proofs.rs", "src/enclave/attestation.rs:1-251", "src/enclave/mod.rs:700-760", "src/protocol/rails/mod.rs:560-620"]},
+        {"stage": "test", "refs": ["src/enclave/hardware_attestation_tests.rs:1-450", "src/enclave/replay_guard.rs:1-103", "src/enclave/durable_replay.rs", "src/enclave/trust.rs", "src/enclave/proofs.rs", "tests/issue_240_phase_a.rs", "src/enclave/mod.rs:1000-1618", "src/protocol/rails/mod.rs:900-1190"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Replay authorization is process-local and fixture-tested; it is not distributed replay coordination or exact-artifact production evidence.",
-      "notes": "Reviewed fix commit 99f8415be19d59ed4a2e5a07ff66b70902ede106 covers the separate SingleMechanismReplayIdentity and SingleMechanismReplayAuthorization types, explicit single-mechanism scope binding, bounded idempotency key, atomic-store outcome contract, trusted-clock wrapper, expiry-before-store checks, and process-local rollback high-water checks. Durable replay accepts only a single-mechanism normalized result and cannot return complete all-required/value-bearing authorization. Existing ProofReplayKey and ReplayGuard remain unchanged; no durable backend, distributed replay coordination, provider availability, independent review, or release-artifact support is claimed."
+      "exclusion": "The trust bundle verifier routes are explicitly unavailable in production, fixture verification is test-only, and ReplayGuard is process-local. Single-mechanism replay authorization remains process-local or fixture-tested and is not distributed replay coordination or exact-artifact production evidence. No vendor roots, durable replay backend, hardware runtime, independent-review, SBOM, provenance, or exact release-artifact support is claimed.",
+      "notes": "Reviewed fix commit 99f8415be19d59ed4a2e5a07ff66b70902ede106 covers separate SingleMechanismReplayIdentity and SingleMechanismReplayAuthorization types, explicit single-mechanism scope binding, bounded idempotency keys, atomic-store outcomes, trusted-clock and expiry checks, and process-local rollback high-water checks. The merged trust contracts also retain versioned canonical trust snapshots, authenticated envelope route/source/profile digests, evidence freshness checks, deterministic rejection states, refresh rotation/outage semantics, and complete provider/proof/nonce/operation/purpose/policy/key/evidence replay bindings. Durable proof authorization enforces the exact canonical production policy, while durable final signing consumes a distinct operation binding immediately before provider signing; neither path supplies complete all-required authorization or production provider evidence. Existing ProofReplayKey and ReplayGuard remain unchanged, and a real durable backend, deployment, provider verifier, independent review, or release artifact remains open."
     },
     {
       "id": "rail-policy",
