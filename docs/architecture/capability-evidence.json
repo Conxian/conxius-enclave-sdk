@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "schemaVersion": 1,
   "repository": "Conxian/conxius-enclave-sdk",
-  "reviewedRef": "75452598eb03fe5384df2fcfc9f7f0bec1cd21e5",
+  "reviewedRef": "0510ecd5096c39eed4b8909f9e48e56697a7bc57",
   "lastVerified": "2026-07-22",
   "maturity": "beta-conditional",
   "statusVocabulary": {
@@ -140,23 +140,27 @@
       "independentReview": "not-evidenced",
       "productionSupport": "conditional",
       "evidenceRefs": [
+        "src/enclave/trust.rs",
         "src/enclave/replay_guard.rs:1-103",
+        "src/enclave/proofs.rs",
         "src/enclave/attestation.rs:1-251",
         "src/enclave/mod.rs:700-760",
+        "docs/architecture/TRUST_REPLAY_FOUNDATION.md",
         "src/protocol/rails/mod.rs:560-620",
         "src/enclave/hardware_attestation_tests.rs:1-450",
+        "https://github.com/Conxian/conxius-enclave-sdk/issues/240",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
       ],
       "evidenceChain": [
-        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
-        {"stage": "code", "refs": ["src/enclave/replay_guard.rs:1-103", "src/enclave/attestation.rs:1-251", "src/enclave/mod.rs:700-760", "src/protocol/rails/mod.rs:560-620"]},
-        {"stage": "test", "refs": ["src/enclave/hardware_attestation_tests.rs:1-450", "src/enclave/replay_guard.rs:1-103", "src/enclave/mod.rs:1000-1618", "src/protocol/rails/mod.rs:900-1190"]},
+        {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150", "docs/architecture/TRUST_REPLAY_FOUNDATION.md", "https://github.com/Conxian/conxius-enclave-sdk/issues/240", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
+        {"stage": "code", "refs": ["src/enclave/trust.rs", "src/enclave/replay_guard.rs", "src/enclave/proofs.rs", "src/enclave/attestation.rs:1-251", "src/enclave/mod.rs:700-760", "src/protocol/rails/mod.rs:560-620"]},
+        {"stage": "test", "refs": ["src/enclave/trust.rs", "src/enclave/replay_guard.rs", "src/enclave/proofs.rs", "src/enclave/hardware_attestation_tests.rs:1-450", "src/enclave/mod.rs:1000-1618", "src/protocol/rails/mod.rs:900-1190"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Replay authorization is process-local and fixture-tested; it is not distributed replay coordination or exact-artifact production evidence.",
-      "notes": "Manager and rail paths now consume replay authorization only after typed provider evidence passes; a downstream adapter failure does not roll back the process-local replay record. Distributed replay state, deployment integration, independent review, and artifacts remain open."
+      "exclusion": "The trust bundle verifier routes are explicitly unavailable in production, fixture verification is test-only, and ReplayGuard is process-local. No vendor roots, durable replay backend, distributed replay coordination, hardware runtime, independent-review, SBOM, provenance, or exact release-artifact support is claimed.",
+      "notes": "Issue #240 adds versioned canonical trust snapshots, authenticated envelope route/source/profile digests, evidence issued_at freshness checks, deterministic trust rejection states, refresh rotation/outage semantics, a typed atomic ReplayStore contract, and complete provider/proof/nonce/operation/purpose/policy/key/evidence replay bindings. Durable proof authorization enforces the exact canonical production policy, and durable final signing consumes a distinct operation binding immediately before provider signing. Process-local or indeterminate stores remain rejected; a real durable backend, deployment, and provider evidence remain open."
     },
     {
       "id": "rail-policy",

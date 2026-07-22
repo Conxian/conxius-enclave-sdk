@@ -261,7 +261,8 @@ impl EnclaveManager for CloudEnclave {
         _request: ValueBearingSignRequest,
     ) -> ConclaveResult<ValueBearingSignResponse> {
         Err(ConclaveError::Unsupported(
-            "CloudEnclave is software-only and cannot sign value-bearing operations".to_string(),
+            "public value-bearing signing requires durable proof authorization and a durable replay store; CloudEnclave is software-only"
+                .to_string(),
         ))
     }
 }

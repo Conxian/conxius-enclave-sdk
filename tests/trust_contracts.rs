@@ -4,8 +4,8 @@ use conxius_enclave_sdk::enclave::attestation::{
 use conxius_enclave_sdk::enclave::{
     AttestationProvider, CollateralMetadata, CollateralValidationContext,
     CollateralValidationError, EvidenceReference, ReleaseEvidenceError, ReleaseEvidenceExpectation,
-    ReleaseEvidenceKind, ReleaseEvidenceManifest, ReplayBinding, ReplayOperation,
-    ReplayProofMechanism, ReplayProofSubject, ReplayPurpose, TrustDigest,
+    ReleaseEvidenceKind, ReleaseEvidenceManifest, ReplayOperation, ReplayProofMechanism,
+    ReplayProofSubject, ReplayPurpose, TrustDigest, TrustReplayBinding,
 };
 use conxius_enclave_sdk::ConclaveError;
 
@@ -95,7 +95,7 @@ fn public_collateral_contract_fails_closed_on_expiry_and_root_mismatch() {
 #[test]
 fn public_replay_binding_serializes_only_digests() {
     let raw_nonce = deterministic_fixture_input(1);
-    let binding = ReplayBinding::try_new(
+    let binding = TrustReplayBinding::try_new(
         AttestationProvider::AndroidKeyMintStrongBox,
         ReplayProofSubject::SignerKey,
         ReplayProofMechanism::AndroidKeyMintAuthorization,

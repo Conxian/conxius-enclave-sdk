@@ -7,26 +7,48 @@ pub mod cloud;
 pub mod proof;
 pub mod proofs;
 pub mod replay_guard;
+pub mod trust;
 pub mod trust_contracts;
 
 pub use proofs::{
-    authorize_settlement_with_proofs, authorize_value_bearing_with_proofs,
-    deserialize_proof_bundle_json, sign_value_bearing_with_proof_authorization,
+    authorize_settlement_with_durable_store, authorize_value_bearing_with_durable_store,
+    deserialize_proof_bundle_json, sign_value_bearing_with_proof_authorization_and_durable_store,
     ProofBoundValueBearingAuthorization, ProofBundle, ProofEnvelope, ProofKind, ProofPolicy,
-    ProofReplayKey, ProofRequirement, ProofVerificationContext, ProofVerifier,
-    ProofVerifierRegistry, ProofVerifierStatus, UnlistedProofPolicy, VerifiedProofReceipt,
-    VerifiedProofSet, FIDO_PROOF_VERIFIER_ID, MAX_PROOF_TRANSPORT_BYTES, PHONE_PROOF_VERIFIER_ID,
-    PROOF_CONTEXT_DOMAIN, PROOF_ENVELOPE_DOMAIN, PROOF_ENVELOPE_VERSION, PROOF_POLICY_DOMAIN,
-    PROOF_REPLAY_DOMAIN, SERVER_PROOF_VERIFIER_ID, SETTLEMENT_PROOF_AUDIENCE,
+    ProofReplayBindingContext, ProofReplayKey, ProofRequirement, ProofVerificationContext,
+    ProofVerifier, ProofVerifierRegistry, ProofVerifierStatus, UnlistedProofPolicy,
+    VerifiedProofReceipt, VerifiedProofSet, FIDO_PROOF_VERIFIER_ID, MAX_PROOF_TRANSPORT_BYTES,
+    PHONE_PROOF_VERIFIER_ID, PROOF_CONTEXT_DOMAIN, PROOF_ENVELOPE_DOMAIN, PROOF_ENVELOPE_VERSION,
+    PROOF_POLICY_DOMAIN, PROOF_REPLAY_DOMAIN, SERVER_PROOF_VERIFIER_ID, SETTLEMENT_PROOF_AUDIENCE,
     SETTLEMENT_PROOF_PURPOSE, TEE_PROOF_VERIFIER_ID, TPM_PROOF_VERIFIER_ID, USER_PROOF_VERIFIER_ID,
+    VALUE_BEARING_OPERATION_REPLAY_DOMAIN,
+};
+
+pub use trust::{
+    deserialize_trust_bundle_json, TrustBundleCache, TrustBundleEnvelope, TrustBundleSnapshot,
+    TrustBundleSource, TrustBundleValidator, TrustBundleVerifier, TrustBundleVerifierRegistry,
+    TrustBundleVerifierStatus, TrustClockObservation, TrustEvidence, TrustEvidenceFreshnessPolicy,
+    TrustRefreshOutcome, TrustRefreshState, TrustValidationError, TrustValidationReceipt,
+    MAX_TRUST_BUNDLE_TRANSPORT_BYTES, TRUST_BUNDLE_DOMAIN, TRUST_BUNDLE_SCHEMA_VERSION,
+    TRUST_PROVIDER_AMD_SEV_SNP, TRUST_PROVIDER_ANDROID_KEYMINT, TRUST_PROVIDER_AWS_NITRO,
+    TRUST_PROVIDER_FIDO, TRUST_PROVIDER_INTEL_DCAP, TRUST_PROVIDER_TPM, TRUST_VERIFIER_AMD_SEV_SNP,
+    TRUST_VERIFIER_ANDROID_KEYMINT, TRUST_VERIFIER_AWS_NITRO, TRUST_VERIFIER_FIDO,
+    TRUST_VERIFIER_INTEL_DCAP, TRUST_VERIFIER_TPM,
+};
+
+pub use replay_guard::{
+    ReplayBatchFailure, ReplayBatchOutcome, ReplayBinding as ReplayStoreBinding,
+    ReplayBindingBuilder, ReplayBindingError as ReplayStoreBindingError, ReplayConsumeOutcome,
+    ReplayReservation, ReplayStore, ReplayStoreDurability, ReplayStoreError,
+    UnavailableReplayStore, REPLAY_BINDING_DOMAIN, REPLAY_BINDING_VERSION,
 };
 pub use trust_contracts::{
     AttestationProvider, AuthenticatedCollateralMetadata, CollateralMetadata,
     CollateralValidationContext, CollateralValidationError, DurableReplayError, DurableReplayStore,
     EvidenceReference, NonProductionInMemoryReplayStore, ReleaseEvidenceError,
-    ReleaseEvidenceExpectation, ReleaseEvidenceKind, ReleaseEvidenceManifest, ReplayBinding,
-    ReplayBindingError, ReplayOperation, ReplayProofMechanism, ReplayProofSubject, ReplayPurpose,
-    ReplayReservation, TrustDigest,
+    ReleaseEvidenceExpectation, ReleaseEvidenceKind, ReleaseEvidenceManifest,
+    ReplayBinding as TrustReplayBinding, ReplayBindingError as TrustReplayBindingError,
+    ReplayOperation, ReplayProofMechanism, ReplayProofSubject, ReplayPurpose,
+    ReplayReservation as DurableReplayReservation, TrustDigest,
 };
 
 pub use android_authorization::{
@@ -50,6 +72,8 @@ use crate::enclave::attestation::{
 };
 #[cfg(test)]
 use crate::enclave::attestation::{AttestationExtension, AttestationLevel};
+use crate::enclave::replay_guard::key_identity_digest;
+#[cfg(test)]
 use crate::enclave::replay_guard::{ReplayGuard, ReplayGuardError};
 use crate::{ConclaveError, ConclaveResult};
 use ed25519_dalek::Verifier as _;
@@ -91,6 +115,14 @@ pub enum SigningAlgorithm {
 }
 
 impl SigningAlgorithm {
+    pub(crate) fn canonical_token(self) -> &'static str {
+        match self {
+            Self::EcdsaSecp256k1 => "ecdsa-secp256k1",
+            Self::SchnorrSecp256k1 => "schnorr-secp256k1",
+            Self::Ed25519 => "ed25519",
+        }
+    }
+
     fn canonical_tag(self) -> u8 {
         match self {
             Self::EcdsaSecp256k1 => 1,
@@ -343,6 +375,13 @@ impl SignerKeyBinding {
         append_len_prefixed(output, self.derivation_path.as_bytes())?;
         append_len_prefixed(output, &self.public_key)
     }
+
+    pub fn replay_identity_digest(&self) -> ConclaveResult<[u8; 32]> {
+        let mut canonical = Vec::new();
+        append_len_prefixed(&mut canonical, b"CONXIAN-SIGNER-KEY-IDENTITY/v1")?;
+        self.append_canonical(&mut canonical)?;
+        key_identity_digest(&canonical).map_err(|_| ConclaveError::InvalidPayload)
+    }
 }
 
 /// Explicit value-bearing signing request.
@@ -360,6 +399,8 @@ pub struct ValueBearingSignRequest {
     key_binding: SignerKeyBinding,
     taproot_tweak: Option<Vec<u8>>,
     expected_proof_policy: Option<proof::ProofSetPolicy>,
+    #[serde(skip)]
+    expected_proof_policy_digest_override: Option<[u8; 32]>,
     #[serde(skip_serializing_if = "Option::is_none")]
     canonical_proof_policy_digest: Option<[u8; 32]>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -395,6 +436,7 @@ impl ValueBearingSignRequest {
             key_binding,
             taproot_tweak,
             expected_proof_policy: None,
+            expected_proof_policy_digest_override: None,
             canonical_proof_policy_digest: None,
             canonical_proof_context_binding: None,
             canonical_proof_set_digest: None,
@@ -425,17 +467,22 @@ impl ValueBearingSignRequest {
         self.taproot_tweak.as_deref()
     }
 
-    /// Returns the exact proof policy expected for this value-bearing request.
-    /// A missing policy remains source-compatible for existing callers, but
-    /// the private value-bearing rail boundary rejects such a request.
+    /// Returns the legacy structured proof policy expected for this request.
+    ///
+    /// The durable proof-aware signing boundary also requires the exact digest
+    /// commitment returned by [`Self::expected_proof_policy_digest`].
     pub fn expected_proof_policy(&self) -> Option<&proof::ProofSetPolicy> {
         self.expected_proof_policy.as_ref()
     }
 
     pub fn expected_proof_policy_digest(&self) -> Option<&[u8; 32]> {
-        self.expected_proof_policy
+        self.expected_proof_policy_digest_override
             .as_ref()
-            .map(proof::ProofSetPolicy::canonical_digest)
+            .or_else(|| {
+                self.expected_proof_policy
+                    .as_ref()
+                    .map(proof::ProofSetPolicy::canonical_digest)
+            })
     }
 
     pub(crate) fn canonical_proof_policy_digest(&self) -> Option<&[u8; 32]> {
@@ -464,7 +511,36 @@ impl ValueBearingSignRequest {
             return Err(ConclaveError::InvalidPayload);
         }
 
+        let expected_policy_digest = *expected_proof_policy.canonical_digest();
+        if self
+            .expected_proof_policy_digest_override
+            .is_some_and(|digest| digest != expected_policy_digest)
+        {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
         self.expected_proof_policy = Some(expected_proof_policy);
+        Ok(self)
+    }
+
+    /// Binds an exact policy digest to this request for the durable proof-aware
+    /// signing boundary. This commitment is intentionally separate from the
+    /// legacy structured rail policy so the final durable path can compare the
+    /// request directly with its independently verified authorization policy.
+    pub fn with_expected_proof_policy_digest(
+        mut self,
+        expected_proof_policy_digest: [u8; 32],
+    ) -> ConclaveResult<Self> {
+        if expected_proof_policy_digest.iter().all(|byte| *byte == 0)
+            || self
+                .expected_proof_policy
+                .as_ref()
+                .is_some_and(|policy| *policy.canonical_digest() != expected_proof_policy_digest)
+        {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        self.expected_proof_policy_digest_override = Some(expected_proof_policy_digest);
         Ok(self)
     }
 
@@ -489,6 +565,14 @@ impl ValueBearingSignRequest {
             ));
         }
 
+        if self
+            .expected_proof_policy_digest_override
+            .is_some_and(|digest| digest != expected_policy_digest)
+        {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        self.expected_proof_policy_digest_override = Some(expected_policy_digest);
         self.canonical_proof_policy_digest = Some(expected_policy_digest);
         self.canonical_proof_context_binding = Some(*authorization.context_binding());
         self.canonical_proof_set_digest = Some(authorization.verified_proofs().digest()?);
@@ -620,6 +704,7 @@ pub(crate) struct ValueBearingReplayAuthorization {
 }
 
 impl ValueBearingReplayAuthorization {
+    #[cfg(test)]
     fn new(operation_binding: [u8; 32]) -> Self {
         Self { operation_binding }
     }
@@ -688,6 +773,7 @@ impl ValueBearingSignResponse {
         self.replay_authorization.as_ref()
     }
 
+    #[cfg(test)]
     fn with_replay_authorization(
         mut self,
         replay_authorization: ValueBearingReplayAuthorization,
@@ -762,7 +848,7 @@ impl ValueBearingSignResponse {
         Self::from_provider_at_time(request, response, capability, now_secs)
     }
 
-    fn from_provider_at_time(
+    pub(crate) fn from_provider_at_time(
         request: &ValueBearingSignRequest,
         response: SignResponse,
         capability: SignerCapability,
@@ -885,9 +971,10 @@ pub trait EnclaveManager: Send + Sync {
         SignerCapability::software_unverified()
     }
 
-    /// Returns manager-owned replay state for the typed value-bearing boundary.
-    /// A provider that cannot supply safe in-process replay containment must
-    /// leave this unavailable so signing fails closed.
+    /// Test-only local replay hook for containment regressions. It is excluded
+    /// from production builds and must never be treated as value-bearing
+    /// authorization or durable replay coordination.
+    #[cfg(test)]
     fn value_bearing_replay_guard(&self) -> Option<&ReplayGuard> {
         None
     }
@@ -922,16 +1009,27 @@ pub trait EnclaveManager: Send + Sync {
         ))
     }
 
-    /// Value-bearing signing never delegates to the legacy [`Self::sign`] path.
+    /// Legacy compatibility shim. Public value-bearing signing requires the
+    /// durable proof authorization API and a durable replay store; this method
+    /// fails closed before provider invocation and never uses `ReplayGuard`.
     fn sign_value_bearing(
         &self,
-        request: ValueBearingSignRequest,
+        _request: ValueBearingSignRequest,
     ) -> ConclaveResult<ValueBearingSignResponse> {
-        sign_value_bearing_with_trusted_clock(self, request, trusted_unix_time_secs())
+        Err(ConclaveError::Unsupported(
+            "public value-bearing signing requires durable proof authorization and a durable replay store"
+                .to_string(),
+        ))
     }
 }
 
-fn sign_value_bearing_with_trusted_clock<E: EnclaveManager + ?Sized>(
+/// Test-only containment helper for legacy manager-local replay behavior.
+///
+/// This function is compiled only into crate tests, has an explicit test-only
+/// name, and is not a production authorization boundary. It exists solely for
+/// regression coverage of providers that expose a process-local `ReplayGuard`.
+#[cfg(test)]
+pub(crate) fn sign_value_bearing_with_process_local_replay_for_test<E: EnclaveManager + ?Sized>(
     enclave: &E,
     request: ValueBearingSignRequest,
     trusted_now_secs: ConclaveResult<u64>,
@@ -957,7 +1055,7 @@ fn sign_value_bearing_with_trusted_clock<E: EnclaveManager + ?Sized>(
     )?;
     let replay_guard = enclave.value_bearing_replay_guard().ok_or_else(|| {
         crate::ConclaveError::Unsupported(
-            "value-bearing replay protection is unavailable".to_string(),
+            "test-only process-local value-bearing replay protection is unavailable".to_string(),
         )
     })?;
     let replay_key = hex::encode(verified.operation_binding());
@@ -1000,11 +1098,9 @@ impl EnclaveManager for UnavailableEnclave {
     }
 }
 
-/// Signs a value-bearing operation through the common fail-closed boundary.
-///
-/// Legacy `EnclaveManager::sign` remains available only for explicitly isolated
-/// development/test drivers. This helper calls the typed provider-only method
-/// and never bridges a typed request through raw signing.
+/// Compatibility shim for internal callers that do not own a durable replay
+/// store. It delegates to the public fail-closed method and therefore never
+/// invokes a provider. Durable callers must use the proof authorization API.
 pub(crate) fn sign_value_bearing(
     enclave: &dyn EnclaveManager,
     request: ValueBearingSignRequest,
@@ -1172,6 +1268,7 @@ fn test_unix_time_secs() -> u64 {
     trusted_unix_time_secs().expect("test host clock should be after the Unix epoch")
 }
 
+#[cfg(test)]
 fn map_replay_guard_error(error: ReplayGuardError) -> ConclaveError {
     match error {
         ReplayGuardError::InvalidInput => ConclaveError::InvalidPayload,
@@ -1549,6 +1646,19 @@ mod enclave_tests {
                     if message.contains("value-bearing")
             ));
         }
+    }
+
+    #[test]
+    fn public_value_bearing_signing_requires_durable_replay_before_provider() {
+        let provider = FixtureProvider::new(16);
+
+        assert!(matches!(
+            provider.sign_value_bearing(value_request()),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("durable proof authorization")
+                    && message.contains("durable replay store")
+        ));
+        assert_eq!(provider.provider_calls.load(Ordering::Relaxed), 0);
     }
 
     #[test]
@@ -1985,7 +2095,7 @@ mod enclave_tests {
             .expect("pre-epoch fixture should be representable");
 
         assert!(matches!(
-            sign_value_bearing_with_trusted_clock(
+            sign_value_bearing_with_process_local_replay_for_test(
                 &provider,
                 request.clone(),
                 trusted_unix_time_secs_at(pre_epoch),
@@ -1996,9 +2106,18 @@ mod enclave_tests {
 
         // The failed clock acquisition did not consume the operation replay
         // key; the first valid attempt can still succeed.
-        assert!(provider.sign_value_bearing(request.clone()).is_ok());
+        assert!(sign_value_bearing_with_process_local_replay_for_test(
+            &provider,
+            request.clone(),
+            trusted_unix_time_secs(),
+        )
+        .is_ok());
         assert!(matches!(
-            provider.sign_value_bearing(request),
+            sign_value_bearing_with_process_local_replay_for_test(
+                &provider,
+                request,
+                trusted_unix_time_secs(),
+            ),
             Err(ConclaveError::Unsupported(message))
                 if message.contains("replay protection") && message.contains("already")
         ));
@@ -2012,10 +2131,24 @@ mod enclave_tests {
         invalid.device_attestation = None;
         provider.queue_response(invalid);
 
-        assert!(provider.sign_value_bearing(request.clone()).is_err());
-        assert!(provider.sign_value_bearing(request.clone()).is_ok());
+        assert!(sign_value_bearing_with_process_local_replay_for_test(
+            &provider,
+            request.clone(),
+            trusted_unix_time_secs(),
+        )
+        .is_err());
+        assert!(sign_value_bearing_with_process_local_replay_for_test(
+            &provider,
+            request.clone(),
+            trusted_unix_time_secs(),
+        )
+        .is_ok());
         assert!(matches!(
-            provider.sign_value_bearing(request),
+            sign_value_bearing_with_process_local_replay_for_test(
+                &provider,
+                request,
+                trusted_unix_time_secs(),
+            ),
             Err(ConclaveError::Unsupported(message))
                 if message.contains("replay protection") && message.contains("already")
         ));
@@ -2040,10 +2173,24 @@ mod enclave_tests {
             .requested_key_id_hash[0] ^= 0x01;
         provider.queue_response(provider.response_with_report(&request, report));
 
-        assert!(provider.sign_value_bearing(request.clone()).is_err());
-        assert!(provider.sign_value_bearing(request.clone()).is_ok());
+        assert!(sign_value_bearing_with_process_local_replay_for_test(
+            &provider,
+            request.clone(),
+            trusted_unix_time_secs(),
+        )
+        .is_err());
+        assert!(sign_value_bearing_with_process_local_replay_for_test(
+            &provider,
+            request.clone(),
+            trusted_unix_time_secs(),
+        )
+        .is_ok());
         assert!(matches!(
-            provider.sign_value_bearing(request),
+            sign_value_bearing_with_process_local_replay_for_test(
+                &provider,
+                request,
+                trusted_unix_time_secs(),
+            ),
             Err(ConclaveError::Unsupported(message))
                 if message.contains("replay protection") && message.contains("already")
         ));
@@ -2055,14 +2202,27 @@ mod enclave_tests {
         let first = ed25519_value_request([1u8; 32]);
         let second = ed25519_value_request([2u8; 32]);
 
-        assert!(provider.sign_value_bearing(first.clone()).is_ok());
+        assert!(sign_value_bearing_with_process_local_replay_for_test(
+            &provider,
+            first.clone(),
+            trusted_unix_time_secs(),
+        )
+        .is_ok());
         assert!(matches!(
-            provider.sign_value_bearing(second),
+            sign_value_bearing_with_process_local_replay_for_test(
+                &provider,
+                second,
+                trusted_unix_time_secs(),
+            ),
             Err(ConclaveError::Unsupported(message))
                 if message.contains("replay protection") && message.contains("saturated")
         ));
         assert!(matches!(
-            provider.sign_value_bearing(first),
+            sign_value_bearing_with_process_local_replay_for_test(
+                &provider,
+                first,
+                trusted_unix_time_secs(),
+            ),
             Err(ConclaveError::Unsupported(message))
                 if message.contains("replay protection") && message.contains("already")
         ));
