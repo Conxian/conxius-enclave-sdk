@@ -20,6 +20,10 @@ use thiserror::Error;
 /// Versioned domain separator for canonical proof contexts.
 pub const PROOF_CONTEXT_VERSION: u16 = 1;
 pub const PROOF_CONTEXT_DOMAIN: &str = "CONXIAN-PROOF-CONTEXT/v1";
+pub const PROOF_REQUIREMENT_VERSION: u16 = 1;
+pub const PROOF_REQUIREMENT_DOMAIN: &str = "CONXIAN-PROOF-REQUIREMENT/v1";
+pub const PROOF_POLICY_VERSION: u16 = 1;
+pub const PROOF_POLICY_DOMAIN: &str = "CONXIAN-PROOF-POLICY/v1";
 pub const PROOF_SET_DOMAIN: &str = "CONXIAN-PROOF-SET/v1";
 
 /// Bounds applied before unverified evidence is retained in memory.
@@ -428,6 +432,7 @@ impl RawProofEvidence {
     }
 
     #[cfg(test)]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn test_fixture(
         key: ProofKey,
         issuer: &str,
@@ -511,12 +516,13 @@ pub struct ProofVerificationFailure {
 }
 
 /// One exact required proof in a policy. There is no implicit hardware bucket.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Serialize)]
 pub struct ProofRequirement {
     key: ProofKey,
     issuer: String,
     trust_identity: String,
     subject_binding: Vec<u8>,
+    canonical_digest: [u8; 32],
 }
 
 impl fmt::Debug for ProofRequirement {
@@ -546,11 +552,22 @@ impl ProofRequirement {
         validate_required_text(&issuer)?;
         validate_required_text(&trust_identity)?;
         validate_required_bytes(&subject_binding, MAX_SUBJECT_BINDING_BYTES)?;
+
+        let mut canonical = Vec::new();
+        append_len_prefixed(&mut canonical, PROOF_REQUIREMENT_DOMAIN.as_bytes())?;
+        canonical.extend_from_slice(&PROOF_REQUIREMENT_VERSION.to_be_bytes());
+        canonical.push(key.proof_type.canonical_tag());
+        canonical.push(key.subject.canonical_tag());
+        append_len_prefixed(&mut canonical, issuer.as_bytes())?;
+        append_len_prefixed(&mut canonical, trust_identity.as_bytes())?;
+        append_len_prefixed(&mut canonical, &subject_binding)?;
+
         Ok(Self {
             key,
             issuer,
             trust_identity,
             subject_binding,
+            canonical_digest: Sha256::digest(canonical).into(),
         })
     }
 
@@ -569,17 +586,31 @@ impl ProofRequirement {
     pub fn subject_binding(&self) -> &[u8] {
         &self.subject_binding
     }
+
+    fn canonical_digest(&self) -> &[u8; 32] {
+        &self.canonical_digest
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 enum PolicyMode {
     Production,
     #[cfg(test)]
     TestFixture,
 }
 
+impl PolicyMode {
+    fn canonical_tag(self) -> u8 {
+        match self {
+            Self::Production => 1,
+            #[cfg(test)]
+            Self::TestFixture => 2,
+        }
+    }
+}
+
 /// Explicit all-required proof policy for a value-bearing operation.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Serialize)]
 pub struct ProofSetPolicy {
     policy_id: String,
     operation_digest: [u8; 32],
@@ -590,6 +621,7 @@ pub struct ProofSetPolicy {
     max_future_skew_secs: u64,
     requirements: Vec<ProofRequirement>,
     mode: PolicyMode,
+    canonical_digest: [u8; 32],
 }
 
 impl fmt::Debug for ProofSetPolicy {
@@ -668,7 +700,7 @@ impl ProofSetPolicy {
         replay_identity: Vec<u8>,
         max_age_secs: u64,
         max_future_skew_secs: u64,
-        requirements: Vec<ProofRequirement>,
+        mut requirements: Vec<ProofRequirement>,
         mode: PolicyMode,
     ) -> Result<Self, ProofInputError> {
         let policy_id = policy_id.into();
@@ -698,6 +730,23 @@ impl ProofSetPolicy {
             }
         }
 
+        // Requirements are a set, not an ordered list. Canonicalize the
+        // stored declaration so equality, composition, and serialization do
+        // not depend on caller declaration order.
+        requirements.sort_by_key(|requirement| requirement.key);
+
+        let canonical_digest = canonical_policy_digest(&CanonicalPolicyInput {
+            policy_id: &policy_id,
+            operation_digest: &operation_digest,
+            purpose,
+            nonce: &nonce,
+            replay_identity: &replay_identity,
+            max_age_secs,
+            max_future_skew_secs,
+            requirements: &requirements,
+            mode,
+        })?;
+
         Ok(Self {
             policy_id,
             operation_digest,
@@ -708,6 +757,7 @@ impl ProofSetPolicy {
             max_future_skew_secs,
             requirements,
             mode,
+            canonical_digest,
         })
     }
 
@@ -743,12 +793,60 @@ impl ProofSetPolicy {
         &self.requirements
     }
 
+    /// Returns the versioned, domain-separated digest of every
+    /// authorization-relevant policy field and the complete exact requirement
+    /// set.
+    pub fn canonical_digest(&self) -> &[u8; 32] {
+        &self.canonical_digest
+    }
+
     pub fn composer<'a>(&'a self, registry: &'a ProofVerifierRegistry) -> ProofSetComposer<'a> {
         ProofSetComposer {
             policy: self,
             registry,
         }
     }
+}
+
+struct CanonicalPolicyInput<'a> {
+    policy_id: &'a str,
+    operation_digest: &'a [u8; 32],
+    purpose: ValueBearingPurpose,
+    nonce: &'a [u8],
+    replay_identity: &'a [u8],
+    max_age_secs: u64,
+    max_future_skew_secs: u64,
+    requirements: &'a [ProofRequirement],
+    mode: PolicyMode,
+}
+
+fn canonical_policy_digest(input: &CanonicalPolicyInput<'_>) -> Result<[u8; 32], ProofInputError> {
+    let mut requirement_digests: Vec<&[u8; 32]> = input
+        .requirements
+        .iter()
+        .map(ProofRequirement::canonical_digest)
+        .collect();
+    requirement_digests.sort_unstable_by(|left, right| left.as_slice().cmp(right.as_slice()));
+
+    let mut canonical = Vec::new();
+    append_len_prefixed(&mut canonical, PROOF_POLICY_DOMAIN.as_bytes())?;
+    canonical.extend_from_slice(&PROOF_POLICY_VERSION.to_be_bytes());
+    canonical.push(input.mode.canonical_tag());
+    append_len_prefixed(&mut canonical, input.policy_id.as_bytes())?;
+    append_len_prefixed(&mut canonical, input.operation_digest)?;
+    canonical.push(input.purpose.canonical_tag());
+    append_len_prefixed(&mut canonical, input.nonce)?;
+    append_len_prefixed(&mut canonical, input.replay_identity)?;
+    canonical.extend_from_slice(&input.max_age_secs.to_be_bytes());
+    canonical.extend_from_slice(&input.max_future_skew_secs.to_be_bytes());
+    let requirement_count = u32::try_from(requirement_digests.len())
+        .map_err(|_| ProofInputError::RequirementCountExceeded)?;
+    canonical.extend_from_slice(&requirement_count.to_be_bytes());
+    for requirement_digest in requirement_digests {
+        canonical.extend_from_slice(requirement_digest);
+    }
+
+    Ok(Sha256::digest(canonical).into())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1182,19 +1280,23 @@ impl<'a> ProofSetComposer<'a> {
 pub struct VerifiedProofSet {
     policy: ProofSetPolicy,
     proofs: Vec<VerifiedProofArtifact>,
+    policy_digest: [u8; 32],
     canonical_digest: [u8; 32],
 }
 
 impl VerifiedProofSet {
     fn from_verified(policy: ProofSetPolicy, mut proofs: Vec<VerifiedProofArtifact>) -> Self {
         proofs.sort_by_key(VerifiedProofArtifact::key);
+        let policy_digest = *policy.canonical_digest();
         let mut canonical = Vec::new();
         append_len_prefixed(&mut canonical, PROOF_SET_DOMAIN.as_bytes())
             .expect("proof-set domain is bounded");
-        append_len_prefixed(&mut canonical, policy.policy_id.as_bytes())
-            .expect("proof policy is bounded");
-        canonical.extend_from_slice(&policy.operation_digest);
-        canonical.push(policy.purpose.canonical_tag());
+        canonical.extend_from_slice(&policy_digest);
+        canonical.extend_from_slice(
+            &u32::try_from(proofs.len())
+                .expect("proof set count is bounded")
+                .to_be_bytes(),
+        );
         for proof in &proofs {
             canonical.push(proof.key().proof_type().canonical_tag());
             canonical.push(proof.key().subject().canonical_tag());
@@ -1203,6 +1305,7 @@ impl VerifiedProofSet {
         Self {
             policy,
             proofs,
+            policy_digest,
             canonical_digest: Sha256::digest(canonical).into(),
         }
     }
@@ -1235,6 +1338,12 @@ impl VerifiedProofSet {
         self.proofs.len()
     }
 
+    /// Returns the exact canonical policy digest used when this set was
+    /// composed. This is a safe summary and never exposes raw evidence.
+    pub fn policy_digest(&self) -> &[u8; 32] {
+        &self.policy_digest
+    }
+
     pub fn canonical_digest(&self) -> &[u8; 32] {
         &self.canonical_digest
     }
@@ -1245,17 +1354,15 @@ impl VerifiedProofSet {
 
     pub(crate) fn matches_binding(
         &self,
-        policy_id: &str,
+        expected_policy: &ProofSetPolicy,
         operation_digest: &[u8; 32],
         purpose: ValueBearingPurpose,
-        nonce: &[u8],
-        replay_identity: &[u8],
     ) -> bool {
-        self.policy_id() == policy_id
+        self.policy == *expected_policy
+            && self.policy_digest() == expected_policy.canonical_digest()
             && self.operation_digest() == operation_digest
             && self.purpose() == purpose
-            && self.nonce() == nonce
-            && self.replay_identity() == replay_identity
+            && self.proof_count() == expected_policy.requirements().len()
     }
 }
 
@@ -1272,46 +1379,35 @@ fn fixture_marker(proof_type: ProofType) -> Vec<u8> {
 pub(crate) fn test_fixture_set_for_request(
     request: &ValueBearingSignRequest,
 ) -> crate::ConclaveResult<VerifiedProofSet> {
-    let operation_binding = request.operation_binding()?;
+    let policy = request.expected_proof_policy().ok_or_else(|| {
+        crate::ConclaveError::Unsupported(
+            "test proof composition requires an expected proof policy".to_string(),
+        )
+    })?;
     let now_secs = unix_time_secs();
-    let key = ProofKey::new(ProofType::TeeAttestation, ProofSubject::PhoneDevice);
-    let issuer = "test-fixture-issuer";
-    let trust_identity = "test-fixture-root";
-    let requirement = ProofRequirement::new(
-        key,
-        issuer,
-        trust_identity,
-        request.key_binding().public_key().to_vec(),
-    )
-    .map_err(|_| crate::ConclaveError::InvalidPayload)?;
-    let policy = ProofSetPolicy::test_fixture(
-        request.trust_requirement().policy_id(),
-        *request.message_digest(),
-        request.operation_context().purpose(),
-        request.message_digest().to_vec(),
-        operation_binding.to_vec(),
-        300,
-        30,
-        vec![requirement],
-    )
-    .map_err(|_| crate::ConclaveError::InvalidPayload)?;
-    let raw = RawProofEvidence::test_fixture(
-        key,
-        issuer,
-        trust_identity,
-        request.message_digest().to_vec(),
-        *request.message_digest(),
-        request.operation_context().purpose(),
-        request.trust_requirement().policy_id(),
-        request.key_binding().public_key().to_vec(),
-        now_secs.saturating_sub(1),
-        now_secs.saturating_add(299),
-        300,
-        operation_binding.to_vec(),
-    );
+    let raw_proofs = policy
+        .requirements()
+        .iter()
+        .map(|requirement| {
+            RawProofEvidence::test_fixture(
+                requirement.key(),
+                requirement.issuer(),
+                requirement.trust_identity(),
+                policy.nonce().to_vec(),
+                *policy.operation_digest(),
+                policy.purpose(),
+                policy.policy_id(),
+                requirement.subject_binding().to_vec(),
+                now_secs.saturating_sub(1),
+                now_secs.saturating_add(policy.max_age_secs().saturating_sub(1)),
+                policy.max_age_secs(),
+                policy.replay_identity().to_vec(),
+            )
+        })
+        .collect::<Vec<_>>();
     policy
         .composer(&ProofVerifierRegistry::test_fixture())
-        .compose(&[raw], now_secs)
+        .compose(&raw_proofs, now_secs)
         .map_err(|error| crate::ConclaveError::Unsupported(error.to_string()))
 }
 
@@ -1935,11 +2031,195 @@ mod tests {
     }
 
     #[test]
+    fn policy_digest_binds_exact_fields_and_requirement_order_is_canonical() {
+        let key_a = ProofKey::new(ProofType::ServerIdentity, ProofSubject::Server);
+        let key_b = ProofKey::new(ProofType::UserAuthorization, ProofSubject::User);
+        let requirement_a = requirement(key_a, b"a");
+        let requirement_b = requirement(key_b, b"b");
+        let policy = |operation_digest,
+                      purpose,
+                      nonce,
+                      replay_identity,
+                      max_age_secs,
+                      max_future_skew_secs,
+                      requirements| {
+            ProofSetPolicy::test_fixture(
+                POLICY,
+                operation_digest,
+                purpose,
+                nonce,
+                replay_identity,
+                max_age_secs,
+                max_future_skew_secs,
+                requirements,
+            )
+            .expect("valid fixture policy")
+        };
+
+        let base = policy(
+            [21; 32],
+            ValueBearingPurpose::Transaction,
+            b"nonce".to_vec(),
+            b"replay".to_vec(),
+            100,
+            5,
+            vec![requirement_a.clone(), requirement_b.clone()],
+        );
+        let reordered = policy(
+            [21; 32],
+            ValueBearingPurpose::Transaction,
+            b"nonce".to_vec(),
+            b"replay".to_vec(),
+            100,
+            5,
+            vec![requirement_b.clone(), requirement_a.clone()],
+        );
+        assert_eq!(base.canonical_digest(), reordered.canonical_digest());
+
+        assert_ne!(
+            base.canonical_digest(),
+            policy(
+                [21; 32],
+                ValueBearingPurpose::Transaction,
+                b"nonce".to_vec(),
+                b"replay".to_vec(),
+                100,
+                5,
+                vec![requirement_a.clone()],
+            )
+            .canonical_digest()
+        );
+        assert_ne!(
+            base.canonical_digest(),
+            policy(
+                [21; 32],
+                ValueBearingPurpose::Transaction,
+                b"nonce".to_vec(),
+                b"replay".to_vec(),
+                100,
+                5,
+                vec![
+                    ProofRequirement::new(key_a, "different-issuer", ROOT, b"a".to_vec())
+                        .expect("valid issuer variant"),
+                    requirement_b.clone(),
+                ],
+            )
+            .canonical_digest()
+        );
+        assert_ne!(
+            base.canonical_digest(),
+            policy(
+                [21; 32],
+                ValueBearingPurpose::Transaction,
+                b"nonce".to_vec(),
+                b"replay".to_vec(),
+                100,
+                5,
+                vec![
+                    ProofRequirement::new(key_a, ISSUER, "different-root", b"a".to_vec())
+                        .expect("valid root variant"),
+                    requirement_b.clone(),
+                ],
+            )
+            .canonical_digest()
+        );
+        assert_ne!(
+            base.canonical_digest(),
+            policy(
+                [21; 32],
+                ValueBearingPurpose::Transaction,
+                b"nonce".to_vec(),
+                b"replay".to_vec(),
+                100,
+                5,
+                vec![
+                    ProofRequirement::new(key_a, ISSUER, ROOT, b"different-binding".to_vec())
+                        .expect("valid subject-binding variant"),
+                    requirement_b.clone(),
+                ],
+            )
+            .canonical_digest()
+        );
+
+        for variant in [
+            policy(
+                [22; 32],
+                ValueBearingPurpose::Transaction,
+                b"nonce".to_vec(),
+                b"replay".to_vec(),
+                100,
+                5,
+                vec![requirement_a.clone(), requirement_b.clone()],
+            ),
+            policy(
+                [21; 32],
+                ValueBearingPurpose::Authorization,
+                b"nonce".to_vec(),
+                b"replay".to_vec(),
+                100,
+                5,
+                vec![requirement_a.clone(), requirement_b.clone()],
+            ),
+            policy(
+                [21; 32],
+                ValueBearingPurpose::Transaction,
+                b"different-nonce".to_vec(),
+                b"replay".to_vec(),
+                100,
+                5,
+                vec![requirement_a.clone(), requirement_b.clone()],
+            ),
+            policy(
+                [21; 32],
+                ValueBearingPurpose::Transaction,
+                b"nonce".to_vec(),
+                b"different-replay".to_vec(),
+                100,
+                5,
+                vec![requirement_a.clone(), requirement_b.clone()],
+            ),
+            policy(
+                [21; 32],
+                ValueBearingPurpose::Transaction,
+                b"nonce".to_vec(),
+                b"replay".to_vec(),
+                99,
+                5,
+                vec![requirement_a.clone(), requirement_b.clone()],
+            ),
+            policy(
+                [21; 32],
+                ValueBearingPurpose::Transaction,
+                b"nonce".to_vec(),
+                b"replay".to_vec(),
+                100,
+                6,
+                vec![requirement_a, requirement_b],
+            ),
+        ] {
+            assert_ne!(base.canonical_digest(), variant.canonical_digest());
+        }
+    }
+
+    #[test]
     fn duplicate_conflicting_and_partial_sets_are_rejected() {
         let now = 1_000;
         let digest = [12; 32];
         let key_a = ProofKey::new(ProofType::ServerIdentity, ProofSubject::Server);
         let key_b = ProofKey::new(ProofType::TpmQuote, ProofSubject::Server);
+        assert!(matches!(
+            ProofSetPolicy::test_fixture(
+                POLICY,
+                digest,
+                ValueBearingPurpose::Transaction,
+                b"nonce".to_vec(),
+                b"replay".to_vec(),
+                100,
+                5,
+                Vec::new(),
+            ),
+            Err(ProofInputError::EmptyRequirementSet)
+        ));
         let policy = fixture_policy(
             digest,
             b"nonce".to_vec(),

@@ -6,6 +6,8 @@ pub(crate) mod wormhole;
 pub(crate) mod x402;
 
 use crate::enclave::attestation::{AttestationPolicy, DeviceIntegrityReport};
+#[cfg(test)]
+use crate::enclave::proof::{ProofKey, ProofRequirement, ProofSetPolicy, ProofSubject, ProofType};
 use crate::enclave::replay_guard::{ReplayGuard, ReplayGuardError};
 use crate::enclave::{
     SignerProvenance, SignerVerification, SigningAlgorithm, ValueBearingPurpose,
@@ -92,6 +94,7 @@ struct VerifiedOperationAuthorization {
     provenance: SignerProvenance,
     verification: SignerVerification,
     policy_id: String,
+    proof_policy_digest: [u8; 32],
     proof_set_digest: [u8; 32],
     proof_count: usize,
     replay_authorization: ReplayAuthorization,
@@ -135,6 +138,24 @@ impl VerifiedOperation {
             )
             .into(),
         };
+        let fixture_requirement = ProofRequirement::new(
+            ProofKey::new(ProofType::TeeAttestation, ProofSubject::PhoneDevice),
+            "test-fixture-issuer",
+            "test-fixture-root",
+            vec![0; 32],
+        )
+        .expect("legacy fixture requirement should be valid");
+        let fixture_policy = ProofSetPolicy::test_fixture(
+            VALUE_BEARING_POLICY_ID,
+            canonical_intent_hash,
+            ValueBearingPurpose::Settlement,
+            canonical_intent_hash.to_vec(),
+            canonical_intent_hash.to_vec(),
+            300,
+            30,
+            vec![fixture_requirement],
+        )
+        .expect("legacy fixture policy should be valid");
         let fixture_request = ValueBearingSignRequest::new(
             crate::enclave::OperationContext::new(
                 SETTLEMENT_OPERATION_DOMAIN,
@@ -150,7 +171,9 @@ impl VerifiedOperation {
                 .expect("legacy fixture key binding should be valid"),
             None,
         )
-        .expect("legacy fixture request should be valid");
+        .expect("legacy fixture request should be valid")
+        .with_proof_policy(fixture_policy)
+        .expect("legacy fixture request policy should bind");
         let fixture_proof_set =
             crate::enclave::proof::test_fixture_set_for_request(&fixture_request)
                 .expect("legacy fixture proof set should be valid");
@@ -179,6 +202,7 @@ impl VerifiedOperation {
                 provenance: SignerProvenance::HardwareBacked,
                 verification: SignerVerification::ProviderVerified,
                 policy_id: VALUE_BEARING_POLICY_ID.to_string(),
+                proof_policy_digest: *fixture_proof_set.policy_digest(),
                 proof_set_digest: *fixture_proof_set.canonical_digest(),
                 proof_count: fixture_proof_set.proof_count(),
                 replay_authorization,
@@ -228,6 +252,21 @@ impl VerifiedOperation {
         }
 
         let requirement = request.trust_requirement();
+        let expected_proof_policy = request.expected_proof_policy().ok_or_else(|| {
+            ConclaveError::Unsupported(
+                "typed settlement authorization is missing the expected exact proof policy"
+                    .to_string(),
+            )
+        })?;
+        if expected_proof_policy.policy_id() != requirement.policy_id()
+            || expected_proof_policy.operation_digest() != request.message_digest()
+            || expected_proof_policy.purpose() != operation_context.purpose()
+        {
+            return Err(ConclaveError::EnclaveFailure(
+                "typed settlement expected proof policy does not match the request context"
+                    .to_string(),
+            ));
+        }
         if requirement.policy_id() != VALUE_BEARING_POLICY_ID
             || response.signer_capability().provenance() != requirement.minimum_provenance()
             || response.signer_capability().verification() != requirement.required_verification()
@@ -258,14 +297,13 @@ impl VerifiedOperation {
             )
         })?;
         if !proof_set.matches_binding(
-            requirement.policy_id(),
+            expected_proof_policy,
             request.message_digest(),
             operation_context.purpose(),
-            request.message_digest(),
-            &request_binding,
         ) {
             return Err(ConclaveError::EnclaveFailure(
-                "typed settlement proof set is not bound to the requested operation".to_string(),
+                "typed settlement proof set is not bound to the exact expected proof policy"
+                    .to_string(),
             ));
         }
         if proof_set.proof_count() == 0 {
@@ -302,6 +340,7 @@ impl VerifiedOperation {
         let token = settlement_replay_token(
             &canonical_intent_hash,
             &request_binding,
+            expected_proof_policy.canonical_digest(),
             &signature_hex,
             attestation,
         );
@@ -318,6 +357,7 @@ impl VerifiedOperation {
                 provenance: response.signer_capability().provenance(),
                 verification: response.signer_capability().verification(),
                 policy_id: requirement.policy_id().to_string(),
+                proof_policy_digest: *expected_proof_policy.canonical_digest(),
                 proof_set_digest: *proof_set.canonical_digest(),
                 proof_count: proof_set.proof_count(),
                 replay_authorization: ReplayAuthorization {
@@ -332,6 +372,7 @@ impl VerifiedOperation {
 fn settlement_replay_token(
     canonical_intent_hash: &[u8; 32],
     operation_binding: &[u8; 32],
+    proof_policy_digest: &[u8; 32],
     signature_hex: &str,
     attestation: &DeviceIntegrityReport,
 ) -> [u8; 32] {
@@ -339,6 +380,7 @@ fn settlement_replay_token(
     material.extend_from_slice(b"CONXIAN-SETTLEMENT-REPLAY/v1");
     material.extend_from_slice(canonical_intent_hash);
     material.extend_from_slice(operation_binding);
+    material.extend_from_slice(proof_policy_digest);
     material.extend_from_slice(signature_hex.as_bytes());
     material.extend_from_slice(attestation.get_device_fingerprint().as_bytes());
     Sha256::digest(material).into()
@@ -685,6 +727,7 @@ impl RailProxy {
         if authorization.canonical_intent_hash != canonical_intent_hash
             || authorization.replay_authorization.operation_binding
                 != authorization.operation_binding
+            || authorization.proof_policy_digest == [0; 32]
             || authorization.proof_count == 0
             || authorization.proof_set_digest == [0; 32]
         {
@@ -1198,7 +1241,7 @@ mod rail_proxy_tests {
         purpose: ValueBearingPurpose,
         context: Vec<u8>,
     ) -> ValueBearingSignRequest {
-        ValueBearingSignRequest::new(
+        let request = ValueBearingSignRequest::new(
             crate::enclave::OperationContext::new(domain, purpose, context)
                 .expect("fixture operation context should be valid"),
             SigningAlgorithm::Ed25519,
@@ -1213,7 +1256,28 @@ mod rail_proxy_tests {
             .expect("fixture key binding should be valid"),
             None,
         )
-        .expect("fixture signing request should be valid")
+        .expect("fixture signing request should be valid");
+        let requirement = ProofRequirement::new(
+            ProofKey::new(ProofType::TeeAttestation, ProofSubject::PhoneDevice),
+            "test-fixture-issuer",
+            "test-fixture-root",
+            request.key_binding().public_key().to_vec(),
+        )
+        .expect("fixture proof requirement should be valid");
+        let policy = ProofSetPolicy::test_fixture(
+            policy_id,
+            digest,
+            purpose,
+            digest.to_vec(),
+            digest.to_vec(),
+            300,
+            30,
+            vec![requirement],
+        )
+        .expect("fixture proof policy should be valid");
+        request
+            .with_proof_policy(policy)
+            .expect("fixture proof policy should match the request")
     }
 
     fn settlement_request(
@@ -1229,6 +1293,34 @@ mod rail_proxy_tests {
             ValueBearingPurpose::Settlement,
             digest.to_vec(),
         )
+    }
+
+    fn compose_fixture_set(policy: &ProofSetPolicy) -> crate::enclave::proof::VerifiedProofSet {
+        let now_secs: u64 = 10_000;
+        let raw_proofs = policy
+            .requirements()
+            .iter()
+            .map(|requirement| {
+                crate::enclave::proof::RawProofEvidence::test_fixture(
+                    requirement.key(),
+                    requirement.issuer(),
+                    requirement.trust_identity(),
+                    policy.nonce().to_vec(),
+                    *policy.operation_digest(),
+                    policy.purpose(),
+                    policy.policy_id(),
+                    requirement.subject_binding().to_vec(),
+                    now_secs.saturating_sub(1),
+                    now_secs.saturating_add(policy.max_age_secs().saturating_sub(1)),
+                    policy.max_age_secs(),
+                    policy.replay_identity().to_vec(),
+                )
+            })
+            .collect::<Vec<_>>();
+        policy
+            .composer(&crate::enclave::proof::ProofVerifierRegistry::test_fixture())
+            .compose(&raw_proofs, now_secs)
+            .expect("fixture policy should compose its exact proof set")
     }
 
     fn custom_settlement_intent(seed: Vec<u8>) -> SwapIntent {
@@ -1410,6 +1502,267 @@ mod rail_proxy_tests {
     }
 
     #[test]
+    fn typed_settlement_proof_attachment_rejects_same_id_policy_variants_before_dispatch() {
+        let intent = custom_settlement_intent(vec![35; 32]);
+        let digest: [u8; 32] = intent
+            .canonical_hash()
+            .try_into()
+            .expect("canonical intent hash should be 32 bytes");
+        let provider = SettlementFixtureProvider::new(VALUE_BEARING_POLICY_ID);
+        let request = settlement_request(
+            digest,
+            provider.operation_public_key(),
+            VALUE_BEARING_POLICY_ID,
+        );
+        let expected_policy = request
+            .expected_proof_policy()
+            .expect("fixture request should carry an exact proof policy");
+        let expected_requirement = expected_policy
+            .requirements()
+            .first()
+            .expect("fixture policy should require one proof")
+            .clone();
+        let response = provider
+            .sign_value_bearing(request.clone())
+            .expect("fixture provider should issue typed evidence");
+
+        let wrong_operation_request = settlement_request(
+            [0xA7; 32],
+            provider.operation_public_key(),
+            VALUE_BEARING_POLICY_ID,
+        );
+        let wrong_operation_set = compose_fixture_set(
+            wrong_operation_request
+                .expected_proof_policy()
+                .expect("wrong-operation request should carry a policy"),
+        );
+        assert!(
+            response
+                .clone()
+                .with_verified_proof_set(&wrong_operation_request, wrong_operation_set)
+                .is_err(),
+            "a proof set for a different operation must be rejected before dispatch"
+        );
+
+        let policy = |operation_digest,
+                      purpose,
+                      nonce,
+                      replay_identity,
+                      max_age_secs,
+                      max_future_skew_secs,
+                      requirements| {
+            ProofSetPolicy::test_fixture(
+                VALUE_BEARING_POLICY_ID,
+                operation_digest,
+                purpose,
+                nonce,
+                replay_identity,
+                max_age_secs,
+                max_future_skew_secs,
+                requirements,
+            )
+            .expect("variant fixture policy should be valid")
+        };
+
+        let variants = vec![
+            (
+                "required proof key set",
+                policy(
+                    digest,
+                    ValueBearingPurpose::Settlement,
+                    digest.to_vec(),
+                    digest.to_vec(),
+                    300,
+                    30,
+                    vec![ProofRequirement::new(
+                        ProofKey::new(ProofType::TpmQuote, ProofSubject::Server),
+                        expected_requirement.issuer(),
+                        expected_requirement.trust_identity(),
+                        expected_requirement.subject_binding().to_vec(),
+                    )
+                    .expect("key-set variant should be valid")],
+                ),
+            ),
+            (
+                "issuer identity",
+                policy(
+                    digest,
+                    ValueBearingPurpose::Settlement,
+                    digest.to_vec(),
+                    digest.to_vec(),
+                    300,
+                    30,
+                    vec![ProofRequirement::new(
+                        expected_requirement.key(),
+                        "different-issuer",
+                        expected_requirement.trust_identity(),
+                        expected_requirement.subject_binding().to_vec(),
+                    )
+                    .expect("issuer variant should be valid")],
+                ),
+            ),
+            (
+                "trusted root",
+                policy(
+                    digest,
+                    ValueBearingPurpose::Settlement,
+                    digest.to_vec(),
+                    digest.to_vec(),
+                    300,
+                    30,
+                    vec![ProofRequirement::new(
+                        expected_requirement.key(),
+                        expected_requirement.issuer(),
+                        "different-root",
+                        expected_requirement.subject_binding().to_vec(),
+                    )
+                    .expect("root variant should be valid")],
+                ),
+            ),
+            (
+                "subject binding",
+                policy(
+                    digest,
+                    ValueBearingPurpose::Settlement,
+                    digest.to_vec(),
+                    digest.to_vec(),
+                    300,
+                    30,
+                    vec![ProofRequirement::new(
+                        expected_requirement.key(),
+                        expected_requirement.issuer(),
+                        expected_requirement.trust_identity(),
+                        b"different-subject-binding".to_vec(),
+                    )
+                    .expect("subject-binding variant should be valid")],
+                ),
+            ),
+            (
+                "freshness max age",
+                policy(
+                    digest,
+                    ValueBearingPurpose::Settlement,
+                    digest.to_vec(),
+                    digest.to_vec(),
+                    299,
+                    30,
+                    vec![expected_requirement.clone()],
+                ),
+            ),
+            (
+                "freshness future skew",
+                policy(
+                    digest,
+                    ValueBearingPurpose::Settlement,
+                    digest.to_vec(),
+                    digest.to_vec(),
+                    300,
+                    29,
+                    vec![expected_requirement.clone()],
+                ),
+            ),
+            (
+                "purpose",
+                policy(
+                    digest,
+                    ValueBearingPurpose::Authorization,
+                    digest.to_vec(),
+                    digest.to_vec(),
+                    300,
+                    30,
+                    vec![expected_requirement.clone()],
+                ),
+            ),
+            (
+                "nonce",
+                policy(
+                    digest,
+                    ValueBearingPurpose::Settlement,
+                    b"different-nonce".to_vec(),
+                    digest.to_vec(),
+                    300,
+                    30,
+                    vec![expected_requirement.clone()],
+                ),
+            ),
+            (
+                "operation digest",
+                policy(
+                    [0xA6; 32],
+                    ValueBearingPurpose::Settlement,
+                    digest.to_vec(),
+                    digest.to_vec(),
+                    300,
+                    30,
+                    vec![expected_requirement.clone()],
+                ),
+            ),
+            (
+                "replay identity",
+                policy(
+                    digest,
+                    ValueBearingPurpose::Settlement,
+                    digest.to_vec(),
+                    b"different-replay".to_vec(),
+                    300,
+                    30,
+                    vec![expected_requirement.clone()],
+                ),
+            ),
+        ];
+
+        for (label, variant_policy) in variants {
+            let variant_set = compose_fixture_set(&variant_policy);
+            assert!(
+                response
+                    .clone()
+                    .with_verified_proof_set(&request, variant_set)
+                    .is_err(),
+                "same-ID policy variant must be rejected before rail dispatch: {label}"
+            );
+        }
+
+        let additional_requirement = ProofRequirement::new(
+            ProofKey::new(ProofType::TpmQuote, ProofSubject::Server),
+            expected_requirement.issuer(),
+            expected_requirement.trust_identity(),
+            expected_requirement.subject_binding().to_vec(),
+        )
+        .expect("additional fixture requirement should be valid");
+        let multi_policy = policy(
+            digest,
+            ValueBearingPurpose::Settlement,
+            digest.to_vec(),
+            digest.to_vec(),
+            300,
+            30,
+            vec![expected_requirement.clone(), additional_requirement],
+        );
+        let multi_request = request
+            .clone()
+            .with_proof_policy(multi_policy)
+            .expect("multi-proof request policy should match the request");
+        let multi_response = provider
+            .sign_value_bearing(multi_request.clone())
+            .expect("fixture provider should issue multi-proof evidence");
+        let partial_policy = policy(
+            digest,
+            ValueBearingPurpose::Settlement,
+            digest.to_vec(),
+            digest.to_vec(),
+            300,
+            30,
+            vec![expected_requirement],
+        );
+        assert!(
+            multi_response
+                .with_verified_proof_set(&multi_request, compose_fixture_set(&partial_policy))
+                .is_err(),
+            "a partial proof set must be rejected before rail dispatch"
+        );
+    }
+
+    #[test]
     fn typed_settlement_envelope_rejects_missing_attestation_and_replay_authorization() {
         let proxy = test_proxy();
         let intent = custom_settlement_intent(vec![32; 32]);
@@ -1423,6 +1776,39 @@ mod rail_proxy_tests {
             provider.operation_public_key(),
             VALUE_BEARING_POLICY_ID,
         );
+
+        let request_without_policy = ValueBearingSignRequest::new(
+            crate::enclave::OperationContext::new(
+                SETTLEMENT_OPERATION_DOMAIN,
+                ValueBearingPurpose::Settlement,
+                digest.to_vec(),
+            )
+            .expect("fixture operation context should be valid"),
+            SigningAlgorithm::Ed25519,
+            crate::enclave::TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)
+                .expect("fixture policy should be valid"),
+            digest,
+            crate::enclave::SignerKeyBinding::new(
+                "settlement-test-key",
+                "m/44'/501'/0'/0/0",
+                provider.operation_public_key(),
+            )
+            .expect("fixture key binding should be valid"),
+            None,
+        )
+        .expect("fixture request should be valid");
+        let response_without_policy = provider
+            .sign_value_bearing(request_without_policy.clone())
+            .expect("fixture provider should issue typed evidence");
+        assert!(matches!(
+            proxy.authorize_verified_operation(
+                intent.clone(),
+                &request_without_policy,
+                response_without_policy,
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("missing the expected exact proof policy")
+        ));
 
         let verified_without_proof_set = ValueBearingSignResponse::from_provider(
             &request,
