@@ -51,6 +51,56 @@ impl ReplayGuard {
         Ok(())
     }
 
+    /// Atomically checks and records a batch of keys under one lock.
+    ///
+    /// The entire batch is preflighted before any entry is inserted. Duplicate
+    /// keys within the batch, keys already present in the guard, lock failure,
+    /// and capacity saturation all leave the guard unchanged. This guard is
+    /// deliberately process-local; it is not a replacement for durable or
+    /// distributed replay coordination.
+    pub fn try_check_and_record_batch<I, K>(
+        &self,
+        keys: I,
+        now_secs: u64,
+    ) -> Result<(), ReplayGuardError>
+    where
+        I: IntoIterator<Item = K>,
+        K: AsRef<str>,
+    {
+        let requested = keys
+            .into_iter()
+            .map(|key| key.as_ref().to_string())
+            .collect::<Vec<_>>();
+
+        let mut entries = self
+            .entries
+            .lock()
+            .map_err(|_| ReplayGuardError::LockPoisoned)?;
+
+        Self::prune_expired_entries(&mut entries, self.ttl_secs, now_secs);
+
+        let mut new_keys = std::collections::HashSet::with_capacity(requested.len());
+        for key in &requested {
+            if entries.contains_key(key) || !new_keys.insert(key) {
+                return Err(ReplayGuardError::Duplicate);
+            }
+        }
+
+        let resulting_len = entries
+            .len()
+            .checked_add(requested.len())
+            .ok_or(ReplayGuardError::CapacitySaturated)?;
+        if resulting_len > self.max_entries {
+            return Err(ReplayGuardError::CapacitySaturated);
+        }
+
+        for key in requested {
+            entries.insert(key, now_secs);
+        }
+
+        Ok(())
+    }
+
     /// Compatibility wrapper for callers that only need accepted/rejected.
     ///
     /// New security-sensitive callers should use [`Self::try_check_and_record`]
@@ -143,5 +193,34 @@ mod tests {
             Err(super::ReplayGuardError::CapacitySaturated)
         );
         assert!(!guard.check_and_record("attestation-2", 101));
+    }
+
+    #[test]
+    fn batch_replay_is_atomic_on_duplicate() {
+        let guard = ReplayGuard::new(300, 8);
+        assert!(guard.check_and_record("existing", 100));
+
+        assert_eq!(
+            guard.try_check_and_record_batch(["new-a", "existing", "new-b"], 101),
+            Err(super::ReplayGuardError::Duplicate)
+        );
+        assert_eq!(guard.try_check_and_record("new-a", 102), Ok(()));
+        assert_eq!(guard.try_check_and_record("new-b", 102), Ok(()));
+    }
+
+    #[test]
+    fn batch_replay_is_atomic_on_capacity_saturation() {
+        let guard = ReplayGuard::new(300, 2);
+        assert!(guard.check_and_record("existing", 100));
+
+        assert_eq!(
+            guard.try_check_and_record_batch(["new-a", "new-b"], 101),
+            Err(super::ReplayGuardError::CapacitySaturated)
+        );
+        assert_eq!(guard.try_check_and_record("new-a", 102), Ok(()));
+        assert_eq!(
+            guard.try_check_and_record("new-b", 102),
+            Err(super::ReplayGuardError::CapacitySaturated)
+        );
     }
 }

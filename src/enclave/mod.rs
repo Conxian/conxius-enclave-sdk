@@ -4,7 +4,19 @@ pub mod attestation;
 #[cfg(any(test, feature = "development-simulators"))]
 pub mod cloud;
 pub mod proof;
+pub mod proofs;
 pub mod replay_guard;
+
+pub use proofs::{
+    authorize_settlement_with_proofs, authorize_value_bearing_with_proofs,
+    sign_value_bearing_with_proof_authorization, ProofBoundValueBearingAuthorization, ProofBundle,
+    ProofEnvelope, ProofKind, ProofPolicy, ProofReplayKey, ProofRequirement,
+    ProofVerificationContext, ProofVerifier, ProofVerifierRegistry, ProofVerifierStatus,
+    UnlistedProofPolicy, VerifiedProofReceipt, VerifiedProofSet, FIDO_PROOF_VERIFIER_ID,
+    PHONE_PROOF_VERIFIER_ID, PROOF_CONTEXT_DOMAIN, PROOF_ENVELOPE_DOMAIN, PROOF_ENVELOPE_VERSION,
+    PROOF_REPLAY_DOMAIN, SERVER_PROOF_VERIFIER_ID, SETTLEMENT_PROOF_AUDIENCE,
+    SETTLEMENT_PROOF_PURPOSE, TEE_PROOF_VERIFIER_ID, TPM_PROOF_VERIFIER_ID, USER_PROOF_VERIFIER_ID,
+};
 
 #[cfg(test)]
 mod hardware_attestation_tests;
