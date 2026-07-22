@@ -108,6 +108,25 @@ impl std::fmt::Debug for ReplayBinding {
     }
 }
 
+/// Digest-only replay binding inputs used by internal authorization paths.
+///
+/// Unlike the public builder, this type accepts already-derived component
+/// digests and never carries raw nonce, key-identity, or evidence bytes.
+#[derive(Debug, Clone)]
+pub(crate) struct ReplayBindingDigestInput {
+    pub(crate) provider: String,
+    pub(crate) proof_subject: String,
+    pub(crate) proof_mechanism: String,
+    pub(crate) nonce_digest: [u8; 32],
+    pub(crate) operation_digest: [u8; 32],
+    pub(crate) purpose: String,
+    pub(crate) policy_digest: [u8; 32],
+    pub(crate) key_identity_digest: [u8; 32],
+    pub(crate) evidence_digest: [u8; 32],
+    pub(crate) proof_id: Option<String>,
+    pub(crate) audience: Option<String>,
+}
+
 impl ReplayBinding {
     /// Starts construction of a complete replay binding.
     ///
@@ -272,22 +291,17 @@ impl ReplayBinding {
         Ok(format!("{}:{}", self.domain, hex::encode(self.digest()?)))
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_component_digests(
-        provider: impl Into<String>,
-        proof_subject: impl Into<String>,
-        proof_mechanism: impl Into<String>,
-        nonce_digest: [u8; 32],
-        operation_digest: [u8; 32],
-        purpose: impl Into<String>,
-        policy_digest: [u8; 32],
-        key_identity_digest: [u8; 32],
-        evidence_digest: [u8; 32],
-        proof_id: Option<String>,
-        audience: Option<String>,
+        input: ReplayBindingDigestInput,
     ) -> Result<Self, ReplayBindingError> {
-        Self::from_component_digests_with_domain(
-            REPLAY_BINDING_DOMAIN,
+        Self::from_component_digests_with_domain(REPLAY_BINDING_DOMAIN, input)
+    }
+
+    pub(crate) fn from_component_digests_with_domain(
+        domain: impl Into<String>,
+        input: ReplayBindingDigestInput,
+    ) -> Result<Self, ReplayBindingError> {
+        let ReplayBindingDigestInput {
             provider,
             proof_subject,
             proof_mechanism,
@@ -299,29 +313,8 @@ impl ReplayBinding {
             evidence_digest,
             proof_id,
             audience,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn from_component_digests_with_domain(
-        domain: impl Into<String>,
-        provider: impl Into<String>,
-        proof_subject: impl Into<String>,
-        proof_mechanism: impl Into<String>,
-        nonce_digest: [u8; 32],
-        operation_digest: [u8; 32],
-        purpose: impl Into<String>,
-        policy_digest: [u8; 32],
-        key_identity_digest: [u8; 32],
-        evidence_digest: [u8; 32],
-        proof_id: Option<String>,
-        audience: Option<String>,
-    ) -> Result<Self, ReplayBindingError> {
+        } = input;
         let domain = domain.into();
-        let provider = provider.into();
-        let proof_subject = proof_subject.into();
-        let proof_mechanism = proof_mechanism.into();
-        let purpose = purpose.into();
         validate_binding_identifier(&domain)?;
         validate_binding_identifier(&provider)?;
         validate_binding_identifier(&proof_subject)?;

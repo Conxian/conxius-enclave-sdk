@@ -12,8 +12,8 @@ use crate::enclave::replay_guard::ReplayGuard;
 #[cfg(test)]
 use crate::enclave::replay_guard::ReplayGuardError;
 use crate::enclave::replay_guard::{
-    ReplayBinding, ReplayConsumeOutcome, ReplayReservation, ReplayStore, ReplayStoreDurability,
-    ReplayStoreError,
+    ReplayBinding, ReplayBindingDigestInput, ReplayConsumeOutcome, ReplayReservation, ReplayStore,
+    ReplayStoreDurability, ReplayStoreError,
 };
 use crate::enclave::{
     EnclaveManager, SignerKeyBinding, ValueBearingSignRequest, ValueBearingSignResponse,
@@ -1128,19 +1128,19 @@ impl ProofVerifierRegistry {
             .iter()
             .zip(receipts.iter())
             .map(|(proof, receipt)| {
-                let binding = ReplayBinding::from_component_digests(
-                    binding_context.provider().to_string(),
-                    proof.proof_id.clone(),
-                    proof.verifier_id.clone(),
-                    *receipt.nonce_digest(),
-                    proof.operation_digest,
-                    proof.purpose.clone(),
+                let binding = ReplayBinding::from_component_digests(ReplayBindingDigestInput {
+                    provider: binding_context.provider().to_string(),
+                    proof_subject: proof.proof_id.clone(),
+                    proof_mechanism: proof.verifier_id.clone(),
+                    nonce_digest: *receipt.nonce_digest(),
+                    operation_digest: proof.operation_digest,
+                    purpose: proof.purpose.clone(),
                     policy_digest,
-                    *binding_context.key_identity_digest(),
-                    *receipt.evidence_digest(),
-                    Some(proof.proof_id.clone()),
-                    Some(proof.audience.clone()),
-                )
+                    key_identity_digest: *binding_context.key_identity_digest(),
+                    evidence_digest: *receipt.evidence_digest(),
+                    proof_id: Some(proof.proof_id.clone()),
+                    audience: Some(proof.audience.clone()),
+                })
                 .map_err(|_| invalid_payload())?;
                 let valid_until = context.effective_valid_until(proof)?;
                 ReplayReservation::new(&binding, valid_until).map_err(|_| invalid_payload())
@@ -2092,17 +2092,23 @@ fn sign_value_bearing_with_proof_authorization_and_durable_store_at(
     let evidence_digest = authorization.verified_proofs.digest()?;
     let binding = ReplayBinding::from_component_digests_with_domain(
         VALUE_BEARING_OPERATION_REPLAY_DOMAIN,
-        durable_binding.provider.clone(),
-        "value-bearing-operation",
-        request.algorithm().canonical_token(),
-        *authorization.verified_proofs.nonce_digest(),
-        operation_digest,
-        request.operation_context().purpose().canonical_token(),
-        authorization.policy_digest,
-        durable_binding.key_identity_digest,
-        evidence_digest,
-        Some(hex::encode(evidence_digest)),
-        Some(request.operation_context().domain().to_string()),
+        ReplayBindingDigestInput {
+            provider: durable_binding.provider.clone(),
+            proof_subject: "value-bearing-operation".to_string(),
+            proof_mechanism: request.algorithm().canonical_token().to_string(),
+            nonce_digest: *authorization.verified_proofs.nonce_digest(),
+            operation_digest,
+            purpose: request
+                .operation_context()
+                .purpose()
+                .canonical_token()
+                .to_string(),
+            policy_digest: authorization.policy_digest,
+            key_identity_digest: durable_binding.key_identity_digest,
+            evidence_digest,
+            proof_id: Some(hex::encode(evidence_digest)),
+            audience: Some(request.operation_context().domain().to_string()),
+        },
     )
     .map_err(|_| invalid_payload())?;
     let reservation = ReplayReservation::new(&binding, authorization.authorization_expires_at)
