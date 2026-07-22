@@ -613,11 +613,11 @@ impl RailProxy {
         intent: &SwapIntent,
         attestation_json: &Option<String>,
     ) -> ConclaveResult<()> {
-        self.verify_hardware_integrity_with_attestation_policy_at_time(
+        self.verify_hardware_integrity_with_attestation_policy_with_trusted_clock(
             intent,
             attestation_json,
             &self.attestation_policy,
-            unix_time_secs(),
+            crate::enclave::trusted_unix_time_secs(),
         )
     }
 
@@ -629,11 +629,26 @@ impl RailProxy {
         attestation_json: &Option<String>,
         policy: &AttestationPolicy,
     ) -> ConclaveResult<()> {
+        self.verify_hardware_integrity_with_attestation_policy_with_trusted_clock(
+            intent,
+            attestation_json,
+            policy,
+            crate::enclave::trusted_unix_time_secs(),
+        )
+    }
+
+    fn verify_hardware_integrity_with_attestation_policy_with_trusted_clock(
+        &self,
+        intent: &SwapIntent,
+        attestation_json: &Option<String>,
+        policy: &AttestationPolicy,
+        trusted_now_secs: ConclaveResult<u64>,
+    ) -> ConclaveResult<()> {
         self.verify_hardware_integrity_with_attestation_policy_at_time(
             intent,
             attestation_json,
             policy,
-            unix_time_secs(),
+            trusted_now_secs?,
         )
     }
 
@@ -688,6 +703,8 @@ impl RailProxy {
             Err(ReplayGuardError::CapacitySaturated) => Err(ConclaveError::EnclaveFailure(
                 "Attestation replay guard capacity is saturated".to_string(),
             )),
+            Err(ReplayGuardError::ClockRollback) => Err(ConclaveError::ClockRollback),
+            Err(ReplayGuardError::InvalidInput) => Err(ConclaveError::InvalidPayload),
             Err(ReplayGuardError::LockPoisoned) => Err(ConclaveError::EnclaveFailure(
                 "Attestation replay guard is unavailable".to_string(),
             )),
@@ -733,6 +750,18 @@ impl RailProxy {
         &self,
         operation: VerifiedOperation,
     ) -> ConclaveResult<SwapResponse> {
+        self.dispatch_verified_operation_with_trusted_clock(
+            operation,
+            crate::enclave::trusted_unix_time_secs(),
+        )
+        .await
+    }
+
+    async fn dispatch_verified_operation_with_trusted_clock(
+        &self,
+        operation: VerifiedOperation,
+        trusted_now_secs: ConclaveResult<u64>,
+    ) -> ConclaveResult<SwapResponse> {
         let intent = operation.intent();
         let authorization = operation.authorization();
         if intent.signable_hash != intent.canonical_hash() {
@@ -771,6 +800,7 @@ impl RailProxy {
             ));
         }
 
+        let now_secs = trusted_now_secs?;
         let rail_name = intent.rail_type.clone();
         let rail = self
             .rails
@@ -788,7 +818,7 @@ impl RailProxy {
 
         match self.replay_guard.try_check_and_record(
             &hex::encode(authorization.replay_authorization.token),
-            unix_time_secs(),
+            now_secs,
         ) {
             Ok(()) => {}
             Err(ReplayGuardError::Duplicate) => {
@@ -800,6 +830,12 @@ impl RailProxy {
                 return Err(ConclaveError::EnclaveFailure(
                     "typed settlement replay guard capacity is saturated".to_string(),
                 ));
+            }
+            Err(ReplayGuardError::ClockRollback) => {
+                return Err(ConclaveError::ClockRollback);
+            }
+            Err(ReplayGuardError::InvalidInput) => {
+                return Err(ConclaveError::InvalidPayload);
             }
             Err(ReplayGuardError::LockPoisoned) => {
                 return Err(ConclaveError::EnclaveFailure(
@@ -944,11 +980,10 @@ impl SovereignRail for FailingRail {
     }
 }
 
-fn unix_time_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
+#[cfg(test)]
+fn test_unix_time_secs() -> u64 {
+    crate::enclave::trusted_unix_time_secs()
+        .expect("test host clock should be after the Unix epoch")
 }
 
 fn default_attestation_policy() -> AttestationPolicy {
@@ -1033,7 +1068,7 @@ mod rail_proxy_tests {
     };
     use ed25519_dalek::{Signer as _, SigningKey};
     use std::sync::Arc;
-    use std::time::Duration;
+    use std::time::{Duration, SystemTime};
 
     const TEST_MERCHANT_ENDPOINT: &str = "https://merchant.invalid/x402";
 
@@ -1147,7 +1182,7 @@ mod rail_proxy_tests {
     }
 
     fn test_attestation_json(nonce: Vec<u8>) -> String {
-        test_attestation_json_at(nonce, unix_time_secs())
+        test_attestation_json_at(nonce, test_unix_time_secs())
     }
 
     fn test_attestation_json_at(nonce: Vec<u8>, timestamp: u64) -> String {
@@ -1193,7 +1228,7 @@ mod rail_proxy_tests {
                     hex::encode(attestation_key.verifying_key().to_bytes()),
                     "CONCLAVE_ROOT_CA_V1".to_string(),
                 ],
-                timestamp: unix_time_secs(),
+                timestamp: test_unix_time_secs(),
                 extension_data,
                 extensions,
             };
@@ -1968,6 +2003,33 @@ mod rail_proxy_tests {
     }
 
     #[tokio::test]
+    async fn typed_settlement_clock_failure_does_not_consume_replay_state() {
+        let mut proxy = test_proxy().with_min_trust_tier(TrustTier::T4);
+        proxy.register_rail(Box::new(CustomRail));
+        let provider = SettlementFixtureProvider::new(VALUE_BEARING_POLICY_ID);
+        let operation =
+            authorize_fixture_operation(&proxy, &provider, custom_settlement_intent(vec![35; 32]));
+        let retry = operation.clone();
+        let pre_epoch = SystemTime::UNIX_EPOCH
+            .checked_sub(Duration::from_secs(1))
+            .expect("pre-epoch fixture should be representable");
+
+        assert!(matches!(
+            proxy
+                .dispatch_verified_operation_with_trusted_clock(
+                    operation,
+                    crate::enclave::trusted_unix_time_secs_at(pre_epoch),
+                )
+                .await,
+            Err(ConclaveError::ClockUnavailable)
+        ));
+
+        // The failed clock acquisition did not consume the settlement replay
+        // token; the same operation can still execute once.
+        assert!(proxy.dispatch_verified_operation(retry).await.is_ok());
+    }
+
+    #[tokio::test]
     async fn typed_settlement_replay_is_consumed_before_downstream_failure() {
         let mut proxy = test_proxy().with_min_trust_tier(TrustTier::T4);
         proxy.register_rail(Box::new(FailingRail));
@@ -2048,7 +2110,7 @@ mod rail_proxy_tests {
         let proxy = test_proxy();
         let intent = test_intent(vec![4; 32]);
         let mut forged_report =
-            test_attestation_report(intent.signable_hash.clone(), unix_time_secs());
+            test_attestation_report(intent.signable_hash.clone(), test_unix_time_secs());
         forged_report.signature[0] ^= 0xFF;
 
         let forged_json = Some(serde_json::to_string(&forged_report).unwrap());
@@ -2068,7 +2130,7 @@ mod rail_proxy_tests {
     fn test_wrong_nonce_is_rejected_before_replay_recording() {
         let proxy = test_proxy();
         let intent = test_intent(vec![5; 32]);
-        let report = test_attestation_report(vec![6; 32], unix_time_secs());
+        let report = test_attestation_report(vec![6; 32], test_unix_time_secs());
         let attestation = Some(serde_json::to_string(&report).unwrap());
 
         let result = proxy.verify_hardware_integrity(&intent, &attestation);
@@ -2087,7 +2149,8 @@ mod rail_proxy_tests {
     fn test_untrusted_root_is_rejected_without_consuming_replay_state() {
         let proxy = test_proxy();
         let intent = test_intent(vec![7; 32]);
-        let mut report = test_attestation_report(intent.signable_hash.clone(), unix_time_secs());
+        let mut report =
+            test_attestation_report(intent.signable_hash.clone(), test_unix_time_secs());
         report.certificate_chain[1] = "UNTRUSTED_ROOT".to_string();
         let attestation = Some(serde_json::to_string(&report).unwrap());
 
@@ -2131,6 +2194,36 @@ mod rail_proxy_tests {
         let valid_attestation = Some(test_attestation_json(canonical_hash));
         assert!(proxy
             .verify_hardware_integrity(&intent, &valid_attestation)
+            .is_ok());
+    }
+
+    #[test]
+    fn test_clock_failure_precedes_attestation_verification_and_replay_recording() {
+        const NOW_SECS: u64 = 1_000_000;
+
+        let proxy = test_proxy();
+        let intent = test_intent(vec![17; 32]);
+        let attestation = Some(test_attestation_json_at(
+            intent.signable_hash.clone(),
+            NOW_SECS,
+        ));
+        let pre_epoch = SystemTime::UNIX_EPOCH
+            .checked_sub(Duration::from_secs(1))
+            .expect("pre-epoch fixture should be representable");
+
+        assert!(matches!(
+            proxy.verify_hardware_integrity_with_attestation_policy_with_trusted_clock(
+                &intent,
+                &attestation,
+                &proxy.attestation_policy,
+                crate::enclave::trusted_unix_time_secs_at(pre_epoch),
+            ),
+            Err(ConclaveError::ClockUnavailable)
+        ));
+
+        // The failed clock acquisition did not consume the intent replay key.
+        assert!(proxy
+            .verify_hardware_integrity_at_time(&intent, &attestation, NOW_SECS)
             .is_ok());
     }
 
@@ -2208,7 +2301,8 @@ mod rail_proxy_tests {
             .unwrap();
         let proxy = test_proxy().with_attestation_policy(policy);
         let intent = test_intent(vec![12; 32]);
-        let mut report = test_attestation_report(intent.signable_hash.clone(), unix_time_secs());
+        let mut report =
+            test_attestation_report(intent.signable_hash.clone(), test_unix_time_secs());
         report.certificate_chain[1] = "TEST_ROOT".to_string();
         report
             .sign_with_ed25519_key(&test_signing_key())
@@ -2269,7 +2363,8 @@ mod rail_proxy_tests {
     fn test_wrong_purpose_is_rejected_without_consuming_replay_state() {
         let proxy = test_proxy();
         let intent = test_intent(vec![16; 32]);
-        let mut report = test_attestation_report(intent.signable_hash.clone(), unix_time_secs());
+        let mut report =
+            test_attestation_report(intent.signable_hash.clone(), test_unix_time_secs());
         report.extension_data =
             "PURPOSE_VIEW|ALGORITHM_ED25519|TEE_ENABLED|HARDWARE_ROOT_OF_TRUST".to_string();
         report.extensions = parse_extension_data(&report.extension_data).expect("valid extensions");

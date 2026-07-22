@@ -115,6 +115,10 @@ pub enum ConclaveError {
     CryptoError(String),
     #[error("Invalid Payload provided")]
     InvalidPayload,
+    #[error("clock rollback detected")]
+    ClockRollback,
+    #[error("trusted security clock unavailable")]
+    ClockUnavailable,
     #[error("Invalid configuration: {0}")]
     InvalidConfiguration(String),
     #[error("ISO 20022 Error: {0}")]

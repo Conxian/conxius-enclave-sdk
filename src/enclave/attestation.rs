@@ -4,7 +4,6 @@ use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use ed25519_dalek::{Signer, SigningKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::time::{SystemTime, UNIX_EPOCH};
 use x509_cert::Certificate;
 
 use crate::{ConclaveError, ConclaveResult};
@@ -21,13 +20,6 @@ const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
 
 /// Version of the canonical signed attestation envelope.
 pub const ATTESTATION_ENVELOPE_VERSION: u16 = 2;
-
-fn unix_time_secs() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum AttestationLevel {
@@ -621,7 +613,39 @@ impl DeviceIntegrityReport {
 
     /// Verifies this report against an explicit fail-closed policy.
     pub fn verify_with_policy(&self, expected_nonce: &[u8], policy: &AttestationPolicy) -> bool {
-        self.verify_at_time_impl(expected_nonce, unix_time_secs(), policy)
+        self.verify_with_policy_result(expected_nonce, policy)
+            .is_ok()
+    }
+
+    /// Fallible crate-internal verification used by security-sensitive callers.
+    /// Clock acquisition errors are preserved as typed failures instead of being
+    /// converted into a timestamp or a verifier call.
+    pub(crate) fn verify_with_policy_result(
+        &self,
+        expected_nonce: &[u8],
+        policy: &AttestationPolicy,
+    ) -> ConclaveResult<()> {
+        self.verify_with_trusted_clock(
+            expected_nonce,
+            policy,
+            crate::enclave::trusted_unix_time_secs(),
+        )
+    }
+
+    fn verify_with_trusted_clock(
+        &self,
+        expected_nonce: &[u8],
+        policy: &AttestationPolicy,
+        trusted_now_secs: ConclaveResult<u64>,
+    ) -> ConclaveResult<()> {
+        let now_secs = trusted_now_secs?;
+        if self.verify_at_time_impl(expected_nonce, now_secs, policy) {
+            Ok(())
+        } else {
+            Err(ConclaveError::Unsupported(
+                "attestation report failed cryptographic or policy verification".to_string(),
+            ))
+        }
     }
 
     /// Verifies at a specific timestamp using the internal test-only fixture
@@ -637,7 +661,7 @@ impl DeviceIntegrityReport {
 
     /// Verifies at a caller-supplied timestamp using an explicit policy.
     ///
-    /// Production callers should use [`Self::verify_with_policy`], which
+    /// Production callers should use [`Self::verify_with_policy_result`], which
     /// samples the wall clock once. This crate-visible variant lets protocol
     /// code share that exact timestamp with related checks and lets tests
     /// exercise freshness boundaries without sampling the wall clock twice.
@@ -893,6 +917,7 @@ mod tests {
         DeviceIntegrityReport, SignerKeyBindingEvidence, MAX_ATTESTATION_AGE_SECS,
     };
     use ed25519_dalek::SigningKey;
+    use std::time::{Duration, SystemTime};
 
     fn valid_report(timestamp: u64, level: AttestationLevel) -> DeviceIntegrityReport {
         let signing_key = test_signing_key();
@@ -929,6 +954,24 @@ mod tests {
         let report = valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
 
         assert!(report.verify_at_time(&[1, 2, 3, 4], now_secs));
+    }
+
+    #[test]
+    fn verify_rejects_clock_failure_before_provider_evidence() {
+        let now_secs: u64 = 1_000_000;
+        let report = valid_report(now_secs.saturating_sub(60), AttestationLevel::TEE);
+        let pre_epoch = SystemTime::UNIX_EPOCH
+            .checked_sub(Duration::from_secs(1))
+            .expect("pre-epoch fixture should be representable");
+
+        assert_eq!(
+            report.verify_with_trusted_clock(
+                &[1, 2, 3, 4],
+                &AttestationPolicy::test_fixture(),
+                crate::enclave::trusted_unix_time_secs_at(pre_epoch),
+            ),
+            Err(crate::ConclaveError::ClockUnavailable)
+        );
     }
 
     #[test]
