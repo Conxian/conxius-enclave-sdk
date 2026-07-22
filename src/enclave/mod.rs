@@ -1,3 +1,4 @@
+pub mod android_authorization;
 #[cfg(any(test, feature = "development-simulators"))]
 pub mod android_strongbox;
 pub mod attestation;
@@ -26,6 +27,19 @@ pub use trust_contracts::{
     ReleaseEvidenceExpectation, ReleaseEvidenceKind, ReleaseEvidenceManifest, ReplayBinding,
     ReplayBindingError, ReplayOperation, ReplayProofMechanism, ReplayProofSubject, ReplayPurpose,
     ReplayReservation, TrustDigest,
+};
+
+pub use android_authorization::{
+    request_binding_digest, request_binding_digest_at, AndroidAuthorizationEvidence,
+    AndroidAuthorizationRequest, AndroidKeyAlgorithm, AndroidKeyPurpose,
+    AndroidPlayIntegrityEvidence, AndroidReportedTier, AndroidSecurityPolicy,
+    ANDROID_AUTHORIZATION_BINDING_DOMAIN, ANDROID_AUTHORIZATION_DOMAIN,
+    ANDROID_AUTHORIZATION_VERIFIER_ID, ANDROID_AUTHORIZATION_VERSION,
+    ANDROID_KEYMINT_PROOF_VERIFIER_ID, MAX_ANDROID_AUTHORIZATION_AGE_SECS,
+    MAX_ANDROID_AUTHORIZATION_FUTURE_SKEW_SECS, MAX_ANDROID_AUTHORIZATION_LIFETIME_SECS,
+    MAX_ANDROID_CHALLENGE_BYTES, MAX_ANDROID_DER_CERTIFICATE_BYTES, MAX_ANDROID_DER_CHAIN_BYTES,
+    MAX_ANDROID_DER_CHAIN_LENGTH, MAX_ANDROID_KEY_ID_BYTES, MAX_ANDROID_NONCE_BYTES,
+    MAX_ANDROID_PACKAGE_NAME_BYTES, MAX_PLAY_INTEGRITY_EVIDENCE_BYTES,
 };
 
 #[cfg(test)]
