@@ -8,8 +8,10 @@
 Issue [#240](https://github.com/Conxian/conxius-enclave-sdk/issues/240) adds a
 bounded contract boundary for trust collateral and replay authorization. The
 durable provider-facing entry points are additive, while legacy process-local
-proof authorization helpers are crate-test-only containment paths and are not
-part of the production public API.
+proof authorization helpers are crate-test-only containment paths. The public
+`EnclaveManager::sign_value_bearing` method remains only as a source-compatible
+fail-closed shim: it rejects before provider invocation and cannot authorize
+production signing with process-local replay.
 
 ## 1. Trust-bundle contract
 
@@ -121,9 +123,12 @@ The additive proof APIs are:
 Provider proof verification and durable replay are independent gates. A
 process-local store, unavailable backend, or indeterminate transaction cannot
 silently satisfy a value-bearing production path. Existing legacy APIs remain
-available only inside crate tests for local containment; they are not exported
-production value-bearing authorization APIs and do not constitute production
-support.
+available only as explicit crate-test containment helpers, while the public
+legacy manager signature is a fail-closed compatibility shim. The durable final
+signing path also requires the request-side expected policy digest to be present
+and equal to the authorization digest before consuming operation replay or
+invoking a provider. None of these contract foundations constitute provider
+support or a production-readiness decision.
 
 ## 4. Canonical replay binding
 

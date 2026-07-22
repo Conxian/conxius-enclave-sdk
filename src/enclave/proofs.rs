@@ -1737,6 +1737,9 @@ impl ProofBoundValueBearingAuthorization {
 
     fn matches_request(&self, request: &ValueBearingSignRequest) -> ConclaveResult<bool> {
         let expected_policy_digest = ProofPolicy::production().digest().ok();
+        let request_policy_matches = request
+            .expected_proof_policy_digest()
+            .is_some_and(|digest| digest == &self.policy_digest);
         let key_matches = self.durable_binding.as_ref().is_none_or(|binding| {
             request
                 .key_binding()
@@ -1745,6 +1748,7 @@ impl ProofBoundValueBearingAuthorization {
         });
         Ok(self.policy_digest == *self.verified_proofs.policy_digest()
             && expected_policy_digest.as_ref() == Some(&self.policy_digest)
+            && request_policy_matches
             && request.trust_requirement().policy_id() == crate::enclave::VALUE_BEARING_POLICY_ID
             && !self.verified_proofs.is_empty()
             && self.verified_proofs.operation_digest() == request.message_digest()
@@ -1967,6 +1971,14 @@ fn sign_value_bearing_with_proof_authorization_at(
             "proof authorization does not match value-bearing operation context".to_string(),
         ));
     }
+    if !enclave
+        .signer_capability()
+        .satisfies(request.trust_requirement())
+    {
+        return Err(ConclaveError::Unsupported(
+            "value-bearing signing requires a provider-verified hardware enclave".to_string(),
+        ));
+    }
     enclave.sign_value_bearing(request)
 }
 
@@ -2002,6 +2014,18 @@ fn sign_value_bearing_with_proof_authorization_and_durable_store_at(
     if replay_store.durability() != ReplayStoreDurability::DurableProvider {
         return Err(ConclaveError::Unsupported(
             "durable replay store is required for proof-authorized final signing".to_string(),
+        ));
+    }
+    let request_policy_digest = request.expected_proof_policy_digest().ok_or_else(|| {
+        ConclaveError::Unsupported(
+            "final durable signing requires a request-side expected proof policy digest"
+                .to_string(),
+        )
+    })?;
+    if request_policy_digest != authorization.policy_digest() {
+        return Err(ConclaveError::Unsupported(
+            "request-side expected proof policy digest does not match authorization policy digest"
+                .to_string(),
         ));
     }
     authorization.observe_and_validate_at(now_secs)?;
@@ -2226,6 +2250,12 @@ mod tests {
             None,
         )
         .expect("value-bearing request")
+        .with_expected_proof_policy_digest(
+            ProofPolicy::production()
+                .digest()
+                .expect("production policy digest"),
+        )
+        .expect("request policy commitment")
     }
 
     fn fixture_settlement_intent() -> SwapIntent {
@@ -2352,7 +2382,10 @@ mod tests {
             }
         }
 
-        fn request(&self, context: &ProofVerificationContext) -> ValueBearingSignRequest {
+        fn request_without_policy(
+            &self,
+            context: &ProofVerificationContext,
+        ) -> ValueBearingSignRequest {
             ValueBearingSignRequest::new(
                 OperationContext::new(
                     context.audience.clone(),
@@ -2373,6 +2406,16 @@ mod tests {
                 None,
             )
             .expect("value-bearing request")
+        }
+
+        fn request(&self, context: &ProofVerificationContext) -> ValueBearingSignRequest {
+            self.request_without_policy(context)
+                .with_expected_proof_policy_digest(
+                    ProofPolicy::production()
+                        .digest()
+                        .expect("production policy digest"),
+                )
+                .expect("request policy commitment")
         }
 
         fn response_for(&self, request: &ValueBearingSignRequest) -> SignResponse {
@@ -3710,6 +3753,101 @@ mod tests {
                 if message.contains("replay detected")
         ));
         assert_eq!(provider_two.provider_calls.load(AtomicOrdering::Relaxed), 0);
+    }
+
+    #[test]
+    fn durable_final_signing_rejects_missing_request_policy_before_replay_and_provider() {
+        let now_secs =
+            crate::enclave::trusted_unix_time_secs().expect("test host clock should be available");
+        let context = context_at(now_secs);
+        let provider = DurableFixtureProvider::new();
+        let request = provider.request(&context);
+        let request_without_policy = provider.request_without_policy(&context);
+        let binding_context =
+            ProofReplayBindingContext::for_signer_key("fixture-provider", request.key_binding())
+                .expect("binding context");
+        let store = DurableFixtureReplayStore::new(64);
+        let authorization = authorize_value_bearing_with_durable_store(
+            &ProofVerifierRegistry::test_fixture_all_six(),
+            &fixture_bundle_at(now_secs),
+            &ProofPolicy::production(),
+            &context,
+            &binding_context,
+            &store,
+        )
+        .expect("durable authorization");
+
+        assert!(matches!(
+            sign_value_bearing_with_proof_authorization_and_durable_store(
+                &provider,
+                request_without_policy,
+                &authorization,
+                &store,
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("request-side expected proof policy digest")
+        ));
+        assert_eq!(provider.provider_calls.load(AtomicOrdering::Relaxed), 0);
+
+        assert!(
+            sign_value_bearing_with_proof_authorization_and_durable_store(
+                &provider,
+                request,
+                &authorization,
+                &store,
+            )
+            .is_ok()
+        );
+        assert_eq!(provider.provider_calls.load(AtomicOrdering::Relaxed), 1);
+    }
+
+    #[test]
+    fn durable_final_signing_rejects_mismatched_request_policy_before_replay_and_provider() {
+        let now_secs =
+            crate::enclave::trusted_unix_time_secs().expect("test host clock should be available");
+        let context = context_at(now_secs);
+        let provider = DurableFixtureProvider::new();
+        let request = provider.request(&context);
+        let mismatched_request = provider
+            .request_without_policy(&context)
+            .with_expected_proof_policy_digest([0xa5; 32])
+            .expect("mismatched request policy commitment");
+        let binding_context =
+            ProofReplayBindingContext::for_signer_key("fixture-provider", request.key_binding())
+                .expect("binding context");
+        let store = DurableFixtureReplayStore::new(64);
+        let authorization = authorize_value_bearing_with_durable_store(
+            &ProofVerifierRegistry::test_fixture_all_six(),
+            &fixture_bundle_at(now_secs),
+            &ProofPolicy::production(),
+            &context,
+            &binding_context,
+            &store,
+        )
+        .expect("durable authorization");
+
+        assert!(matches!(
+            sign_value_bearing_with_proof_authorization_and_durable_store(
+                &provider,
+                mismatched_request,
+                &authorization,
+                &store,
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("does not match authorization policy digest")
+        ));
+        assert_eq!(provider.provider_calls.load(AtomicOrdering::Relaxed), 0);
+
+        assert!(
+            sign_value_bearing_with_proof_authorization_and_durable_store(
+                &provider,
+                request,
+                &authorization,
+                &store,
+            )
+            .is_ok()
+        );
+        assert_eq!(provider.provider_calls.load(AtomicOrdering::Relaxed), 1);
     }
 
     #[test]

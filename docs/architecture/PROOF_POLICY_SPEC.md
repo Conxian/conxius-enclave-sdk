@@ -76,9 +76,12 @@ requirement must never be interpreted as an alternative.
 
 The exact binding is:
 
-1. The request carries the complete expected `ProofSetPolicy`. The request-side
-   authorization boundary derives the expected policy digest from that object;
-   it does not accept a digest supplied by evidence as the source of truth.
+1. Legacy rail requests carry the complete expected `ProofSetPolicy`. The
+   durable proof-aware request path carries an exact
+   `expected_proof_policy_digest()` commitment, which may be derived from the
+   structured rail policy or set directly from the independently defined
+   durable `ProofPolicy` digest. It does not accept a digest supplied by
+   evidence as the source of truth.
 2. The provider response can receive a proof set only after the proof set's
    verified digest, operation digest, purpose, count, and exact policy match
    the request. The response stores the independently derived expected digest
@@ -105,23 +108,25 @@ security-relevant policy inputs and are included in the canonical policy
 digest. Value-bearing settlement additionally binds the request to the
 canonical intent hash and the `conxian/settlement/v1` operation domain.
 
-The current manager/rail replay authorization is process-local. It is consumed
-before downstream rail execution and is not a distributed replay protocol. The
-legacy proof authorization helpers that accept `&ReplayGuard` are test-only
-containment APIs and are not exported as production public helpers. The
-additive `ReplayStore` contract and canonical `ReplayBinding` are documented in
-[`TRUST_REPLAY_FOUNDATION.md`](./TRUST_REPLAY_FOUNDATION.md). The new durable
-proof/authorization entry points reject process-local stores, but no durable
-until specified, implemented, independently reviewed, and tested against the
 deployment boundary.
-store implementation is shipped. Durable proof authorization also requires the
-exact canonical production policy before issuing its carrier. Final proof-aware
-signing requires the caller to pass the same durable-store contract again and
+The public `EnclaveManager::sign_value_bearing` method remains a
+source-compatible fail-closed shim: it returns a durable-proof/replay-required
+error before capability checks, replay checks, or provider invocation. It never
+uses a process-local `ReplayGuard` as production authorization. The explicit
+`ReplayGuard` containment helper is compiled only for crate tests and its name
+and documentation make that scope non-production.
+
+The additive `ReplayStore` contract and canonical `ReplayBinding` are
+documented in [`TRUST_REPLAY_FOUNDATION.md`](./TRUST_REPLAY_FOUNDATION.md). The
+durable proof/authorization entry points reject process-local stores, require
+the exact canonical production policy, and final proof-aware signing requires
+the request-side policy digest to be present and equal to the authorization
+digest before consuming a replay reservation or invoking the provider. It
 consumes a distinct, complete operation replay binding immediately before
-provider signing; the carrier is one-shot and signer-key-bound. Restart-safe,
-multi-replica, provider-coordinated, or cross-region replay semantics are
-**unsupported** until specified, implemented, independently reviewed, and tested
-against the deployment boundary.
+provider signing; the carrier is one-shot and signer-key-bound.
+Restart-safe, multi-replica, provider-coordinated, or cross-region replay
+semantics remain **unsupported** until specified, implemented, independently
+reviewed, and tested against the deployment boundary.
 
 ## 6. Trust roots and collateral
 

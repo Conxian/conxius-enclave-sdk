@@ -1052,12 +1052,19 @@ impl TrustBundleValidator {
             }
         }
 
+        let evidence_valid_until = evidence
+            .issued_at
+            .saturating_add(self.evidence_freshness.max_age_secs());
+
         Ok(TrustValidationReceipt {
             provider: snapshot.provider.clone(),
             sequence: snapshot.sequence,
             bundle_digest: *bundle.signed_digest(),
             evidence_digest: evidence.evidence_digest,
-            valid_until: snapshot.stale_after.min(snapshot.expires_at),
+            valid_until: snapshot
+                .stale_after
+                .min(snapshot.expires_at)
+                .min(evidence_valid_until),
         })
     }
 }
@@ -1703,6 +1710,38 @@ mod tests {
                 TrustClockObservation::Unavailable,
             ),
             Err(TrustValidationError::ClockUnavailable)
+        );
+    }
+
+    #[test]
+    fn cache_caps_receipt_at_evidence_freshness_deadline() {
+        let validator = TrustBundleValidator::test_fixture().with_evidence_freshness_policy(
+            TrustEvidenceFreshnessPolicy::new(10, 5).expect("freshness policy"),
+        );
+        let bundle = signed_fixture(1);
+        let evidence = evidence_at(NOW - 10);
+        let receipt = validator
+            .validate(&bundle, &evidence, TrustClockObservation::Trusted(NOW))
+            .expect("fixture bundle should validate at the age boundary");
+        assert_eq!(receipt.valid_until(), NOW);
+
+        let cache = TrustBundleCache::new(validator);
+        cache
+            .install(&bundle, &evidence, TrustClockObservation::Trusted(NOW))
+            .expect("install fixture");
+        assert_eq!(
+            cache.current_for(
+                TRUST_PROVIDER_ANDROID_KEYMINT,
+                TrustClockObservation::Trusted(NOW),
+            ),
+            Err(TrustValidationError::Expired)
+        );
+        assert_eq!(
+            cache.current_for(
+                TRUST_PROVIDER_ANDROID_KEYMINT,
+                TrustClockObservation::Trusted(NOW + 1),
+            ),
+            Err(TrustValidationError::Expired)
         );
     }
 

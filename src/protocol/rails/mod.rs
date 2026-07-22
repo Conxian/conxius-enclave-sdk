@@ -1264,6 +1264,17 @@ mod rail_proxy_tests {
                 ),
             }
         }
+
+        fn sign_value_bearing_for_test(
+            &self,
+            request: ValueBearingSignRequest,
+        ) -> ConclaveResult<ValueBearingSignResponse> {
+            crate::enclave::sign_value_bearing_with_process_local_replay_for_test(
+                self,
+                request,
+                crate::enclave::trusted_unix_time_secs(),
+            )
+        }
     }
 
     impl EnclaveManager for SettlementFixtureProvider {
@@ -1410,7 +1421,7 @@ mod rail_proxy_tests {
             VALUE_BEARING_POLICY_ID,
         );
         let response = provider
-            .sign_value_bearing(request.clone())
+            .sign_value_bearing_for_test(request.clone())
             .expect("fixture provider should issue typed evidence")
             .with_test_proof_set(&request)
             .expect("fixture proof set should verify");
@@ -1435,7 +1446,7 @@ mod rail_proxy_tests {
             VALUE_BEARING_POLICY_ID,
         );
         let valid_response = provider
-            .sign_value_bearing(valid_request.clone())
+            .sign_value_bearing_for_test(valid_request.clone())
             .expect("fixture provider should issue typed evidence")
             .with_test_proof_set(&valid_request)
             .expect("fixture proof set should verify");
@@ -1449,7 +1460,7 @@ mod rail_proxy_tests {
             digest.to_vec(),
         );
         let wrong_purpose_response = provider
-            .sign_value_bearing(wrong_purpose_request.clone())
+            .sign_value_bearing_for_test(wrong_purpose_request.clone())
             .expect("fixture provider should issue wrong-purpose evidence");
         assert!(matches!(
             proxy.authorize_verified_operation(
@@ -1470,7 +1481,7 @@ mod rail_proxy_tests {
             digest.to_vec(),
         );
         let wrong_domain_response = provider
-            .sign_value_bearing(wrong_domain_request.clone())
+            .sign_value_bearing_for_test(wrong_domain_request.clone())
             .expect("fixture provider should issue wrong-domain evidence");
         assert!(matches!(
             proxy.authorize_verified_operation(
@@ -1491,7 +1502,7 @@ mod rail_proxy_tests {
             vec![0xA5; 32],
         );
         let wrong_context_response = provider
-            .sign_value_bearing(wrong_context_request.clone())
+            .sign_value_bearing_for_test(wrong_context_request.clone())
             .expect("fixture provider should issue same-digest altered-context evidence");
         assert!(matches!(
             proxy.authorize_verified_operation(
@@ -1521,7 +1532,7 @@ mod rail_proxy_tests {
             VALUE_BEARING_POLICY_ID,
         );
         let wrong_digest_response = provider
-            .sign_value_bearing(wrong_digest_request.clone())
+            .sign_value_bearing_for_test(wrong_digest_request.clone())
             .expect("fixture provider should issue mismatched digest evidence");
         assert!(matches!(
             proxy.authorize_verified_operation(
@@ -1581,7 +1592,7 @@ mod rail_proxy_tests {
             .expect("fixture policy should require one proof")
             .clone();
         let response = provider
-            .sign_value_bearing(request.clone())
+            .sign_value_bearing_for_test(request.clone())
             .expect("fixture provider should issue typed evidence");
 
         let wrong_operation_request = settlement_request(
@@ -1801,7 +1812,7 @@ mod rail_proxy_tests {
             .with_proof_policy(multi_policy)
             .expect("multi-proof request policy should match the request");
         let multi_response = provider
-            .sign_value_bearing(multi_request.clone())
+            .sign_value_bearing_for_test(multi_request.clone())
             .expect("fixture provider should issue multi-proof evidence");
         let partial_policy = policy(
             digest,
@@ -1864,7 +1875,7 @@ mod rail_proxy_tests {
             .with_proof_policy(strong_policy.clone())
             .expect("strong policy should match the settlement request");
         let strong_response = provider
-            .sign_value_bearing(strong_request.clone())
+            .sign_value_bearing_for_test(strong_request.clone())
             .expect("fixture provider should issue typed evidence")
             .with_test_proof_set(&strong_request)
             .expect("complete strong fixture proof set should verify");
@@ -1931,7 +1942,7 @@ mod rail_proxy_tests {
         )
         .expect("fixture request should be valid");
         let response_without_policy = provider
-            .sign_value_bearing(request_without_policy.clone())
+            .sign_value_bearing_for_test(request_without_policy.clone())
             .expect("fixture provider should issue typed evidence");
         assert!(matches!(
             proxy.authorize_verified_operation(
