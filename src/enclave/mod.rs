@@ -7,6 +7,7 @@ pub mod cloud;
 pub mod proof;
 pub mod proofs;
 pub mod replay_guard;
+pub mod trust_contracts;
 
 pub use proofs::{
     authorize_settlement_with_proofs, authorize_value_bearing_with_proofs,
@@ -18,6 +19,14 @@ pub use proofs::{
     PROOF_CONTEXT_DOMAIN, PROOF_ENVELOPE_DOMAIN, PROOF_ENVELOPE_VERSION, PROOF_POLICY_DOMAIN,
     PROOF_REPLAY_DOMAIN, SERVER_PROOF_VERIFIER_ID, SETTLEMENT_PROOF_AUDIENCE,
     SETTLEMENT_PROOF_PURPOSE, TEE_PROOF_VERIFIER_ID, TPM_PROOF_VERIFIER_ID, USER_PROOF_VERIFIER_ID,
+};
+pub use trust_contracts::{
+    AttestationProvider, AuthenticatedCollateralMetadata, CollateralMetadata,
+    CollateralValidationContext, CollateralValidationError, DurableReplayError, DurableReplayStore,
+    EvidenceReference, NonProductionInMemoryReplayStore, ReleaseEvidenceError,
+    ReleaseEvidenceExpectation, ReleaseEvidenceKind, ReleaseEvidenceManifest, ReplayBinding,
+    ReplayBindingError, ReplayOperation, ReplayProofMechanism, ReplayProofSubject, ReplayPurpose,
+    ReplayReservation, TrustDigest,
 };
 
 pub use android_authorization::{
