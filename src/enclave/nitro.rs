@@ -489,6 +489,10 @@ impl fmt::Debug for NitroAttestationDocument {
 
 impl NitroAttestationDocument {
     /// Parses tagged or untagged COSE_Sign1 Nitro input with bounded CBOR.
+    ///
+    /// The accepted CBOR profile is definite-length only. Indefinite-length
+    /// strings, arrays, maps, tags, and break markers are rejected by the
+    /// iterative pre-scan before `ciborium` is allowed to materialize a value.
     pub fn parse(input: &[u8]) -> Result<Self, NitroError> {
         if input.is_empty() || input.len() > MAX_NITRO_ATTESTATION_BYTES {
             return Err(NitroError::InputTooLarge);
@@ -943,7 +947,7 @@ fn validate_raw_recipient_response(
     plaintext: Option<&[u8]>,
     ciphertext_for_recipient: Option<&[u8]>,
 ) -> Result<(), NitroError> {
-    if plaintext.is_some_and(|value| !value.is_empty()) {
+    if plaintext.is_some() {
         return Err(NitroError::RecipientPlaintextRejected);
     }
     let ciphertext = ciphertext_for_recipient
@@ -968,35 +972,175 @@ struct ParsedPayload {
     nonce: Option<Vec<u8>>,
 }
 
+#[derive(Clone, Copy)]
+struct CborScanFrame {
+    remaining_items: usize,
+    child_depth: usize,
+}
+
 fn decode_one(input: &[u8], max_len: usize) -> Result<Value, NitroError> {
     if input.is_empty() || input.len() > max_len {
         return Err(NitroError::InputTooLarge);
     }
+    scan_cbor_item(input)?;
     let mut cursor = Cursor::new(input);
     let value: Value = de::from_reader(&mut cursor).map_err(|_| NitroError::CborMalformed)?;
     if cursor.position() as usize != input.len() {
         return Err(NitroError::CborTrailingData);
     }
-    validate_cbor_depth(&value, 0)?;
     Ok(value)
 }
 
-fn validate_cbor_depth(value: &Value, depth: usize) -> Result<(), NitroError> {
-    if depth > MAX_NITRO_CBOR_DEPTH {
+fn scan_cbor_item(input: &[u8]) -> Result<(), NitroError> {
+    let mut offset = 0usize;
+    let mut stack = [CborScanFrame {
+        remaining_items: 0,
+        child_depth: 0,
+    }; MAX_NITRO_CBOR_DEPTH + 1];
+    let mut stack_len = 0usize;
+    let mut root_seen = false;
+
+    loop {
+        let depth = if stack_len != 0 {
+            let frame = &mut stack[stack_len - 1];
+            if frame.remaining_items == 0 {
+                stack_len -= 1;
+                continue;
+            }
+            frame.remaining_items -= 1;
+            frame.child_depth
+        } else if root_seen {
+            return if offset == input.len() {
+                Ok(())
+            } else {
+                Err(NitroError::CborTrailingData)
+            };
+        } else {
+            root_seen = true;
+            0
+        };
+
+        let initial = read_cbor_byte(input, &mut offset)?;
+        let major_type = initial >> 5;
+        let additional_info = initial & 0x1f;
+
+        match major_type {
+            0 | 1 => {
+                read_cbor_argument(input, &mut offset, additional_info)?;
+            }
+            2 | 3 => {
+                let length = cbor_argument_as_usize(read_cbor_argument(
+                    input,
+                    &mut offset,
+                    additional_info,
+                )?)?;
+                let end = offset
+                    .checked_add(length)
+                    .ok_or(NitroError::CborMalformed)?;
+                if end > input.len() {
+                    return Err(NitroError::CborMalformed);
+                }
+                offset = end;
+            }
+            4 => {
+                let item_count = cbor_argument_as_usize(read_cbor_argument(
+                    input,
+                    &mut offset,
+                    additional_info,
+                )?)?;
+                push_cbor_scan_frame(&mut stack, &mut stack_len, item_count, depth, input, offset)?;
+            }
+            5 => {
+                let pair_count = cbor_argument_as_usize(read_cbor_argument(
+                    input,
+                    &mut offset,
+                    additional_info,
+                )?)?;
+                let item_count = pair_count.checked_mul(2).ok_or(NitroError::CborMalformed)?;
+                push_cbor_scan_frame(&mut stack, &mut stack_len, item_count, depth, input, offset)?;
+            }
+            6 => {
+                read_cbor_argument(input, &mut offset, additional_info)?;
+                push_cbor_scan_frame(&mut stack, &mut stack_len, 1, depth, input, offset)?;
+            }
+            7 => {
+                read_cbor_argument(input, &mut offset, additional_info)?;
+            }
+            _ => return Err(NitroError::CborMalformed),
+        }
+    }
+}
+
+fn push_cbor_scan_frame(
+    stack: &mut [CborScanFrame; MAX_NITRO_CBOR_DEPTH + 1],
+    stack_len: &mut usize,
+    remaining_items: usize,
+    parent_depth: usize,
+    input: &[u8],
+    offset: usize,
+) -> Result<(), NitroError> {
+    if remaining_items == 0 {
+        return Ok(());
+    }
+    let child_depth = parent_depth
+        .checked_add(1)
+        .ok_or(NitroError::CborNestingTooDeep)?;
+    if child_depth > MAX_NITRO_CBOR_DEPTH || *stack_len >= stack.len() {
         return Err(NitroError::CborNestingTooDeep);
     }
-    let child_depth = depth.checked_add(1).ok_or(NitroError::CborNestingTooDeep)?;
-    match value {
-        Value::Array(values) => values
-            .iter()
-            .try_for_each(|value| validate_cbor_depth(value, child_depth)),
-        Value::Map(entries) => entries.iter().try_for_each(|(key, value)| {
-            validate_cbor_depth(key, child_depth)?;
-            validate_cbor_depth(value, child_depth)
-        }),
-        Value::Tag(_, value) => validate_cbor_depth(value, child_depth),
-        _ => Ok(()),
+    let remaining_bytes = input
+        .len()
+        .checked_sub(offset)
+        .ok_or(NitroError::CborMalformed)?;
+    if remaining_items > remaining_bytes {
+        return Err(NitroError::CborMalformed);
     }
+    stack[*stack_len] = CborScanFrame {
+        remaining_items,
+        child_depth,
+    };
+    *stack_len += 1;
+    Ok(())
+}
+
+fn cbor_argument_as_usize(argument: u64) -> Result<usize, NitroError> {
+    usize::try_from(argument).map_err(|_| NitroError::CborMalformed)
+}
+
+fn read_cbor_byte(input: &[u8], offset: &mut usize) -> Result<u8, NitroError> {
+    let byte = *input.get(*offset).ok_or(NitroError::CborMalformed)?;
+    *offset = offset.checked_add(1).ok_or(NitroError::CborMalformed)?;
+    Ok(byte)
+}
+
+fn read_cbor_argument(
+    input: &[u8],
+    offset: &mut usize,
+    additional_info: u8,
+) -> Result<u64, NitroError> {
+    match additional_info {
+        0..=23 => Ok(u64::from(additional_info)),
+        24 => Ok(u64::from(read_cbor_byte(input, offset)?)),
+        25 => Ok(u64::from(u16::from_be_bytes(read_cbor_bytes(
+            input, offset,
+        )?))),
+        26 => Ok(u64::from(u32::from_be_bytes(read_cbor_bytes(
+            input, offset,
+        )?))),
+        27 => Ok(u64::from_be_bytes(read_cbor_bytes(input, offset)?)),
+        28..=31 => Err(NitroError::CborMalformed),
+        _ => Err(NitroError::CborMalformed),
+    }
+}
+
+fn read_cbor_bytes<const N: usize>(
+    input: &[u8],
+    offset: &mut usize,
+) -> Result<[u8; N], NitroError> {
+    let end = offset.checked_add(N).ok_or(NitroError::CborMalformed)?;
+    let bytes = input.get(*offset..end).ok_or(NitroError::CborMalformed)?;
+    *offset = end;
+    bytes.try_into().map_err(|_| NitroError::CborMalformed)
 }
 
 fn validate_protected_header(value: &Value) -> Result<(), NitroError> {
@@ -1377,6 +1521,7 @@ fn read_u16_len_prefixed<'a>(input: &'a [u8], cursor: &mut usize) -> Result<&'a 
 mod tests {
     use super::*;
     use p384::ecdsa::{signature::Signer, SigningKey};
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     const NOW_MS: u64 = 1_735_689_600_000;
     // Test-only deterministic material. This is not an AWS certificate, root,
@@ -1423,6 +1568,32 @@ mod tests {
         }
     }
 
+    struct PanicOnCallTrustBoundary {
+        calls: AtomicUsize,
+    }
+
+    impl PanicOnCallTrustBoundary {
+        fn new() -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+            }
+        }
+
+        fn calls(&self) -> usize {
+            self.calls.load(Ordering::SeqCst)
+        }
+    }
+
+    impl NitroCertificateTrustBoundary for PanicOnCallTrustBoundary {
+        fn verify_certificate_path(
+            &self,
+            _document: &NitroAttestationDocument,
+        ) -> Result<NitroTrustDecision, NitroError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            panic!("trust boundary must not be called after an earlier failure");
+        }
+    }
+
     fn fixture_pcr(value: u8) -> [u8; NITRO_SHA384_PCR_BYTES] {
         [value; NITRO_SHA384_PCR_BYTES]
     }
@@ -1438,6 +1609,14 @@ mod tests {
             [4; 32],
         )
         .expect("test binding")
+    }
+
+    fn nested_single_item_arrays(depth: usize) -> Vec<u8> {
+        let capacity = depth.checked_add(1).expect("test depth");
+        let mut encoded = Vec::with_capacity(capacity);
+        encoded.resize(depth, 0x81);
+        encoded.push(0xf6);
+        encoded
     }
 
     fn build_fixture() -> (Vec<u8>, Vec<u8>, [u8; 32]) {
@@ -1775,15 +1954,44 @@ mod tests {
 
     #[test]
     fn rejects_deeply_nested_bounded_cbor() {
-        let mut value = Value::Null;
-        for _ in 0..=MAX_NITRO_CBOR_DEPTH {
-            value = Value::Array(vec![value]);
-        }
-        let mut encoded = Vec::new();
-        ser::into_writer(&value, &mut encoded).expect("nested CBOR");
+        let at_limit = nested_single_item_arrays(MAX_NITRO_CBOR_DEPTH);
+        assert!(decode_one(&at_limit, MAX_NITRO_ATTESTATION_BYTES).is_ok());
+
+        let over_limit = nested_single_item_arrays(MAX_NITRO_CBOR_DEPTH + 1);
         assert_eq!(
-            decode_one(&encoded, MAX_NITRO_ATTESTATION_BYTES),
+            decode_one(&over_limit, MAX_NITRO_ATTESTATION_BYTES),
             Err(NitroError::CborNestingTooDeep)
+        );
+
+        let former_crash_input = nested_single_item_arrays(10_000);
+        assert_eq!(former_crash_input.len(), 10_001);
+        assert!(former_crash_input.len() < MAX_NITRO_ATTESTATION_BYTES);
+        assert_eq!(
+            NitroAttestationDocument::parse(&former_crash_input),
+            Err(NitroError::CborNestingTooDeep)
+        );
+    }
+
+    #[test]
+    fn rejects_reserved_indefinite_and_truncated_cbor_before_materialization() {
+        assert_eq!(
+            decode_one(&[0x9f, 0xff], MAX_NITRO_ATTESTATION_BYTES),
+            Err(NitroError::CborMalformed)
+        );
+        assert_eq!(
+            decode_one(&[0x1c], MAX_NITRO_ATTESTATION_BYTES),
+            Err(NitroError::CborMalformed)
+        );
+        assert_eq!(
+            decode_one(&[0x5b, 0, 0, 0, 1], MAX_NITRO_ATTESTATION_BYTES),
+            Err(NitroError::CborMalformed)
+        );
+        assert_eq!(
+            decode_one(
+                &[0x5b, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff],
+                MAX_NITRO_ATTESTATION_BYTES,
+            ),
+            Err(NitroError::CborMalformed)
         );
     }
 
@@ -2090,6 +2298,64 @@ mod tests {
     }
 
     #[test]
+    fn trust_boundary_is_not_called_after_signature_or_policy_failure() {
+        let (encoded, _, public_key_hash) = build_fixture();
+        let document = NitroAttestationDocument::parse(&encoded).expect("fixture parses");
+        let policy = NitroAttestationPolicy::new(
+            NitroPcrPolicy::new([
+                (0, fixture_pcr(1)),
+                (1, fixture_pcr(2)),
+                (2, fixture_pcr(3)),
+                (3, fixture_pcr(4)),
+                (8, fixture_pcr(8)),
+            ])
+            .expect("PCR policy"),
+        );
+
+        let invalid_signature = rewrite_cose(&encoded, |value| {
+            let signature = match &mut cose_items_mut(value)[3] {
+                Value::Bytes(signature) => signature,
+                _ => unreachable!(),
+            };
+            signature[0] ^= 0x01;
+        });
+        let invalid_signature_document =
+            NitroAttestationDocument::parse(&invalid_signature).expect("parse");
+        let signature_trust = PanicOnCallTrustBoundary::new();
+        assert_eq!(
+            invalid_signature_document.verify_offline(
+                &policy,
+                &signature_trust,
+                NOW_MS,
+                &[9, 8, 7],
+                public_key_hash,
+                &fixture_binding(),
+            ),
+            Err(NitroError::SignatureInvalid)
+        );
+        assert_eq!(signature_trust.calls(), 0);
+
+        let mismatched_policy = NitroAttestationPolicy::new(
+            NitroPcrPolicy::new([(0, fixture_pcr(1))]).expect("policy"),
+        )
+        .with_module_id("different-module")
+        .expect("module policy");
+        let policy_trust = PanicOnCallTrustBoundary::new();
+        assert_eq!(
+            document.verify_offline(
+                &mismatched_policy,
+                &policy_trust,
+                NOW_MS,
+                &[9, 8, 7],
+                public_key_hash,
+                &fixture_binding(),
+            ),
+            Err(NitroError::ModuleIdMismatch)
+        );
+        assert_eq!(policy_trust.calls(), 0);
+    }
+
+    #[test]
     fn rejects_missing_mismatched_and_all_zero_required_pcrs_or_expired_binding() {
         let (encoded, _, _) = build_fixture();
         let document = NitroAttestationDocument::parse(&encoded).expect("fixture parses");
@@ -2201,7 +2467,10 @@ mod tests {
             validate_raw_recipient_response(Some(&[1]), Some(&[2])),
             Err(NitroError::RecipientPlaintextRejected)
         );
-        assert!(validate_raw_recipient_response(Some(&[]), Some(&[1])).is_ok());
+        assert_eq!(
+            validate_raw_recipient_response(Some(&[]), Some(&[1])),
+            Err(NitroError::RecipientPlaintextRejected)
+        );
         assert_eq!(
             validate_raw_recipient_response(None, None),
             Err(NitroError::RecipientCiphertextInvalid)
