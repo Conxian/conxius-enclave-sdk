@@ -32,6 +32,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [x] Code quality hardening complete (issue #146)
 - [ ] Hardware-backed attestation integration and vendor evidence (P0)
 - [ ] Replay protection verified on every value-bearing path (P0/P1)
+- [x] Provider-neutral collateral, secret-free replay, durable-replay, and release-evidence contracts are implemented and tested; provider authentication, durable deployment, authority, and promotion decisions remain open ([CON-1543](https://linear.app/conxian-labs/issue/CON-1543/p0-operationalize-attestation-roots-collateral-revocation-and), [#240](https://github.com/Conxian/conxius-enclave-sdk/issues/240))
 - [x] Typed error surface exists (`ConclaveResult`); production fail-closed behavior remains gated
 - [x] Typed value-bearing settlement containment enforces settlement purpose/domain/context and raw-dispatch rejection; Opportunity preflight is validation-only and all built-in adapter dispatch is disabled pending a versioned wire contract and gateway compatibility evidence; this remains containment rather than provider or production evidence
 - [x] Phase A composer-level typed proof-factor taxonomy and explicit all-required proof-set behavior are bounded, independently diagnosable, and fail closed; actual providers/runtimes, vendor roots/collateral, distributed replay, independent review, and release artifacts remain unsupported, so server, user, phone/device, TEE, FIDO2/WebAuthn, and TPM categories are not production-supported

@@ -430,26 +430,6 @@ impl AttestationPolicy {
         Ok(self)
     }
 
-    /// Compatibility wrapper for the former string-root configuration API.
-    ///
-    /// Production builds deliberately reject arbitrary roots because a string
-    /// label is not an authenticated provider verifier. Unit-test builds route
-    /// this legacy shape to the explicitly test-only fixture instead.
-    pub fn with_trusted_roots(self, trusted_roots: Vec<String>) -> ConclaveResult<Self> {
-        #[cfg(test)]
-        {
-            self.with_test_trusted_roots(trusted_roots)
-        }
-
-        #[cfg(not(test))]
-        {
-            let _ = trusted_roots;
-            Err(ConclaveError::Unsupported(
-                "arbitrary attestation roots require an unavailable provider verifier".to_string(),
-            ))
-        }
-    }
-
     pub fn with_required_purpose(mut self, purpose: AttestationPurpose) -> Self {
         self.required_purpose = purpose;
         self.required_extensions
