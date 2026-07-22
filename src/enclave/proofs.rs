@@ -5,6 +5,7 @@
 //! semantic proof kind. No structural, simulated, or software verifier can
 //! satisfy the production registry.
 
+use crate::enclave::android_authorization::ANDROID_KEYMINT_PROOF_VERIFIER_ID;
 use crate::enclave::replay_guard::{
     ReplayBinding, ReplayConsumeOutcome, ReplayReservation, ReplayStore, ReplayStoreDurability,
     ReplayStoreError,
@@ -51,6 +52,8 @@ pub const SETTLEMENT_PROOF_AUDIENCE: &str = "conxian/settlement/v1";
 
 pub const SERVER_PROOF_VERIFIER_ID: &str = "conxian.proof.server.unavailable.v1";
 pub const USER_PROOF_VERIFIER_ID: &str = "conxian.proof.user.unavailable.v1";
+/// Canonical production policy identity for the semantic phone proof kind.
+/// Keep this stable because policy digests commit to the exact verifier ID.
 pub const PHONE_PROOF_VERIFIER_ID: &str = "conxian.proof.phone.unavailable.v1";
 pub const TEE_PROOF_VERIFIER_ID: &str = "conxian.proof.tee.unavailable.v1";
 pub const FIDO_PROOF_VERIFIER_ID: &str = "conxian.proof.fido.unavailable.v1";
@@ -1056,6 +1059,17 @@ impl ProofVerifierRegistry {
             let verifier_id = kind.production_verifier_id();
             let verifier = UnavailableProofVerifier { kind, verifier_id };
             verifiers.insert((kind, verifier_id.to_string()), Arc::new(verifier));
+
+            if kind == ProofKind::Phone {
+                let android_verifier = UnavailableProofVerifier {
+                    kind,
+                    verifier_id: ANDROID_KEYMINT_PROOF_VERIFIER_ID,
+                };
+                verifiers.insert(
+                    (kind, ANDROID_KEYMINT_PROOF_VERIFIER_ID.to_string()),
+                    Arc::new(android_verifier),
+                );
+            }
         }
         Self { verifiers }
     }
@@ -1165,6 +1179,21 @@ impl ProofVerifierRegistry {
             ));
         }
         self.verify_bundle_with_store(bundle, policy, context, binding_context, replay_store)
+    }
+
+    /// Performs production proof verification without issuing authorization or
+    /// consuming replay state. This preflight keeps unavailable provider
+    /// verifiers ahead of signer key lookup; the durable authorization entry
+    /// point must still be called before value-bearing signing.
+    pub(crate) fn preflight_production_bundle(
+        &self,
+        bundle: &ProofBundle,
+        policy: &ProofPolicy,
+        context: &ProofVerificationContext,
+    ) -> ConclaveResult<()> {
+        ensure_exact_production_policy(policy)?;
+        self.verify_bundle_evidence(bundle, policy, context)
+            .map(|_| ())
     }
 
     fn verify_bundle_evidence(
@@ -1700,7 +1729,7 @@ impl ProofBoundValueBearingAuthorization {
         self.authorization_expires_at
     }
 
-    fn observe_and_validate_at(&self, now_secs: u64) -> ConclaveResult<()> {
+    pub(crate) fn observe_and_validate_at(&self, now_secs: u64) -> ConclaveResult<()> {
         let mut last_observed_secs = self.last_observed_secs.load(Ordering::Acquire);
         loop {
             if now_secs < last_observed_secs {
@@ -1730,7 +1759,10 @@ impl ProofBoundValueBearingAuthorization {
         Ok(())
     }
 
-    fn matches_request(&self, request: &ValueBearingSignRequest) -> ConclaveResult<bool> {
+    pub(crate) fn matches_request(
+        &self,
+        request: &ValueBearingSignRequest,
+    ) -> ConclaveResult<bool> {
         let expected_policy_digest = ProofPolicy::production().digest().ok();
         let request_policy_matches = request
             .expected_proof_policy_digest()
@@ -1741,10 +1773,14 @@ impl ProofBoundValueBearingAuthorization {
                 .replay_identity_digest()
                 .is_ok_and(|digest| digest == binding.key_identity_digest)
         });
+        let expected_proof_set_digest = self.verified_proofs.digest().ok();
         Ok(self.policy_digest == *self.verified_proofs.policy_digest()
             && expected_policy_digest.as_ref() == Some(&self.policy_digest)
             && request_policy_matches
             && request.trust_requirement().policy_id() == crate::enclave::VALUE_BEARING_POLICY_ID
+            && request.canonical_proof_policy_digest() == Some(&self.policy_digest)
+            && request.canonical_proof_context_binding() == Some(self.context_binding())
+            && request.canonical_proof_set_digest() == expected_proof_set_digest.as_ref()
             && !self.verified_proofs.is_empty()
             && self.verified_proofs.operation_digest() == request.message_digest()
             && self.verified_proofs.purpose()
@@ -1752,6 +1788,17 @@ impl ProofBoundValueBearingAuthorization {
             && self.verified_proofs.audience() == request.operation_context().domain()
             && request.operation_context().context() == request.message_digest()
             && key_matches)
+    }
+
+    pub(crate) fn proof_set_digest(&self) -> ConclaveResult<[u8; 32]> {
+        self.verified_proofs.digest()
+    }
+
+    pub(crate) fn has_exact_production_proof_set(&self) -> bool {
+        self.verified_proofs.len() == ProofKind::all().len()
+            && ProofKind::all()
+                .into_iter()
+                .all(|kind| self.verified_proofs.contains_kind(kind))
     }
 }
 
@@ -1961,6 +2008,7 @@ fn sign_value_bearing_with_proof_authorization_at(
     now_secs: u64,
 ) -> ConclaveResult<ValueBearingSignResponse> {
     authorization.observe_and_validate_at(now_secs)?;
+    let request = request.with_proof_authorization(authorization)?;
     if !authorization.matches_request(&request)? {
         return Err(ConclaveError::Unsupported(
             "proof authorization does not match value-bearing operation context".to_string(),
@@ -1974,7 +2022,11 @@ fn sign_value_bearing_with_proof_authorization_at(
             "value-bearing signing requires a provider-verified hardware enclave".to_string(),
         ));
     }
-    enclave.sign_value_bearing(request)
+    crate::enclave::sign_value_bearing_with_process_local_replay_for_test(
+        enclave,
+        request,
+        Ok(now_secs),
+    )
 }
 
 /// Signs a proof-authorized value-bearing operation only after consuming a
@@ -2032,6 +2084,7 @@ fn sign_value_bearing_with_proof_authorization_and_durable_store_at(
                 .to_string(),
         ));
     }
+    let request = request.with_proof_authorization(authorization)?;
     authorization.observe_and_validate_at(now_secs)?;
     if !authorization.matches_request(&request)? {
         return Err(ConclaveError::Unsupported(
@@ -2092,6 +2145,54 @@ fn sign_value_bearing_with_proof_authorization_and_durable_store_at(
         response,
         enclave.signer_capability(),
         now_secs,
+    )
+}
+
+#[cfg(test)]
+pub(crate) fn test_fixture_settlement_authorization(
+    intent: &SwapIntent,
+    nonce: Vec<u8>,
+    now_secs: u64,
+) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
+    let replay_guard = ReplayGuard::new(300, 32);
+    test_fixture_settlement_authorization_with_replay_guard(intent, nonce, now_secs, &replay_guard)
+}
+
+#[cfg(test)]
+pub(crate) fn test_fixture_settlement_authorization_with_replay_guard(
+    intent: &SwapIntent,
+    nonce: Vec<u8>,
+    now_secs: u64,
+    replay_guard: &ReplayGuard,
+) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
+    let context = ProofVerificationContext::for_settlement(intent, nonce, now_secs)?;
+    let bundle = ProofBundle::new(
+        ProofKind::all()
+            .into_iter()
+            .enumerate()
+            .map(|(index, kind)| {
+                ProofEnvelope::new(
+                    kind,
+                    format!("rail-fixture-proof-{index}"),
+                    kind.production_verifier_id(),
+                    context.operation_digest,
+                    context.purpose.clone(),
+                    context.audience.clone(),
+                    context.nonce.clone(),
+                    now_secs.saturating_sub(10),
+                    now_secs.saturating_add(60),
+                    format!("fixture:{}", kind.canonical_name()).into_bytes(),
+                )
+            })
+            .collect::<ConclaveResult<Vec<_>>>()?,
+    )?;
+
+    authorize_value_bearing_with_proofs_at(
+        &ProofVerifierRegistry::test_fixture_all_six(),
+        &bundle,
+        &ProofPolicy::production(),
+        &context,
+        replay_guard,
     )
 }
 
@@ -2551,15 +2652,20 @@ mod tests {
     }
 
     #[test]
-    fn production_registry_has_six_explicit_unavailable_routes() {
+    fn production_registry_has_explicit_unavailable_routes() {
         let registry = ProofVerifierRegistry::production();
-        assert_eq!(registry.route_count(), 6);
+        assert_eq!(registry.route_count(), 7);
         for kind in ProofKind::all() {
             assert_eq!(
                 registry.verifier_status(kind, kind.production_verifier_id()),
                 ProofVerifierStatus::Unavailable
             );
         }
+        assert_eq!(
+            registry.verifier_status(ProofKind::Phone, ANDROID_KEYMINT_PROOF_VERIFIER_ID),
+            ProofVerifierStatus::Unavailable
+        );
+        assert_ne!(PHONE_PROOF_VERIFIER_ID, ANDROID_KEYMINT_PROOF_VERIFIER_ID);
     }
 
     #[test]
