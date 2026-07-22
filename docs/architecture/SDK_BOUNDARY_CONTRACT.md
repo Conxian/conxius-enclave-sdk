@@ -2,6 +2,16 @@
 
 This document defines the module boundaries and interface contracts for the Conclave SDK, ensuring a clean separation between core security logic and application-level (Wallet/Gateway) concerns.
 
+For the cycle-safe shared control-model boundary with `lib-conxian-core`, see
+[Core Control-Model Adapter Boundary](./CONTROL_MODEL_ADAPTER_BOUNDARY.md).
+
+The adapter API distinguishes wire representation from authorization: tier
+round trips use the explicitly named representation helpers, while
+`project_production_rail_policy` requires a Core verification class and
+enforces Core's `Strict` → `LightClient` invariant. Core-compatible BIP-110
+DTOs remain available without `bip110_compliant`; that feature gates executable
+SDK validation only.
+
 ## 1. Core Module Boundaries
 
 ### A. Signing Core (Hardware Enforcer)

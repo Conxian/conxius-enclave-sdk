@@ -1994,6 +1994,32 @@ mod rail_proxy_tests {
     }
 
     #[test]
+    fn default_rail_policy_and_ordering_remain_unchanged() {
+        assert!(TrustTier::T1 < TrustTier::T2);
+        assert!(TrustTier::T2 < TrustTier::T3);
+        assert!(TrustTier::T3 < TrustTier::T4);
+
+        let proxy = test_proxy();
+        assert_eq!(proxy.min_trust_tier(), TrustTier::T4);
+
+        let request = SwapRequest {
+            from_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            to_asset: AssetIdentifier {
+                chain: Chain::ETHEREUM,
+                symbol: "ETH".to_string(),
+            },
+            amount: 100,
+            recipient_address: TEST_MERCHANT_ENDPOINT.to_string(),
+            attribution: None,
+        };
+
+        assert_eq!(proxy.discover_best_rail(&request).unwrap(), "x402");
+    }
+
+    #[test]
     fn test_quarantined_asset_cannot_enter_routing() {
         let proxy = test_proxy();
         let request = SwapRequest {

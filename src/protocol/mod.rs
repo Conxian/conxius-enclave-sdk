@@ -13,6 +13,7 @@ pub mod bitvm2;
 pub mod business;
 pub mod cctp;
 pub mod chain_abstraction;
+pub mod control_model_adapter;
 pub mod covenant;
 pub mod credit;
 pub mod dlc;

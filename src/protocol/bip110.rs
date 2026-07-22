@@ -9,16 +9,20 @@
 //! These helpers do not execute Bitcoin Script and are not a complete
 //! consensus validator.
 //!
+//! The Core-compatible `CoreBip110Limits` and
+//! `CoreBip110TransactionShape` DTOs live in the always-on
+//! `control_model_adapter` module. Only the executable SDK validation helpers
+//! in this module are gated by `bip110_compliant`, so serialized compatibility
+//! remains available without that feature.
+//!
 //! References:
 //! - [BIP-110 Specification](https://github.com/bitcoin/bips/blob/master/bip-0110.mediawiki)
 //! - [BIP-322 Specification](https://github.com/bitcoin/bips/blob/master/bip-0322.mediawiki)
 
+use super::control_model_adapter::{CoreBip110Limits, CoreBip110TransactionShape};
 use crate::{ConclaveError, ConclaveResult};
 use bitcoin::script::{Instruction, ScriptExt, ScriptPubKeyBuf, ScriptPubKeyExt, ScriptSigBuf};
 
-const MAX_PUSH_DATA_BYTES: usize = 256;
-const MAX_OP_RETURN_BYTES: usize = 83;
-const MAX_SCRIPT_PUBKEY_BYTES: usize = 34;
 const MAX_TAPROOT_CONTROL_BLOCK_BYTES: usize = 257;
 const MIN_TAPROOT_CONTROL_BLOCK_BYTES: usize = 33;
 
@@ -35,10 +39,35 @@ pub struct Bip110Limits {
 
 impl Default for Bip110Limits {
     fn default() -> Self {
+        let core = CoreBip110Limits::canonical();
         Self {
-            max_pushdata_bytes: MAX_PUSH_DATA_BYTES,
-            max_op_return_bytes: MAX_OP_RETURN_BYTES,
-            max_script_pubkey_bytes: MAX_SCRIPT_PUBKEY_BYTES,
+            max_pushdata_bytes: core.max_pushdata_bytes,
+            max_op_return_bytes: core.max_op_return_bytes,
+            max_script_pubkey_bytes: core.max_script_pubkey_bytes,
+        }
+    }
+}
+
+impl Bip110Limits {
+    /// Converts the legacy public three-field view to Core's shared shape.
+    ///
+    /// The SDK has historically exposed one pushdata limit for script
+    /// arguments and witness items. Preserve that public behavior by applying
+    /// the same configured value to Core's fourth witness-element field.
+    fn into_core(self) -> CoreBip110Limits {
+        CoreBip110Limits {
+            max_pushdata_bytes: self.max_pushdata_bytes,
+            max_op_return_bytes: self.max_op_return_bytes,
+            max_script_pubkey_bytes: self.max_script_pubkey_bytes,
+            max_witness_element_bytes: self.max_pushdata_bytes,
+        }
+    }
+
+    fn from_core(core: CoreBip110Limits) -> Self {
+        Self {
+            max_pushdata_bytes: core.max_pushdata_bytes,
+            max_op_return_bytes: core.max_op_return_bytes,
+            max_script_pubkey_bytes: core.max_script_pubkey_bytes,
         }
     }
 }
@@ -116,14 +145,14 @@ impl Bip110Violation {
 
 /// BIP-110 compliance validator.
 pub struct Bip110Validator {
-    limits: Bip110Limits,
+    limits: CoreBip110Limits,
 }
 
 impl Bip110Validator {
     /// Create a validator with the default BIP-110 limits.
     pub fn new() -> Self {
         Self {
-            limits: Bip110Limits::default(),
+            limits: CoreBip110Limits::canonical(),
         }
     }
 
@@ -133,32 +162,44 @@ impl Bip110Validator {
     /// relax BIP-110's `256/83/34` maxima. Use [`Self::try_with_limits`] when
     /// callers need explicit rejection instead of clamping.
     pub fn with_limits(limits: Bip110Limits) -> Self {
+        let canonical = CoreBip110Limits::canonical();
+        let requested = limits.into_core();
         Self {
-            limits: Bip110Limits {
-                max_pushdata_bytes: limits.max_pushdata_bytes.min(MAX_PUSH_DATA_BYTES),
-                max_op_return_bytes: limits.max_op_return_bytes.min(MAX_OP_RETURN_BYTES),
-                max_script_pubkey_bytes: limits
+            limits: CoreBip110Limits {
+                max_pushdata_bytes: requested
+                    .max_pushdata_bytes
+                    .min(canonical.max_pushdata_bytes),
+                max_op_return_bytes: requested
+                    .max_op_return_bytes
+                    .min(canonical.max_op_return_bytes),
+                max_script_pubkey_bytes: requested
                     .max_script_pubkey_bytes
-                    .min(MAX_SCRIPT_PUBKEY_BYTES),
+                    .min(canonical.max_script_pubkey_bytes),
+                max_witness_element_bytes: requested
+                    .max_witness_element_bytes
+                    .min(canonical.max_witness_element_bytes),
             },
         }
     }
 
     /// Create a validator, rejecting limits that relax BIP-110 maxima.
     pub fn try_with_limits(limits: Bip110Limits) -> ConclaveResult<Self> {
-        if limits.max_pushdata_bytes > MAX_PUSH_DATA_BYTES
-            || limits.max_op_return_bytes > MAX_OP_RETURN_BYTES
-            || limits.max_script_pubkey_bytes > MAX_SCRIPT_PUBKEY_BYTES
+        let requested = limits.into_core();
+        let canonical = CoreBip110Limits::canonical();
+        if requested.max_pushdata_bytes > canonical.max_pushdata_bytes
+            || requested.max_op_return_bytes > canonical.max_op_return_bytes
+            || requested.max_script_pubkey_bytes > canonical.max_script_pubkey_bytes
+            || requested.max_witness_element_bytes > canonical.max_witness_element_bytes
         {
             return Err(ConclaveError::InvalidPayload);
         }
 
-        Ok(Self { limits })
+        Ok(Self { limits: requested })
     }
 
     /// Get the current limits.
     pub fn limits(&self) -> Bip110Limits {
-        self.limits
+        Bip110Limits::from_core(self.limits)
     }
 
     fn validate_pushdata_violation(&self, data: &[u8]) -> Result<(), Bip110Violation> {
@@ -233,12 +274,41 @@ impl Bip110Validator {
     /// this helper; they have different BIP-110 treatment and should be passed
     /// through their own context-aware call sites.
     pub fn validate_script_argument_witness_item(&self, item: &[u8]) -> ConclaveResult<()> {
-        if item.len() > self.limits.max_pushdata_bytes {
+        if item.len() > self.limits.max_witness_element_bytes {
             return Err(Bip110Violation::WitnessItemTooLarge {
                 actual: item.len(),
-                limit: self.limits.max_pushdata_bytes,
+                limit: self.limits.max_witness_element_bytes,
             }
             .into_conclave_error());
+        }
+        Ok(())
+    }
+
+    /// Validate every measured occurrence in Core's serialized transaction
+    /// shape contract, including every witness element.
+    pub fn validate_core_transaction_shape(
+        &self,
+        shape: &CoreBip110TransactionShape,
+    ) -> ConclaveResult<()> {
+        for size in &shape.pushdata_sizes_bytes {
+            if *size > self.limits.max_pushdata_bytes {
+                return Err(ConclaveError::InvalidPayload);
+            }
+        }
+        for size in &shape.op_return_script_pubkey_sizes_bytes {
+            if *size > self.limits.max_op_return_bytes {
+                return Err(ConclaveError::InvalidPayload);
+            }
+        }
+        for size in &shape.non_op_return_script_pubkey_sizes_bytes {
+            if *size > self.limits.max_script_pubkey_bytes {
+                return Err(ConclaveError::InvalidPayload);
+            }
+        }
+        for size in &shape.witness_element_sizes_bytes {
+            if *size > self.limits.max_witness_element_bytes {
+                return Err(ConclaveError::InvalidPayload);
+            }
         }
         Ok(())
     }
@@ -269,7 +339,6 @@ impl Bip110Validator {
     fn max_chunk_payload(&self) -> Option<usize> {
         self.limits
             .max_pushdata_bytes
-            .min(MAX_PUSH_DATA_BYTES)
             .checked_sub(1)
             .filter(|payload| *payload > 0)
     }
@@ -350,7 +419,7 @@ pub fn chunk_for_bip110(data: &[u8], max_chunk_size: usize) -> Vec<Vec<u8>> {
 /// Strictly chunk data into BIP-110-sized segments without silently truncating
 /// data or accepting a zero-sized configuration.
 pub fn try_chunk_for_bip110(data: &[u8], max_chunk_size: usize) -> ConclaveResult<Vec<Vec<u8>>> {
-    let max_size = max_chunk_size.min(MAX_PUSH_DATA_BYTES);
+    let max_size = max_chunk_size.min(CoreBip110Limits::canonical().max_pushdata_bytes);
     if max_size == 0 {
         return Err(ConclaveError::InvalidPayload);
     }
@@ -370,6 +439,61 @@ mod tests {
         assert_eq!(limits.max_pushdata_bytes, 256);
         assert_eq!(limits.max_op_return_bytes, 83);
         assert_eq!(limits.max_script_pubkey_bytes, 34);
+    }
+
+    #[test]
+    fn test_core_transaction_shape_checks_all_measurements_and_boundaries() {
+        let validator = Bip110Validator::new();
+        let limits = CoreBip110Limits::canonical();
+        let compliant = CoreBip110TransactionShape::new(
+            vec![0, limits.max_pushdata_bytes],
+            vec![0, limits.max_op_return_bytes],
+            vec![0, limits.max_script_pubkey_bytes],
+            vec![0, limits.max_witness_element_bytes],
+        );
+        assert!(validator
+            .validate_core_transaction_shape(&compliant)
+            .is_ok());
+
+        let oversized_pushdata = CoreBip110TransactionShape::new(
+            vec![limits.max_pushdata_bytes + 1],
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+        assert!(validator
+            .validate_core_transaction_shape(&oversized_pushdata)
+            .is_err());
+
+        let oversized_op_return = CoreBip110TransactionShape::new(
+            Vec::new(),
+            vec![limits.max_op_return_bytes + 1],
+            Vec::new(),
+            Vec::new(),
+        );
+        assert!(validator
+            .validate_core_transaction_shape(&oversized_op_return)
+            .is_err());
+
+        let oversized_script_pubkey = CoreBip110TransactionShape::new(
+            Vec::new(),
+            Vec::new(),
+            vec![limits.max_script_pubkey_bytes + 1],
+            Vec::new(),
+        );
+        assert!(validator
+            .validate_core_transaction_shape(&oversized_script_pubkey)
+            .is_err());
+
+        let oversized_witness = CoreBip110TransactionShape::new(
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            vec![limits.max_witness_element_bytes + 1],
+        );
+        assert!(validator
+            .validate_core_transaction_shape(&oversized_witness)
+            .is_err());
     }
 
     #[test]
