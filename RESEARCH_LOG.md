@@ -111,8 +111,18 @@ artifact for this repository.
 - The attestation document model includes COSE protection and verifier-bound
   PCRs, nonce, user data, and public-key inputs; the AWS root/debug boundary
   must be checked rather than assumed.
-- **Boundary:** no NSM client, COSE verifier, AWS root store, PCR policy, or
-  Nitro deployment integration is present in this repository.
+- **Offline boundary added:** native-only `src/enclave/nitro.rs` now provides
+  bounded tagged/untagged COSE and Nitro CBOR parsing, real P-384 COSE
+  signature verification against the attestation leaf, exact local PCR and
+  freshness policy, a domain-separated release binding, nonce/public-key
+  binding checks, and a transport-neutral RSAES-OAEP-SHA-256 recipient
+  contract. These are structural code/test references only.
+- **Boundary:** the module has no NSM client, vsock or KMS transport, AWS root
+  store, certificate-path/collateral/revocation verifier, EIF/PCR provenance,
+  CloudTrail integration, distributed replay service, independent review, or
+  production provider registration. `AttestationPolicy::production()` remains
+  fail-closed with `ProviderVerifierStatus::Unavailable`; fixtures are
+  test-only and do not establish AWS provenance.
 
 ### 9. ARM PSA and CCA/EAT/COSE
 
