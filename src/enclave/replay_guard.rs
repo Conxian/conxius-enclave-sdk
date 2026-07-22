@@ -59,6 +59,8 @@ pub enum ReplayBindingError {
     InvalidIdentifier,
     #[error("replay binding input is empty")]
     EmptyInput,
+    #[error("replay binding component is missing: {0}")]
+    MissingComponent(&'static str),
     #[error("replay binding input exceeds its bound")]
     OversizedInput,
 }
@@ -107,58 +109,46 @@ impl std::fmt::Debug for ReplayBinding {
 }
 
 impl ReplayBinding {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        provider: impl Into<String>,
-        proof_subject: impl Into<String>,
-        proof_mechanism: impl Into<String>,
-        nonce: &[u8],
-        operation_digest: [u8; 32],
-        purpose: impl Into<String>,
-        policy_digest: [u8; 32],
-        key_identity: &[u8],
-        evidence_digest: [u8; 32],
-        proof_id: Option<impl Into<String>>,
-        audience: Option<impl Into<String>>,
-    ) -> Result<Self, ReplayBindingError> {
-        Self::new_with_domain(
-            REPLAY_BINDING_DOMAIN,
-            provider,
-            proof_subject,
-            proof_mechanism,
-            nonce,
-            operation_digest,
-            purpose,
-            policy_digest,
-            key_identity,
-            evidence_digest,
-            proof_id,
-            audience,
-        )
+    /// Starts construction of a complete replay binding.
+    ///
+    /// The builder makes every security-relevant dimension explicit while
+    /// keeping raw nonce, key-identity, and evidence bytes transient.
+    pub fn builder<'a>() -> ReplayBindingBuilder<'a> {
+        ReplayBindingBuilder::default()
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_with_domain(
-        domain: impl Into<String>,
-        provider: impl Into<String>,
-        proof_subject: impl Into<String>,
-        proof_mechanism: impl Into<String>,
-        nonce: &[u8],
-        operation_digest: [u8; 32],
-        purpose: impl Into<String>,
-        policy_digest: [u8; 32],
-        key_identity: &[u8],
-        evidence_digest: [u8; 32],
-        proof_id: Option<impl Into<String>>,
-        audience: Option<impl Into<String>>,
-    ) -> Result<Self, ReplayBindingError> {
-        let domain = domain.into();
-        let provider = provider.into();
-        let proof_subject = proof_subject.into();
-        let proof_mechanism = proof_mechanism.into();
-        let purpose = purpose.into();
-        let proof_id = proof_id.map(Into::into);
-        let audience = audience.map(Into::into);
+    fn from_builder(builder: ReplayBindingBuilder<'_>) -> Result<Self, ReplayBindingError> {
+        let domain = builder.domain;
+        let provider = builder
+            .provider
+            .ok_or(ReplayBindingError::MissingComponent("provider"))?;
+        let proof_subject = builder
+            .proof_subject
+            .ok_or(ReplayBindingError::MissingComponent("proof subject"))?;
+        let proof_mechanism = builder
+            .proof_mechanism
+            .ok_or(ReplayBindingError::MissingComponent("proof mechanism"))?;
+        let nonce = builder
+            .nonce
+            .ok_or(ReplayBindingError::MissingComponent("nonce"))?;
+        let operation_digest = builder
+            .operation_digest
+            .ok_or(ReplayBindingError::MissingComponent("operation digest"))?;
+        let purpose = builder
+            .purpose
+            .ok_or(ReplayBindingError::MissingComponent("purpose"))?;
+        let policy_digest = builder
+            .policy_digest
+            .ok_or(ReplayBindingError::MissingComponent("policy digest"))?;
+        let key_identity = builder
+            .key_identity
+            .ok_or(ReplayBindingError::MissingComponent("key identity"))?;
+        let evidence_digest = builder
+            .evidence_digest
+            .ok_or(ReplayBindingError::MissingComponent("evidence digest"))?;
+        let proof_id = builder.proof_id;
+        let audience = builder.audience;
+
         validate_binding_identifier(&domain)?;
         validate_binding_identifier(&provider)?;
         validate_binding_identifier(&proof_subject)?;
@@ -357,6 +347,127 @@ impl ReplayBinding {
             proof_id,
             audience,
         })
+    }
+}
+
+/// Typed builder for a complete provider-neutral replay binding.
+pub struct ReplayBindingBuilder<'a> {
+    domain: String,
+    provider: Option<String>,
+    proof_subject: Option<String>,
+    proof_mechanism: Option<String>,
+    nonce: Option<&'a [u8]>,
+    operation_digest: Option<[u8; 32]>,
+    purpose: Option<String>,
+    policy_digest: Option<[u8; 32]>,
+    key_identity: Option<&'a [u8]>,
+    evidence_digest: Option<[u8; 32]>,
+    proof_id: Option<String>,
+    audience: Option<String>,
+}
+
+impl std::fmt::Debug for ReplayBindingBuilder<'_> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ReplayBindingBuilder")
+            .field("domain", &self.domain)
+            .field("provider", &self.provider)
+            .field("proof_subject", &self.proof_subject)
+            .field("proof_mechanism", &self.proof_mechanism)
+            .field("nonce_present", &self.nonce.is_some())
+            .field("operation_digest", &self.operation_digest)
+            .field("purpose", &self.purpose)
+            .field("policy_digest", &self.policy_digest)
+            .field("key_identity_present", &self.key_identity.is_some())
+            .field("evidence_digest", &self.evidence_digest)
+            .field("proof_id", &self.proof_id)
+            .field("audience", &self.audience)
+            .finish()
+    }
+}
+
+impl<'a> Default for ReplayBindingBuilder<'a> {
+    fn default() -> Self {
+        Self {
+            domain: REPLAY_BINDING_DOMAIN.to_string(),
+            provider: None,
+            proof_subject: None,
+            proof_mechanism: None,
+            nonce: None,
+            operation_digest: None,
+            purpose: None,
+            policy_digest: None,
+            key_identity: None,
+            evidence_digest: None,
+            proof_id: None,
+            audience: None,
+        }
+    }
+}
+
+impl<'a> ReplayBindingBuilder<'a> {
+    pub fn domain(mut self, domain: impl Into<String>) -> Self {
+        self.domain = domain.into();
+        self
+    }
+
+    pub fn provider(mut self, provider: impl Into<String>) -> Self {
+        self.provider = Some(provider.into());
+        self
+    }
+
+    pub fn proof_subject(mut self, proof_subject: impl Into<String>) -> Self {
+        self.proof_subject = Some(proof_subject.into());
+        self
+    }
+
+    pub fn proof_mechanism(mut self, proof_mechanism: impl Into<String>) -> Self {
+        self.proof_mechanism = Some(proof_mechanism.into());
+        self
+    }
+
+    pub fn nonce(mut self, nonce: &'a [u8]) -> Self {
+        self.nonce = Some(nonce);
+        self
+    }
+
+    pub fn operation_digest(mut self, operation_digest: [u8; 32]) -> Self {
+        self.operation_digest = Some(operation_digest);
+        self
+    }
+
+    pub fn purpose(mut self, purpose: impl Into<String>) -> Self {
+        self.purpose = Some(purpose.into());
+        self
+    }
+
+    pub fn policy_digest(mut self, policy_digest: [u8; 32]) -> Self {
+        self.policy_digest = Some(policy_digest);
+        self
+    }
+
+    pub fn key_identity(mut self, key_identity: &'a [u8]) -> Self {
+        self.key_identity = Some(key_identity);
+        self
+    }
+
+    pub fn evidence_digest(mut self, evidence_digest: [u8; 32]) -> Self {
+        self.evidence_digest = Some(evidence_digest);
+        self
+    }
+
+    pub fn proof_id(mut self, proof_id: impl Into<String>) -> Self {
+        self.proof_id = Some(proof_id.into());
+        self
+    }
+
+    pub fn audience(mut self, audience: impl Into<String>) -> Self {
+        self.audience = Some(audience.into());
+        self
+    }
+
+    pub fn build(self) -> Result<ReplayBinding, ReplayBindingError> {
+        ReplayBinding::from_builder(self)
     }
 }
 
@@ -753,6 +864,7 @@ mod tests {
         ReplayBatchFailure, ReplayBinding, ReplayConsumeOutcome, ReplayGuard, ReplayReservation,
         ReplayStore, ReplayStoreDurability, ReplayStoreError, UnavailableReplayStore,
     };
+    use sha2::{Digest, Sha256};
 
     #[test]
     fn accepts_new_key() {
@@ -951,203 +1063,160 @@ mod tests {
         assert_eq!(guard.try_check_and_record("proof", 112), Ok(()));
     }
 
-    fn binding_with(
-        provider: &str,
-        subject: &str,
-        mechanism: &str,
-        nonce: &[u8],
+    #[derive(Clone, Copy)]
+    struct BindingFixture {
+        provider: &'static str,
+        subject: &'static str,
+        mechanism: &'static str,
+        fixture_label: &'static str,
         operation: [u8; 32],
-        purpose: &str,
+        purpose: &'static str,
         policy: [u8; 32],
-        key_identity: &[u8],
+        key_identity: &'static [u8],
         evidence: [u8; 32],
-        proof_id: Option<&str>,
-        audience: Option<&str>,
-    ) -> ReplayBinding {
-        ReplayBinding::new(
-            provider,
-            subject,
-            mechanism,
-            nonce,
-            operation,
-            purpose,
-            policy,
-            key_identity,
-            evidence,
-            proof_id,
-            audience,
-        )
-        .expect("binding should be valid")
+        proof_id: Option<&'static str>,
+        audience: Option<&'static str>,
+    }
+
+    impl BindingFixture {
+        fn base() -> Self {
+            Self {
+                provider: "aws.nitro",
+                subject: "subject-1",
+                mechanism: "quote-v1",
+                fixture_label: "canonical/base",
+                operation: [1; 32],
+                purpose: "SETTLEMENT",
+                policy: [2; 32],
+                key_identity: b"key-id|derivation|public-key",
+                evidence: [3; 32],
+                proof_id: Some("proof-1"),
+                audience: Some("conxian/settlement/v1"),
+            }
+        }
+
+        fn with_provider(mut self, provider: &'static str) -> Self {
+            self.provider = provider;
+            self
+        }
+
+        fn with_subject(mut self, subject: &'static str) -> Self {
+            self.subject = subject;
+            self
+        }
+
+        fn with_mechanism(mut self, mechanism: &'static str) -> Self {
+            self.mechanism = mechanism;
+            self
+        }
+
+        fn with_fixture_label(mut self, fixture_label: &'static str) -> Self {
+            self.fixture_label = fixture_label;
+            self
+        }
+
+        fn with_operation(mut self, operation: [u8; 32]) -> Self {
+            self.operation = operation;
+            self
+        }
+
+        fn with_purpose(mut self, purpose: &'static str) -> Self {
+            self.purpose = purpose;
+            self
+        }
+
+        fn with_policy(mut self, policy: [u8; 32]) -> Self {
+            self.policy = policy;
+            self
+        }
+
+        fn with_key_identity(mut self, key_identity: &'static [u8]) -> Self {
+            self.key_identity = key_identity;
+            self
+        }
+
+        fn with_evidence(mut self, evidence: [u8; 32]) -> Self {
+            self.evidence = evidence;
+            self
+        }
+
+        fn with_proof_id(mut self, proof_id: Option<&'static str>) -> Self {
+            self.proof_id = proof_id;
+            self
+        }
+
+        fn with_audience(mut self, audience: Option<&'static str>) -> Self {
+            self.audience = audience;
+            self
+        }
+    }
+
+    /// Deterministic test-only input derivation. The domain separator makes
+    /// this fixture material distinct from production nonce generation.
+    fn deterministic_fixture_input(label: &str) -> Vec<u8> {
+        let mut material = b"CONXIAN-TEST-REPLAY-FIXTURE/v1".to_vec();
+        material.extend_from_slice(label.as_bytes());
+        Sha256::digest(material).to_vec()
+    }
+
+    fn binding_with(fixture: BindingFixture) -> ReplayBinding {
+        let fixture_input = deterministic_fixture_input(fixture.fixture_label);
+        let mut builder = ReplayBinding::builder()
+            .provider(fixture.provider)
+            .proof_subject(fixture.subject)
+            .proof_mechanism(fixture.mechanism)
+            .nonce(&fixture_input)
+            .operation_digest(fixture.operation)
+            .purpose(fixture.purpose)
+            .policy_digest(fixture.policy)
+            .key_identity(fixture.key_identity)
+            .evidence_digest(fixture.evidence);
+        if let Some(proof_id) = fixture.proof_id {
+            builder = builder.proof_id(proof_id);
+        }
+        if let Some(audience) = fixture.audience {
+            builder = builder.audience(audience);
+        }
+        builder.build().expect("binding should be valid")
     }
 
     fn binding() -> ReplayBinding {
-        binding_with(
-            "aws.nitro",
-            "subject-1",
-            "quote-v1",
-            b"nonce-1",
-            [1; 32],
-            "SETTLEMENT",
-            [2; 32],
-            b"key-id|derivation|public-key",
-            [3; 32],
-            Some("proof-1"),
-            Some("conxian/settlement/v1"),
-        )
+        binding_with(BindingFixture::base())
     }
 
     #[test]
     fn canonical_binding_changes_for_every_security_dimension() {
         let base = binding().digest().expect("base digest");
         let variants = [
-            binding_with(
-                "android.keymint",
-                "subject-1",
-                "quote-v1",
-                b"nonce-1",
-                [1; 32],
-                "SETTLEMENT",
-                [2; 32],
-                b"key-id|derivation|public-key",
-                [3; 32],
-                Some("proof-1"),
-                Some("conxian/settlement/v1"),
-            ),
-            binding_with(
-                "aws.nitro",
-                "subject-2",
-                "quote-v1",
-                b"nonce-1",
-                [1; 32],
-                "SETTLEMENT",
-                [2; 32],
-                b"key-id|derivation|public-key",
-                [3; 32],
-                Some("proof-1"),
-                Some("conxian/settlement/v1"),
-            ),
-            binding_with(
-                "aws.nitro",
-                "subject-1",
-                "quote-v2",
-                b"nonce-1",
-                [1; 32],
-                "SETTLEMENT",
-                [2; 32],
-                b"key-id|derivation|public-key",
-                [3; 32],
-                Some("proof-1"),
-                Some("conxian/settlement/v1"),
-            ),
-            binding_with(
-                "aws.nitro",
-                "subject-1",
-                "quote-v1",
-                b"nonce-2",
-                [1; 32],
-                "SETTLEMENT",
-                [2; 32],
-                b"key-id|derivation|public-key",
-                [3; 32],
-                Some("proof-1"),
-                Some("conxian/settlement/v1"),
-            ),
-            binding_with(
-                "aws.nitro",
-                "subject-1",
-                "quote-v1",
-                b"nonce-1",
-                [4; 32],
-                "SETTLEMENT",
-                [2; 32],
-                b"key-id|derivation|public-key",
-                [3; 32],
-                Some("proof-1"),
-                Some("conxian/settlement/v1"),
-            ),
-            binding_with(
-                "aws.nitro",
-                "subject-1",
-                "quote-v1",
-                b"nonce-1",
-                [1; 32],
-                "AUTHORIZATION",
-                [2; 32],
-                b"key-id|derivation|public-key",
-                [3; 32],
-                Some("proof-1"),
-                Some("conxian/settlement/v1"),
-            ),
-            binding_with(
-                "aws.nitro",
-                "subject-1",
-                "quote-v1",
-                b"nonce-1",
-                [1; 32],
-                "SETTLEMENT",
-                [5; 32],
-                b"key-id|derivation|public-key",
-                [3; 32],
-                Some("proof-1"),
-                Some("conxian/settlement/v1"),
-            ),
-            binding_with(
-                "aws.nitro",
-                "subject-1",
-                "quote-v1",
-                b"nonce-1",
-                [1; 32],
-                "SETTLEMENT",
-                [2; 32],
-                b"different-key-identity",
-                [3; 32],
-                Some("proof-1"),
-                Some("conxian/settlement/v1"),
-            ),
-            binding_with(
-                "aws.nitro",
-                "subject-1",
-                "quote-v1",
-                b"nonce-1",
-                [1; 32],
-                "SETTLEMENT",
-                [2; 32],
-                b"key-id|derivation|public-key",
-                [6; 32],
-                Some("proof-1"),
-                Some("conxian/settlement/v1"),
-            ),
-            binding_with(
-                "aws.nitro",
-                "subject-1",
-                "quote-v1",
-                b"nonce-1",
-                [1; 32],
-                "SETTLEMENT",
-                [2; 32],
-                b"key-id|derivation|public-key",
-                [3; 32],
-                Some("proof-2"),
-                Some("conxian/settlement/v1"),
-            ),
-            binding_with(
-                "aws.nitro",
-                "subject-1",
-                "quote-v1",
-                b"nonce-1",
-                [1; 32],
-                "SETTLEMENT",
-                [2; 32],
-                b"key-id|derivation|public-key",
-                [3; 32],
-                Some("proof-1"),
-                Some("different-audience"),
-            ),
+            binding_with(BindingFixture::base().with_provider("android.keymint")),
+            binding_with(BindingFixture::base().with_subject("subject-2")),
+            binding_with(BindingFixture::base().with_mechanism("quote-v2")),
+            binding_with(BindingFixture::base().with_fixture_label("canonical/alternate-input")),
+            binding_with(BindingFixture::base().with_operation([4; 32])),
+            binding_with(BindingFixture::base().with_purpose("AUTHORIZATION")),
+            binding_with(BindingFixture::base().with_policy([5; 32])),
+            binding_with(BindingFixture::base().with_key_identity(b"different-key-identity")),
+            binding_with(BindingFixture::base().with_evidence([6; 32])),
+            binding_with(BindingFixture::base().with_proof_id(Some("proof-2"))),
+            binding_with(BindingFixture::base().with_audience(Some("different-audience"))),
         ];
 
         for variant in variants {
             assert_ne!(base, variant.digest().expect("variant digest"));
         }
+    }
+
+    #[test]
+    fn replay_binding_builder_debug_redacts_transient_inputs() {
+        let fixture_input = deterministic_fixture_input("builder/debug");
+        let debug = format!(
+            "{:?}",
+            ReplayBinding::builder()
+                .nonce(&fixture_input)
+                .key_identity(b"fixture-key-identity")
+        );
+        assert!(!debug.contains(&hex::encode(&fixture_input)));
+        assert!(!debug.contains("fixture-key-identity"));
     }
 
     #[test]
@@ -1165,17 +1234,13 @@ mod tests {
         );
 
         let second_binding = binding_with(
-            "aws.nitro",
-            "subject-2",
-            "quote-v1",
-            b"nonce-2",
-            [4; 32],
-            "SETTLEMENT",
-            [2; 32],
-            b"key-2",
-            [5; 32],
-            Some("proof-2"),
-            Some("conxian/settlement/v1"),
+            BindingFixture::base()
+                .with_subject("subject-2")
+                .with_fixture_label("atomic/second-input")
+                .with_operation([4; 32])
+                .with_key_identity(b"key-2")
+                .with_evidence([5; 32])
+                .with_proof_id(Some("proof-2")),
         );
         let second = ReplayReservation::new(&second_binding, 500).expect("second reservation");
         assert_eq!(
@@ -1191,9 +1256,9 @@ mod tests {
 
         let debug = format!("{:?}", binding());
         assert!(!debug.contains("key-id|derivation|public-key"));
-        assert!(!debug.contains("nonce-1"));
+        assert!(!debug.contains(&hex::encode(deterministic_fixture_input("canonical/base",))));
         assert!(!debug.contains("raw-evidence"));
-        assert!(!binding().as_key().expect("key").contains("nonce-1"));
+        assert!(!binding().as_key().expect("key").contains("canonical/base"));
     }
 
     #[test]

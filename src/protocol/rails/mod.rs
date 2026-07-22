@@ -794,20 +794,20 @@ impl RailProxy {
             .canonical_hash()
             .try_into()
             .map_err(|_| ConclaveError::InvalidPayload)?;
-        let binding = ReplayBinding::new(
-            format!("rail/{}", intent.rail_type),
-            RAIL_ATTESTATION_SUBJECT,
-            RAIL_ATTESTATION_MECHANISM,
-            &report.challenge_nonce,
-            operation_digest,
-            ValueBearingPurpose::Settlement.canonical_token(),
-            policy.canonical_digest()?,
-            &report.attested_operation_public_key,
-            attestation_evidence_digest(report, None)?,
-            Some(intent.rail_type.clone()),
-            Some(SETTLEMENT_OPERATION_DOMAIN.to_string()),
-        )
-        .map_err(|_| ConclaveError::InvalidPayload)?;
+        let binding = ReplayBinding::builder()
+            .provider(format!("rail/{}", intent.rail_type))
+            .proof_subject(RAIL_ATTESTATION_SUBJECT)
+            .proof_mechanism(RAIL_ATTESTATION_MECHANISM)
+            .nonce(&report.challenge_nonce)
+            .operation_digest(operation_digest)
+            .purpose(ValueBearingPurpose::Settlement.canonical_token())
+            .policy_digest(policy.canonical_digest()?)
+            .key_identity(&report.attested_operation_public_key)
+            .evidence_digest(attestation_evidence_digest(report, None)?)
+            .proof_id(intent.rail_type.clone())
+            .audience(SETTLEMENT_OPERATION_DOMAIN)
+            .build()
+            .map_err(|_| ConclaveError::InvalidPayload)?;
         let retain_until = now_secs
             .checked_add(policy.max_age_secs().max(1))
             .ok_or(ConclaveError::InvalidPayload)?;
@@ -1013,23 +1013,23 @@ impl RailProxy {
         operation_material.extend_from_slice(&canonical_intent_hash);
         operation_material.extend_from_slice(&authorization.operation_binding);
         let operation_digest = Sha256::digest(operation_material).into();
-        let binding = ReplayBinding::new(
-            format!("rail/{}", intent.rail_type),
-            RAIL_ATTESTATION_SUBJECT,
-            RAIL_ATTESTATION_MECHANISM,
-            &authorization.replay_authorization.token,
-            operation_digest,
-            ValueBearingPurpose::Settlement.canonical_token(),
-            authorization.expected_proof_policy_digest,
-            &authorization.attestation.attested_operation_public_key,
-            attestation_evidence_digest(
+        let binding = ReplayBinding::builder()
+            .provider(format!("rail/{}", intent.rail_type))
+            .proof_subject(RAIL_ATTESTATION_SUBJECT)
+            .proof_mechanism(RAIL_ATTESTATION_MECHANISM)
+            .nonce(&authorization.replay_authorization.token)
+            .operation_digest(operation_digest)
+            .purpose(ValueBearingPurpose::Settlement.canonical_token())
+            .policy_digest(authorization.expected_proof_policy_digest)
+            .key_identity(&authorization.attestation.attested_operation_public_key)
+            .evidence_digest(attestation_evidence_digest(
                 &authorization.attestation,
                 Some(&authorization.proof_set_digest),
-            )?,
-            Some("typed-settlement".to_string()),
-            Some(SETTLEMENT_OPERATION_DOMAIN.to_string()),
-        )
-        .map_err(|_| ConclaveError::InvalidPayload)?;
+            )?)
+            .proof_id("typed-settlement")
+            .audience(SETTLEMENT_OPERATION_DOMAIN)
+            .build()
+            .map_err(|_| ConclaveError::InvalidPayload)?;
         let retain_until = now_secs
             .checked_add(self.attestation_policy.max_age_secs().max(1))
             .ok_or(ConclaveError::InvalidPayload)?;

@@ -36,9 +36,10 @@ pub use trust::{
 };
 
 pub use replay_guard::{
-    ReplayBatchFailure, ReplayBatchOutcome, ReplayConsumeOutcome, ReplayReservation, ReplayStore,
-    ReplayStoreDurability, ReplayStoreError, UnavailableReplayStore, REPLAY_BINDING_DOMAIN,
-    REPLAY_BINDING_VERSION,
+    ReplayBatchFailure, ReplayBatchOutcome, ReplayBinding as ReplayStoreBinding,
+    ReplayBindingBuilder, ReplayBindingError as ReplayStoreBindingError, ReplayConsumeOutcome,
+    ReplayReservation, ReplayStore, ReplayStoreDurability, ReplayStoreError,
+    UnavailableReplayStore, REPLAY_BINDING_DOMAIN, REPLAY_BINDING_VERSION,
 };
 pub use trust_contracts::{
     AttestationProvider, AuthenticatedCollateralMetadata, CollateralMetadata,

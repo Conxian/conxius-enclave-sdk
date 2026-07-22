@@ -4,8 +4,8 @@ use conxius_enclave_sdk::enclave::attestation::{
 use conxius_enclave_sdk::enclave::{
     AttestationProvider, CollateralMetadata, CollateralValidationContext,
     CollateralValidationError, EvidenceReference, ReleaseEvidenceError, ReleaseEvidenceExpectation,
-    ReleaseEvidenceKind, ReleaseEvidenceManifest, ReplayOperation, TrustReplayBinding,
-    ReplayProofMechanism, ReplayProofSubject, ReplayPurpose, TrustDigest,
+    ReleaseEvidenceKind, ReleaseEvidenceManifest, ReplayOperation, ReplayProofMechanism,
+    ReplayProofSubject, ReplayPurpose, TrustDigest, TrustReplayBinding,
 };
 use conxius_enclave_sdk::ConclaveError;
 

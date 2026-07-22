@@ -6,9 +6,9 @@
 //! satisfy the production registry.
 
 use crate::enclave::android_authorization::ANDROID_KEYMINT_PROOF_VERIFIER_ID;
-use crate::enclave::replay_guard::ReplayGuard;
 #[cfg(test)]
 use crate::enclave::replay_guard::ReplayGuardError;
+use crate::enclave::replay_guard::{key_identity_digest, ReplayGuard};
 use crate::enclave::replay_guard::{
     ReplayBinding, ReplayConsumeOutcome, ReplayReservation, ReplayStore, ReplayStoreDurability,
     ReplayStoreError,
@@ -1011,23 +1011,11 @@ impl std::fmt::Debug for ProofReplayBindingContext {
 impl ProofReplayBindingContext {
     pub fn new(provider: impl Into<String>, key_identity: &[u8]) -> ConclaveResult<Self> {
         let provider = provider.into();
-        let probe = ReplayBinding::new(
-            provider.clone(),
-            "proof-subject",
-            "proof-mechanism",
-            b"proof-nonce",
-            [0; 32],
-            "PROOF",
-            [1; 32],
-            key_identity,
-            [2; 32],
-            Option::<String>::None,
-            Option::<String>::None,
-        )
-        .map_err(|_| invalid_payload())?;
+        let key_identity_digest =
+            key_identity_digest(key_identity).map_err(|_| invalid_payload())?;
         Ok(Self {
             provider,
-            key_identity_digest: *probe.key_identity_digest(),
+            key_identity_digest,
         })
     }
 
