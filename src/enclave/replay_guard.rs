@@ -60,9 +60,11 @@ impl ReplayGuard {
 
     /// Atomically checks and records a batch of keys under one lock.
     ///
-    /// The entire batch is preflighted before any entry is inserted. Duplicate
-    /// keys within the batch, keys already present in the guard, lock failure,
-    /// and capacity saturation all leave the guard unchanged. This guard is
+    /// The entire batch is preflighted before any new replay entry is inserted.
+    /// Duplicate keys within the batch, keys already present in the guard, and
+    /// capacity saturation insert no new entries. A successful monotonic time
+    /// observation can still advance the high-water mark and prune expired
+    /// entries before one of those failures is returned. This guard is
     /// deliberately process-local; it is not a replacement for durable or
     /// distributed replay coordination.
     pub fn try_check_and_record_batch<I, K>(
@@ -88,8 +90,10 @@ impl ReplayGuard {
     /// [`Self::try_check_and_record_batch`] for the legacy fixed-TTL behavior.
     ///
     /// All key and batch bounds are checked while iterating, before the
-    /// caller-owned input is collected. No entry is inserted until every key,
-    /// horizon, duplicate, and capacity check succeeds.
+    /// caller-owned input is collected. No new entry is inserted until every
+    /// key, horizon, duplicate, and capacity check succeeds. After a valid
+    /// non-rollback observation, high-water advancement and expiry pruning may
+    /// persist even when duplicate or capacity validation rejects the batch.
     pub fn try_check_and_record_batch_with_horizons<I, K>(
         &self,
         keys: I,
@@ -256,6 +260,30 @@ mod tests {
         );
         assert_eq!(guard.try_check_and_record("new-a", 102), Ok(()));
         assert_eq!(guard.try_check_and_record("new-b", 102), Ok(()));
+    }
+
+    #[test]
+    fn duplicate_failure_can_prune_expired_entries_without_inserting_new_keys() {
+        let guard = ReplayGuard::new(1, 8);
+        assert_eq!(
+            guard.try_check_and_record_batch_with_horizons(
+                [("expired", 110), ("existing", 200)],
+                100,
+            ),
+            Ok(())
+        );
+
+        assert_eq!(
+            guard.try_check_and_record_batch_with_horizons([("existing", 250)], 111),
+            Err(super::ReplayGuardError::Duplicate)
+        );
+        // The valid forward observation pruned the expired key, but the
+        // duplicate failure inserted no replacement entry.
+        assert_eq!(guard.try_check_and_record("expired", 111), Ok(()));
+        assert_eq!(
+            guard.try_check_and_record("existing", 111),
+            Err(super::ReplayGuardError::Duplicate)
+        );
     }
 
     #[test]

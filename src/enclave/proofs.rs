@@ -1559,7 +1559,25 @@ pub fn authorize_value_bearing_with_proofs(
     context: &ProofVerificationContext,
     replay_guard: &ReplayGuard,
 ) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
-    let trusted_context = context.with_now_secs(crate::enclave::trusted_unix_time_secs())?;
+    authorize_value_bearing_with_proofs_with_trusted_clock(
+        registry,
+        bundle,
+        policy,
+        context,
+        replay_guard,
+        crate::enclave::trusted_unix_time_secs(),
+    )
+}
+
+fn authorize_value_bearing_with_proofs_with_trusted_clock(
+    registry: &ProofVerifierRegistry,
+    bundle: &ProofBundle,
+    policy: &ProofPolicy,
+    context: &ProofVerificationContext,
+    replay_guard: &ReplayGuard,
+    trusted_now_secs: ConclaveResult<u64>,
+) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
+    let trusted_context = context.with_now_secs(trusted_now_secs?)?;
     authorize_value_bearing_with_proofs_at(registry, bundle, policy, &trusted_context, replay_guard)
 }
 
@@ -1596,13 +1614,33 @@ pub fn authorize_settlement_with_proofs(
     _caller_supplied_now_secs: u64,
     replay_guard: &ReplayGuard,
 ) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
+    authorize_settlement_with_proofs_with_trusted_clock(
+        registry,
+        bundle,
+        policy,
+        intent,
+        nonce,
+        replay_guard,
+        crate::enclave::trusted_unix_time_secs(),
+    )
+}
+
+fn authorize_settlement_with_proofs_with_trusted_clock(
+    registry: &ProofVerifierRegistry,
+    bundle: &ProofBundle,
+    policy: &ProofPolicy,
+    intent: &SwapIntent,
+    nonce: Vec<u8>,
+    replay_guard: &ReplayGuard,
+    trusted_now_secs: ConclaveResult<u64>,
+) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
     authorize_settlement_with_proofs_at(
         registry,
         bundle,
         policy,
         intent,
         nonce,
-        crate::enclave::trusted_unix_time_secs(),
+        trusted_now_secs?,
         replay_guard,
     )
 }
@@ -1628,11 +1666,25 @@ pub fn sign_value_bearing_with_proof_authorization(
     request: ValueBearingSignRequest,
     authorization: &ProofBoundValueBearingAuthorization,
 ) -> ConclaveResult<ValueBearingSignResponse> {
-    sign_value_bearing_with_proof_authorization_at(
+    sign_value_bearing_with_proof_authorization_with_trusted_clock(
         enclave,
         request,
         authorization,
         crate::enclave::trusted_unix_time_secs(),
+    )
+}
+
+fn sign_value_bearing_with_proof_authorization_with_trusted_clock(
+    enclave: &dyn EnclaveManager,
+    request: ValueBearingSignRequest,
+    authorization: &ProofBoundValueBearingAuthorization,
+    trusted_now_secs: ConclaveResult<u64>,
+) -> ConclaveResult<ValueBearingSignResponse> {
+    sign_value_bearing_with_proof_authorization_at(
+        enclave,
+        request,
+        authorization,
+        trusted_now_secs?,
     )
 }
 
@@ -1697,6 +1749,7 @@ mod tests {
     };
     use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
     use std::sync::Arc;
+    use std::time::{Duration, SystemTime};
 
     const NOW: u64 = 1_000_000;
 
@@ -2590,7 +2643,8 @@ mod tests {
 
     #[test]
     fn public_proof_authorization_ignores_caller_supplied_future_time() {
-        let trusted_now = crate::enclave::trusted_unix_time_secs();
+        let trusted_now =
+            crate::enclave::trusted_unix_time_secs().expect("test host clock should be available");
         let future_now = trusted_now
             .checked_add(DEFAULT_MAX_PROOF_FUTURE_SKEW_SECS + 60)
             .expect("future test timestamp");
@@ -2611,9 +2665,42 @@ mod tests {
     }
 
     #[test]
+    fn proof_authorization_clock_failure_precedes_verification_and_replay_recording() {
+        let context = context();
+        let bundle = fixture_bundle();
+        let replay_guard = ReplayGuard::new(300, 32);
+        let pre_epoch = SystemTime::UNIX_EPOCH
+            .checked_sub(Duration::from_secs(1))
+            .expect("pre-epoch fixture should be representable");
+
+        assert!(matches!(
+            authorize_value_bearing_with_proofs_with_trusted_clock(
+                &ProofVerifierRegistry::test_fixture_all_six(),
+                &bundle,
+                &ProofPolicy::production(),
+                &context,
+                &replay_guard,
+                crate::enclave::trusted_unix_time_secs_at(pre_epoch),
+            ),
+            Err(ConclaveError::ClockUnavailable)
+        ));
+
+        // The failed clock acquisition did not reserve any proof replay keys.
+        assert!(authorize_value_bearing_with_proofs_at(
+            &ProofVerifierRegistry::test_fixture_all_six(),
+            &bundle,
+            &ProofPolicy::production(),
+            &context,
+            &replay_guard,
+        )
+        .is_ok());
+    }
+
+    #[test]
     fn public_settlement_authorization_ignores_caller_supplied_future_time() {
         let intent = fixture_settlement_intent();
-        let trusted_now = crate::enclave::trusted_unix_time_secs();
+        let trusted_now =
+            crate::enclave::trusted_unix_time_secs().expect("test host clock should be available");
         let future_now = trusted_now
             .checked_add(DEFAULT_MAX_PROOF_FUTURE_SKEW_SECS + 60)
             .expect("future test timestamp");
@@ -2635,6 +2722,45 @@ mod tests {
             Err(ConclaveError::EnclaveFailure(message))
                 if message.contains("independent proof verification failed")
         ));
+    }
+
+    #[test]
+    fn settlement_authorization_clock_failure_precedes_verification_and_replay_recording() {
+        let intent = fixture_settlement_intent();
+        let nonce = vec![1; 16];
+        let bundle_context = ProofVerificationContext::for_settlement(&intent, nonce.clone(), NOW)
+            .expect("settlement fixture context");
+        let bundle = fixture_bundle_for_context(&bundle_context, NOW);
+        let replay_guard = ReplayGuard::new(300, 32);
+        let pre_epoch = SystemTime::UNIX_EPOCH
+            .checked_sub(Duration::from_secs(1))
+            .expect("pre-epoch fixture should be representable");
+
+        assert!(matches!(
+            authorize_settlement_with_proofs_with_trusted_clock(
+                &ProofVerifierRegistry::test_fixture_all_six(),
+                &bundle,
+                &ProofPolicy::production(),
+                &intent,
+                nonce.clone(),
+                &replay_guard,
+                crate::enclave::trusted_unix_time_secs_at(pre_epoch),
+            ),
+            Err(ConclaveError::ClockUnavailable)
+        ));
+
+        // The failed clock acquisition did not reserve any settlement proof
+        // replay keys.
+        assert!(authorize_settlement_with_proofs_at(
+            &ProofVerifierRegistry::test_fixture_all_six(),
+            &bundle,
+            &ProofPolicy::production(),
+            &intent,
+            nonce,
+            NOW,
+            &replay_guard,
+        )
+        .is_ok());
     }
 
     #[test]
@@ -2683,8 +2809,47 @@ mod tests {
     }
 
     #[test]
+    fn proof_signing_clock_failure_precedes_authorization_consumption() {
+        let context = context();
+        let authorization = authorize_value_bearing_with_proofs_at(
+            &ProofVerifierRegistry::test_fixture_all_six(),
+            &fixture_bundle(),
+            &ProofPolicy::production(),
+            &context,
+            &ReplayGuard::new(300, 32),
+        )
+        .expect("test-only production-shaped authorization");
+        let request = value_request(&context);
+        let pre_epoch = SystemTime::UNIX_EPOCH
+            .checked_sub(Duration::from_secs(1))
+            .expect("pre-epoch fixture should be representable");
+
+        assert!(matches!(
+            sign_value_bearing_with_proof_authorization_with_trusted_clock(
+                &crate::enclave::UnavailableEnclave,
+                request.clone(),
+                &authorization,
+                crate::enclave::trusted_unix_time_secs_at(pre_epoch),
+            ),
+            Err(ConclaveError::ClockUnavailable)
+        ));
+
+        assert!(matches!(
+            sign_value_bearing_with_proof_authorization_at(
+                &crate::enclave::UnavailableEnclave,
+                request,
+                &authorization,
+                NOW,
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("provider-verified hardware enclave")
+        ));
+    }
+
+    #[test]
     fn public_proof_signing_path_uses_trusted_clock_and_hardware_gate() {
-        let now_secs = crate::enclave::trusted_unix_time_secs();
+        let now_secs =
+            crate::enclave::trusted_unix_time_secs().expect("test host clock should be available");
         let context = context_at(now_secs);
         let authorization = authorize_value_bearing_with_proofs(
             &ProofVerifierRegistry::test_fixture_all_six(),

@@ -13,16 +13,12 @@ use crate::{
 use ed25519_dalek::{Signer as _, SigningKey};
 use rand::Rng;
 use secp256k1::{Message, SecretKey};
-use std::time::{SystemTime, UNIX_EPOCH};
 use zeroize::{Zeroize, Zeroizing};
 
 const SIMULATED_KMS_KEYGEN_MAX_ATTEMPTS: usize = 1024;
 
-fn unix_time_secs() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
+fn unix_time_secs() -> ConclaveResult<u64> {
+    crate::enclave::trusted_unix_time_secs()
 }
 
 /// Development-only software simulation.
@@ -117,7 +113,7 @@ impl CloudEnclave {
         algorithm: &SigningAlgorithm,
         operation_public_key: &[u8],
     ) -> ConclaveResult<DeviceIntegrityReport> {
-        let timestamp = unix_time_secs();
+        let timestamp = unix_time_secs()?;
         let algorithm_token = match algorithm {
             SigningAlgorithm::EcdsaSecp256k1 => "ALGORITHM_ECDSA_SECP256K1",
             SigningAlgorithm::SchnorrSecp256k1 => "ALGORITHM_SCHNORR_SECP256K1",

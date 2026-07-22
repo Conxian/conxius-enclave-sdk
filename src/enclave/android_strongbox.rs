@@ -4,7 +4,6 @@ use rand::Rng;
 use secp256k1::{ecdsa::RecoverableSignature, ecdsa::RecoveryId, Message, SecretKey};
 use sha2::Sha512;
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
 use zeroize::{Zeroize, Zeroizing};
 
 use crate::enclave::attestation::{
@@ -22,11 +21,8 @@ use crate::{
 
 type HmacSha512 = Hmac<Sha512>;
 
-fn unix_time_secs() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
+fn unix_time_secs() -> ConclaveResult<u64> {
+    crate::enclave::trusted_unix_time_secs()
 }
 
 /// CoreEnclaveManager is a software-backed development driver.
@@ -114,7 +110,7 @@ impl CoreEnclaveManager {
         #[cfg(test)]
         let _ = report_key_bytes;
 
-        let timestamp = unix_time_secs();
+        let timestamp = unix_time_secs()?;
         let algorithm_token = match algorithm {
             SigningAlgorithm::EcdsaSecp256k1 => "ALGORITHM_ECDSA_SECP256K1",
             SigningAlgorithm::SchnorrSecp256k1 => "ALGORITHM_SCHNORR_SECP256K1",

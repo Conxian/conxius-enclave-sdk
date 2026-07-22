@@ -653,6 +653,16 @@ impl ValueBearingSignResponse {
         response: SignResponse,
         capability: SignerCapability,
     ) -> ConclaveResult<Self> {
+        let now_secs = trusted_unix_time_secs()?;
+        Self::from_provider_at_time(request, response, capability, now_secs)
+    }
+
+    fn from_provider_at_time(
+        request: &ValueBearingSignRequest,
+        response: SignResponse,
+        capability: SignerCapability,
+        now_secs: u64,
+    ) -> ConclaveResult<Self> {
         if !capability.satisfies(&request.trust_requirement) {
             return Err(crate::ConclaveError::Unsupported(
                 "provider capability does not satisfy value-bearing trust policy".to_string(),
@@ -687,7 +697,7 @@ impl ValueBearingSignResponse {
         let report: DeviceIntegrityReport = serde_json::from_str(attestation_json)
             .map_err(|_| crate::ConclaveError::InvalidPayload)?;
         let policy = value_bearing_attestation_policy(request)?;
-        if !report.verify_with_policy(request.message_digest(), &policy) {
+        if !report.verify_at_time_with_policy(request.message_digest(), now_secs, &policy) {
             return Err(crate::ConclaveError::Unsupported(
                 "provider response failed complete value-bearing attestation policy verification"
                     .to_string(),
@@ -811,32 +821,46 @@ pub trait EnclaveManager: Send + Sync {
         &self,
         request: ValueBearingSignRequest,
     ) -> ConclaveResult<ValueBearingSignResponse> {
-        if !self
-            .signer_capability()
-            .satisfies(&request.trust_requirement)
-        {
-            return Err(crate::ConclaveError::Unsupported(
-                "value-bearing signing requires a provider-verified hardware enclave".to_string(),
-            ));
-        }
-
-        let response = self.sign_value_bearing_provider(&request)?;
-        let verified =
-            ValueBearingSignResponse::from_provider(&request, response, self.signer_capability())?;
-        let replay_guard = self.value_bearing_replay_guard().ok_or_else(|| {
-            crate::ConclaveError::Unsupported(
-                "value-bearing replay protection is unavailable".to_string(),
-            )
-        })?;
-        let replay_key = hex::encode(verified.operation_binding());
-        replay_guard
-            .try_check_and_record(&replay_key, unix_time_secs())
-            .map_err(map_replay_guard_error)?;
-
-        let operation_binding = *verified.operation_binding();
-        Ok(verified
-            .with_replay_authorization(ValueBearingReplayAuthorization::new(operation_binding)))
+        sign_value_bearing_with_trusted_clock(self, request, trusted_unix_time_secs())
     }
+}
+
+fn sign_value_bearing_with_trusted_clock<E: EnclaveManager + ?Sized>(
+    enclave: &E,
+    request: ValueBearingSignRequest,
+    trusted_now_secs: ConclaveResult<u64>,
+) -> ConclaveResult<ValueBearingSignResponse> {
+    if !enclave
+        .signer_capability()
+        .satisfies(&request.trust_requirement)
+    {
+        return Err(crate::ConclaveError::Unsupported(
+            "value-bearing signing requires a provider-verified hardware enclave".to_string(),
+        ));
+    }
+
+    // Acquire the trusted clock before invoking the provider. A clock failure
+    // must not call provider code or consume replay state.
+    let now_secs = trusted_now_secs?;
+    let response = enclave.sign_value_bearing_provider(&request)?;
+    let verified = ValueBearingSignResponse::from_provider_at_time(
+        &request,
+        response,
+        enclave.signer_capability(),
+        now_secs,
+    )?;
+    let replay_guard = enclave.value_bearing_replay_guard().ok_or_else(|| {
+        crate::ConclaveError::Unsupported(
+            "value-bearing replay protection is unavailable".to_string(),
+        )
+    })?;
+    let replay_key = hex::encode(verified.operation_binding());
+    replay_guard
+        .try_check_and_record(&replay_key, now_secs)
+        .map_err(map_replay_guard_error)?;
+
+    let operation_binding = *verified.operation_binding();
+    Ok(verified.with_replay_authorization(ValueBearingReplayAuthorization::new(operation_binding)))
 }
 
 /// A production-safe placeholder for a provider that has not been configured.
@@ -1019,18 +1043,27 @@ fn verify_operation_signature(
     }
 }
 
-fn unix_time_secs() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
+fn unix_time_secs_at(now: SystemTime) -> ConclaveResult<u64> {
+    now.duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .map_err(|_| ConclaveError::ClockUnavailable)
 }
 
 /// Trusted process clock used by security-sensitive consumption paths. Tests
 /// may exercise their private deterministic helpers, but production callers
 /// cannot select the authorization-consumption timestamp.
-pub(crate) fn trusted_unix_time_secs() -> u64 {
-    unix_time_secs()
+pub(crate) fn trusted_unix_time_secs() -> ConclaveResult<u64> {
+    unix_time_secs_at(SystemTime::now())
+}
+
+#[cfg(test)]
+pub(crate) fn trusted_unix_time_secs_at(now: SystemTime) -> ConclaveResult<u64> {
+    unix_time_secs_at(now)
+}
+
+#[cfg(test)]
+fn test_unix_time_secs() -> u64 {
+    trusted_unix_time_secs().expect("test host clock should be after the Unix epoch")
 }
 
 fn map_replay_guard_error(error: ReplayGuardError) -> ConclaveError {
@@ -1069,6 +1102,7 @@ mod enclave_tests {
         atomic::{AtomicUsize, Ordering},
         Mutex,
     };
+    use std::time::{Duration, SystemTime};
 
     struct DefaultMockEnclave {
         raw_sign_calls: AtomicUsize,
@@ -1099,6 +1133,7 @@ mod enclave_tests {
         operation_key: SigningKey,
         replay_guard: ReplayGuard,
         queued_responses: Mutex<VecDeque<SignResponse>>,
+        provider_calls: AtomicUsize,
     }
 
     impl FixtureProvider {
@@ -1107,6 +1142,7 @@ mod enclave_tests {
                 operation_key: SigningKey::from_bytes(&[7u8; 32]),
                 replay_guard: ReplayGuard::new(300, max_entries),
                 queued_responses: Mutex::new(VecDeque::new()),
+                provider_calls: AtomicUsize::new(0),
             }
         }
 
@@ -1146,7 +1182,7 @@ mod enclave_tests {
                     hex::encode(attestation_key.verifying_key().to_bytes()),
                     "CONCLAVE_ROOT_CA_V1".to_string(),
                 ],
-                timestamp: unix_time_secs(),
+                timestamp: test_unix_time_secs(),
                 extension_data,
                 extensions,
             };
@@ -1240,6 +1276,7 @@ mod enclave_tests {
             &self,
             request: &ValueBearingSignRequest,
         ) -> ConclaveResult<SignResponse> {
+            self.provider_calls.fetch_add(1, Ordering::Relaxed);
             if let Some(response) = self.queued_responses.lock().unwrap().pop_front() {
                 Ok(response)
             } else {
@@ -1330,6 +1367,18 @@ mod enclave_tests {
         let trust_requirement =
             TrustRequirement::hardware_backed("conxian.production.signing.v1").unwrap();
         ValueBearingUnlockRequest::new(operation_context, trust_requirement)
+    }
+
+    #[test]
+    fn trusted_security_clock_rejects_pre_epoch_without_defaulting_to_zero() {
+        let pre_epoch = SystemTime::UNIX_EPOCH
+            .checked_sub(Duration::from_secs(1))
+            .expect("pre-epoch fixture should be representable");
+
+        assert_eq!(
+            trusted_unix_time_secs_at(pre_epoch),
+            Err(ConclaveError::ClockUnavailable)
+        );
     }
 
     #[test]
@@ -1800,7 +1849,7 @@ mod enclave_tests {
         .is_err());
 
         let mut stale = valid_report;
-        stale.timestamp = unix_time_secs()
+        stale.timestamp = test_unix_time_secs()
             .saturating_sub(attestation::MAX_ATTESTATION_AGE_SECS.saturating_add(1));
         assert!(ValueBearingSignResponse::from_provider(
             &request,
@@ -1819,6 +1868,34 @@ mod enclave_tests {
         .unwrap();
         assert!(!production_report
             .verify_with_policy(request.message_digest(), &AttestationPolicy::production(),));
+    }
+
+    #[test]
+    fn value_bearing_clock_failure_precedes_provider_and_replay_recording() {
+        let provider = FixtureProvider::new(16);
+        let request = ed25519_value_request([0xA5; 32]);
+        let pre_epoch = SystemTime::UNIX_EPOCH
+            .checked_sub(Duration::from_secs(1))
+            .expect("pre-epoch fixture should be representable");
+
+        assert!(matches!(
+            sign_value_bearing_with_trusted_clock(
+                &provider,
+                request.clone(),
+                trusted_unix_time_secs_at(pre_epoch),
+            ),
+            Err(ConclaveError::ClockUnavailable)
+        ));
+        assert_eq!(provider.provider_calls.load(Ordering::Relaxed), 0);
+
+        // The failed clock acquisition did not consume the operation replay
+        // key; the first valid attempt can still succeed.
+        assert!(provider.sign_value_bearing(request.clone()).is_ok());
+        assert!(matches!(
+            provider.sign_value_bearing(request),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("replay protection") && message.contains("already")
+        ));
     }
 
     #[test]
