@@ -1,7 +1,8 @@
 use conxius_enclave_sdk::enclave::replay_guard::ReplayGuard;
 use conxius_enclave_sdk::enclave::{
     ProofBundle, ProofEnvelope, ProofKind, ProofPolicy, ProofVerificationContext,
-    ProofVerifierRegistry, ProofVerifierStatus, PROOF_ENVELOPE_VERSION,
+    ProofVerifierRegistry, ProofVerifierStatus, ANDROID_KEYMINT_PROOF_VERIFIER_ID,
+    PHONE_PROOF_VERIFIER_ID, PROOF_ENVELOPE_VERSION,
 };
 use conxius_enclave_sdk::ConclaveError;
 
@@ -38,13 +39,34 @@ fn proof(kind: ProofKind, proof_id: &str) -> ProofEnvelope {
 #[test]
 fn production_registry_exposes_only_unavailable_exact_routes() {
     let registry = ProofVerifierRegistry::production();
-    assert_eq!(registry.route_count(), 6);
+    assert_eq!(registry.route_count(), 7);
     for kind in ProofKind::all() {
         assert_eq!(
             registry.verifier_status(kind, kind.production_verifier_id()),
             ProofVerifierStatus::Unavailable
         );
     }
+    assert_eq!(
+        ProofKind::Phone.production_verifier_id(),
+        PHONE_PROOF_VERIFIER_ID
+    );
+    assert_eq!(
+        PHONE_PROOF_VERIFIER_ID,
+        "conxian.proof.phone.unavailable.v1"
+    );
+    assert_eq!(
+        ProofPolicy::production()
+            .required
+            .iter()
+            .find(|requirement| requirement.kind == ProofKind::Phone)
+            .expect("production phone requirement")
+            .verifier_id,
+        PHONE_PROOF_VERIFIER_ID
+    );
+    assert_eq!(
+        registry.verifier_status(ProofKind::Phone, ANDROID_KEYMINT_PROOF_VERIFIER_ID),
+        ProofVerifierStatus::Unavailable
+    );
 }
 
 #[test]
