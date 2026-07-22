@@ -1,8 +1,8 @@
 # PR #237 Hardware Attestation Research and Evidence Audit
 
-**Access date:** 2026-07-22  
+**Access date:** 2026-07-22
 **Scope:** proof-policy hardening, provider capability research, and public
-evidence boundaries for `conxius-enclave-sdk`  
+evidence boundaries for `conxius-enclave-sdk`
 **Support decision:** beta / conditional; no provider or production-support
 claim is made
 
