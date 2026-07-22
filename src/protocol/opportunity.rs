@@ -1,5 +1,10 @@
+use crate::enclave::proofs::{
+    authorize_settlement_with_durable_store,
+    sign_value_bearing_with_proof_authorization_and_durable_store,
+};
 use crate::enclave::{
-    sign_value_bearing, EnclaveManager, OperationContext, SignerKeyBinding, SigningAlgorithm,
+    EnclaveManager, OperationContext, ProofBundle, ProofPolicy, ProofReplayBindingContext,
+    ProofVerificationContext, ProofVerifierRegistry, SignerKeyBinding, SigningAlgorithm,
     TrustRequirement, ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
 };
 use crate::protocol::asset::{AssetIdentifier, Chain};
@@ -94,57 +99,149 @@ impl<'a> OpportunityDispatcher<'a> {
                 let intent = self.rail_proxy.prepare_intent(&rail_name, request, None)?;
                 self.rail_proxy.preflight_typed_dispatch(&intent)?;
 
-                let (algo, derivation_path) = match from_chain {
-                    Chain::SOLANA | Chain::NEAR | Chain::STELLAR | Chain::SUI | Chain::APTOS => {
-                        (SigningAlgorithm::Ed25519, "m/44'/501'/0'/0/0".to_string())
-                    }
-                    Chain::ETHEREUM | Chain::BASE | Chain::ARBITRUM | Chain::POLYGON => (
-                        SigningAlgorithm::EcdsaSecp256k1,
-                        "m/44'/60'/0'/0/0".to_string(),
-                    ),
-                    Chain::STACKS => (
-                        SigningAlgorithm::EcdsaSecp256k1,
-                        "m/44'/5757'/0'/0/0".to_string(),
-                    ),
-                    _ => (
-                        SigningAlgorithm::EcdsaSecp256k1,
-                        "m/44'/0'/0'/0/0".to_string(),
-                    ),
-                };
-
-                let message_digest: [u8; 32] = intent
-                    .signable_hash
-                    .clone()
-                    .try_into()
-                    .map_err(|_| ConclaveError::InvalidPayload)?;
-                let public_key = hex::decode(self.enclave.get_public_key(&derivation_path)?)
-                    .map_err(|_| ConclaveError::InvalidPayload)?;
-                let sign_request = ValueBearingSignRequest::new(
-                    OperationContext::new(
-                        SETTLEMENT_OPERATION_DOMAIN,
-                        ValueBearingPurpose::Settlement,
-                        message_digest.to_vec(),
-                    )?,
-                    algo,
-                    TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
-                    message_digest,
-                    SignerKeyBinding::new("opportunity_key", derivation_path, public_key)?,
-                    None,
-                )?;
-                let sign_response = sign_value_bearing(self.enclave, sign_request.clone())?;
-                let operation = self.rail_proxy.authorize_verified_operation(
-                    intent,
-                    &sign_request,
-                    sign_response,
-                )?;
-                let resp = self
-                    .rail_proxy
-                    .dispatch_verified_operation(operation)
-                    .await?;
-
-                Ok(resp.transaction_id)
+                Err(ConclaveError::Unsupported(
+                    "canonical six-proof settlement authorization is required before value-bearing signing"
+                        .to_string(),
+                ))
             }
         }
+    }
+
+    /// Executes a swap only after the canonical six-proof production policy
+    /// has authorized the exact settlement intent. The production registry is
+    /// intentionally unavailable until real provider verifiers are qualified,
+    /// so this path remains fail-closed before key lookup or downstream rail
+    /// execution.
+    pub async fn execute_with_proofs(
+        &self,
+        payload: OpportunityPayload,
+        bundle: &ProofBundle,
+        nonce: Vec<u8>,
+    ) -> ConclaveResult<String> {
+        let OpportunityPayload::Swap {
+            from_chain,
+            from_symbol,
+            to_chain,
+            to_symbol,
+            amount,
+            recipient,
+            rail,
+        } = payload
+        else {
+            return Err(ConclaveError::Unsupported(
+                "canonical settlement proof authorization applies only to swap rails".to_string(),
+            ));
+        };
+
+        let registry = &self.rail_proxy.registry;
+        let from_asset = AssetIdentifier {
+            chain: from_chain,
+            symbol: from_symbol,
+        };
+        let to_asset = AssetIdentifier {
+            chain: to_chain,
+            symbol: to_symbol,
+        };
+        registry.validate_asset(&from_asset)?;
+        registry.validate_asset(&to_asset)?;
+
+        let request = SwapRequest {
+            from_asset,
+            to_asset,
+            amount,
+            recipient_address: recipient,
+            attribution: None,
+        };
+
+        let rail_name = match rail {
+            Some(r) => r,
+            None => self.rail_proxy.discover_best_rail(&request)?,
+        };
+
+        let intent = self.rail_proxy.prepare_intent(&rail_name, request, None)?;
+        self.rail_proxy.preflight_typed_dispatch(&intent)?;
+
+        let policy = ProofPolicy::production();
+        let preflight_context = ProofVerificationContext::for_settlement(
+            &intent,
+            nonce.clone(),
+            crate::enclave::trusted_unix_time_secs()?,
+        )?;
+        ProofVerifierRegistry::production().preflight_production_bundle(
+            bundle,
+            &policy,
+            &preflight_context,
+        )?;
+
+        let (algo, derivation_path) = match from_chain {
+            Chain::SOLANA | Chain::NEAR | Chain::STELLAR | Chain::SUI | Chain::APTOS => {
+                (SigningAlgorithm::Ed25519, "m/44'/501'/0'/0/0".to_string())
+            }
+            Chain::ETHEREUM | Chain::BASE | Chain::ARBITRUM | Chain::POLYGON => (
+                SigningAlgorithm::EcdsaSecp256k1,
+                "m/44'/60'/0'/0/0".to_string(),
+            ),
+            Chain::STACKS => (
+                SigningAlgorithm::EcdsaSecp256k1,
+                "m/44'/5757'/0'/0/0".to_string(),
+            ),
+            _ => (
+                SigningAlgorithm::EcdsaSecp256k1,
+                "m/44'/0'/0'/0/0".to_string(),
+            ),
+        };
+
+        let message_digest: [u8; 32] = intent
+            .signable_hash
+            .clone()
+            .try_into()
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let public_key = hex::decode(self.enclave.get_public_key(&derivation_path)?)
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let key_binding = SignerKeyBinding::new("opportunity_key", derivation_path, public_key)?;
+        let replay_store = self.rail_proxy.durable_replay_store()?;
+        let binding_context =
+            ProofReplayBindingContext::for_signer_key("opportunity", &key_binding)?;
+        let authorization = authorize_settlement_with_durable_store(
+            &ProofVerifierRegistry::production(),
+            bundle,
+            &policy,
+            &intent,
+            nonce,
+            &binding_context,
+            replay_store,
+        )?;
+        let sign_request = ValueBearingSignRequest::new(
+            OperationContext::new(
+                SETTLEMENT_OPERATION_DOMAIN,
+                ValueBearingPurpose::Settlement,
+                message_digest.to_vec(),
+            )?,
+            algo,
+            TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?,
+            message_digest,
+            key_binding,
+            None,
+        )?
+        .with_proof_authorization(&authorization)?;
+        let sign_response = sign_value_bearing_with_proof_authorization_and_durable_store(
+            self.enclave,
+            sign_request.clone(),
+            &authorization,
+            replay_store,
+        )?;
+        let operation = self.rail_proxy.authorize_verified_operation(
+            intent,
+            &sign_request,
+            sign_response,
+            &authorization,
+        )?;
+        let resp = self
+            .rail_proxy
+            .dispatch_verified_operation(operation)
+            .await?;
+
+        Ok(resp.transaction_id)
     }
 }
 

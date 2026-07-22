@@ -365,7 +365,7 @@ impl EnclaveManager for CoreEnclaveManager {
         _request: ValueBearingSignRequest,
     ) -> ConclaveResult<ValueBearingSignResponse> {
         Err(ConclaveError::Unsupported(
-            "CoreEnclaveManager is software-only and cannot sign value-bearing operations"
+            "public value-bearing signing requires durable proof authorization and a durable replay store; CoreEnclaveManager is software-only"
                 .to_string(),
         ))
     }

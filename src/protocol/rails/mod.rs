@@ -10,7 +10,13 @@ use crate::enclave::attestation::{AttestationPolicy, DeviceIntegrityReport};
 use crate::enclave::proof::{
     ProofKey, ProofRequirement, ProofSetPolicy, ProofSubject, ProofType, TestProofEvidenceInput,
 };
-use crate::enclave::replay_guard::{ReplayGuard, ReplayGuardError};
+use crate::enclave::proofs::{ProofBoundValueBearingAuthorization, ProofKind, ProofPolicy};
+#[cfg(test)]
+use crate::enclave::replay_guard::ReplayGuard;
+use crate::enclave::replay_guard::{
+    ReplayBinding, ReplayConsumeOutcome, ReplayReservation, ReplayStore, ReplayStoreDurability,
+    ReplayStoreError,
+};
 use crate::enclave::{
     SignerProvenance, SignerVerification, SigningAlgorithm, ValueBearingPurpose,
     ValueBearingSignRequest, ValueBearingSignResponse, VALUE_BEARING_POLICY_ID,
@@ -25,6 +31,8 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 mod sealed {
@@ -47,10 +55,25 @@ pub enum TrustTier {
 /// Canonical operation-context domain for typed settlement authorization.
 pub const SETTLEMENT_OPERATION_DOMAIN: &str = "conxian/settlement/v1";
 
+#[cfg(test)]
+const DEFAULT_REPLAY_TTL_SECS: u64 = 1000;
+#[cfg(test)]
+const DEFAULT_SETTLEMENT_REPLAY_MAX_ENTRIES: usize = 300;
+#[cfg(test)]
+const DEFAULT_PROOF_REPLAY_MAX_ENTRIES: usize =
+    DEFAULT_SETTLEMENT_REPLAY_MAX_ENTRIES * ProofKind::all().len();
+
 /// Built-in settlement adapters remain quarantined until their wire contract
 /// and gateway compatibility are versioned and evidenced.
 pub(crate) const BUILTIN_ADAPTER_DISPATCH_DISABLED_MESSAGE: &str =
     "Built-in settlement adapter dispatch is disabled pending a versioned wire contract and gateway compatibility evidence";
+
+const DURABLE_RAIL_REPLAY_REQUIRED_MESSAGE: &str =
+    "durable replay store is required for RailProxy value-bearing authorization";
+const DURABLE_RAIL_REPLAY_UNAVAILABLE_MESSAGE: &str =
+    "durable replay store is unavailable for RailProxy value-bearing authorization";
+const RAIL_ATTESTATION_SUBJECT: &str = "rail-attestation";
+const RAIL_ATTESTATION_MECHANISM: &str = "device-integrity-report";
 
 /// Reject built-in adapter dispatch before any adapter can construct or send a
 /// request containing typed authorization or device evidence.
@@ -100,6 +123,9 @@ struct VerifiedOperationAuthorization {
     verified_proof_policy_digest: [u8; 32],
     proof_set_digest: [u8; 32],
     proof_count: usize,
+    proof_context_binding: [u8; 32],
+    proof_authorization_expires_at: u64,
+    proof_authorization_observed_at: u64,
     replay_authorization: ReplayAuthorization,
 }
 
@@ -141,46 +167,29 @@ impl VerifiedOperation {
             )
             .into(),
         };
-        let fixture_requirement = ProofRequirement::new(
-            ProofKey::new(ProofType::TeeAttestation, ProofSubject::PhoneDevice),
-            "test-fixture-issuer",
-            "test-fixture-root",
-            vec![0; 32],
-        )
-        .expect("legacy fixture requirement should be valid");
-        let fixture_policy = ProofSetPolicy::test_fixture(
-            VALUE_BEARING_POLICY_ID,
-            canonical_intent_hash,
-            ValueBearingPurpose::Settlement,
+        let now_secs = crate::enclave::trusted_unix_time_secs()
+            .expect("test fixture clock should be available");
+        let proof_context = crate::enclave::ProofVerificationContext::for_settlement(
+            &intent,
             canonical_intent_hash.to_vec(),
-            canonical_intent_hash.to_vec(),
-            300,
-            30,
-            vec![fixture_requirement],
+            now_secs,
         )
-        .expect("legacy fixture policy should be valid");
-        let fixture_policy_digest = *fixture_policy.policy_digest();
-        let fixture_request = ValueBearingSignRequest::new(
-            crate::enclave::OperationContext::new(
-                SETTLEMENT_OPERATION_DOMAIN,
-                ValueBearingPurpose::Settlement,
-                canonical_intent_hash.to_vec(),
-            )
-            .expect("legacy fixture context should be valid"),
-            SigningAlgorithm::Ed25519,
-            crate::enclave::TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)
-                .expect("legacy fixture policy should be valid"),
-            canonical_intent_hash,
-            crate::enclave::SignerKeyBinding::new("legacy-settlement-fixture", "m/0", vec![0; 32])
-                .expect("legacy fixture key binding should be valid"),
-            None,
+        .expect("canonical fixture context should be valid");
+        let fixture_policy_digest = ProofPolicy::production()
+            .digest()
+            .expect("canonical fixture policy should be valid");
+        let proof_context_binding = proof_context
+            .binding_digest()
+            .expect("canonical fixture context should bind");
+        let proof_set_digest: [u8; 32] = Sha256::digest(
+            [
+                b"CONXIAN-TEST-CANONICAL-PROOF-SET/v1".as_slice(),
+                proof_context_binding.as_slice(),
+                fixture_policy_digest.as_slice(),
+            ]
+            .concat(),
         )
-        .expect("legacy fixture request should be valid")
-        .with_proof_policy(fixture_policy)
-        .expect("legacy fixture request policy should bind");
-        let fixture_proof_set =
-            crate::enclave::proof::test_fixture_set_for_request(&fixture_request)
-                .expect("legacy fixture proof set should be valid");
+        .into();
         Self {
             intent,
             authorization: VerifiedOperationAuthorization {
@@ -196,7 +205,7 @@ impl VerifiedOperation {
                     level: crate::enclave::attestation::AttestationLevel::TEE,
                     challenge_nonce: canonical_intent_hash.to_vec(),
                     signature: Vec::new(),
-                    attested_operation_public_key: Vec::new(),
+                    attested_operation_public_key: vec![0; 32],
                     signer_key_binding: None,
                     certificate_chain: Vec::new(),
                     timestamp: 0,
@@ -207,9 +216,12 @@ impl VerifiedOperation {
                 verification: SignerVerification::ProviderVerified,
                 policy_id: VALUE_BEARING_POLICY_ID.to_string(),
                 expected_proof_policy_digest: fixture_policy_digest,
-                verified_proof_policy_digest: *fixture_proof_set.policy_digest(),
-                proof_set_digest: *fixture_proof_set.canonical_digest(),
-                proof_count: fixture_proof_set.proof_count(),
+                verified_proof_policy_digest: fixture_policy_digest,
+                proof_set_digest,
+                proof_count: ProofKind::all().len(),
+                proof_context_binding,
+                proof_authorization_expires_at: now_secs.saturating_add(60),
+                proof_authorization_observed_at: now_secs,
                 replay_authorization,
             },
         }
@@ -219,6 +231,8 @@ impl VerifiedOperation {
         intent: SwapIntent,
         request: &ValueBearingSignRequest,
         response: ValueBearingSignResponse,
+        proof_authorization: &ProofBoundValueBearingAuthorization,
+        proof_authorization_observed_at: u64,
     ) -> ConclaveResult<Self> {
         let canonical_intent_hash: [u8; 32] = intent
             .canonical_hash()
@@ -256,22 +270,17 @@ impl VerifiedOperation {
             ));
         }
 
-        let requirement = request.trust_requirement();
-        let expected_proof_policy = request.expected_proof_policy().ok_or_else(|| {
-            ConclaveError::Unsupported(
-                "typed settlement authorization is missing the expected exact proof policy"
-                    .to_string(),
-            )
-        })?;
-        if expected_proof_policy.policy_id() != requirement.policy_id()
-            || expected_proof_policy.operation_digest() != request.message_digest()
-            || expected_proof_policy.purpose() != operation_context.purpose()
+        proof_authorization.observe_and_validate_at(proof_authorization_observed_at)?;
+        if !proof_authorization.has_exact_production_proof_set()
+            || !proof_authorization.matches_request(request)?
         {
-            return Err(ConclaveError::EnclaveFailure(
-                "typed settlement expected proof policy does not match the request context"
+            return Err(ConclaveError::Unsupported(
+                "typed settlement authorization requires the canonical six-proof production authorization"
                     .to_string(),
             ));
         }
+
+        let requirement = request.trust_requirement();
         if requirement.policy_id() != VALUE_BEARING_POLICY_ID
             || response.signer_capability().provenance() != requirement.minimum_provenance()
             || response.signer_capability().verification() != requirement.required_verification()
@@ -292,44 +301,6 @@ impl VerifiedOperation {
             return Err(ConclaveError::EnclaveFailure(
                 "typed settlement authorization operation binding does not match the request"
                     .to_string(),
-            ));
-        }
-
-        let proof_set = response.proof_set().ok_or_else(|| {
-            ConclaveError::Unsupported(
-                "typed settlement authorization is missing an independently verified proof set"
-                    .to_string(),
-            )
-        })?;
-        let response_expected_policy_digest =
-            response.expected_proof_policy_digest().ok_or_else(|| {
-                ConclaveError::Unsupported(
-                    "typed settlement authorization is missing the request-side proof policy digest"
-                        .to_string(),
-                )
-            })?;
-        let expected_policy_digest = expected_proof_policy.policy_digest();
-        if response_expected_policy_digest != expected_policy_digest
-            || proof_set.policy_digest() != expected_policy_digest
-        {
-            return Err(ConclaveError::EnclaveFailure(
-                "typed settlement proof policy digest does not match the request-side expected policy"
-                    .to_string(),
-            ));
-        }
-        if !proof_set.matches_binding(
-            expected_proof_policy,
-            request.message_digest(),
-            operation_context.purpose(),
-        ) {
-            return Err(ConclaveError::EnclaveFailure(
-                "typed settlement proof set is not bound to the exact expected proof policy"
-                    .to_string(),
-            ));
-        }
-        if proof_set.proof_count() == 0 {
-            return Err(ConclaveError::Unsupported(
-                "typed settlement authorization requires at least one verified proof".to_string(),
             ));
         }
 
@@ -361,10 +332,11 @@ impl VerifiedOperation {
         let token = settlement_replay_token(
             &canonical_intent_hash,
             &request_binding,
-            expected_proof_policy.canonical_digest(),
+            proof_authorization.policy_digest(),
             &signature_hex,
             attestation,
         );
+        let proof_set_digest = proof_authorization.proof_set_digest()?;
 
         Ok(Self {
             intent,
@@ -378,10 +350,13 @@ impl VerifiedOperation {
                 provenance: response.signer_capability().provenance(),
                 verification: response.signer_capability().verification(),
                 policy_id: requirement.policy_id().to_string(),
-                expected_proof_policy_digest: *expected_policy_digest,
-                verified_proof_policy_digest: *proof_set.policy_digest(),
-                proof_set_digest: *proof_set.canonical_digest(),
-                proof_count: proof_set.proof_count(),
+                expected_proof_policy_digest: *proof_authorization.policy_digest(),
+                verified_proof_policy_digest: *proof_authorization.policy_digest(),
+                proof_set_digest,
+                proof_count: proof_authorization.verified_proofs().len(),
+                proof_context_binding: *proof_authorization.context_binding(),
+                proof_authorization_expires_at: proof_authorization.authorization_expires_at(),
+                proof_authorization_observed_at,
                 replay_authorization: ReplayAuthorization {
                     operation_binding: *replay_authorization.operation_binding(),
                     token,
@@ -456,7 +431,17 @@ pub struct RailProxy {
     rails: HashMap<String, Box<dyn SovereignRail>>,
     min_trust_tier: TrustTier,
     attestation_policy: AttestationPolicy,
-    replay_guard: Arc<ReplayGuard>,
+    replay_store: Option<Arc<dyn ReplayStore>>,
+    #[cfg(test)]
+    /// Legacy attestation and final settlement replay domain. Canonical proof
+    /// reservations use the separate `proof_replay_guard` because each
+    /// settlement reserves one key per proof rather than one key per
+    /// settlement.
+    settlement_replay_guard: Arc<ReplayGuard>,
+    #[cfg(test)]
+    /// Canonical proof-envelope replay domain. Its capacity is sized for the
+    /// six proof reservations required by each production settlement.
+    proof_replay_guard: Arc<ReplayGuard>,
     pub telemetry: Option<Arc<TelemetryClient>>,
 }
 
@@ -499,7 +484,17 @@ impl RailProxy {
             rails,
             min_trust_tier: TrustTier::T4,
             attestation_policy: default_attestation_policy(),
-            replay_guard: Arc::new(ReplayGuard::new(1000, 300)),
+            replay_store: None,
+            #[cfg(test)]
+            settlement_replay_guard: Arc::new(ReplayGuard::new(
+                DEFAULT_REPLAY_TTL_SECS,
+                DEFAULT_SETTLEMENT_REPLAY_MAX_ENTRIES,
+            )),
+            #[cfg(test)]
+            proof_replay_guard: Arc::new(ReplayGuard::new(
+                DEFAULT_REPLAY_TTL_SECS,
+                DEFAULT_PROOF_REPLAY_MAX_ENTRIES,
+            )),
             telemetry: None,
         }
     }
@@ -534,10 +529,61 @@ impl RailProxy {
         &self.attestation_policy
     }
 
-    /// Configures replay storage while preserving fail-closed saturation semantics.
+    /// Configures the durable replay boundary required for value-bearing rail
+    /// authorization. Process-local and unavailable stores are rejected before
+    /// any replay state can be consumed.
+    pub fn with_replay_store(mut self, replay_store: Arc<dyn ReplayStore>) -> ConclaveResult<Self> {
+        match replay_store.durability() {
+            ReplayStoreDurability::DurableProvider => {
+                self.replay_store = Some(replay_store);
+                Ok(self)
+            }
+            ReplayStoreDurability::ProcessLocal => Err(ConclaveError::Unsupported(
+                DURABLE_RAIL_REPLAY_REQUIRED_MESSAGE.to_string(),
+            )),
+            ReplayStoreDurability::Unavailable => Err(ConclaveError::Unsupported(
+                DURABLE_RAIL_REPLAY_UNAVAILABLE_MESSAGE.to_string(),
+            )),
+        }
+    }
+
+    pub(crate) fn durable_replay_store(&self) -> ConclaveResult<&dyn ReplayStore> {
+        match self.replay_store.as_deref() {
+            Some(replay_store)
+                if replay_store.durability() == ReplayStoreDurability::DurableProvider =>
+            {
+                Ok(replay_store)
+            }
+            Some(_) => Err(ConclaveError::Unsupported(
+                DURABLE_RAIL_REPLAY_UNAVAILABLE_MESSAGE.to_string(),
+            )),
+            None => Err(ConclaveError::Unsupported(
+                DURABLE_RAIL_REPLAY_REQUIRED_MESSAGE.to_string(),
+            )),
+        }
+    }
+
+    #[cfg(test)]
+    /// Configures final settlement replay storage (and the legacy attestation
+    /// replay path) while preserving fail-closed saturation semantics.
+    /// Canonical proof-envelope reservations remain in their separate replay
+    /// domain and can be configured with [`Self::with_proof_replay_guard`].
     pub fn with_replay_guard(mut self, replay_guard: Arc<ReplayGuard>) -> Self {
-        self.replay_guard = replay_guard;
+        self.settlement_replay_guard = replay_guard;
         self
+    }
+
+    /// Configures canonical proof-envelope replay storage independently from
+    /// final settlement-token replay storage.
+    #[cfg(test)]
+    pub fn with_proof_replay_guard(mut self, replay_guard: Arc<ReplayGuard>) -> Self {
+        self.proof_replay_guard = replay_guard;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn proof_replay_guard(&self) -> &ReplayGuard {
+        self.proof_replay_guard.as_ref()
     }
 
     #[cfg(test)]
@@ -613,10 +659,12 @@ impl RailProxy {
         intent: &SwapIntent,
         attestation_json: &Option<String>,
     ) -> ConclaveResult<()> {
+        let replay_store = self.durable_replay_store()?;
         self.verify_hardware_integrity_with_attestation_policy_with_trusted_clock(
             intent,
             attestation_json,
             &self.attestation_policy,
+            replay_store,
             crate::enclave::trusted_unix_time_secs(),
         )
     }
@@ -629,10 +677,12 @@ impl RailProxy {
         attestation_json: &Option<String>,
         policy: &AttestationPolicy,
     ) -> ConclaveResult<()> {
+        let replay_store = self.durable_replay_store()?;
         self.verify_hardware_integrity_with_attestation_policy_with_trusted_clock(
             intent,
             attestation_json,
             policy,
+            replay_store,
             crate::enclave::trusted_unix_time_secs(),
         )
     }
@@ -642,12 +692,14 @@ impl RailProxy {
         intent: &SwapIntent,
         attestation_json: &Option<String>,
         policy: &AttestationPolicy,
+        replay_store: &dyn ReplayStore,
         trusted_now_secs: ConclaveResult<u64>,
     ) -> ConclaveResult<()> {
         self.verify_hardware_integrity_with_attestation_policy_at_time(
             intent,
             attestation_json,
             policy,
+            replay_store,
             trusted_now_secs?,
         )
     }
@@ -657,6 +709,7 @@ impl RailProxy {
         intent: &SwapIntent,
         attestation_json: &Option<String>,
         policy: &AttestationPolicy,
+        replay_store: &dyn ReplayStore,
         now_secs: u64,
     ) -> ConclaveResult<()> {
         let canonical_hash = intent.canonical_hash();
@@ -691,24 +744,17 @@ impl RailProxy {
             ));
         }
 
-        // Replay state is consumed only after every report check succeeds.
-        match self
-            .replay_guard
-            .try_check_and_record(&hex::encode(&intent.signable_hash), now_secs)
-        {
-            Ok(()) => Ok(()),
-            Err(ReplayGuardError::Duplicate) => Err(ConclaveError::EnclaveFailure(
-                "Attestation replay detected".to_string(),
-            )),
-            Err(ReplayGuardError::CapacitySaturated) => Err(ConclaveError::EnclaveFailure(
-                "Attestation replay guard capacity is saturated".to_string(),
-            )),
-            Err(ReplayGuardError::ClockRollback) => Err(ConclaveError::ClockRollback),
-            Err(ReplayGuardError::InvalidInput) => Err(ConclaveError::InvalidPayload),
-            Err(ReplayGuardError::LockPoisoned) => Err(ConclaveError::EnclaveFailure(
-                "Attestation replay guard is unavailable".to_string(),
-            )),
-        }
+        // Replay state is consumed only after every report check succeeds. The
+        // reservation retains only a digest of the complete rail security
+        // context; raw evidence never crosses the store boundary.
+        let reservation =
+            self.rail_attestation_replay_reservation(intent, &report, policy, now_secs)?;
+        self.consume_replay_reservation(
+            replay_store,
+            &reservation,
+            now_secs,
+            "Attestation replay detected",
+        )
     }
 
     #[cfg(test)]
@@ -718,12 +764,63 @@ impl RailProxy {
         attestation_json: &Option<String>,
         now_secs: u64,
     ) -> ConclaveResult<()> {
+        let replay_store = self.durable_replay_store()?;
         self.verify_hardware_integrity_with_attestation_policy_at_time(
             intent,
             attestation_json,
             &self.attestation_policy,
+            replay_store,
             now_secs,
         )
+    }
+
+    fn rail_attestation_replay_reservation(
+        &self,
+        intent: &SwapIntent,
+        report: &DeviceIntegrityReport,
+        policy: &AttestationPolicy,
+        now_secs: u64,
+    ) -> ConclaveResult<ReplayReservation> {
+        let operation_digest: [u8; 32] = intent
+            .canonical_hash()
+            .try_into()
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let binding = ReplayBinding::builder()
+            .provider(format!("rail/{}", intent.rail_type))
+            .proof_subject(RAIL_ATTESTATION_SUBJECT)
+            .proof_mechanism(RAIL_ATTESTATION_MECHANISM)
+            .nonce(&report.challenge_nonce)
+            .operation_digest(operation_digest)
+            .purpose(ValueBearingPurpose::Settlement.canonical_token())
+            .policy_digest(policy.canonical_digest()?)
+            .key_identity(&report.attested_operation_public_key)
+            .evidence_digest(attestation_evidence_digest(report, None)?)
+            .proof_id(intent.rail_type.clone())
+            .audience(SETTLEMENT_OPERATION_DOMAIN)
+            .build()
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let retain_until = now_secs
+            .checked_add(policy.max_age_secs().max(1))
+            .ok_or(ConclaveError::InvalidPayload)?;
+        ReplayReservation::new(&binding, retain_until).map_err(|_| ConclaveError::InvalidPayload)
+    }
+
+    fn consume_replay_reservation(
+        &self,
+        replay_store: &dyn ReplayStore,
+        reservation: &ReplayReservation,
+        now_secs: u64,
+        duplicate_message: &str,
+    ) -> ConclaveResult<()> {
+        match replay_store
+            .consume_once(reservation, now_secs)
+            .map_err(map_rail_replay_store_error)?
+        {
+            ReplayConsumeOutcome::Accepted => Ok(()),
+            ReplayConsumeOutcome::Duplicate => {
+                Err(ConclaveError::EnclaveFailure(duplicate_message.to_string()))
+            }
+        }
     }
 
     /// Legacy compatibility entry point. The former boolean was a runtime
@@ -742,8 +839,32 @@ impl RailProxy {
         intent: SwapIntent,
         request: &ValueBearingSignRequest,
         response: ValueBearingSignResponse,
+        proof_authorization: &ProofBoundValueBearingAuthorization,
     ) -> ConclaveResult<VerifiedOperation> {
-        VerifiedOperation::from_value_bearing(intent, request, response)
+        self.authorize_verified_operation_with_trusted_clock(
+            intent,
+            request,
+            response,
+            proof_authorization,
+            crate::enclave::trusted_unix_time_secs(),
+        )
+    }
+
+    fn authorize_verified_operation_with_trusted_clock(
+        &self,
+        intent: SwapIntent,
+        request: &ValueBearingSignRequest,
+        response: ValueBearingSignResponse,
+        proof_authorization: &ProofBoundValueBearingAuthorization,
+        trusted_now_secs: ConclaveResult<u64>,
+    ) -> ConclaveResult<VerifiedOperation> {
+        VerifiedOperation::from_value_bearing(
+            intent,
+            request,
+            response,
+            proof_authorization,
+            trusted_now_secs?,
+        )
     }
 
     pub(crate) async fn dispatch_verified_operation(
@@ -762,6 +883,7 @@ impl RailProxy {
         operation: VerifiedOperation,
         trusted_now_secs: ConclaveResult<u64>,
     ) -> ConclaveResult<SwapResponse> {
+        let replay_store = self.durable_replay_store()?;
         let intent = operation.intent();
         let authorization = operation.authorization();
         if intent.signable_hash != intent.canonical_hash() {
@@ -793,7 +915,14 @@ impl RailProxy {
                 "typed settlement authorization policy digest mismatch".to_string(),
             ));
         }
-        if authorization.proof_count == 0 || authorization.proof_set_digest == [0; 32] {
+        let expected_policy_digest = ProofPolicy::production().digest()?;
+        if authorization.expected_proof_policy_digest != expected_policy_digest
+            || authorization.verified_proof_policy_digest != expected_policy_digest
+            || authorization.proof_count != ProofKind::all().len()
+            || authorization.proof_set_digest == [0; 32]
+            || authorization.proof_context_binding == [0; 32]
+            || authorization.proof_authorization_expires_at == 0
+        {
             return Err(ConclaveError::EnclaveFailure(
                 "typed settlement authorization proof-set binding is incomplete or inconsistent"
                     .to_string(),
@@ -801,6 +930,14 @@ impl RailProxy {
         }
 
         let now_secs = trusted_now_secs?;
+        if now_secs < authorization.proof_authorization_observed_at {
+            return Err(ConclaveError::ClockRollback);
+        }
+        if now_secs >= authorization.proof_authorization_expires_at {
+            return Err(ConclaveError::Unsupported(
+                "proof authorization has expired".to_string(),
+            ));
+        }
         let rail_name = intent.rail_type.clone();
         let rail = self
             .rails
@@ -816,39 +953,97 @@ impl RailProxy {
             ));
         }
 
-        match self.replay_guard.try_check_and_record(
-            &hex::encode(authorization.replay_authorization.token),
+        let reservation =
+            self.typed_settlement_replay_reservation(intent, authorization, now_secs)?;
+        self.consume_replay_reservation(
+            replay_store,
+            &reservation,
             now_secs,
-        ) {
-            Ok(()) => {}
-            Err(ReplayGuardError::Duplicate) => {
-                return Err(ConclaveError::EnclaveFailure(
-                    "typed settlement authorization replay detected".to_string(),
-                ));
-            }
-            Err(ReplayGuardError::CapacitySaturated) => {
-                return Err(ConclaveError::EnclaveFailure(
-                    "typed settlement replay guard capacity is saturated".to_string(),
-                ));
-            }
-            Err(ReplayGuardError::ClockRollback) => {
-                return Err(ConclaveError::ClockRollback);
-            }
-            Err(ReplayGuardError::InvalidInput) => {
-                return Err(ConclaveError::InvalidPayload);
-            }
-            Err(ReplayGuardError::LockPoisoned) => {
-                return Err(ConclaveError::EnclaveFailure(
-                    "typed settlement replay guard is unavailable".to_string(),
-                ));
-            }
-        }
+            "typed settlement authorization replay detected",
+        )?;
 
         if let Some(telemetry) = &self.telemetry {
             let _ = telemetry.track_event(TelemetryEvent::SignedIntent);
         }
 
         rail.execute_swap(operation).await
+    }
+
+    fn typed_settlement_replay_reservation(
+        &self,
+        intent: &SwapIntent,
+        authorization: &VerifiedOperationAuthorization,
+        now_secs: u64,
+    ) -> ConclaveResult<ReplayReservation> {
+        let canonical_intent_hash: [u8; 32] = intent
+            .canonical_hash()
+            .try_into()
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let mut operation_material = Vec::with_capacity(32 + 32 + 32);
+        operation_material.extend_from_slice(b"CONXIAN-RAIL-OPERATION/v1");
+        operation_material.extend_from_slice(&canonical_intent_hash);
+        operation_material.extend_from_slice(&authorization.operation_binding);
+        let operation_digest = Sha256::digest(operation_material).into();
+        let binding = ReplayBinding::builder()
+            .provider(format!("rail/{}", intent.rail_type))
+            .proof_subject(RAIL_ATTESTATION_SUBJECT)
+            .proof_mechanism(RAIL_ATTESTATION_MECHANISM)
+            .nonce(&authorization.replay_authorization.token)
+            .operation_digest(operation_digest)
+            .purpose(ValueBearingPurpose::Settlement.canonical_token())
+            .policy_digest(authorization.expected_proof_policy_digest)
+            .key_identity(&authorization.attestation.attested_operation_public_key)
+            .evidence_digest(attestation_evidence_digest(
+                &authorization.attestation,
+                Some(&authorization.proof_set_digest),
+            )?)
+            .proof_id("typed-settlement")
+            .audience(SETTLEMENT_OPERATION_DOMAIN)
+            .build()
+            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let retain_until = now_secs
+            .checked_add(self.attestation_policy.max_age_secs().max(1))
+            .ok_or(ConclaveError::InvalidPayload)?;
+        ReplayReservation::new(&binding, retain_until).map_err(|_| ConclaveError::InvalidPayload)
+    }
+}
+
+fn attestation_evidence_digest(
+    report: &DeviceIntegrityReport,
+    proof_set_digest: Option<&[u8; 32]>,
+) -> ConclaveResult<[u8; 32]> {
+    let encoded = serde_json::to_vec(report).map_err(|_| ConclaveError::InvalidPayload)?;
+    let mut material = Vec::with_capacity(64 + encoded.len());
+    material.extend_from_slice(b"CONXIAN-RAIL-ATTESTATION-EVIDENCE/v1");
+    let encoded_len = u32::try_from(encoded.len()).map_err(|_| ConclaveError::InvalidPayload)?;
+    material.extend_from_slice(&encoded_len.to_be_bytes());
+    material.extend_from_slice(&encoded);
+    if let Some(proof_set_digest) = proof_set_digest {
+        material.push(1);
+        material.extend_from_slice(proof_set_digest);
+    } else {
+        material.push(0);
+    }
+    Ok(Sha256::digest(material).into())
+}
+
+fn map_rail_replay_store_error(error: ReplayStoreError) -> ConclaveError {
+    match error {
+        ReplayStoreError::InvalidKey | ReplayStoreError::InvalidRetention => {
+            ConclaveError::InvalidPayload
+        }
+        ReplayStoreError::ClockRollback => ConclaveError::ClockRollback,
+        ReplayStoreError::CapacitySaturated => ConclaveError::EnclaveFailure(
+            "durable rail replay store capacity is saturated".to_string(),
+        ),
+        ReplayStoreError::BackendUnavailable
+        | ReplayStoreError::TransactionIndeterminate
+        | ReplayStoreError::LockPoisoned => ConclaveError::Unsupported(
+            "durable replay store is unavailable or indeterminate".to_string(),
+        ),
+        ReplayStoreError::AtomicBatchFailure(_) => ConclaveError::EnclaveFailure(
+            "durable rail replay reservation failed atomically".to_string(),
+        ),
     }
 }
 
@@ -949,6 +1144,42 @@ impl SovereignRail for CustomRail {
             transaction_id: format!("PARTNER-{}", hex::encode(&intent.signable_hash[..8])),
             status: "Partner processing".to_string(),
             estimated_arrival: 1200,
+            rail_used: self.name().to_string(),
+        })
+    }
+}
+
+#[cfg(test)]
+struct CountingRail {
+    calls: Arc<AtomicUsize>,
+}
+
+#[cfg(test)]
+impl sealed::SovereignRail for CountingRail {}
+
+#[async_trait(?Send)]
+#[cfg(test)]
+impl SovereignRail for CountingRail {
+    fn name(&self) -> &'static str {
+        "counting_partner"
+    }
+
+    fn trust_tier(&self) -> TrustTier {
+        TrustTier::T4
+    }
+
+    fn validate_request(&self, _request: &SwapRequest) -> ConclaveResult<Option<String>> {
+        Ok(Some("Counting fixture rail".to_string()))
+    }
+
+    async fn execute_swap(&self, operation: VerifiedOperation) -> ConclaveResult<SwapResponse> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        let (intent, _) = operation.into_parts();
+        Ok(SwapResponse {
+            proof_envelope: Some("counting-proof".to_string()),
+            transaction_id: format!("COUNT-{}", hex::encode(&intent.signable_hash[..8])),
+            status: "Counting fixture processing".to_string(),
+            estimated_arrival: 1,
             rail_used: self.name().to_string(),
         })
     }
@@ -1059,6 +1290,11 @@ mod rail_proxy_tests {
         SignerKeyBindingEvidence, ATTESTATION_ENVELOPE_VERSION, MAX_ATTESTATION_AGE_SECS,
         MAX_ATTESTATION_FUTURE_SKEW_SECS,
     };
+    use crate::enclave::proofs::{
+        sign_value_bearing_with_proof_authorization, test_fixture_settlement_authorization,
+        test_fixture_settlement_authorization_with_replay_guard,
+    };
+    use crate::enclave::replay_guard::ReplayBatchOutcome;
     use crate::enclave::{EnclaveManager, SignRequest, SignResponse, SignerCapability};
     use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
     use crate::protocol::business::BusinessRegistry;
@@ -1067,18 +1303,88 @@ mod rail_proxy_tests {
         TransportResponse,
     };
     use ed25519_dalek::{Signer as _, SigningKey};
-    use std::sync::Arc;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
     use std::time::{Duration, SystemTime};
 
     const TEST_MERCHANT_ENDPOINT: &str = "https://merchant.invalid/x402";
 
-    fn test_proxy() -> RailProxy {
+    /// Test-only contract fixture. Its `DurableProvider` label exercises the
+    /// durable API boundary but is not distributed durability or production
+    /// replay evidence.
+    struct TestOnlyDurableReplayStore {
+        guard: ReplayGuard,
+    }
+
+    impl TestOnlyDurableReplayStore {
+        fn new(max_entries: usize) -> Self {
+            Self {
+                guard: ReplayGuard::new(300, max_entries),
+            }
+        }
+    }
+
+    impl ReplayStore for TestOnlyDurableReplayStore {
+        fn durability(&self) -> ReplayStoreDurability {
+            ReplayStoreDurability::DurableProvider
+        }
+
+        fn consume_once(
+            &self,
+            reservation: &ReplayReservation,
+            now_secs: u64,
+        ) -> Result<ReplayConsumeOutcome, ReplayStoreError> {
+            self.guard.consume_once(reservation, now_secs)
+        }
+
+        fn consume_once_batch(
+            &self,
+            reservations: &[ReplayReservation],
+            now_secs: u64,
+        ) -> Result<ReplayBatchOutcome, ReplayStoreError> {
+            self.guard.consume_once_batch(reservations, now_secs)
+        }
+    }
+
+    fn unconfigured_proxy() -> RailProxy {
         RailProxy::new(
             "https://gateway.conxian-labs.com".to_string(),
             reqwest::Client::new(),
             Arc::new(AssetRegistry::new()),
             Arc::new(BusinessRegistry::new()),
         )
+    }
+
+    fn test_proxy() -> RailProxy {
+        unconfigured_proxy()
+            .with_replay_store(Arc::new(TestOnlyDurableReplayStore::new(300)))
+            .expect("test rail proxy should have a replay contract fixture")
+    }
+
+    struct IndeterminateRailReplayStore;
+
+    impl ReplayStore for IndeterminateRailReplayStore {
+        fn durability(&self) -> ReplayStoreDurability {
+            ReplayStoreDurability::DurableProvider
+        }
+
+        fn consume_once(
+            &self,
+            _reservation: &ReplayReservation,
+            _now_secs: u64,
+        ) -> Result<ReplayConsumeOutcome, ReplayStoreError> {
+            Err(ReplayStoreError::TransactionIndeterminate)
+        }
+
+        fn consume_once_batch(
+            &self,
+            _reservations: &[ReplayReservation],
+            _now_secs: u64,
+        ) -> Result<ReplayBatchOutcome, ReplayStoreError> {
+            Err(ReplayStoreError::TransactionIndeterminate)
+        }
     }
 
     fn telemetry_test_policy() -> TelemetryPolicy {
@@ -1098,6 +1404,109 @@ mod rail_proxy_tests {
         )
         .expect("telemetry test client should be constructible");
         (Arc::new(client), transport)
+    }
+
+    #[test]
+    fn public_rail_integrity_requires_durable_replay_before_attestation_work() {
+        let proxy = unconfigured_proxy();
+        let intent = test_intent(vec![1; 32]);
+        let malformed_attestation = Some("{not-json".to_string());
+
+        assert!(matches!(
+            proxy.verify_hardware_integrity_with_attestation_policy(
+                &intent,
+                &malformed_attestation,
+                &AttestationPolicy::test_fixture(),
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("durable replay store is required")
+        ));
+    }
+
+    #[test]
+    fn rail_proxy_rejects_process_local_replay_store_at_configuration() {
+        let result = unconfigured_proxy().with_replay_store(Arc::new(ReplayGuard::new(300, 32)));
+
+        assert!(matches!(
+            result,
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("durable replay store is required")
+        ));
+    }
+
+    #[test]
+    fn shared_durable_rail_store_accepts_once_and_rejects_cross_proxy_duplicate() {
+        let shared_store: Arc<dyn ReplayStore> = Arc::new(TestOnlyDurableReplayStore::new(32));
+        let first_proxy = unconfigured_proxy()
+            .with_replay_store(Arc::clone(&shared_store))
+            .expect("first proxy should accept durable store");
+        let second_proxy = unconfigured_proxy()
+            .with_replay_store(shared_store)
+            .expect("second proxy should accept durable store");
+        let intent = test_intent(vec![2; 32]);
+        let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
+
+        assert!(first_proxy
+            .verify_hardware_integrity_with_attestation_policy(
+                &intent,
+                &attestation,
+                &AttestationPolicy::test_fixture(),
+            )
+            .is_ok());
+        assert!(matches!(
+            second_proxy.verify_hardware_integrity_with_attestation_policy(
+                &intent,
+                &attestation,
+                &AttestationPolicy::test_fixture(),
+            ),
+            Err(ConclaveError::EnclaveFailure(message)) if message.contains("replay")
+        ));
+    }
+
+    #[test]
+    fn unavailable_and_indeterminate_rail_replay_fail_closed() {
+        let unavailable = unconfigured_proxy()
+            .with_replay_store(Arc::new(crate::enclave::UnavailableReplayStore));
+        assert!(matches!(
+            unavailable,
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("durable replay store is unavailable")
+        ));
+
+        let proxy = unconfigured_proxy()
+            .with_replay_store(Arc::new(IndeterminateRailReplayStore))
+            .expect("indeterminate fixture advertises the durable contract");
+        let intent = test_intent(vec![3; 32]);
+        let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
+        assert!(matches!(
+            proxy.verify_hardware_integrity_with_attestation_policy(
+                &intent,
+                &attestation,
+                &AttestationPolicy::test_fixture(),
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("unavailable or indeterminate")
+        ));
+    }
+
+    #[tokio::test]
+    async fn missing_durable_replay_fails_before_rail_side_effect() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let mut proxy = unconfigured_proxy().with_min_trust_tier(TrustTier::T4);
+        proxy.register_rail(Box::new(CountingRail {
+            calls: Arc::clone(&calls),
+        }));
+        let operation = VerifiedOperation::from_test_fixture(
+            custom_settlement_intent(vec![4; 32]),
+            "fixture-signature".to_string(),
+        );
+
+        assert!(matches!(
+            proxy.dispatch_verified_operation(operation).await,
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("durable replay store is required")
+        ));
+        assert_eq!(calls.load(Ordering::Relaxed), 0);
     }
 
     async fn wait_for_telemetry_status(
@@ -1198,9 +1607,13 @@ mod rail_proxy_tests {
 
     impl SettlementFixtureProvider {
         fn new(policy_id: &str) -> Self {
+            Self::with_replay_capacity(policy_id, 32)
+        }
+
+        fn with_replay_capacity(policy_id: &str, max_entries: usize) -> Self {
             Self {
                 operation_key: SigningKey::from_bytes(&[7u8; 32]),
-                replay_guard: ReplayGuard::new(300, 32),
+                replay_guard: ReplayGuard::new(300, max_entries),
                 policy_id: policy_id.to_string(),
             }
         }
@@ -1263,6 +1676,17 @@ mod rail_proxy_tests {
                     serde_json::to_string(&report).expect("fixture report should serialize"),
                 ),
             }
+        }
+
+        fn sign_value_bearing_for_test(
+            &self,
+            request: ValueBearingSignRequest,
+        ) -> ConclaveResult<ValueBearingSignResponse> {
+            crate::enclave::sign_value_bearing_with_process_local_replay_for_test(
+                self,
+                request,
+                crate::enclave::trusted_unix_time_secs(),
+            )
         }
     }
 
@@ -1395,27 +1819,47 @@ mod rail_proxy_tests {
         intent
     }
 
-    fn authorize_fixture_operation(
+    fn indexed_custom_settlement_intent(index: usize) -> SwapIntent {
+        let mut seed = vec![0u8; 32];
+        seed[..8].copy_from_slice(&(index as u64).to_be_bytes());
+        custom_settlement_intent(seed)
+    }
+
+    fn try_authorize_fixture_operation(
         proxy: &RailProxy,
         provider: &SettlementFixtureProvider,
         intent: SwapIntent,
-    ) -> VerifiedOperation {
+    ) -> ConclaveResult<VerifiedOperation> {
         let digest: [u8; 32] = intent
             .canonical_hash()
             .try_into()
-            .expect("canonical intent hash should be 32 bytes");
+            .map_err(|_| ConclaveError::InvalidPayload)?;
         let request = settlement_request(
             digest,
             provider.operation_public_key(),
             VALUE_BEARING_POLICY_ID,
         );
-        let response = provider
-            .sign_value_bearing(request.clone())
-            .expect("fixture provider should issue typed evidence")
-            .with_test_proof_set(&request)
-            .expect("fixture proof set should verify");
-        proxy
-            .authorize_verified_operation(intent, &request, response)
+        let proof_authorization = test_fixture_settlement_authorization_with_replay_guard(
+            &intent,
+            digest.to_vec(),
+            test_unix_time_secs(),
+            proxy.proof_replay_guard(),
+        )?;
+        let request = request.with_proof_authorization(&proof_authorization)?;
+        let response = sign_value_bearing_with_proof_authorization(
+            provider,
+            request.clone(),
+            &proof_authorization,
+        )?;
+        proxy.authorize_verified_operation(intent, &request, response, &proof_authorization)
+    }
+
+    fn authorize_fixture_operation(
+        proxy: &RailProxy,
+        provider: &SettlementFixtureProvider,
+        intent: SwapIntent,
+    ) -> VerifiedOperation {
+        try_authorize_fixture_operation(proxy, provider, intent)
             .expect("fixture evidence should authorize the typed operation")
     }
 
@@ -1429,16 +1873,22 @@ mod rail_proxy_tests {
             .expect("canonical intent hash should be 32 bytes");
 
         let provider = SettlementFixtureProvider::new(VALUE_BEARING_POLICY_ID);
+        let valid_authorization =
+            test_fixture_settlement_authorization(&intent, digest.to_vec(), test_unix_time_secs())
+                .expect("canonical fixture proof authorization should verify");
         let valid_request = settlement_request(
             digest,
             provider.operation_public_key(),
             VALUE_BEARING_POLICY_ID,
-        );
-        let valid_response = provider
-            .sign_value_bearing(valid_request.clone())
-            .expect("fixture provider should issue typed evidence")
-            .with_test_proof_set(&valid_request)
-            .expect("fixture proof set should verify");
+        )
+        .with_proof_authorization(&valid_authorization)
+        .expect("canonical fixture authorization should bind to request");
+        let valid_response = sign_value_bearing_with_proof_authorization(
+            &provider,
+            valid_request.clone(),
+            &valid_authorization,
+        )
+        .expect("fixture provider should issue typed evidence");
 
         let wrong_purpose_request = settlement_request_with_context(
             digest,
@@ -1449,13 +1899,14 @@ mod rail_proxy_tests {
             digest.to_vec(),
         );
         let wrong_purpose_response = provider
-            .sign_value_bearing(wrong_purpose_request.clone())
+            .sign_value_bearing_for_test(wrong_purpose_request.clone())
             .expect("fixture provider should issue wrong-purpose evidence");
         assert!(matches!(
             proxy.authorize_verified_operation(
                 intent.clone(),
                 &wrong_purpose_request,
                 wrong_purpose_response,
+                &valid_authorization,
             ),
             Err(ConclaveError::EnclaveFailure(message))
                 if message.contains("requires settlement purpose")
@@ -1470,13 +1921,14 @@ mod rail_proxy_tests {
             digest.to_vec(),
         );
         let wrong_domain_response = provider
-            .sign_value_bearing(wrong_domain_request.clone())
+            .sign_value_bearing_for_test(wrong_domain_request.clone())
             .expect("fixture provider should issue wrong-domain evidence");
         assert!(matches!(
             proxy.authorize_verified_operation(
                 intent.clone(),
                 &wrong_domain_request,
                 wrong_domain_response,
+                &valid_authorization,
             ),
             Err(ConclaveError::EnclaveFailure(message))
                 if message.contains("canonical settlement domain")
@@ -1491,13 +1943,14 @@ mod rail_proxy_tests {
             vec![0xA5; 32],
         );
         let wrong_context_response = provider
-            .sign_value_bearing(wrong_context_request.clone())
+            .sign_value_bearing_for_test(wrong_context_request.clone())
             .expect("fixture provider should issue same-digest altered-context evidence");
         assert!(matches!(
             proxy.authorize_verified_operation(
                 intent.clone(),
                 &wrong_context_request,
                 wrong_context_response,
+                &valid_authorization,
             ),
             Err(ConclaveError::EnclaveFailure(message))
                 if message.contains("context does not match")
@@ -1510,6 +1963,7 @@ mod rail_proxy_tests {
                 tampered_intent,
                 &valid_request,
                 valid_response.clone(),
+                &valid_authorization,
             ),
             Err(ConclaveError::EnclaveFailure(message))
                 if message.contains("canonical intent hash")
@@ -1521,13 +1975,14 @@ mod rail_proxy_tests {
             VALUE_BEARING_POLICY_ID,
         );
         let wrong_digest_response = provider
-            .sign_value_bearing(wrong_digest_request.clone())
+            .sign_value_bearing_for_test(wrong_digest_request.clone())
             .expect("fixture provider should issue mismatched digest evidence");
         assert!(matches!(
             proxy.authorize_verified_operation(
                 intent.clone(),
                 &wrong_digest_request,
                 wrong_digest_response,
+                &valid_authorization,
             ),
             Err(ConclaveError::EnclaveFailure(message))
                 if message.contains("digest does not match")
@@ -1538,12 +1993,15 @@ mod rail_proxy_tests {
             digest,
             other_key.verifying_key().to_bytes().to_vec(),
             VALUE_BEARING_POLICY_ID,
-        );
+        )
+        .with_proof_authorization(&valid_authorization)
+        .expect("canonical fixture authorization should bind to the wrong-key request");
         assert!(matches!(
             proxy.authorize_verified_operation(
                 intent.clone(),
                 &wrong_key_request,
                 valid_response.clone(),
+                &valid_authorization,
             ),
             Err(ConclaveError::EnclaveFailure(message))
                 if message.contains("operation binding does not match")
@@ -1553,9 +2011,14 @@ mod rail_proxy_tests {
         let wrong_policy_request =
             settlement_request(digest, provider.operation_public_key(), wrong_policy);
         assert!(matches!(
-            proxy.authorize_verified_operation(intent, &wrong_policy_request, valid_response),
+            proxy.authorize_verified_operation(
+                intent,
+                &wrong_policy_request,
+                valid_response,
+                &valid_authorization,
+            ),
             Err(ConclaveError::Unsupported(message))
-                if message.contains("insufficient signer provenance or policy")
+                if message.contains("canonical six-proof production authorization")
         ));
     }
 
@@ -1581,7 +2044,7 @@ mod rail_proxy_tests {
             .expect("fixture policy should require one proof")
             .clone();
         let response = provider
-            .sign_value_bearing(request.clone())
+            .sign_value_bearing_for_test(request.clone())
             .expect("fixture provider should issue typed evidence");
 
         let wrong_operation_request = settlement_request(
@@ -1801,7 +2264,7 @@ mod rail_proxy_tests {
             .with_proof_policy(multi_policy)
             .expect("multi-proof request policy should match the request");
         let multi_response = provider
-            .sign_value_bearing(multi_request.clone())
+            .sign_value_bearing_for_test(multi_request.clone())
             .expect("fixture provider should issue multi-proof evidence");
         let partial_policy = policy(
             digest,
@@ -1820,78 +2283,18 @@ mod rail_proxy_tests {
         );
     }
 
-    #[test]
-    fn typed_settlement_authorization_rejects_same_id_weaker_policy_digest() {
+    #[tokio::test]
+    async fn typed_settlement_authorization_rejects_same_id_weaker_policy_digest() {
         let proxy = test_proxy();
         let intent = custom_settlement_intent(vec![36; 32]);
-        let digest: [u8; 32] = intent
-            .canonical_hash()
-            .try_into()
-            .expect("canonical intent hash should be 32 bytes");
         let provider = SettlementFixtureProvider::new(VALUE_BEARING_POLICY_ID);
-        let base_request = settlement_request(
-            digest,
-            provider.operation_public_key(),
-            VALUE_BEARING_POLICY_ID,
-        );
-        let base_policy = base_request
-            .expected_proof_policy()
-            .expect("fixture request should carry an exact proof policy");
-        let expected_requirement = base_policy
-            .requirements()
-            .first()
-            .expect("fixture policy should require one proof")
-            .clone();
-        let additional_requirement = ProofRequirement::new(
-            ProofKey::new(ProofType::TpmQuote, ProofSubject::Server),
-            expected_requirement.issuer(),
-            expected_requirement.trust_identity(),
-            expected_requirement.subject_binding().to_vec(),
-        )
-        .expect("additional fixture requirement should be valid");
-        let strong_policy = ProofSetPolicy::test_fixture(
-            VALUE_BEARING_POLICY_ID,
-            digest,
-            ValueBearingPurpose::Settlement,
-            digest.to_vec(),
-            digest.to_vec(),
-            300,
-            30,
-            vec![expected_requirement.clone(), additional_requirement],
-        )
-        .expect("strong fixture policy should be valid");
-        let strong_request = base_request
-            .with_proof_policy(strong_policy.clone())
-            .expect("strong policy should match the settlement request");
-        let strong_response = provider
-            .sign_value_bearing(strong_request.clone())
-            .expect("fixture provider should issue typed evidence")
-            .with_test_proof_set(&strong_request)
-            .expect("complete strong fixture proof set should verify");
-
-        let weaker_policy = ProofSetPolicy::test_fixture(
-            VALUE_BEARING_POLICY_ID,
-            digest,
-            ValueBearingPurpose::Settlement,
-            digest.to_vec(),
-            digest.to_vec(),
-            300,
-            30,
-            vec![expected_requirement],
-        )
-        .expect("weaker fixture policy should be valid");
-        assert_ne!(
-            strong_policy.policy_digest(),
-            weaker_policy.policy_digest(),
-            "policy_id is only a label; removing a required proof must change the digest"
-        );
-
-        let response_with_weaker_set =
-            strong_response.with_test_unchecked_proof_set(compose_fixture_set(&weaker_policy));
+        let operation = authorize_fixture_operation(&proxy, &provider, intent);
+        let mut tampered = operation;
+        tampered.authorization.verified_proof_policy_digest[0] ^= 1;
         assert!(matches!(
-            proxy.authorize_verified_operation(intent, &strong_request, response_with_weaker_set),
+            proxy.dispatch_verified_operation(tampered).await,
             Err(ConclaveError::EnclaveFailure(message))
-                if message.contains("policy digest")
+                if message.contains("policy digest mismatch")
         ));
     }
 
@@ -1909,6 +2312,12 @@ mod rail_proxy_tests {
             provider.operation_public_key(),
             VALUE_BEARING_POLICY_ID,
         );
+        let proof_authorization =
+            test_fixture_settlement_authorization(&intent, digest.to_vec(), test_unix_time_secs())
+                .expect("canonical fixture proof authorization should verify");
+        let request = request
+            .with_proof_authorization(&proof_authorization)
+            .expect("canonical fixture authorization should bind to request");
 
         let request_without_policy = ValueBearingSignRequest::new(
             crate::enclave::OperationContext::new(
@@ -1931,16 +2340,17 @@ mod rail_proxy_tests {
         )
         .expect("fixture request should be valid");
         let response_without_policy = provider
-            .sign_value_bearing(request_without_policy.clone())
+            .sign_value_bearing_for_test(request_without_policy.clone())
             .expect("fixture provider should issue typed evidence");
         assert!(matches!(
             proxy.authorize_verified_operation(
                 intent.clone(),
                 &request_without_policy,
                 response_without_policy,
+                &proof_authorization,
             ),
             Err(ConclaveError::Unsupported(message))
-                if message.contains("missing the expected exact proof policy")
+                if message.contains("canonical six-proof production authorization")
         ));
 
         let verified_without_proof_set = ValueBearingSignResponse::from_provider(
@@ -1954,9 +2364,10 @@ mod rail_proxy_tests {
                 intent.clone(),
                 &request,
                 verified_without_proof_set,
+                &proof_authorization,
             ),
             Err(ConclaveError::Unsupported(message))
-                if message.contains("independently verified proof set")
+                if message.contains("missing manager replay authorization")
         ));
 
         let mut missing_attestation = provider.response_for(&request);
@@ -1979,7 +2390,12 @@ mod rail_proxy_tests {
         .with_test_proof_set(&request)
         .expect("fixture proof set should verify");
         assert!(matches!(
-            proxy.authorize_verified_operation(intent, &request, verified_without_manager_replay),
+            proxy.authorize_verified_operation(
+                intent,
+                &request,
+                verified_without_manager_replay,
+                &proof_authorization,
+            ),
             Err(ConclaveError::Unsupported(message))
                 if message.contains("missing manager replay authorization")
         ));
@@ -2000,6 +2416,85 @@ mod rail_proxy_tests {
             Err(ConclaveError::EnclaveFailure(message))
                 if message.contains("typed settlement authorization replay detected")
         ));
+    }
+
+    #[tokio::test]
+    async fn proof_authorized_settlements_use_separate_replay_capacity_domains() {
+        // The old shared 300-entry guard failed after 42 complete operations
+        // because each operation admitted six proof keys and one final token.
+        // Leave one extra proof bundle available so final-token saturation can
+        // be exercised independently after the intended 300-operation
+        // settlement capacity is reached.
+        let mut proxy = test_proxy()
+            .with_min_trust_tier(TrustTier::T4)
+            .with_proof_replay_guard(Arc::new(ReplayGuard::new(
+                DEFAULT_REPLAY_TTL_SECS,
+                DEFAULT_PROOF_REPLAY_MAX_ENTRIES + 2 * ProofKind::all().len(),
+            )));
+        proxy.register_rail(Box::new(CustomRail));
+        let provider = SettlementFixtureProvider::with_replay_capacity(
+            VALUE_BEARING_POLICY_ID,
+            DEFAULT_SETTLEMENT_REPLAY_MAX_ENTRIES + 2,
+        );
+
+        for index in 0..DEFAULT_SETTLEMENT_REPLAY_MAX_ENTRIES {
+            let operation = authorize_fixture_operation(
+                &proxy,
+                &provider,
+                indexed_custom_settlement_intent(index),
+            );
+            assert!(
+                proxy.dispatch_verified_operation(operation).await.is_ok(),
+                "distinct proof-authorized settlement {index} should remain available"
+            );
+        }
+
+        let saturated_intent =
+            indexed_custom_settlement_intent(DEFAULT_SETTLEMENT_REPLAY_MAX_ENTRIES);
+        let operation =
+            try_authorize_fixture_operation(&proxy, &provider, saturated_intent.clone())
+                .expect("proof replay capacity should remain independent of final-token capacity");
+        let retry_after_capacity_failure = operation.clone();
+        assert!(matches!(
+            proxy.dispatch_verified_operation(operation).await,
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("durable rail replay store capacity is saturated")
+        ));
+
+        // A successful proof authorization deliberately remains consumed even
+        // when final-token admission is unavailable; retrying the same bundle
+        // must still be rejected by the proof replay domain.
+        assert!(matches!(
+            try_authorize_fixture_operation(&proxy, &provider, saturated_intent),
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("independent proof replay detected")
+        ));
+
+        // A different proof-authorized settlement can still complete proof
+        // admission even though its final token is rejected by the saturated
+        // settlement domain.
+        let next_operation = try_authorize_fixture_operation(
+            &proxy,
+            &provider,
+            indexed_custom_settlement_intent(DEFAULT_SETTLEMENT_REPLAY_MAX_ENTRIES + 1),
+        )
+        .expect("final-token saturation must not consume proof-domain capacity");
+        assert!(matches!(
+            proxy.dispatch_verified_operation(next_operation).await,
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("durable rail replay store capacity is saturated")
+        ));
+
+        // Replacing only the saturated final-token store permits the already
+        // authorized operation to continue. The proof authorization remains
+        // bound to the operation and was not rolled back or re-admitted.
+        proxy = proxy
+            .with_replay_store(Arc::new(TestOnlyDurableReplayStore::new(1)))
+            .expect("replacement durable replay store should configure");
+        assert!(proxy
+            .dispatch_verified_operation(retry_after_capacity_failure)
+            .await
+            .is_ok());
     }
 
     #[tokio::test]
@@ -2210,12 +2705,16 @@ mod rail_proxy_tests {
         let pre_epoch = SystemTime::UNIX_EPOCH
             .checked_sub(Duration::from_secs(1))
             .expect("pre-epoch fixture should be representable");
+        let replay_store = proxy
+            .durable_replay_store()
+            .expect("test proxy should have durable replay fixture");
 
         assert!(matches!(
             proxy.verify_hardware_integrity_with_attestation_policy_with_trusted_clock(
                 &intent,
                 &attestation,
                 &proxy.attestation_policy,
+                replay_store,
                 crate::enclave::trusted_unix_time_secs_at(pre_epoch),
             ),
             Err(ConclaveError::ClockUnavailable)
