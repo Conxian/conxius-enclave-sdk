@@ -9,6 +9,8 @@
 
 use crate::enclave::proofs::{ProofKind, ProofPolicy, ProofVerificationContext};
 #[cfg(test)]
+use crate::enclave::proofs::{ProofRequirement, UnlistedProofPolicy};
+#[cfg(test)]
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 #[cfg(test)]
 use ed25519_dalek::{Signer, SigningKey};
@@ -16,6 +18,7 @@ use serde::de::{self, Deserializer, Error as DeError, SeqAccess, Visitor};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fmt;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Current version of all Phase A transport and canonical contracts.
@@ -54,6 +57,14 @@ pub enum TrustError {
     ProviderProfileMismatch,
     #[error("trust mechanism does not match")]
     MechanismMismatch,
+    #[error("trust verifier identity does not match")]
+    VerifierMismatch,
+    #[error("trust policy does not authorize this evidence")]
+    PolicyNotAuthorizable,
+    #[error("trust signer anchor is not authorized")]
+    AnchorNotAuthorizable,
+    #[error("trust signer anchor constraints do not match")]
+    AnchorConstraintMismatch,
     #[error("trust validity window is invalid")]
     InvalidValidityWindow,
     #[error("trust revision or rollback floor is invalid")]
@@ -136,30 +147,50 @@ impl TcbStatus {
     }
 }
 
+fn validate_canonical_statuses(
+    revocation_status: RevocationStatus,
+    tcb_status: TcbStatus,
+) -> TrustResult<()> {
+    if matches!(revocation_status, RevocationStatus::Unsupported)
+        || matches!(tcb_status, TcbStatus::Unsupported)
+    {
+        return Err(TrustError::Unsupported);
+    }
+    Ok(())
+}
+
 /// Phase A has one testable signature encoding. Provider-specific algorithms
 /// remain a separate gate and cannot be silently substituted.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum TrustSignatureAlgorithm {
     Ed25519,
+    Unsupported,
 }
 
 impl TrustSignatureAlgorithm {
     pub const fn canonical_tag(self) -> u8 {
         match self {
             Self::Ed25519 => 1,
+            Self::Unsupported => 255,
         }
     }
 
     const fn public_key_len(self) -> usize {
         match self {
             Self::Ed25519 => 32,
+            Self::Unsupported => 0,
         }
     }
 
     const fn signature_len(self) -> usize {
         match self {
             Self::Ed25519 => 64,
+            Self::Unsupported => 0,
         }
+    }
+
+    const fn is_supported(self) -> bool {
+        matches!(self, Self::Ed25519)
     }
 }
 
@@ -173,12 +204,38 @@ pub trait TrustedClock: Send + Sync {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SystemTrustedClock;
 
+/// Process-global production high-water mark. It intentionally has no reset
+/// path, so recreating a `SystemTrustedClock` cannot reopen an authorization
+/// window with an older observation.
+static SYSTEM_TRUSTED_TIME_HIGH_WATER: AtomicU64 = AtomicU64::new(0);
+
+fn observe_monotonic_time(high_water: &AtomicU64, observed_secs: u64) -> TrustResult<u64> {
+    let mut previous = high_water.load(Ordering::Acquire);
+    loop {
+        if observed_secs < previous {
+            return Err(TrustError::ClockRollback);
+        }
+        if observed_secs == previous {
+            return Ok(observed_secs);
+        }
+        match high_water.compare_exchange_weak(
+            previous,
+            observed_secs,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        ) {
+            Ok(_) => return Ok(observed_secs),
+            Err(actual) => previous = actual,
+        }
+    }
+}
+
 impl TrustedClock for SystemTrustedClock {
     fn now_secs(&self) -> TrustResult<u64> {
         let duration = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| TrustError::ClockUnavailable)?;
-        Ok(duration.as_secs())
+        observe_monotonic_time(&SYSTEM_TRUSTED_TIME_HIGH_WATER, duration.as_secs())
     }
 }
 
@@ -379,17 +436,10 @@ where
     }
 }
 
-fn deserialize_bounded_anchors<'de, D>(deserializer: D) -> Result<Vec<TrustAnchor>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    deserializer.deserialize_seq(BoundedVecVisitor::<TrustAnchor, MAX_TRUST_ANCHORS> {
-        marker: std::marker::PhantomData,
-    })
-}
-
-/// An untrusted provider/profile-scoped trust anchor.
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+/// An untrusted provider/profile-scoped trust anchor. `Serialize` is retained
+/// for transport preparation and diagnostics; generic `Deserialize` is absent
+/// so callers cannot bypass the bounded JSON helper.
+#[derive(Clone, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct TrustAnchor {
     pub version: u16,
@@ -423,6 +473,58 @@ where
     D: Deserializer<'de>,
 {
     deserialize_bounded_optional_bytes::<D, MAX_TRUST_CONSTRAINT_BYTES>(deserializer)
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TrustAnchorWire {
+    version: u16,
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    anchor_id: String,
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    provider: String,
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    profile: String,
+    signature_algorithm: TrustSignatureAlgorithm,
+    #[serde(deserialize_with = "deserialize_bounded_public_key")]
+    public_key: Vec<u8>,
+    #[serde(deserialize_with = "deserialize_bounded_constraints")]
+    constraints: Vec<u8>,
+    not_before: u64,
+    not_after: u64,
+    revision: u64,
+    revocation_status: RevocationStatus,
+    tcb_status: TcbStatus,
+}
+
+impl From<TrustAnchorWire> for TrustAnchor {
+    fn from(wire: TrustAnchorWire) -> Self {
+        Self {
+            version: wire.version,
+            anchor_id: wire.anchor_id,
+            provider: wire.provider,
+            profile: wire.profile,
+            signature_algorithm: wire.signature_algorithm,
+            public_key: wire.public_key,
+            constraints: wire.constraints,
+            not_before: wire.not_before,
+            not_after: wire.not_after,
+            revision: wire.revision,
+            revocation_status: wire.revocation_status,
+            tcb_status: wire.tcb_status,
+        }
+    }
+}
+
+fn deserialize_bounded_anchor_wires<'de, D>(
+    deserializer: D,
+) -> Result<Vec<TrustAnchorWire>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserializer.deserialize_seq(BoundedVecVisitor::<TrustAnchorWire, MAX_TRUST_ANCHORS> {
+        marker: std::marker::PhantomData,
+    })
 }
 
 impl fmt::Debug for TrustAnchor {
@@ -459,11 +561,17 @@ impl TrustAnchor {
         validate_identifier(&self.profile)?;
         validate_bytes(&self.public_key, MAX_TRUST_PUBLIC_KEY_BYTES, true)?;
         validate_bytes(&self.constraints, MAX_TRUST_CONSTRAINT_BYTES, false)?;
-        if self.public_key.len() != self.signature_algorithm.public_key_len()
+        if !self.signature_algorithm.is_supported()
+            || self.public_key.len() != self.signature_algorithm.public_key_len()
             || self.not_before > self.not_after
         {
-            return Err(TrustError::InvalidPayload);
+            return if self.signature_algorithm.is_supported() {
+                Err(TrustError::InvalidPayload)
+            } else {
+                Err(TrustError::Unsupported)
+            };
         }
+        validate_canonical_statuses(self.revocation_status, self.tcb_status)?;
         Ok(())
     }
 
@@ -495,8 +603,10 @@ impl TrustAnchor {
     }
 }
 
-/// An authenticated, versioned set of trust anchors.
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+/// An authenticated, versioned set of trust anchors. `Serialize` is retained
+/// for transport preparation and diagnostics; generic `Deserialize` is absent
+/// so callers cannot bypass the bounded JSON helper.
+#[derive(Clone, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct TrustBundle {
     pub version: u16,
@@ -513,7 +623,6 @@ pub struct TrustBundle {
     pub rollback_floor: u64,
     pub issued_at: u64,
     pub expires_at: u64,
-    #[serde(deserialize_with = "deserialize_bounded_anchors")]
     pub anchors: Vec<TrustAnchor>,
     pub payload_digest: [u8; 32],
     #[serde(deserialize_with = "deserialize_bounded_signature")]
@@ -525,6 +634,50 @@ where
     D: Deserializer<'de>,
 {
     deserialize_bounded_bytes::<D, MAX_TRUST_SIGNATURE_BYTES>(deserializer)
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TrustBundleWire {
+    version: u16,
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    bundle_id: String,
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    provider: String,
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    profile: String,
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    signer_anchor_id: String,
+    signature_algorithm: TrustSignatureAlgorithm,
+    revision: u64,
+    rollback_floor: u64,
+    issued_at: u64,
+    expires_at: u64,
+    #[serde(deserialize_with = "deserialize_bounded_anchor_wires")]
+    anchors: Vec<TrustAnchorWire>,
+    payload_digest: [u8; 32],
+    #[serde(deserialize_with = "deserialize_bounded_signature")]
+    signature: Vec<u8>,
+}
+
+impl From<TrustBundleWire> for TrustBundle {
+    fn from(wire: TrustBundleWire) -> Self {
+        Self {
+            version: wire.version,
+            bundle_id: wire.bundle_id,
+            provider: wire.provider,
+            profile: wire.profile,
+            signer_anchor_id: wire.signer_anchor_id,
+            signature_algorithm: wire.signature_algorithm,
+            revision: wire.revision,
+            rollback_floor: wire.rollback_floor,
+            issued_at: wire.issued_at,
+            expires_at: wire.expires_at,
+            anchors: wire.anchors.into_iter().map(TrustAnchor::from).collect(),
+            payload_digest: wire.payload_digest,
+            signature: wire.signature,
+        }
+    }
 }
 
 impl fmt::Debug for TrustBundle {
@@ -566,9 +719,15 @@ impl TrustBundle {
             if anchor.provider != self.provider || anchor.profile != self.profile {
                 return Err(TrustError::ProviderProfileMismatch);
             }
+            if anchor.revision < self.rollback_floor || anchor.revision > self.revision {
+                return Err(TrustError::InvalidRevision);
+            }
             if !ids.insert(anchor.anchor_id.as_str()) {
                 return Err(TrustError::InvalidPayload);
             }
+        }
+        if self.anchor(&self.signer_anchor_id).is_none() {
+            return Err(TrustError::AnchorNotAuthorizable);
         }
         let expected: [u8; 32] = Sha256::digest(self.payload_canonical_bytes()?).into();
         if self.payload_digest != expected {
@@ -586,12 +745,17 @@ impl TrustBundle {
         validate_identifier(&self.profile)?;
         validate_identifier(&self.signer_anchor_id)?;
         validate_bytes(&self.signature, MAX_TRUST_SIGNATURE_BYTES, true)?;
-        if self.signature.len() != self.signature_algorithm.signature_len()
+        if !self.signature_algorithm.is_supported()
+            || self.signature.len() != self.signature_algorithm.signature_len()
             || self.anchors.is_empty()
             || self.anchors.len() > MAX_TRUST_ANCHORS
             || self.issued_at > self.expires_at
         {
-            return Err(TrustError::InvalidPayload);
+            return if self.signature_algorithm.is_supported() {
+                Err(TrustError::InvalidPayload)
+            } else {
+                Err(TrustError::Unsupported)
+            };
         }
         Ok(())
     }
@@ -632,7 +796,7 @@ impl TrustBundle {
     }
 
     pub fn canonical_bytes(&self) -> TrustResult<Vec<u8>> {
-        self.validate_shape()?;
+        self.validate()?;
         let mut output = self.signed_canonical_bytes()?;
         append_len_prefixed(&mut output, &self.signature)?;
         Ok(output)
@@ -655,7 +819,9 @@ pub struct TrustVerificationRequest {
     provider: String,
     profile: String,
     mechanism: ProofKind,
+    verifier_id: String,
     minimum_revision: u64,
+    anchor_constraints_digest: Option<[u8; 32]>,
 }
 
 impl TrustVerificationRequest {
@@ -665,11 +831,29 @@ impl TrustVerificationRequest {
         mechanism: ProofKind,
         minimum_revision: u64,
     ) -> TrustResult<Self> {
+        Self::new_with_verifier(
+            provider,
+            profile,
+            mechanism,
+            mechanism.production_verifier_id(),
+            minimum_revision,
+        )
+    }
+
+    pub fn new_with_verifier(
+        provider: impl Into<String>,
+        profile: impl Into<String>,
+        mechanism: ProofKind,
+        verifier_id: impl Into<String>,
+        minimum_revision: u64,
+    ) -> TrustResult<Self> {
         let request = Self {
             provider: provider.into(),
             profile: profile.into(),
             mechanism,
+            verifier_id: verifier_id.into(),
             minimum_revision,
+            anchor_constraints_digest: None,
         };
         request.validate()?;
         Ok(request)
@@ -677,7 +861,12 @@ impl TrustVerificationRequest {
 
     fn validate(&self) -> TrustResult<()> {
         validate_identifier(&self.provider)?;
-        validate_identifier(&self.profile)
+        validate_identifier(&self.profile)?;
+        validate_identifier(&self.verifier_id)?;
+        if self.verifier_id != self.mechanism.production_verifier_id() {
+            return Err(TrustError::VerifierMismatch);
+        }
+        Ok(())
     }
 
     pub fn provider(&self) -> &str {
@@ -692,8 +881,21 @@ impl TrustVerificationRequest {
         self.mechanism
     }
 
+    pub fn verifier_id(&self) -> &str {
+        &self.verifier_id
+    }
+
     pub fn minimum_revision(&self) -> u64 {
         self.minimum_revision
+    }
+
+    pub fn with_anchor_constraints_digest(mut self, digest: [u8; 32]) -> Self {
+        self.anchor_constraints_digest = Some(digest);
+        self
+    }
+
+    pub fn anchor_constraints_digest(&self) -> Option<[u8; 32]> {
+        self.anchor_constraints_digest
     }
 }
 
@@ -739,6 +941,7 @@ pub trait TrustVerifier: Send + Sync {
         &self,
         evidence: &AttestationEvidence,
         collateral: &VerifiedCollateralSnapshot,
+        trust_bundle: &VerifiedTrustBundle,
         context: &ProofVerificationContext,
         request: &TrustVerificationRequest,
         now_secs: u64,
@@ -785,6 +988,7 @@ impl TrustVerifier for UnavailableTrustVerifier {
         &self,
         _evidence: &AttestationEvidence,
         _collateral: &VerifiedCollateralSnapshot,
+        _trust_bundle: &VerifiedTrustBundle,
         _context: &ProofVerificationContext,
         _request: &TrustVerificationRequest,
         _now_secs: u64,
@@ -802,7 +1006,8 @@ pub fn production_trust_verifier() -> UnavailableTrustVerifier {
 }
 
 /// Authenticated collateral supplied by a provider release process.
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+/// `Serialize` is transport-only; generic `Deserialize` is absent.
+#[derive(Clone, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct CollateralSnapshot {
     pub version: u16,
@@ -834,6 +1039,56 @@ where
     D: Deserializer<'de>,
 {
     deserialize_bounded_bytes::<D, MAX_TRUST_PAYLOAD_BYTES>(deserializer)
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CollateralSnapshotWire {
+    version: u16,
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    snapshot_id: String,
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    provider: String,
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    profile: String,
+    mechanism: ProofKind,
+    trust_bundle_revision: u64,
+    revision: u64,
+    issued_at: u64,
+    expires_at: u64,
+    revocation_status: RevocationStatus,
+    tcb_status: TcbStatus,
+    #[serde(deserialize_with = "deserialize_bounded_payload")]
+    payload: Vec<u8>,
+    payload_digest: [u8; 32],
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    signer_anchor_id: String,
+    signature_algorithm: TrustSignatureAlgorithm,
+    #[serde(deserialize_with = "deserialize_bounded_signature")]
+    signature: Vec<u8>,
+}
+
+impl From<CollateralSnapshotWire> for CollateralSnapshot {
+    fn from(wire: CollateralSnapshotWire) -> Self {
+        Self {
+            version: wire.version,
+            snapshot_id: wire.snapshot_id,
+            provider: wire.provider,
+            profile: wire.profile,
+            mechanism: wire.mechanism,
+            trust_bundle_revision: wire.trust_bundle_revision,
+            revision: wire.revision,
+            issued_at: wire.issued_at,
+            expires_at: wire.expires_at,
+            revocation_status: wire.revocation_status,
+            tcb_status: wire.tcb_status,
+            payload: wire.payload,
+            payload_digest: wire.payload_digest,
+            signer_anchor_id: wire.signer_anchor_id,
+            signature_algorithm: wire.signature_algorithm,
+            signature: wire.signature,
+        }
+    }
 }
 
 impl fmt::Debug for CollateralSnapshot {
@@ -870,10 +1125,15 @@ impl CollateralSnapshot {
         validate_identifier(&self.signer_anchor_id)?;
         validate_bytes(&self.payload, MAX_TRUST_PAYLOAD_BYTES, true)?;
         validate_bytes(&self.signature, MAX_TRUST_SIGNATURE_BYTES, true)?;
-        if self.signature.len() != self.signature_algorithm.signature_len()
+        if !self.signature_algorithm.is_supported()
+            || self.signature.len() != self.signature_algorithm.signature_len()
             || self.issued_at > self.expires_at
         {
-            return Err(TrustError::InvalidPayload);
+            return if self.signature_algorithm.is_supported() {
+                Err(TrustError::InvalidPayload)
+            } else {
+                Err(TrustError::Unsupported)
+            };
         }
         Ok(())
     }
@@ -912,6 +1172,7 @@ impl CollateralSnapshot {
 
     pub fn validate(&self) -> TrustResult<()> {
         self.validate_shape()?;
+        validate_canonical_statuses(self.revocation_status, self.tcb_status)?;
         let expected: [u8; 32] = Sha256::digest(self.payload_canonical_bytes()?).into();
         if self.payload_digest != expected {
             return Err(TrustError::DigestMismatch);
@@ -920,7 +1181,7 @@ impl CollateralSnapshot {
     }
 
     pub fn canonical_bytes(&self) -> TrustResult<Vec<u8>> {
-        self.validate_shape()?;
+        self.validate()?;
         let mut output = self.signed_canonical_bytes()?;
         append_len_prefixed(&mut output, &self.signature)?;
         Ok(output)
@@ -931,8 +1192,9 @@ impl CollateralSnapshot {
     }
 }
 
-/// Provider evidence received before appraisal.
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+/// Provider evidence received before appraisal. `Serialize` is transport-only;
+/// generic `Deserialize` is absent.
+#[derive(Clone, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AttestationEvidence {
     pub version: u16,
@@ -943,6 +1205,8 @@ pub struct AttestationEvidence {
     #[serde(deserialize_with = "deserialize_bounded_identifier")]
     pub profile: String,
     pub mechanism: ProofKind,
+    #[serde(rename = "verifier_id")]
+    pub verifier_id: String,
     pub trust_bundle_revision: u64,
     pub collateral_revision: u64,
     pub subject_digest: [u8; 32],
@@ -969,6 +1233,65 @@ where
     deserialize_bounded_bytes::<D, MAX_TRUST_PAYLOAD_BYTES>(deserializer)
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AttestationEvidenceWire {
+    version: u16,
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    evidence_id: String,
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    provider: String,
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    profile: String,
+    mechanism: ProofKind,
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    verifier_id: String,
+    trust_bundle_revision: u64,
+    collateral_revision: u64,
+    subject_digest: [u8; 32],
+    key_identity_digest: [u8; 32],
+    context_binding_digest: [u8; 32],
+    issued_at: u64,
+    expires_at: u64,
+    revocation_status: RevocationStatus,
+    tcb_status: TcbStatus,
+    #[serde(deserialize_with = "deserialize_bounded_evidence")]
+    evidence: Vec<u8>,
+    evidence_digest: [u8; 32],
+    #[serde(deserialize_with = "deserialize_bounded_identifier")]
+    signer_anchor_id: String,
+    signature_algorithm: TrustSignatureAlgorithm,
+    #[serde(deserialize_with = "deserialize_bounded_signature")]
+    signature: Vec<u8>,
+}
+
+impl From<AttestationEvidenceWire> for AttestationEvidence {
+    fn from(wire: AttestationEvidenceWire) -> Self {
+        Self {
+            version: wire.version,
+            evidence_id: wire.evidence_id,
+            provider: wire.provider,
+            profile: wire.profile,
+            mechanism: wire.mechanism,
+            verifier_id: wire.verifier_id,
+            trust_bundle_revision: wire.trust_bundle_revision,
+            collateral_revision: wire.collateral_revision,
+            subject_digest: wire.subject_digest,
+            key_identity_digest: wire.key_identity_digest,
+            context_binding_digest: wire.context_binding_digest,
+            issued_at: wire.issued_at,
+            expires_at: wire.expires_at,
+            revocation_status: wire.revocation_status,
+            tcb_status: wire.tcb_status,
+            evidence: wire.evidence,
+            evidence_digest: wire.evidence_digest,
+            signer_anchor_id: wire.signer_anchor_id,
+            signature_algorithm: wire.signature_algorithm,
+            signature: wire.signature,
+        }
+    }
+}
+
 impl fmt::Debug for AttestationEvidence {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -978,6 +1301,7 @@ impl fmt::Debug for AttestationEvidence {
             .field("provider", &self.provider)
             .field("profile", &self.profile)
             .field("mechanism", &self.mechanism)
+            .field("verifier_id", &self.verifier_id)
             .field("trust_bundle_revision", &self.trust_bundle_revision)
             .field("collateral_revision", &self.collateral_revision)
             .field("subject_digest", &self.subject_digest)
@@ -1003,13 +1327,19 @@ impl AttestationEvidence {
         validate_identifier(&self.evidence_id)?;
         validate_identifier(&self.provider)?;
         validate_identifier(&self.profile)?;
+        validate_identifier(&self.verifier_id)?;
         validate_identifier(&self.signer_anchor_id)?;
         validate_bytes(&self.evidence, MAX_TRUST_PAYLOAD_BYTES, true)?;
         validate_bytes(&self.signature, MAX_TRUST_SIGNATURE_BYTES, true)?;
-        if self.signature.len() != self.signature_algorithm.signature_len()
+        if !self.signature_algorithm.is_supported()
+            || self.signature.len() != self.signature_algorithm.signature_len()
             || self.issued_at > self.expires_at
         {
-            return Err(TrustError::InvalidPayload);
+            return if self.signature_algorithm.is_supported() {
+                Err(TrustError::InvalidPayload)
+            } else {
+                Err(TrustError::Unsupported)
+            };
         }
         Ok(())
     }
@@ -1021,6 +1351,7 @@ impl AttestationEvidence {
         append_identifier(output, &self.provider)?;
         append_identifier(output, &self.profile)?;
         output.push(self.mechanism.canonical_tag());
+        append_identifier(output, &self.verifier_id)?;
         output.extend_from_slice(&self.trust_bundle_revision.to_be_bytes());
         output.extend_from_slice(&self.collateral_revision.to_be_bytes());
         append_digest(output, &self.subject_digest)?;
@@ -1051,6 +1382,7 @@ impl AttestationEvidence {
 
     pub fn validate(&self) -> TrustResult<()> {
         self.validate_shape()?;
+        validate_canonical_statuses(self.revocation_status, self.tcb_status)?;
         let expected: [u8; 32] = Sha256::digest(self.payload_canonical_bytes()?).into();
         if self.evidence_digest != expected {
             return Err(TrustError::DigestMismatch);
@@ -1059,7 +1391,7 @@ impl AttestationEvidence {
     }
 
     pub fn canonical_bytes(&self) -> TrustResult<Vec<u8>> {
-        self.validate_shape()?;
+        self.validate()?;
         let mut output = self.signed_canonical_bytes()?;
         append_len_prefixed(&mut output, &self.signature)?;
         Ok(output)
@@ -1136,19 +1468,12 @@ impl VerifiedTrustBundle {
     pub fn anchor_count(&self) -> usize {
         self.bundle.anchors.len()
     }
-
-    #[cfg(test)]
-    fn anchor(&self, anchor_id: &str) -> Option<&TrustAnchor> {
-        self.bundle.anchor(anchor_id)
-    }
 }
 
 #[derive(Clone)]
 pub struct VerifiedCollateralSnapshot {
     snapshot: CollateralSnapshot,
     digest: [u8; 32],
-    #[cfg(test)]
-    signer_public_key: Vec<u8>,
 }
 
 impl fmt::Debug for VerifiedCollateralSnapshot {
@@ -1237,6 +1562,10 @@ impl VerifiedAttestationEvidence {
         self.evidence.mechanism
     }
 
+    pub fn verifier_id(&self) -> &str {
+        &self.evidence.verifier_id
+    }
+
     pub fn subject_digest(&self) -> [u8; 32] {
         self.evidence.subject_digest
     }
@@ -1266,6 +1595,88 @@ impl VerifiedAttestationEvidence {
     }
 }
 
+fn validate_exact_policy(
+    policy: &ProofPolicy,
+    evidence_kind: ProofKind,
+    evidence_verifier_id: &str,
+    request: &TrustVerificationRequest,
+) -> TrustResult<()> {
+    policy.validate().map_err(|_| TrustError::InvalidPayload)?;
+    request.validate()?;
+    if !policy.is_exact_production() {
+        return Err(TrustError::PolicyNotAuthorizable);
+    }
+    let requirement = policy
+        .requires(evidence_kind)
+        .ok_or(TrustError::PolicyNotAuthorizable)?;
+    if evidence_kind != request.mechanism {
+        return Err(TrustError::MechanismMismatch);
+    }
+    if evidence_verifier_id != request.verifier_id
+        || requirement.verifier_id != evidence_verifier_id
+        || evidence_verifier_id != evidence_kind.production_verifier_id()
+    {
+        return Err(TrustError::VerifierMismatch);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+fn authorize_signer_anchor<'a>(
+    bundle: &'a TrustBundle,
+    signer_anchor_id: &str,
+    expected_provider: &str,
+    expected_profile: &str,
+    expected_algorithm: TrustSignatureAlgorithm,
+    artifact_revision: u64,
+    request: &TrustVerificationRequest,
+    now_secs: u64,
+) -> TrustResult<&'a TrustAnchor> {
+    request.validate()?;
+    if bundle.provider != expected_provider || bundle.profile != expected_profile {
+        return Err(TrustError::ProviderProfileMismatch);
+    }
+    if bundle.revision < request.minimum_revision
+        || artifact_revision < bundle.revision
+        || artifact_revision < request.minimum_revision
+    {
+        return Err(TrustError::InvalidRevision);
+    }
+    let anchor = bundle
+        .anchor(signer_anchor_id)
+        .ok_or(TrustError::AnchorNotAuthorizable)?;
+    if anchor.anchor_id != signer_anchor_id
+        || anchor.provider != expected_provider
+        || anchor.profile != expected_profile
+    {
+        return Err(TrustError::AnchorNotAuthorizable);
+    }
+    if anchor.signature_algorithm != expected_algorithm {
+        return Err(TrustError::InvalidSignature);
+    }
+    if !anchor.revocation_status.is_authorizable() || !anchor.tcb_status.is_authorizable() {
+        return Err(TrustError::StatusNotAuthorizable);
+    }
+    if now_secs < anchor.not_before || now_secs > anchor.not_after {
+        return Err(TrustError::InvalidValidityWindow);
+    }
+    if anchor.revision < bundle.rollback_floor
+        || anchor.revision > bundle.revision
+        || anchor.revision < request.minimum_revision
+        || anchor.revision > artifact_revision
+    {
+        return Err(TrustError::InvalidRevision);
+    }
+    if let Some(expected_constraints_digest) = request.anchor_constraints_digest {
+        let actual_constraints_digest: [u8; 32] = Sha256::digest(&anchor.constraints).into();
+        if actual_constraints_digest != expected_constraints_digest {
+            return Err(TrustError::AnchorConstraintMismatch);
+        }
+    }
+    Ok(anchor)
+}
+
 #[cfg(test)]
 fn authenticate_bundle(
     bundle: &TrustBundle,
@@ -1277,19 +1688,17 @@ fn authenticate_bundle(
     if bundle.provider != request.provider || bundle.profile != request.profile {
         return Err(TrustError::ProviderProfileMismatch);
     }
-    if bundle.revision < request.minimum_revision {
-        return Err(TrustError::RollbackRejected);
-    }
     validate_window(bundle.issued_at, bundle.expires_at, now_secs)?;
-    let signer = bundle
-        .anchor(&bundle.signer_anchor_id)
-        .ok_or(TrustError::InvalidSignature)?;
-    if signer.revocation_status != RevocationStatus::Good
-        || signer.tcb_status != TcbStatus::Good
-        || signer.signature_algorithm != bundle.signature_algorithm
-    {
-        return Err(TrustError::StatusNotAuthorizable);
-    }
+    let signer = authorize_signer_anchor(
+        bundle,
+        &bundle.signer_anchor_id,
+        &request.provider,
+        &request.profile,
+        bundle.signature_algorithm,
+        bundle.revision,
+        request,
+        now_secs,
+    )?;
     verify_signature(
         bundle.signature_algorithm,
         &signer.public_key,
@@ -1327,12 +1736,16 @@ fn verify_collateral(
         return Err(TrustError::InvalidRevision);
     }
     validate_window(collateral.issued_at, collateral.expires_at, now_secs)?;
-    let signer = trust_bundle
-        .anchor(&collateral.signer_anchor_id)
-        .ok_or(TrustError::InvalidSignature)?;
-    if signer.signature_algorithm != collateral.signature_algorithm {
-        return Err(TrustError::InvalidSignature);
-    }
+    let signer = authorize_signer_anchor(
+        &trust_bundle.bundle,
+        &collateral.signer_anchor_id,
+        &collateral.provider,
+        &collateral.profile,
+        collateral.signature_algorithm,
+        collateral.revision,
+        request,
+        now_secs,
+    )?;
     verify_signature(
         collateral.signature_algorithm,
         &signer.public_key,
@@ -1342,7 +1755,6 @@ fn verify_collateral(
     Ok(VerifiedCollateralSnapshot {
         digest: collateral.digest()?,
         snapshot: collateral.clone(),
-        signer_public_key: signer.public_key.clone(),
     })
 }
 
@@ -1350,6 +1762,7 @@ fn verify_collateral(
 fn verify_evidence(
     evidence: &AttestationEvidence,
     collateral: &VerifiedCollateralSnapshot,
+    trust_bundle: &VerifiedTrustBundle,
     context: &ProofVerificationContext,
     request: &TrustVerificationRequest,
     now_secs: u64,
@@ -1367,6 +1780,9 @@ fn verify_evidence(
     if evidence.mechanism != request.mechanism || evidence.mechanism != collateral.mechanism() {
         return Err(TrustError::MechanismMismatch);
     }
+    if evidence.verifier_id != request.verifier_id {
+        return Err(TrustError::VerifierMismatch);
+    }
     if evidence.trust_bundle_revision != collateral.snapshot.trust_bundle_revision
         || evidence.collateral_revision != collateral.revision()
     {
@@ -1380,15 +1796,24 @@ fn verify_evidence(
         return Err(TrustError::InvalidPayload);
     }
     validate_window(evidence.issued_at, evidence.expires_at, now_secs)?;
-    let signer = collateral.snapshot.signer_anchor_id.as_str();
-    if evidence.signer_anchor_id != signer
+    if evidence.signer_anchor_id != collateral.snapshot.signer_anchor_id
         || evidence.signature_algorithm != collateral.snapshot.signature_algorithm
     {
         return Err(TrustError::InvalidSignature);
     }
+    let signer = authorize_signer_anchor(
+        &trust_bundle.bundle,
+        &evidence.signer_anchor_id,
+        &evidence.provider,
+        &evidence.profile,
+        evidence.signature_algorithm,
+        evidence.collateral_revision,
+        request,
+        now_secs,
+    )?;
     verify_signature(
         evidence.signature_algorithm,
-        &collateral.signer_public_key,
+        &signer.public_key,
         &evidence.signed_canonical_bytes()?,
         &evidence.signature,
     )?;
@@ -1398,19 +1823,19 @@ fn verify_evidence(
     })
 }
 
-/// Authenticate a bundle through the supplied route using the trusted clock.
+/// Authenticate a bundle through the supplied route using the process-global
+/// monotonic production clock.
 pub fn authenticate_trust_bundle(
     bundle: &TrustBundle,
     authenticator: &dyn TrustAuthenticator,
     request: &TrustVerificationRequest,
-    clock: &dyn TrustedClock,
 ) -> TrustResult<VerifiedTrustBundle> {
-    let now_secs = clock.now_secs()?;
+    let now_secs = SystemTrustedClock.now_secs()?;
     authenticator.authenticate(bundle, request, now_secs)
 }
 
 /// Normalize verified evidence into a privacy-safe result. The trusted clock
-/// is read before invoking the authenticator or verifier.
+/// is obtained internally before invoking the authenticator or verifier.
 #[allow(clippy::too_many_arguments)]
 pub fn normalize_attestation_result(
     evidence: &AttestationEvidence,
@@ -1421,20 +1846,60 @@ pub fn normalize_attestation_result(
     request: &TrustVerificationRequest,
     authenticator: &dyn TrustAuthenticator,
     verifier: &dyn TrustVerifier,
+) -> TrustResult<AttestationResult> {
+    normalize_attestation_result_with_clock(
+        evidence,
+        collateral,
+        trust_bundle,
+        context,
+        policy,
+        request,
+        authenticator,
+        verifier,
+        &SystemTrustedClock,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn normalize_attestation_result_with_clock(
+    evidence: &AttestationEvidence,
+    collateral: &CollateralSnapshot,
+    trust_bundle: &TrustBundle,
+    context: &ProofVerificationContext,
+    policy: &ProofPolicy,
+    request: &TrustVerificationRequest,
+    authenticator: &dyn TrustAuthenticator,
+    verifier: &dyn TrustVerifier,
     clock: &dyn TrustedClock,
 ) -> TrustResult<AttestationResult> {
+    request.validate()?;
+    context.validate().map_err(|_| TrustError::InvalidPayload)?;
+    trust_bundle.validate()?;
+    collateral.validate()?;
+    evidence.validate()?;
+    if evidence.provider != request.provider || evidence.profile != request.profile {
+        return Err(TrustError::ProviderProfileMismatch);
+    }
+    validate_exact_policy(policy, evidence.mechanism, &evidence.verifier_id, request)?;
     let now_secs = clock.now_secs()?;
     let verified_bundle = authenticator.authenticate(trust_bundle, request, now_secs)?;
     let verified_collateral =
         verifier.verify_collateral(collateral, &verified_bundle, request, now_secs)?;
-    let verified_evidence =
-        verifier.verify_evidence(evidence, &verified_collateral, context, request, now_secs)?;
+    let verified_evidence = verifier.verify_evidence(
+        evidence,
+        &verified_collateral,
+        &verified_bundle,
+        context,
+        request,
+        now_secs,
+    )?;
     AttestationResult::from_verified(
         verified_evidence,
         verified_bundle,
         verified_collateral,
         context,
         policy,
+        request,
         now_secs,
     )
 }
@@ -1447,6 +1912,7 @@ pub struct AttestationResult {
     provider: String,
     profile: String,
     mechanism: ProofKind,
+    verifier_id: String,
     subject_digest: [u8; 32],
     key_identity_digest: [u8; 32],
     context: ProofVerificationContext,
@@ -1470,6 +1936,7 @@ impl fmt::Debug for AttestationResult {
             .field("provider", &self.provider)
             .field("profile", &self.profile)
             .field("mechanism", &self.mechanism)
+            .field("verifier_id", &self.verifier_id)
             .field("subject_digest", &self.subject_digest)
             .field("key_identity_digest", &self.key_identity_digest)
             .field("context", &self.context)
@@ -1495,10 +1962,16 @@ impl AttestationResult {
         collateral: VerifiedCollateralSnapshot,
         context: &ProofVerificationContext,
         policy: &ProofPolicy,
+        request: &TrustVerificationRequest,
         verified_at: u64,
     ) -> TrustResult<Self> {
         context.validate().map_err(|_| TrustError::InvalidPayload)?;
-        policy.validate().map_err(|_| TrustError::InvalidPayload)?;
+        validate_exact_policy(
+            policy,
+            evidence.mechanism(),
+            evidence.verifier_id(),
+            request,
+        )?;
         let context_binding_digest = context
             .binding_digest()
             .map_err(|_| TrustError::InvalidPayload)?;
@@ -1515,11 +1988,15 @@ impl AttestationResult {
         if evidence.mechanism() != collateral.mechanism() {
             return Err(TrustError::MechanismMismatch);
         }
+        if evidence.verifier_id() != request.verifier_id() {
+            return Err(TrustError::VerifierMismatch);
+        }
         let policy_digest = policy.digest().map_err(|_| TrustError::InvalidPayload)?;
         let mut result = Self {
             provider: evidence.provider().to_owned(),
             profile: evidence.profile().to_owned(),
             mechanism: evidence.mechanism(),
+            verifier_id: evidence.verifier_id().to_owned(),
             subject_digest: evidence.subject_digest(),
             key_identity_digest: evidence.key_identity_digest(),
             context: context.clone(),
@@ -1535,17 +2012,58 @@ impl AttestationResult {
             verified_at,
             result_digest: [0; 32],
         };
-        result.result_digest = Sha256::digest(result.canonical_bytes()?).into();
+        result.result_digest = Sha256::digest(result.canonical_bytes_unchecked()?).into();
         Ok(result)
     }
 
-    fn canonical_bytes(&self) -> TrustResult<Vec<u8>> {
+    fn validate(&self) -> TrustResult<()> {
+        validate_identifier(&self.provider)?;
+        validate_identifier(&self.profile)?;
+        validate_identifier(&self.verifier_id)?;
+        self.context
+            .validate()
+            .map_err(|_| TrustError::InvalidPayload)?;
+        validate_canonical_statuses(self.revocation_status, self.tcb_status)?;
+        if self.verifier_id != self.mechanism.production_verifier_id()
+            || self.issued_at > self.expires_at
+            || self.verified_at < self.issued_at
+            || self.verified_at > self.expires_at
+        {
+            return Err(TrustError::InvalidPayload);
+        }
+        let context_binding_digest = self
+            .context
+            .binding_digest()
+            .map_err(|_| TrustError::InvalidPayload)?;
+        if self.context_binding_digest != context_binding_digest {
+            return Err(TrustError::DigestMismatch);
+        }
+        let expected_policy_digest = ProofPolicy::production()
+            .digest()
+            .map_err(|_| TrustError::InvalidPayload)?;
+        if self.policy_digest != expected_policy_digest {
+            return Err(TrustError::PolicyNotAuthorizable);
+        }
+        let expected_result_digest: [u8; 32] =
+            Sha256::digest(self.canonical_bytes_unchecked()?).into();
+        if self.result_digest != expected_result_digest {
+            return Err(TrustError::DigestMismatch);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn validate_for_authorization(&self) -> TrustResult<()> {
+        self.validate()
+    }
+
+    fn canonical_bytes_unchecked(&self) -> TrustResult<Vec<u8>> {
         let mut output = Vec::new();
         append_len_prefixed(&mut output, ATTESTATION_RESULT_DOMAIN.as_bytes())?;
         output.extend_from_slice(&TRUST_CONTRACT_VERSION.to_be_bytes());
         append_identifier(&mut output, &self.provider)?;
         append_identifier(&mut output, &self.profile)?;
         output.push(self.mechanism.canonical_tag());
+        append_identifier(&mut output, &self.verifier_id)?;
         append_digest(&mut output, &self.subject_digest)?;
         append_digest(&mut output, &self.key_identity_digest)?;
         append_digest(&mut output, &self.context_binding_digest)?;
@@ -1578,6 +2096,10 @@ impl AttestationResult {
 
     pub fn mechanism(&self) -> ProofKind {
         self.mechanism
+    }
+
+    pub fn verifier_id(&self) -> &str {
+        &self.verifier_id
     }
 
     pub fn subject_digest(&self) -> [u8; 32] {
@@ -1648,7 +2170,7 @@ impl AttestationResult {
         self.result_digest
     }
 
-    pub fn is_authorizable_at(&self, now_secs: u64) -> bool {
+    pub(crate) fn is_authorizable_at(&self, now_secs: u64) -> bool {
         self.revocation_status.is_authorizable()
             && self.tcb_status.is_authorizable()
             && self.issued_at <= now_secs
@@ -1660,6 +2182,7 @@ impl AttestationResult {
             provider_digest: digest_identifier(&self.provider),
             profile_digest: digest_identifier(&self.profile),
             mechanism: self.mechanism,
+            verifier_id_digest: digest_identifier(&self.verifier_id),
             subject_digest: self.subject_digest,
             key_identity_digest: self.key_identity_digest,
             operation_digest: self.operation_digest(),
@@ -1687,6 +2210,7 @@ pub struct AttestationAuditMetadata {
     pub provider_digest: [u8; 32],
     pub profile_digest: [u8; 32],
     pub mechanism: ProofKind,
+    pub verifier_id_digest: [u8; 32],
     pub subject_digest: [u8; 32],
     pub key_identity_digest: [u8; 32],
     pub operation_digest: [u8; 32],
@@ -1709,21 +2233,27 @@ pub fn deserialize_trust_bundle_json(input: &[u8]) -> TrustResult<TrustBundle> {
     if input.len() > MAX_TRUST_TRANSPORT_BYTES {
         return Err(TrustError::InvalidPayload);
     }
-    serde_json::from_slice(input).map_err(|_| TrustError::InvalidPayload)
+    serde_json::from_slice::<TrustBundleWire>(input)
+        .map(TrustBundle::from)
+        .map_err(|_| TrustError::InvalidPayload)
 }
 
 pub fn deserialize_collateral_snapshot_json(input: &[u8]) -> TrustResult<CollateralSnapshot> {
     if input.len() > MAX_TRUST_TRANSPORT_BYTES {
         return Err(TrustError::InvalidPayload);
     }
-    serde_json::from_slice(input).map_err(|_| TrustError::InvalidPayload)
+    serde_json::from_slice::<CollateralSnapshotWire>(input)
+        .map(CollateralSnapshot::from)
+        .map_err(|_| TrustError::InvalidPayload)
 }
 
 pub fn deserialize_attestation_evidence_json(input: &[u8]) -> TrustResult<AttestationEvidence> {
     if input.len() > MAX_TRUST_TRANSPORT_BYTES {
         return Err(TrustError::InvalidPayload);
     }
-    serde_json::from_slice(input).map_err(|_| TrustError::InvalidPayload)
+    serde_json::from_slice::<AttestationEvidenceWire>(input)
+        .map(AttestationEvidence::from)
+        .map_err(|_| TrustError::InvalidPayload)
 }
 
 #[cfg(test)]
@@ -1814,6 +2344,7 @@ fn fixture_evidence(
         provider: bundle.provider.clone(),
         profile: bundle.profile.clone(),
         mechanism: ProofKind::Tee,
+        verifier_id: ProofKind::Tee.production_verifier_id().to_string(),
         trust_bundle_revision: bundle.revision,
         collateral_revision: collateral.revision,
         subject_digest: [1; 32],
@@ -1833,6 +2364,40 @@ fn fixture_evidence(
         Sha256::digest(evidence.payload_canonical_bytes().expect("fixture")).into();
     evidence.signature = sign_ed25519(key, &evidence.signed_canonical_bytes().expect("fixture"));
     evidence
+}
+
+#[cfg(test)]
+fn resign_bundle(key: &SigningKey, bundle: &mut TrustBundle) {
+    bundle.payload_digest =
+        Sha256::digest(bundle.payload_canonical_bytes().expect("fixture payload")).into();
+    bundle.signature = sign_ed25519(
+        key,
+        &bundle.signed_canonical_bytes().expect("fixture signed"),
+    );
+}
+
+#[cfg(test)]
+fn resign_collateral(key: &SigningKey, collateral: &mut CollateralSnapshot) {
+    collateral.payload_digest = Sha256::digest(
+        collateral
+            .payload_canonical_bytes()
+            .expect("fixture payload"),
+    )
+    .into();
+    collateral.signature = sign_ed25519(
+        key,
+        &collateral.signed_canonical_bytes().expect("fixture signed"),
+    );
+}
+
+#[cfg(test)]
+fn resign_evidence(key: &SigningKey, evidence: &mut AttestationEvidence) {
+    evidence.evidence_digest =
+        Sha256::digest(evidence.payload_canonical_bytes().expect("fixture payload")).into();
+    evidence.signature = sign_ed25519(
+        key,
+        &evidence.signed_canonical_bytes().expect("fixture signed"),
+    );
 }
 
 #[cfg(test)]
@@ -1877,11 +2442,78 @@ impl TrustVerifier for FixtureTrustVerifier {
         &self,
         evidence: &AttestationEvidence,
         collateral: &VerifiedCollateralSnapshot,
+        trust_bundle: &VerifiedTrustBundle,
         context: &ProofVerificationContext,
         request: &TrustVerificationRequest,
         now_secs: u64,
     ) -> TrustResult<VerifiedAttestationEvidence> {
-        verify_evidence(evidence, collateral, context, request, now_secs)
+        verify_evidence(
+            evidence,
+            collateral,
+            trust_bundle,
+            context,
+            request,
+            now_secs,
+        )
+    }
+}
+
+#[cfg(test)]
+struct CountingTrustAuthenticator {
+    calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
+#[cfg(test)]
+impl TrustAuthenticator for CountingTrustAuthenticator {
+    fn status(&self) -> TrustAuthenticatorStatus {
+        TrustAuthenticatorStatus::TestOnly
+    }
+
+    fn authenticate(
+        &self,
+        _bundle: &TrustBundle,
+        _request: &TrustVerificationRequest,
+        _now_secs: u64,
+    ) -> TrustResult<VerifiedTrustBundle> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        Err(TrustError::AuthenticatorUnavailable)
+    }
+}
+
+#[cfg(test)]
+struct CountingTrustVerifier {
+    collateral_calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    evidence_calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
+#[cfg(test)]
+impl TrustVerifier for CountingTrustVerifier {
+    fn status(&self) -> TrustVerifierStatus {
+        TrustVerifierStatus::TestOnly
+    }
+
+    fn verify_collateral(
+        &self,
+        _collateral: &CollateralSnapshot,
+        _trust_bundle: &VerifiedTrustBundle,
+        _request: &TrustVerificationRequest,
+        _now_secs: u64,
+    ) -> TrustResult<VerifiedCollateralSnapshot> {
+        self.collateral_calls.fetch_add(1, Ordering::Relaxed);
+        Err(TrustError::VerifierUnavailable)
+    }
+
+    fn verify_evidence(
+        &self,
+        _evidence: &AttestationEvidence,
+        _collateral: &VerifiedCollateralSnapshot,
+        _trust_bundle: &VerifiedTrustBundle,
+        _context: &ProofVerificationContext,
+        _request: &TrustVerificationRequest,
+        _now_secs: u64,
+    ) -> TrustResult<VerifiedAttestationEvidence> {
+        self.evidence_calls.fetch_add(1, Ordering::Relaxed);
+        Err(TrustError::VerifierUnavailable)
     }
 }
 
@@ -1919,16 +2551,8 @@ pub(crate) fn test_fixture_attestation_result(
     let request =
         TrustVerificationRequest::new("fixture-provider", "fixture-profile", ProofKind::Tee, 6)
             .expect("fixture request");
-    let policy = ProofPolicy::new(
-        vec![crate::enclave::proofs::ProofRequirement::new(
-            ProofKind::Tee,
-            ProofKind::Tee.production_verifier_id(),
-        )
-        .expect("fixture requirement")],
-        false,
-    )
-    .expect("fixture policy");
-    normalize_attestation_result(
+    let policy = ProofPolicy::production();
+    normalize_attestation_result_with_clock(
         &evidence,
         &collateral,
         &bundle,
@@ -1943,9 +2567,27 @@ pub(crate) fn test_fixture_attestation_result(
 }
 
 #[cfg(test)]
+pub(crate) fn test_fixture_attestation_result_with_window(
+    issued_at: u64,
+    expires_at: u64,
+    verified_at: u64,
+) -> AttestationResult {
+    let mut result = test_fixture_attestation_result(100, RevocationStatus::Good, TcbStatus::Good);
+    result.issued_at = issued_at;
+    result.expires_at = expires_at;
+    result.verified_at = verified_at;
+    result.result_digest = Sha256::digest(
+        result
+            .canonical_bytes_unchecked()
+            .expect("fixture result canonical bytes"),
+    )
+    .into();
+    result
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::enclave::proofs::ProofRequirement;
 
     fn fixture() -> (
         SigningKey,
@@ -1973,14 +2615,7 @@ mod tests {
         let request =
             TrustVerificationRequest::new("fixture-provider", "fixture-profile", ProofKind::Tee, 6)
                 .expect("request");
-        let policy = ProofPolicy::new(
-            vec![
-                ProofRequirement::new(ProofKind::Tee, ProofKind::Tee.production_verifier_id())
-                    .expect("requirement"),
-            ],
-            false,
-        )
-        .expect("policy");
+        let policy = ProofPolicy::production();
         (
             key,
             bundle,
@@ -2002,7 +2637,7 @@ mod tests {
         policy: &ProofPolicy,
         clock: &FixtureClock,
     ) -> TrustResult<AttestationResult> {
-        normalize_attestation_result(
+        normalize_attestation_result_with_clock(
             evidence,
             collateral,
             bundle,
@@ -2053,6 +2688,474 @@ mod tests {
         assert_eq!(
             deserialize_trust_bundle_json(&bytes),
             Err(TrustError::InvalidPayload)
+        );
+
+        let key = SigningKey::from_bytes(&[7; 32]);
+        let mut many_anchors = fixture_bundle(&key, 100);
+        for index in 1..MAX_TRUST_ANCHORS {
+            let mut anchor = many_anchors.anchors[0].clone();
+            anchor.anchor_id = format!("fixture-anchor-{index}");
+            anchor.constraints = vec![index as u8; MAX_TRUST_CONSTRAINT_BYTES];
+            many_anchors.anchors.push(anchor);
+        }
+        let many_anchor_bytes = serde_json::to_vec(&many_anchors).expect("many anchors json");
+        assert!(many_anchor_bytes.len() > MAX_TRUST_TRANSPORT_BYTES);
+        assert_eq!(
+            deserialize_trust_bundle_json(&many_anchor_bytes),
+            Err(TrustError::InvalidPayload)
+        );
+
+        let large_unknown = serde_json::json!({
+            "unknown": "x".repeat(MAX_TRUST_TRANSPORT_BYTES)
+        });
+        let large_unknown_bytes = serde_json::to_vec(&large_unknown).expect("unknown json");
+        assert!(large_unknown_bytes.len() > MAX_TRUST_TRANSPORT_BYTES);
+        assert_eq!(
+            deserialize_trust_bundle_json(&large_unknown_bytes),
+            Err(TrustError::InvalidPayload)
+        );
+
+        let bundle = fixture_bundle(&key, 100);
+        let collateral = fixture_collateral(&key, 100, &bundle);
+        let context =
+            ProofVerificationContext::new([3; 32], "SIGN", "fixture-audience", vec![4; 16], 100)
+                .expect("context");
+        let evidence = fixture_evidence(&key, 100, &bundle, &collateral, &context);
+        let mut oversized_collateral = serde_json::to_value(&collateral).expect("collateral json");
+        oversized_collateral["payload"] = serde_json::Value::Array(vec![
+            serde_json::Value::from(0);
+            MAX_TRUST_PAYLOAD_BYTES + 1
+        ]);
+        let oversized_collateral_bytes =
+            serde_json::to_vec(&oversized_collateral).expect("oversized collateral json");
+        assert!(oversized_collateral_bytes.len() > MAX_TRUST_PAYLOAD_BYTES);
+        assert_eq!(
+            deserialize_collateral_snapshot_json(&oversized_collateral_bytes),
+            Err(TrustError::InvalidPayload)
+        );
+
+        let mut oversized_evidence = serde_json::to_value(&evidence).expect("evidence json");
+        oversized_evidence["evidence"] = serde_json::Value::Array(vec![
+            serde_json::Value::from(0);
+            MAX_TRUST_PAYLOAD_BYTES + 1
+        ]);
+        let oversized_evidence_bytes =
+            serde_json::to_vec(&oversized_evidence).expect("oversized evidence json");
+        assert!(oversized_evidence_bytes.len() > MAX_TRUST_PAYLOAD_BYTES);
+        assert_eq!(
+            deserialize_attestation_evidence_json(&oversized_evidence_bytes),
+            Err(TrustError::InvalidPayload)
+        );
+
+        let authenticator_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let collateral_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let evidence_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let authenticator = CountingTrustAuthenticator {
+            calls: std::sync::Arc::clone(&authenticator_calls),
+        };
+        let verifier = CountingTrustVerifier {
+            collateral_calls: std::sync::Arc::clone(&collateral_calls),
+            evidence_calls: std::sync::Arc::clone(&evidence_calls),
+        };
+        let request =
+            TrustVerificationRequest::new("fixture-provider", "fixture-profile", ProofKind::Tee, 6)
+                .expect("request");
+        let parse_then_verify =
+            deserialize_trust_bundle_json(&many_anchor_bytes).and_then(|parsed_bundle| {
+                normalize_attestation_result_with_clock(
+                    &evidence,
+                    &collateral,
+                    &parsed_bundle,
+                    &context,
+                    &ProofPolicy::production(),
+                    &request,
+                    &authenticator,
+                    &verifier,
+                    &FixtureClock { now_secs: 100 },
+                )
+            });
+        assert_eq!(parse_then_verify, Err(TrustError::InvalidPayload));
+        assert_eq!(authenticator_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(collateral_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(evidence_calls.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn only_exact_policy_and_verifier_identity_can_authorize() {
+        let (key, bundle, collateral, mut evidence, context, request, policy, clock) = fixture();
+
+        let rejected_policies = [
+            ProofPolicy::new(Vec::new(), UnlistedProofPolicy::Reject).expect("empty policy"),
+            ProofPolicy::new(Vec::new(), UnlistedProofPolicy::Allow).expect("optional policy"),
+            ProofPolicy::new(
+                vec![ProofRequirement::new(
+                    ProofKind::Tee,
+                    ProofKind::Tee.production_verifier_id(),
+                )
+                .expect("reduced requirement")],
+                UnlistedProofPolicy::Reject,
+            )
+            .expect("reduced policy"),
+            ProofPolicy::new(
+                ProofKind::all()
+                    .into_iter()
+                    .map(|kind| {
+                        ProofRequirement::new(
+                            kind,
+                            if kind == ProofKind::Tee {
+                                "wrong-verifier"
+                            } else {
+                                kind.production_verifier_id()
+                            },
+                        )
+                        .expect("wrong verifier requirement")
+                    })
+                    .collect(),
+                UnlistedProofPolicy::Reject,
+            )
+            .expect("wrong verifier policy"),
+        ];
+
+        for rejected_policy in rejected_policies {
+            assert_eq!(
+                verify_fixture(
+                    &bundle,
+                    &collateral,
+                    &evidence,
+                    &context,
+                    &request,
+                    &rejected_policy,
+                    &clock,
+                ),
+                Err(TrustError::PolicyNotAuthorizable)
+            );
+        }
+
+        assert_eq!(
+            TrustVerificationRequest::new_with_verifier(
+                "fixture-provider",
+                "fixture-profile",
+                ProofKind::Tee,
+                "wrong-verifier",
+                6,
+            ),
+            Err(TrustError::VerifierMismatch)
+        );
+
+        let wrong_mechanism_request = TrustVerificationRequest::new(
+            "fixture-provider",
+            "fixture-profile",
+            ProofKind::Server,
+            6,
+        )
+        .expect("wrong mechanism request");
+        assert_eq!(
+            verify_fixture(
+                &bundle,
+                &collateral,
+                &evidence,
+                &context,
+                &wrong_mechanism_request,
+                &policy,
+                &clock,
+            ),
+            Err(TrustError::MechanismMismatch)
+        );
+
+        evidence.verifier_id = "wrong-verifier".to_string();
+        resign_evidence(&key, &mut evidence);
+        assert_eq!(
+            verify_fixture(
+                &bundle,
+                &collateral,
+                &evidence,
+                &context,
+                &request,
+                &policy,
+                &clock,
+            ),
+            Err(TrustError::VerifierMismatch)
+        );
+
+        let authenticator_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let collateral_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let evidence_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let authenticator = CountingTrustAuthenticator {
+            calls: std::sync::Arc::clone(&authenticator_calls),
+        };
+        let verifier = CountingTrustVerifier {
+            collateral_calls: std::sync::Arc::clone(&collateral_calls),
+            evidence_calls: std::sync::Arc::clone(&evidence_calls),
+        };
+        let weak_policy =
+            ProofPolicy::new(Vec::new(), UnlistedProofPolicy::Allow).expect("weak policy");
+        assert_eq!(
+            normalize_attestation_result_with_clock(
+                &fixture().3,
+                &collateral,
+                &bundle,
+                &context,
+                &weak_policy,
+                &request,
+                &authenticator,
+                &verifier,
+                &clock,
+            ),
+            Err(TrustError::PolicyNotAuthorizable)
+        );
+        assert_eq!(authenticator_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(collateral_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(evidence_calls.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn signer_anchor_authorization_covers_rotation_status_validity_revision_and_constraints() {
+        let (old_key, bundle, collateral, evidence, context, request, policy, clock) = fixture();
+        let new_key = SigningKey::from_bytes(&[8; 32]);
+
+        let mut rotated_bundle = bundle.clone();
+        let mut rotated_anchor = fixture_anchor(&new_key, 100);
+        rotated_anchor.anchor_id = "fixture-rotated".to_string();
+        rotated_bundle.anchors.push(rotated_anchor);
+        resign_bundle(&old_key, &mut rotated_bundle);
+        let mut rotated_collateral = fixture_collateral(&new_key, 100, &rotated_bundle);
+        rotated_collateral.signer_anchor_id = "fixture-rotated".to_string();
+        resign_collateral(&new_key, &mut rotated_collateral);
+        let mut rotated_evidence = fixture_evidence(
+            &new_key,
+            100,
+            &rotated_bundle,
+            &rotated_collateral,
+            &context,
+        );
+        rotated_evidence.signer_anchor_id = "fixture-rotated".to_string();
+        resign_evidence(&new_key, &mut rotated_evidence);
+        verify_fixture(
+            &rotated_bundle,
+            &rotated_collateral,
+            &rotated_evidence,
+            &context,
+            &request,
+            &policy,
+            &clock,
+        )
+        .expect("overlapping anchor rotation should verify");
+
+        let expected_constraints: [u8; 32] = Sha256::digest(&bundle.anchors[0].constraints).into();
+        let constrained_request = request
+            .clone()
+            .with_anchor_constraints_digest(expected_constraints);
+        verify_fixture(
+            &bundle,
+            &collateral,
+            &evidence,
+            &context,
+            &constrained_request,
+            &policy,
+            &clock,
+        )
+        .expect("matching anchor constraints should verify");
+        let wrong_constraints_request = request.clone().with_anchor_constraints_digest([0; 32]);
+        assert_eq!(
+            verify_fixture(
+                &bundle,
+                &collateral,
+                &evidence,
+                &context,
+                &wrong_constraints_request,
+                &policy,
+                &clock,
+            ),
+            Err(TrustError::AnchorConstraintMismatch)
+        );
+
+        for status in [
+            RevocationStatus::Revoked,
+            RevocationStatus::Unknown,
+            RevocationStatus::Unavailable,
+            RevocationStatus::Expired,
+            RevocationStatus::NotYetValid,
+        ] {
+            let mut bad_bundle = bundle.clone();
+            bad_bundle.anchors[0].revocation_status = status;
+            resign_bundle(&old_key, &mut bad_bundle);
+            assert_eq!(
+                verify_fixture(
+                    &bad_bundle,
+                    &collateral,
+                    &evidence,
+                    &context,
+                    &request,
+                    &policy,
+                    &clock,
+                ),
+                Err(TrustError::StatusNotAuthorizable)
+            );
+        }
+        for status in [
+            TcbStatus::Revoked,
+            TcbStatus::Unknown,
+            TcbStatus::Unavailable,
+            TcbStatus::Expired,
+            TcbStatus::NotYetValid,
+        ] {
+            let mut bad_bundle = bundle.clone();
+            bad_bundle.anchors[0].tcb_status = status;
+            resign_bundle(&old_key, &mut bad_bundle);
+            assert_eq!(
+                verify_fixture(
+                    &bad_bundle,
+                    &collateral,
+                    &evidence,
+                    &context,
+                    &request,
+                    &policy,
+                    &clock,
+                ),
+                Err(TrustError::StatusNotAuthorizable)
+            );
+        }
+
+        let mut unsupported_bundle = bundle.clone();
+        unsupported_bundle.anchors[0].revocation_status = RevocationStatus::Unsupported;
+        assert_eq!(
+            unsupported_bundle.canonical_bytes(),
+            Err(TrustError::Unsupported)
+        );
+
+        let mut not_yet_valid = bundle.clone();
+        not_yet_valid.anchors[0].not_before = 101;
+        resign_bundle(&old_key, &mut not_yet_valid);
+        assert_eq!(
+            verify_fixture(
+                &not_yet_valid,
+                &collateral,
+                &evidence,
+                &context,
+                &request,
+                &policy,
+                &clock,
+            ),
+            Err(TrustError::InvalidValidityWindow)
+        );
+        let mut expired = bundle.clone();
+        expired.anchors[0].not_after = 99;
+        resign_bundle(&old_key, &mut expired);
+        assert_eq!(
+            verify_fixture(
+                &expired,
+                &collateral,
+                &evidence,
+                &context,
+                &request,
+                &policy,
+                &clock,
+            ),
+            Err(TrustError::InvalidValidityWindow)
+        );
+        let mut exact_boundary = bundle.clone();
+        exact_boundary.anchors[0].not_before = 100;
+        exact_boundary.anchors[0].not_after = 100;
+        resign_bundle(&old_key, &mut exact_boundary);
+        verify_fixture(
+            &exact_boundary,
+            &collateral,
+            &evidence,
+            &context,
+            &request,
+            &policy,
+            &clock,
+        )
+        .expect("inclusive anchor validity boundary should verify");
+
+        let mut below_floor = bundle.clone();
+        below_floor.anchors[0].revision = 5;
+        resign_bundle(&old_key, &mut below_floor);
+        assert_eq!(
+            verify_fixture(
+                &below_floor,
+                &collateral,
+                &evidence,
+                &context,
+                &request,
+                &policy,
+                &clock,
+            ),
+            Err(TrustError::InvalidRevision)
+        );
+        let mut ahead_of_bundle = bundle.clone();
+        ahead_of_bundle.anchors[0].revision = 8;
+        resign_bundle(&old_key, &mut ahead_of_bundle);
+        assert_eq!(
+            verify_fixture(
+                &ahead_of_bundle,
+                &collateral,
+                &evidence,
+                &context,
+                &request,
+                &policy,
+                &clock,
+            ),
+            Err(TrustError::InvalidRevision)
+        );
+        let high_revision_request =
+            TrustVerificationRequest::new("fixture-provider", "fixture-profile", ProofKind::Tee, 8)
+                .expect("high revision request");
+        assert_eq!(
+            verify_fixture(
+                &bundle,
+                &collateral,
+                &evidence,
+                &context,
+                &high_revision_request,
+                &policy,
+                &clock,
+            ),
+            Err(TrustError::InvalidRevision)
+        );
+
+        let mut unknown_signer_collateral = collateral.clone();
+        unknown_signer_collateral.signer_anchor_id = "fixture-unknown".to_string();
+        assert_eq!(
+            verify_fixture(
+                &bundle,
+                &unknown_signer_collateral,
+                &evidence,
+                &context,
+                &request,
+                &policy,
+                &clock,
+            ),
+            Err(TrustError::AnchorNotAuthorizable)
+        );
+
+        let mut other_provider_collateral = collateral.clone();
+        other_provider_collateral.provider = "other-provider".to_string();
+        resign_collateral(&old_key, &mut other_provider_collateral);
+        assert_eq!(
+            verify_fixture(
+                &bundle,
+                &other_provider_collateral,
+                &evidence,
+                &context,
+                &request,
+                &policy,
+                &clock,
+            ),
+            Err(TrustError::ProviderProfileMismatch)
+        );
+
+        let mut unsupported_collateral = collateral.clone();
+        unsupported_collateral.signature_algorithm = TrustSignatureAlgorithm::Unsupported;
+        assert_eq!(
+            unsupported_collateral.canonical_bytes(),
+            Err(TrustError::Unsupported)
+        );
+        let mut unsupported_evidence = evidence.clone();
+        unsupported_evidence.signature_algorithm = TrustSignatureAlgorithm::Unsupported;
+        assert_eq!(
+            unsupported_evidence.canonical_bytes(),
+            Err(TrustError::Unsupported)
         );
     }
 
@@ -2167,7 +3270,6 @@ mod tests {
             RevocationStatus::Unavailable,
             RevocationStatus::Expired,
             RevocationStatus::NotYetValid,
-            RevocationStatus::Unsupported,
         ] {
             let result = test_fixture_attestation_result(100, status, TcbStatus::Good);
             assert!(!result.is_authorizable_at(100));
@@ -2178,11 +3280,29 @@ mod tests {
             TcbStatus::Unavailable,
             TcbStatus::Expired,
             TcbStatus::NotYetValid,
-            TcbStatus::Unsupported,
         ] {
             let result = test_fixture_attestation_result(100, RevocationStatus::Good, status);
             assert!(!result.is_authorizable_at(100));
         }
+
+        let (key, bundle, collateral, mut evidence, context, request, policy, clock) = fixture();
+        evidence.revocation_status = RevocationStatus::Unsupported;
+        evidence.evidence_digest =
+            Sha256::digest(evidence.payload_canonical_bytes().expect("payload")).into();
+        evidence.signature =
+            sign_ed25519(&key, &evidence.signed_canonical_bytes().expect("signed"));
+        assert_eq!(
+            verify_fixture(
+                &bundle,
+                &collateral,
+                &evidence,
+                &context,
+                &request,
+                &policy,
+                &clock,
+            ),
+            Err(TrustError::Unsupported)
+        );
     }
 
     #[test]
@@ -2198,7 +3318,7 @@ mod tests {
         );
         let unavailable_clock = FixtureClock { now_secs: 0 };
         assert_eq!(
-            normalize_attestation_result(
+            normalize_attestation_result_with_clock(
                 &evidence,
                 &collateral,
                 &bundle,
@@ -2218,11 +3338,84 @@ mod tests {
         let result = test_fixture_attestation_result(100, RevocationStatus::Good, TcbStatus::Good);
         let mut changed = result.clone();
         changed.policy_digest[0] ^= 1;
-        let digest = Sha256::digest(changed.canonical_bytes().expect("canonical"));
+        let digest = Sha256::digest(changed.canonical_bytes_unchecked().expect("canonical"));
         assert_ne!(digest.as_slice(), result.result_digest());
         let mut changed_status = result.clone();
         changed_status.tcb_status = TcbStatus::Unknown;
-        let status_digest = Sha256::digest(changed_status.canonical_bytes().expect("canonical"));
+        let status_digest = Sha256::digest(
+            changed_status
+                .canonical_bytes_unchecked()
+                .expect("canonical"),
+        );
         assert_ne!(status_digest.as_slice(), result.result_digest());
+    }
+
+    #[test]
+    fn public_canonical_bytes_require_complete_validation() {
+        let (_key, bundle, collateral, evidence, _context, _request, _policy, _clock) = fixture();
+
+        let mut bad_bundle_digest = bundle.clone();
+        bad_bundle_digest.payload_digest[0] ^= 1;
+        assert_eq!(
+            bad_bundle_digest.canonical_bytes(),
+            Err(TrustError::DigestMismatch)
+        );
+        let mut bad_bundle_window = bundle.clone();
+        bad_bundle_window.expires_at = bad_bundle_window.issued_at - 1;
+        assert_eq!(
+            bad_bundle_window.canonical_bytes(),
+            Err(TrustError::InvalidPayload)
+        );
+        let mut bad_bundle_version = bundle.clone();
+        bad_bundle_version.version = TRUST_CONTRACT_VERSION + 1;
+        assert_eq!(
+            bad_bundle_version.digest(),
+            Err(TrustError::UnsupportedVersion)
+        );
+
+        let mut bad_collateral_digest = collateral.clone();
+        bad_collateral_digest.payload[0] ^= 1;
+        assert_eq!(
+            bad_collateral_digest.canonical_bytes(),
+            Err(TrustError::DigestMismatch)
+        );
+        let mut bad_collateral_status = collateral.clone();
+        bad_collateral_status.revocation_status = RevocationStatus::Unsupported;
+        assert_eq!(
+            bad_collateral_status.canonical_bytes(),
+            Err(TrustError::Unsupported)
+        );
+
+        let mut bad_evidence_digest = evidence.clone();
+        bad_evidence_digest.evidence[0] ^= 1;
+        assert_eq!(
+            bad_evidence_digest.canonical_bytes(),
+            Err(TrustError::DigestMismatch)
+        );
+        let mut bad_evidence_window = evidence.clone();
+        bad_evidence_window.expires_at = bad_evidence_window.issued_at - 1;
+        assert_eq!(
+            bad_evidence_window.canonical_bytes(),
+            Err(TrustError::InvalidPayload)
+        );
+        let mut bad_evidence_status = evidence.clone();
+        bad_evidence_status.tcb_status = TcbStatus::Unsupported;
+        assert_eq!(bad_evidence_status.digest(), Err(TrustError::Unsupported));
+
+        let mut bad_anchor = bundle.anchors[0].clone();
+        bad_anchor.signature_algorithm = TrustSignatureAlgorithm::Unsupported;
+        assert_eq!(bad_anchor.canonical_bytes(), Err(TrustError::Unsupported));
+    }
+
+    #[test]
+    fn monotonic_time_rejects_rollback_and_accepts_forward_observations() {
+        let high_water = AtomicU64::new(199);
+        assert_eq!(observe_monotonic_time(&high_water, 199), Ok(199));
+        assert_eq!(
+            observe_monotonic_time(&high_water, 150),
+            Err(TrustError::ClockRollback)
+        );
+        assert_eq!(observe_monotonic_time(&high_water, 201), Ok(201));
+        assert_eq!(high_water.load(Ordering::Acquire), 201);
     }
 }

@@ -11,8 +11,11 @@ use crate::enclave::trust::{AttestationResult, TrustError, TrustedClock};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 #[cfg(test)]
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt;
+#[cfg(test)]
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 #[cfg(test)]
 use std::sync::Mutex;
@@ -84,6 +87,7 @@ pub struct DurableReplayIdentity {
     provider: String,
     profile: String,
     mechanism: ProofKind,
+    verifier_id: String,
     subject_digest: [u8; 32],
     key_identity_digest: [u8; 32],
     operation_digest: [u8; 32],
@@ -105,6 +109,7 @@ impl fmt::Debug for DurableReplayIdentity {
             .field("provider", &self.provider)
             .field("profile", &self.profile)
             .field("mechanism", &self.mechanism)
+            .field("verifier_id", &self.verifier_id)
             .field("subject_digest", &self.subject_digest)
             .field("key_identity_digest", &self.key_identity_digest)
             .field("operation_digest", &self.operation_digest)
@@ -138,11 +143,49 @@ impl DurableReplayIdentity {
         collateral_digest: [u8; 32],
         expires_at: u64,
     ) -> DurableReplayResult<Self> {
+        Self::new_with_verifier(
+            provider,
+            profile,
+            mechanism,
+            mechanism.production_verifier_id(),
+            subject_digest,
+            key_identity_digest,
+            operation_digest,
+            nonce_digest,
+            purpose,
+            audience,
+            policy_digest,
+            evidence_digest,
+            trust_bundle_digest,
+            collateral_digest,
+            expires_at,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_verifier(
+        provider: impl Into<String>,
+        profile: impl Into<String>,
+        mechanism: ProofKind,
+        verifier_id: impl Into<String>,
+        subject_digest: [u8; 32],
+        key_identity_digest: [u8; 32],
+        operation_digest: [u8; 32],
+        nonce_digest: [u8; 32],
+        purpose: impl Into<String>,
+        audience: impl Into<String>,
+        policy_digest: [u8; 32],
+        evidence_digest: [u8; 32],
+        trust_bundle_digest: [u8; 32],
+        collateral_digest: [u8; 32],
+        expires_at: u64,
+    ) -> DurableReplayResult<Self> {
         let identity = Self {
             version: DURABLE_REPLAY_CONTRACT_VERSION,
             provider: provider.into(),
             profile: profile.into(),
             mechanism,
+            verifier_id: verifier_id.into(),
             subject_digest,
             key_identity_digest,
             operation_digest,
@@ -160,10 +203,11 @@ impl DurableReplayIdentity {
     }
 
     pub fn from_attestation_result(result: &AttestationResult) -> DurableReplayResult<Self> {
-        Self::new(
+        Self::new_with_verifier(
             result.provider(),
             result.profile(),
             result.mechanism(),
+            result.verifier_id(),
             result.subject_digest(),
             result.key_identity_digest(),
             result.operation_digest(),
@@ -184,8 +228,12 @@ impl DurableReplayIdentity {
         }
         validate_identifier(&self.provider)?;
         validate_identifier(&self.profile)?;
+        validate_identifier(&self.verifier_id)?;
         validate_identifier(&self.purpose)?;
         validate_identifier(&self.audience)?;
+        if self.verifier_id != self.mechanism.production_verifier_id() {
+            return Err(DurableReplayError::InvalidPayload);
+        }
         Ok(())
     }
 
@@ -197,6 +245,7 @@ impl DurableReplayIdentity {
         append_identifier(&mut output, &self.provider)?;
         append_identifier(&mut output, &self.profile)?;
         output.push(self.mechanism.canonical_tag());
+        append_identifier(&mut output, &self.verifier_id)?;
         append_digest(&mut output, &self.subject_digest)?;
         append_digest(&mut output, &self.key_identity_digest)?;
         append_digest(&mut output, &self.operation_digest)?;
@@ -225,6 +274,10 @@ impl DurableReplayIdentity {
 
     pub fn mechanism(&self) -> ProofKind {
         self.mechanism
+    }
+
+    pub fn verifier_id(&self) -> &str {
+        &self.verifier_id
     }
 
     pub fn subject_digest(&self) -> [u8; 32] {
@@ -439,6 +492,7 @@ impl DurableReplayAuthorization {
 pub struct DurableReplayAuthorizer {
     store: Arc<dyn DurableReplayStore>,
     clock: Arc<dyn TrustedClock>,
+    last_observed_secs: AtomicU64,
 }
 
 impl fmt::Debug for DurableReplayAuthorizer {
@@ -452,8 +506,12 @@ impl fmt::Debug for DurableReplayAuthorizer {
 }
 
 impl DurableReplayAuthorizer {
-    pub fn new(store: Arc<dyn DurableReplayStore>, clock: Arc<dyn TrustedClock>) -> Self {
-        Self { store, clock }
+    pub(crate) fn new(store: Arc<dyn DurableReplayStore>, clock: Arc<dyn TrustedClock>) -> Self {
+        Self {
+            store,
+            clock,
+            last_observed_secs: AtomicU64::new(0),
+        }
     }
 
     pub fn production() -> Self {
@@ -467,6 +525,9 @@ impl DurableReplayAuthorizer {
         &self,
         result: &AttestationResult,
     ) -> DurableReplayResult<DurableReplayIdentity> {
+        result
+            .validate_for_authorization()
+            .map_err(|_| DurableReplayError::NotAuthorizable)?;
         if !result.revocation_status().is_authorizable() || !result.tcb_status().is_authorizable() {
             return Err(DurableReplayError::NotAuthorizable);
         }
@@ -478,7 +539,8 @@ impl DurableReplayAuthorizer {
         result: &AttestationResult,
         idempotency_key: IdempotencyKey,
     ) -> DurableReplayResult<DurableReplayAuthorization> {
-        let now_secs = self.clock.now_secs().map_err(map_clock_error)?;
+        let observed_secs = self.clock.now_secs().map_err(map_clock_error)?;
+        let now_secs = self.observe_monotonic_time(observed_secs)?;
         if !result.is_authorizable_at(now_secs) {
             return Err(DurableReplayError::NotAuthorizable);
         }
@@ -500,6 +562,27 @@ impl DurableReplayAuthorizer {
             DurableReplayOutcome::ConflictingRequest => Err(DurableReplayError::ConflictingRequest),
             DurableReplayOutcome::Unavailable => Err(DurableReplayError::StoreUnavailable),
             DurableReplayOutcome::UncertainCommit => Err(DurableReplayError::UncertainCommit),
+        }
+    }
+
+    fn observe_monotonic_time(&self, observed_secs: u64) -> DurableReplayResult<u64> {
+        let mut previous = self.last_observed_secs.load(Ordering::Acquire);
+        loop {
+            if observed_secs < previous {
+                return Err(DurableReplayError::ClockRollback);
+            }
+            if observed_secs == previous {
+                return Ok(observed_secs);
+            }
+            match self.last_observed_secs.compare_exchange_weak(
+                previous,
+                observed_secs,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return Ok(observed_secs),
+                Err(actual) => previous = actual,
+            }
         }
     }
 }
@@ -575,9 +658,55 @@ impl TrustedClock for FixtureClock {
 }
 
 #[cfg(test)]
+struct SequenceClock {
+    observations: Mutex<VecDeque<Result<u64, TrustError>>>,
+}
+
+#[cfg(test)]
+impl SequenceClock {
+    fn new(observations: impl IntoIterator<Item = Result<u64, TrustError>>) -> Self {
+        Self {
+            observations: Mutex::new(observations.into_iter().collect()),
+        }
+    }
+}
+
+#[cfg(test)]
+impl TrustedClock for SequenceClock {
+    fn now_secs(&self) -> Result<u64, TrustError> {
+        self.observations
+            .lock()
+            .map_err(|_| TrustError::ClockUnavailable)?
+            .pop_front()
+            .unwrap_or(Err(TrustError::ClockUnavailable))
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug, Default)]
+struct CountingStore {
+    calls: AtomicUsize,
+}
+
+#[cfg(test)]
+impl DurableReplayStore for CountingStore {
+    fn consume_once(
+        &self,
+        _request: &DurableReplayRequest,
+        _now_secs: u64,
+    ) -> DurableReplayResult<DurableReplayOutcome> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        Ok(DurableReplayOutcome::Consumed)
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::enclave::trust::{test_fixture_attestation_result, RevocationStatus, TcbStatus};
+    use crate::enclave::trust::{
+        test_fixture_attestation_result, test_fixture_attestation_result_with_window,
+        RevocationStatus, TcbStatus,
+    };
     use std::thread;
 
     fn identity() -> DurableReplayIdentity {
@@ -990,6 +1119,91 @@ mod tests {
             store.consume_once(&request, 201),
             Err(DurableReplayError::Expired)
         );
+    }
+
+    #[test]
+    fn authorizer_rejects_expiry_and_rollback_before_store_invocation() {
+        let result = test_fixture_attestation_result_with_window(100, 200, 100);
+        let store = Arc::new(CountingStore::default());
+        let clock = Arc::new(SequenceClock::new([Ok(199), Ok(201), Ok(150)]));
+        let authorizer = DurableReplayAuthorizer::new(store.clone(), clock);
+        let key = || IdempotencyKey::new(vec![1]).expect("key");
+
+        assert_eq!(
+            authorizer.consume_once(&result, key()),
+            Ok(DurableReplayAuthorization {
+                identity_digest: authorizer
+                    .identity_for(&result)
+                    .expect("identity")
+                    .digest()
+                    .expect("digest"),
+                idempotency_key_digest: key().digest(),
+                outcome: DurableReplayOutcome::Consumed,
+                expires_at: 200,
+            })
+        );
+        assert_eq!(
+            authorizer.consume_once(&result, key()),
+            Err(DurableReplayError::NotAuthorizable)
+        );
+        assert_eq!(
+            authorizer.consume_once(&result, key()),
+            Err(DurableReplayError::ClockRollback)
+        );
+        assert_eq!(store.calls.load(Ordering::Relaxed), 1);
+
+        let future_result = test_fixture_attestation_result_with_window(201, 300, 201);
+        let future_store = Arc::new(CountingStore::default());
+        let future_authorizer = DurableReplayAuthorizer::new(
+            future_store.clone(),
+            Arc::new(FixtureClock { now_secs: 200 }),
+        );
+        assert_eq!(
+            future_authorizer.consume_once(&future_result, key()),
+            Err(DurableReplayError::NotAuthorizable)
+        );
+        assert_eq!(future_store.calls.load(Ordering::Relaxed), 0);
+
+        let clock_error_store = Arc::new(CountingStore::default());
+        let clock_error_authorizer = DurableReplayAuthorizer::new(
+            clock_error_store.clone(),
+            Arc::new(SequenceClock::new([Err(TrustError::ClockUnavailable)])),
+        );
+        assert_eq!(
+            clock_error_authorizer.consume_once(&result, key()),
+            Err(DurableReplayError::ClockUnavailable)
+        );
+        assert_eq!(clock_error_store.calls.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn forward_time_recovers_after_rejected_rollback() {
+        let result = test_fixture_attestation_result_with_window(100, 300, 100);
+        let store = Arc::new(CountingStore::default());
+        let authorizer = DurableReplayAuthorizer::new(
+            store.clone(),
+            Arc::new(SequenceClock::new([Ok(199), Ok(150), Ok(201)])),
+        );
+        let key = || IdempotencyKey::new(vec![9]).expect("key");
+        assert_eq!(
+            authorizer
+                .consume_once(&result, key())
+                .expect("first consume")
+                .outcome(),
+            DurableReplayOutcome::Consumed
+        );
+        assert_eq!(
+            authorizer.consume_once(&result, key()),
+            Err(DurableReplayError::ClockRollback)
+        );
+        assert_eq!(
+            authorizer
+                .consume_once(&result, key())
+                .expect("forward recovery")
+                .outcome(),
+            DurableReplayOutcome::Consumed
+        );
+        assert_eq!(store.calls.load(Ordering::Relaxed), 2);
     }
 
     #[test]

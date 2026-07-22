@@ -42,13 +42,23 @@ The public transport types are versioned and bounded:
 
 - `TrustAnchor` identifies a provider/profile-scoped verification key and its
   validity, revision, revocation, and TCB state.
-- `TrustBundle` carries a sorted, duplicate-free anchor set, authenticated
-  release metadata, a rollback floor, a payload digest, and a signature.
+- `TrustBundle` carries a duplicate-free anchor set with deterministic sorted
+  canonical encoding, authenticated release metadata, a rollback floor, a
+  payload digest, and a signature.
 - `CollateralSnapshot` carries provider/profile/mechanism-scoped opaque
   collateral, its digest, revision, validity, status, and signature.
 - `AttestationEvidence` carries provider/profile/mechanism-scoped evidence,
   subject and key identity digests, the `ProofVerificationContext` binding
   digest, validity, status, payload digest, and signature.
+
+The four public aggregate types are `Serialize`-only for transport preparation
+and diagnostics; they intentionally do not implement generic `Deserialize`.
+Untrusted JSON must enter through `deserialize_trust_bundle_json`,
+`deserialize_collateral_snapshot_json`, or
+`deserialize_attestation_evidence_json`. Each helper rejects input larger than
+`MAX_TRUST_TRANSPORT_BYTES` before parsing private `deny_unknown_fields` wire
+types, which retain bounded identifier, byte-field, and vector visitors. There
+is no alternate public raw-JSON constructor that bypasses this outer bound.
 
 Every security-relevant field is present in a deterministic SHA-256 encoding.
 The encoding uses an explicit domain and version, enum tags, length-prefixed
@@ -64,23 +74,39 @@ Authentication and normalization reject:
 
 - unknown fields, unsupported versions, oversized IDs/payloads/signatures, and
   malformed arrays;
-- duplicate anchor IDs or inconsistent canonical order;
+- duplicate anchor IDs; canonical encoding sorts anchors deterministically
+  regardless of input order;
 - provider, profile, mechanism, bundle, collateral, or evidence mismatches;
+- empty/reduced/optional-only policies, wrong proof kinds, wrong verifier IDs,
+  and any policy that is not the exact production policy;
+- signer anchors that do not match the requested provider/profile/algorithm,
+  are not `Good`, are outside their inclusive validity window, violate the
+  bundle revision or rollback floor, or fail the configured constraint digest;
 - payload or metadata digest mutations and signature mutations;
 - invalid or expired validity windows, future-dated evidence, and failed
   trusted-clock reads;
 - revisions below the supplied rollback floor or invalid revision relationships.
 
-The Phase A contract can carry a revision and rollback-floor input, but it is
-stateless. It does not claim persistent rollback protection. Any in-memory
-rollback tracker used by tests is test/local-only evidence.
+Signer-anchor authorization is one fail-closed check reused for bundle,
+collateral, and evidence signatures. Rotation is therefore allowed only when
+the selected anchor is an overlapping, currently valid, authorized anchor in
+the same bundle; a second revoked, expired, not-yet-valid, or rolled-back
+anchor cannot be substituted for a valid signer.
+
+The default production clock retains a process-global monotonic high-water
+mark and rejects backward observations. Durable replay also keeps a
+non-resettable per-authorizer high-water mark before store invocation. This is
+process-local rollback protection only: Phase A does not claim persistence
+across process restarts, distributed clock coordination, or a durable rollback
+database. Deterministic timestamp injection is private/test-only.
 
 ## Normalized result and privacy
 
-`AttestationResult` binds the provider, profile, mechanism, subject digest, key
-identity digest, exact `ProofVerificationContext`, exact `ProofPolicy::digest`,
-evidence/trust/collateral digests, status values, and issued/expires/verified
-times. Its result digest covers the complete normalized record. Raw evidence,
+`AttestationResult` binds the provider, profile, mechanism, exact verifier ID,
+subject digest, key identity digest, exact `ProofVerificationContext`, exact
+`ProofPolicy::digest`, evidence/trust/collateral digests, status values, and
+issued/expires/verified times. Its result digest covers the complete normalized
+record. Raw evidence,
 nonce bytes, trust-anchor payloads, collateral payloads, signatures, and raw
 subject/key identifiers are not exposed by default `Debug` or audit output.
 
@@ -93,7 +119,7 @@ not for reconstructing evidence or secrets.
 `DurableReplayIdentity` is a new versioned identity. It does not change the
 existing `ProofReplayKey` or local `ReplayGuard`. The durable identity binds:
 
-- provider, profile, and mechanism;
+- provider, profile, mechanism, and exact verifier identity;
 - subject and key identity digests;
 - operation and nonce digests;
 - purpose and audience digests;

@@ -26,6 +26,63 @@ support decision. Scores preserve the 75-point planning scale used for issue
 | `G-live-AP` | Live Android/Nitro runtime evidence | 45 | Phase B — provider/runtime evidence |
 | `G202-REV` | Independent review and release acceptance | 44 | Phase C — reviewed artifact gate |
 
+## Exact weighted scoring formula and rubric
+
+The shortlist score is reproducible from eight integer dimension values on a
+1–5 scale. The exact formula is:
+
+```text
+score = 3×security
+      + 3×production blocker
+      + 2×dependency unlock
+      + 2×evidence availability
+      + 2×implementation confidence
+      + 1×effort efficiency
+      + 1×external dependency burden
+      + 1×documentation contradiction risk
+```
+
+The weights sum to 15, so the maximum score is 75. A value of 5 means the
+dimension is strongest for prioritization; a value of 1 means weakest. The
+dimensions use this rubric:
+
+- **Security**: 5 is a direct trust, authorization, or secret-boundary risk;
+  1 is advisory or low-impact.
+- **Production blocker**: 5 blocks a production gate or value-bearing path;
+  1 does not block a release decision.
+- **Dependency unlock**: 5 unlocks several downstream lanes; 1 is mostly
+  isolated.
+- **Evidence availability**: 5 has local deterministic code/tests/docs
+  evidence; 1 requires unavailable external evidence.
+- **Implementation confidence**: 5 has a precise bounded design and direct
+  regression coverage; 1 is exploratory.
+- **Effort efficiency**: 5 is low effort with high leverage; 1 is expensive
+  or narrowly useful.
+- **External dependency burden**: 5 is local/software-only and reproducible;
+  1 depends on external providers, hardware, deployment, or unavailable
+  services.
+- **Documentation contradiction risk**: 5 has a high risk that stale claims
+  could misstate support or authorization; 1 has little contradiction risk.
+
+The following dimension values produce every score in the table above. The
+last column shows the formula result and is the source for the displayed
+score, rather than an informal ranking:
+
+| Gap ID | Sec | Blocker | Unlock | Evidence | Confidence | Efficiency | External (5=local/software) | Doc risk | Formula result |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `G240-TC` | 5 | 5 | 5 | 5 | 5 | 3 | 5 | 5 | 73 |
+| `G240-RP` | 5 | 5 | 4 | 4 | 4 | 4 | 4 | 4 | 66 |
+| `G-DOC` | 4 | 4 | 4 | 5 | 5 | 4 | 4 | 5 | 65 |
+| `G200-WASM` | 4 | 5 | 4 | 3 | 4 | 4 | 4 | 4 | 61 |
+| `G241-AP` | 5 | 4 | 4 | 2 | 4 | 4 | 4 | 4 | 59 |
+| `G198-AM` | 4 | 4 | 4 | 3 | 4 | 3 | 4 | 4 | 57 |
+| `G242-NP` | 5 | 4 | 4 | 2 | 3 | 3 | 4 | 4 | 56 |
+| `G199-REL` | 4 | 4 | 3 | 4 | 3 | 3 | 3 | 4 | 54 |
+| `G198-AA` | 4 | 4 | 4 | 2 | 3 | 4 | 3 | 4 | 53 |
+| `G198-CCTP` | 4 | 4 | 4 | 2 | 3 | 3 | 3 | 4 | 52 |
+| `G-live-AP` | 5 | 4 | 2 | 1 | 2 | 2 | 2 | 4 | 45 |
+| `G202-REV` | 4 | 4 | 3 | 1 | 2 | 3 | 2 | 3 | 44 |
+
 Phase A closes only the provider-neutral contract slice represented by
 `G240-TC`, `G240-RP`, and the documentation portion of `G-DOC`. It does not
 close provider, runtime, backend, independent-review, release, or production

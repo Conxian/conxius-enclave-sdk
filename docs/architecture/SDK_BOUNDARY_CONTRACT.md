@@ -11,18 +11,26 @@ The provider-neutral trust contract lives in `src/enclave/trust.rs` and is
 separate from provider adapters and the existing proof modules. Untrusted
 `TrustAnchor`, `TrustBundle`, `CollateralSnapshot`, and `AttestationEvidence`
 transport uses bounded/versioned fields and deterministic SHA-256 encodings;
-JSON is never a signed or digest encoding. Authenticated trust/collateral
-material is constructor-controlled, and only normalized, privacy-minimized
-`AttestationResult` data may cross into policy/replay authorization.
+JSON is never a signed or digest encoding. The public aggregates are
+`Serialize`-only: bounded JSON helpers reject the 256 KiB outer transport limit
+before private `deny_unknown_fields` wire parsing. Exact production policy and
+verifier identity are checked before normalization, while one fail-closed
+signer-anchor check enforces provider/profile/algorithm, status, inclusive
+validity, revision/rollback-floor, and configured constraint requirements for
+bundle, collateral, and evidence signatures. Only normalized,
+privacy-minimized `AttestationResult` data may cross into policy/replay
+authorization.
 
 `src/enclave/durable_replay.rs` defines a backend-neutral synchronous
 `consume_once` contract. It does not replace the process-local `ReplayGuard`,
 does not implement a durable backend, and does not call `EnclaveManager`,
 `RailProxy`, signing, or settlement. The wrapper uses a trusted internal clock
-and authorizes only a consumed or backend-confirmed same-request idempotent
-outcome. Production trust authentication, provider verification, and durable
-replay are unavailable until provider/runtime, deployment, independent-review,
-and exact-artifact evidence is complete.
+with process-global/per-authorizer monotonic high-water checks and authorizes
+only a consumed or backend-confirmed same-request idempotent outcome. A
+private/test-only clock seam is used for deterministic rollback and expiry
+regressions. Production trust authentication, provider verification, and
+durable replay are unavailable until provider/runtime, deployment,
+independent-review, and exact-artifact evidence is complete.
 
 The adapter API distinguishes wire representation from authorization: tier
 round trips use the explicitly named representation helpers, while
