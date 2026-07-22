@@ -55,6 +55,10 @@ wasm-bindgen-futures = "0.4.71"
 web-sys = "0.3.102"
 base64 = "0.22.1"
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ciborium = { version = "0.2.2", default-features = false, features = ["std"] }
+p384 = { version = "0.14.0", default-features = false, features = ["ecdsa", "std"] }
+
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 getrandom_0_2 = { package = "getrandom", version = "0.2.17", features = ["js"] }
 getrandom_0_3 = { package = "getrandom", version = "0.3.4", features = ["wasm_js"] }

@@ -1072,6 +1072,23 @@ mod tests {
         assert!(!policy.allowed_levels().contains(&AttestationLevel::TEE));
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn nitro_offline_policy_does_not_promote_production_provider_status() {
+        let offline_policy = crate::enclave::nitro::NitroAttestationPolicy::new(
+            crate::enclave::nitro::NitroPcrPolicy::new([(
+                0,
+                [1; crate::enclave::nitro::NITRO_SHA384_PCR_BYTES],
+            )])
+            .expect("offline PCR policy"),
+        );
+        let _ = offline_policy;
+        assert_eq!(
+            AttestationPolicy::production().provider_verifier_status(),
+            super::ProviderVerifierStatus::Unavailable
+        );
+    }
+
     #[test]
     fn typed_policy_rejects_wrong_purpose_and_algorithm() {
         let now_secs: u64 = 1_000_000;

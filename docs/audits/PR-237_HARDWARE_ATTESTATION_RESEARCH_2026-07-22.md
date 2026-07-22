@@ -41,17 +41,18 @@ scoped support decision.
 | Intel SGX DCAP | ECDSA quote, QE/PCK, TCB, collateral, certificates, and revocation inputs | Research boundary only; no DCAP verifier or Intel collateral service |
 | Intel TDX | Trust-domain measurements, report data, quote/collateral, and TCB policy inputs | Research boundary only; no TDX verifier/runtime |
 | AMD SEV-SNP | `REPORT_DATA`, VCEK/VLEK, policy, TCB, debug, and migration semantics | Research boundary only; no SEV-SNP verifier/runtime |
-| AWS Nitro | NSM attestation document, COSE, PCRs, nonce/user data/public key, AWS root/debug boundary | Research boundary only; no Nitro verifier or AWS-root integration |
+| AWS Nitro | NSM attestation document, COSE, PCRs, nonce/user data/public key, AWS root/debug boundary | Offline structural boundary only: native bounded parser, P-384 COSE signature check, exact local policy, release binding, and recipient-contract tests; no AWS PKI/root or runtime integration |
 | ARM PSA | PSA attestation token, challenge, lifecycle, implementation, and platform claims | Research boundary only; no PSA token verifier |
 | ARM CCA Realm/Platform | EAT/COSE evidence and distinct realm/platform/lifecycle semantics | Research boundary only; no CCA verifier/runtime |
 | Collateral/revocation verification | Provider-specific certificates, CRLs/status, TCB collateral, metadata, and freshness | Unsupported; no common collateral/revocation service is implemented |
 
-The corresponding machine-readable rows use `api: no`, `implementation: no`,
-`integration: no`, `independentReview: not-evidenced`, and
-`productionSupport: unsupported` unless a future schema change provides a more
-truthful research-only representation. The existing `proof-composition` row
-remains unchanged at beta/conditional maturity with production support
-unsupported.
+The corresponding machine-readable rows remain production-unsupported. The AWS
+Nitro row records `api: yes` and `implementation: partial` only for the
+native-only offline structural boundary; it keeps `integration: no`,
+`independentReview: not-evidenced`, and `productionSupport: unsupported`. This
+does not promote the parser or its test fixtures to a provider verifier. The
+existing `proof-composition` row remains unchanged at beta/conditional maturity
+with production support unsupported.
 
 ## Primary sources
 
@@ -84,8 +85,11 @@ The repository still needs, per provider and exact deployment scope:
 
 1. authenticated provider response and key-binding contracts;
 2. vendor roots, certificate/quote chains, collateral, TCB policy, and
-   revocation/status freshness;
-3. provider-backed runtime and negative integration tests;
+   revocation/status freshness. For Nitro, this is the unresolved injected
+   trust boundary tracked by #240 and the provider qualification work tracked
+   by #242;
+3. NSM/vsock/KMS/CloudTrail runtime integration, EIF/PCR provenance, and
+   provider-backed negative integration tests;
 4. distributed replay coordination across replicas, restarts, and provider
    boundaries;
 5. independent security/cryptographic review of the exact code and artifact;
