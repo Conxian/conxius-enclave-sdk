@@ -40,10 +40,9 @@ pub const SETTLEMENT_PROOF_AUDIENCE: &str = "conxian/settlement/v1";
 
 pub const SERVER_PROOF_VERIFIER_ID: &str = "conxian.proof.server.unavailable.v1";
 pub const USER_PROOF_VERIFIER_ID: &str = "conxian.proof.user.unavailable.v1";
-/// Explicit Android KeyMint route for the phone proof kind. The route remains
-/// unavailable in the production registry until provider qualification is
-/// complete.
-pub const PHONE_PROOF_VERIFIER_ID: &str = ANDROID_KEYMINT_PROOF_VERIFIER_ID;
+/// Canonical production policy identity for the semantic phone proof kind.
+/// Keep this stable because policy digests commit to the exact verifier ID.
+pub const PHONE_PROOF_VERIFIER_ID: &str = "conxian.proof.phone.unavailable.v1";
 pub const TEE_PROOF_VERIFIER_ID: &str = "conxian.proof.tee.unavailable.v1";
 pub const FIDO_PROOF_VERIFIER_ID: &str = "conxian.proof.fido.unavailable.v1";
 pub const TPM_PROOF_VERIFIER_ID: &str = "conxian.proof.tpm.unavailable.v1";
@@ -992,6 +991,17 @@ impl ProofVerifierRegistry {
             let verifier_id = kind.production_verifier_id();
             let verifier = UnavailableProofVerifier { kind, verifier_id };
             verifiers.insert((kind, verifier_id.to_string()), Arc::new(verifier));
+
+            if kind == ProofKind::Phone {
+                let android_verifier = UnavailableProofVerifier {
+                    kind,
+                    verifier_id: ANDROID_KEYMINT_PROOF_VERIFIER_ID,
+                };
+                verifiers.insert(
+                    (kind, ANDROID_KEYMINT_PROOF_VERIFIER_ID.to_string()),
+                    Arc::new(android_verifier),
+                );
+            }
         }
         Self { verifiers }
     }
@@ -2003,15 +2013,20 @@ mod tests {
     }
 
     #[test]
-    fn production_registry_has_six_explicit_unavailable_routes() {
+    fn production_registry_has_explicit_unavailable_routes() {
         let registry = ProofVerifierRegistry::production();
-        assert_eq!(registry.route_count(), 6);
+        assert_eq!(registry.route_count(), 7);
         for kind in ProofKind::all() {
             assert_eq!(
                 registry.verifier_status(kind, kind.production_verifier_id()),
                 ProofVerifierStatus::Unavailable
             );
         }
+        assert_eq!(
+            registry.verifier_status(ProofKind::Phone, ANDROID_KEYMINT_PROOF_VERIFIER_ID),
+            ProofVerifierStatus::Unavailable
+        );
+        assert_ne!(PHONE_PROOF_VERIFIER_ID, ANDROID_KEYMINT_PROOF_VERIFIER_ID);
     }
 
     #[test]

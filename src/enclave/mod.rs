@@ -30,10 +30,9 @@ pub use trust_contracts::{
 };
 
 pub use android_authorization::{
-    request_binding_digest, request_binding_digest_at, AndroidAuthorizationEvidence,
-    AndroidAuthorizationRequest, AndroidKeyAlgorithm, AndroidKeyPurpose,
-    AndroidPlayIntegrityEvidence, AndroidReportedTier, AndroidSecurityPolicy,
-    ANDROID_AUTHORIZATION_BINDING_DOMAIN, ANDROID_AUTHORIZATION_DOMAIN,
+    request_binding_digest_at, AndroidAuthorizationEvidence, AndroidAuthorizationRequest,
+    AndroidKeyAlgorithm, AndroidKeyPurpose, AndroidPlayIntegrityEvidence, AndroidReportedTier,
+    AndroidSecurityPolicy, ANDROID_AUTHORIZATION_BINDING_DOMAIN, ANDROID_AUTHORIZATION_DOMAIN,
     ANDROID_AUTHORIZATION_VERIFIER_ID, ANDROID_AUTHORIZATION_VERSION,
     ANDROID_KEYMINT_PROOF_VERIFIER_ID, MAX_ANDROID_AUTHORIZATION_AGE_SECS,
     MAX_ANDROID_AUTHORIZATION_FUTURE_SKEW_SECS, MAX_ANDROID_AUTHORIZATION_LIFETIME_SECS,
