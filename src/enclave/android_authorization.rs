@@ -397,7 +397,8 @@ impl AndroidPlayIntegrityEvidence {
         validate_bounded_bytes(&self.opaque_evidence, MAX_PLAY_INTEGRITY_EVIDENCE_BYTES)
     }
 
-    pub fn digest(&self) -> ConclaveResult<[u8; 32]> {
+    // Internal structural digest only; never sufficient for authorization.
+    fn digest(&self) -> ConclaveResult<[u8; 32]> {
         self.validate()?;
         let mut canonical = Vec::new();
         append_len_prefixed(&mut canonical, ANDROID_PLAY_INTEGRITY_DOMAIN.as_bytes())?;
@@ -492,25 +493,6 @@ impl AndroidAuthorizationRequest {
         validate_digest(&self.operation_digest)?;
         validate_bounded_bytes(&self.nonce, MAX_ANDROID_NONCE_BYTES)?;
         validate_bounded_bytes(&self.challenge, MAX_ANDROID_CHALLENGE_BYTES)
-    }
-
-    pub fn canonical_bytes(&self) -> ConclaveResult<Vec<u8>> {
-        self.validate()?;
-        let mut canonical = Vec::new();
-        append_len_prefixed(&mut canonical, ANDROID_AUTHORIZATION_DOMAIN.as_bytes())?;
-        append_request_fields(&mut canonical, self)?;
-        Ok(canonical)
-    }
-
-    pub fn digest(&self) -> ConclaveResult<[u8; 32]> {
-        Ok(Sha256::digest(self.canonical_bytes()?).into())
-    }
-
-    pub fn binding_digest(
-        &self,
-        evidence: &AndroidAuthorizationEvidence,
-    ) -> ConclaveResult<[u8; 32]> {
-        request_binding_digest(self, evidence)
     }
 
     pub fn binding_digest_at(
@@ -629,6 +611,9 @@ impl AndroidAuthorizationEvidence {
         Ok(evidence)
     }
 
+    /// Validates only the bounded structural shape. This is not an
+    /// authorization or freshness check; use [`Self::validate_at`] or
+    /// [`Self::validate_against`] before treating evidence as current.
     pub fn validate(&self) -> ConclaveResult<()> {
         validate_version(self.version)?;
         validate_identifier(&self.key_id, MAX_ANDROID_KEY_ID_BYTES)?;
@@ -657,6 +642,7 @@ impl AndroidAuthorizationEvidence {
         Ok(())
     }
 
+    /// Validates evidence freshness against an explicit trusted clock value.
     pub fn validate_at(&self, now_secs: u64) -> ConclaveResult<()> {
         self.validate()?;
         let future_limit = now_secs
@@ -687,21 +673,8 @@ impl AndroidAuthorizationEvidence {
         validate_security_policy(request.security_policy, self.actual_tier)
     }
 
-    pub fn canonical_bytes(&self) -> ConclaveResult<Vec<u8>> {
-        self.validate()?;
-        let mut canonical = Vec::new();
-        append_len_prefixed(&mut canonical, ANDROID_AUTHORIZATION_DOMAIN.as_bytes())?;
-        canonical.extend_from_slice(&self.version.to_be_bytes());
-        canonical.push(self.actual_tier.canonical_tag());
-        append_evidence_fields(&mut canonical, self)?;
-        Ok(canonical)
-    }
-
-    pub fn digest(&self) -> ConclaveResult<[u8; 32]> {
-        Ok(Sha256::digest(self.canonical_bytes()?).into())
-    }
-
-    pub fn certificate_chain_digest(&self) -> ConclaveResult<[u8; 32]> {
+    // Internal component digest only; never sufficient for authorization.
+    fn certificate_chain_digest(&self) -> ConclaveResult<[u8; 32]> {
         self.validate_certificate_chain()?;
         let mut canonical = Vec::new();
         append_len_prefixed(&mut canonical, ANDROID_DER_CHAIN_DOMAIN.as_bytes())?;
@@ -713,18 +686,20 @@ impl AndroidAuthorizationEvidence {
         Ok(Sha256::digest(canonical).into())
     }
 
-    pub fn play_integrity_digest(&self) -> ConclaveResult<[u8; 32]> {
+    // Internal component digest only; never sufficient for authorization.
+    fn play_integrity_digest(&self) -> ConclaveResult<[u8; 32]> {
         self.play_integrity_evidence
             .as_ref()
             .ok_or_else(invalid_payload)?
             .digest()
     }
 
-    pub fn binding_digest(
+    pub fn binding_digest_at(
         &self,
         request: &AndroidAuthorizationRequest,
+        now_secs: u64,
     ) -> ConclaveResult<[u8; 32]> {
-        request_binding_digest(request, self)
+        request_binding_digest_at(request, self, now_secs)
     }
 
     fn validate_certificate_chain(&self) -> ConclaveResult<()> {
@@ -763,35 +738,6 @@ fn append_request_fields(
     output.extend_from_slice(&request.operation_digest);
     output.push(request.key_purpose.canonical_tag());
     output.push(request.key_algorithm.canonical_tag());
-    Ok(())
-}
-
-fn append_evidence_fields(
-    output: &mut Vec<u8>,
-    evidence: &AndroidAuthorizationEvidence,
-) -> ConclaveResult<()> {
-    append_identifier(output, &evidence.key_id)?;
-    output.extend_from_slice(&evidence.public_key_digest);
-    append_identifier(output, &evidence.package_name)?;
-    output.extend_from_slice(&evidence.signing_certificate_digest);
-    append_len_prefixed(output, &evidence.nonce)?;
-    append_len_prefixed(output, &evidence.challenge)?;
-    output.extend_from_slice(&evidence.operation_digest);
-    output.push(evidence.key_purpose.canonical_tag());
-    output.push(evidence.key_algorithm.canonical_tag());
-    let certificate_count =
-        u32::try_from(evidence.certificate_chain.len()).map_err(|_| invalid_payload())?;
-    output.extend_from_slice(&certificate_count.to_be_bytes());
-    for certificate in &evidence.certificate_chain {
-        append_len_prefixed(output, certificate)?;
-    }
-    let play_integrity = evidence
-        .play_integrity_evidence
-        .as_ref()
-        .ok_or_else(invalid_payload)?;
-    append_len_prefixed(output, &play_integrity.opaque_evidence)?;
-    output.extend_from_slice(&evidence.issued_at.to_be_bytes());
-    output.extend_from_slice(&evidence.expires_at.to_be_bytes());
     Ok(())
 }
 
@@ -859,11 +805,10 @@ fn request_binding_bytes(
     Ok(canonical)
 }
 
-/// Deterministic domain-separated digest for one structurally valid request
-/// and its matching Android evidence. The digest includes request fields and
-/// digests of the DER chain and opaque Play Integrity evidence; it does not
-/// create or consume a replay record.
-pub fn request_binding_digest(
+/// Internal structural binding helper. It deliberately does not consume a
+/// replay record, so callers must perform the freshness-aware public validation
+/// before reaching it.
+fn structural_request_binding_digest(
     request: &AndroidAuthorizationRequest,
     evidence: &AndroidAuthorizationEvidence,
 ) -> ConclaveResult<[u8; 32]> {
@@ -879,7 +824,7 @@ pub fn request_binding_digest_at(
     now_secs: u64,
 ) -> ConclaveResult<[u8; 32]> {
     evidence.validate_against(request, now_secs)?;
-    request_binding_digest(request, evidence)
+    structural_request_binding_digest(request, evidence)
 }
 
 #[cfg(test)]
@@ -889,6 +834,7 @@ mod tests {
     use crate::enclave::{
         ProofBundle, ProofEnvelope, ProofKind, ProofPolicy, ProofRequirement,
         ProofVerificationContext, ProofVerifierRegistry, ProofVerifierStatus,
+        PHONE_PROOF_VERIFIER_ID,
     };
 
     const NOW: u64 = 1_000_000;
@@ -949,15 +895,25 @@ mod tests {
             .binding_digest_at(&evidence, NOW)
             .expect("matching evidence should bind deterministically");
         assert_eq!(first, second);
-        assert_eq!(first, request_binding_digest(&request, &evidence).unwrap());
-        assert_ne!(request.digest().unwrap(), evidence.digest().unwrap());
+        assert_eq!(
+            first,
+            request_binding_digest_at(&request, &evidence, NOW).unwrap()
+        );
+        assert_eq!(
+            first,
+            evidence
+                .binding_digest_at(&request, NOW)
+                .expect("matching evidence should bind")
+        );
     }
 
     #[test]
     fn binding_changes_when_security_context_or_evidence_changes() {
         let request = request(AndroidSecurityPolicy::StrongBoxRequired);
         let evidence = evidence(AndroidReportedTier::StrongBox);
-        let baseline = request.binding_digest(&evidence).expect("baseline binding");
+        let baseline = request
+            .binding_digest_at(&evidence, NOW)
+            .expect("baseline binding");
 
         let mut changed_request = request.clone();
         changed_request.key_id = "android-key-2".to_string();
@@ -966,7 +922,7 @@ mod tests {
         assert_ne!(
             baseline,
             changed_request
-                .binding_digest(&changed_key_evidence)
+                .binding_digest_at(&changed_key_evidence, NOW)
                 .expect("changed key identity remains structurally valid")
         );
 
@@ -975,7 +931,7 @@ mod tests {
         assert_ne!(
             baseline,
             request
-                .binding_digest(&changed_evidence)
+                .binding_digest_at(&changed_evidence, NOW)
                 .expect("changed DER evidence remains bounded")
         );
 
@@ -989,7 +945,7 @@ mod tests {
         assert_ne!(
             baseline,
             request
-                .binding_digest(&changed_play)
+                .binding_digest_at(&changed_play, NOW)
                 .expect("changed Play evidence remains bounded")
         );
     }
@@ -1050,18 +1006,28 @@ mod tests {
     }
 
     #[test]
-    fn stale_and_future_evidence_are_rejected() {
+    fn every_public_binding_method_rejects_stale_expired_and_future_evidence() {
         let request = request(AndroidSecurityPolicy::StrongBoxRequired);
 
         let mut stale = evidence(AndroidReportedTier::StrongBox);
         stale.issued_at = NOW - MAX_ANDROID_AUTHORIZATION_AGE_SECS - 1;
         stale.expires_at = NOW + 60;
         assert!(request.binding_digest_at(&stale, NOW).is_err());
+        assert!(stale.binding_digest_at(&request, NOW).is_err());
+        assert!(request_binding_digest_at(&request, &stale, NOW).is_err());
+
+        let mut expired = evidence(AndroidReportedTier::StrongBox);
+        expired.expires_at = NOW - 1;
+        assert!(request.binding_digest_at(&expired, NOW).is_err());
+        assert!(expired.binding_digest_at(&request, NOW).is_err());
+        assert!(request_binding_digest_at(&request, &expired, NOW).is_err());
 
         let mut future = evidence(AndroidReportedTier::StrongBox);
         future.issued_at = NOW + MAX_ANDROID_AUTHORIZATION_FUTURE_SKEW_SECS + 1;
         future.expires_at = future.issued_at + 60;
         assert!(request.binding_digest_at(&future, NOW).is_err());
+        assert!(future.binding_digest_at(&request, NOW).is_err());
+        assert!(request_binding_digest_at(&request, &future, NOW).is_err());
     }
 
     #[test]
@@ -1175,7 +1141,24 @@ mod tests {
 
         assert_eq!(
             ProofKind::Phone.production_verifier_id(),
-            ANDROID_KEYMINT_PROOF_VERIFIER_ID
+            PHONE_PROOF_VERIFIER_ID
+        );
+        assert_eq!(
+            PHONE_PROOF_VERIFIER_ID,
+            "conxian.proof.phone.unavailable.v1"
+        );
+        assert_eq!(
+            ProofPolicy::production()
+                .required
+                .iter()
+                .find(|requirement| requirement.kind == ProofKind::Phone)
+                .expect("production phone requirement")
+                .verifier_id,
+            PHONE_PROOF_VERIFIER_ID
+        );
+        assert_eq!(
+            registry.verifier_status(ProofKind::Phone, PHONE_PROOF_VERIFIER_ID),
+            ProofVerifierStatus::Unavailable
         );
         assert_eq!(
             registry.verifier_status(ProofKind::Phone, ANDROID_KEYMINT_PROOF_VERIFIER_ID),
