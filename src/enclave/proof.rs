@@ -432,37 +432,144 @@ impl RawProofEvidence {
     }
 
     #[cfg(test)]
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn test_fixture(
+    pub(crate) fn test_fixture(input: TestProofEvidenceInput) -> Self {
+        Self::new(
+            input.key,
+            input.issuer,
+            input.trust_identity,
+            input.nonce,
+            input.operation_digest,
+            input.purpose,
+            input.policy_id,
+            input.subject_binding,
+            input.issued_at,
+            input.expires_at,
+            input.freshness_secs,
+            input.replay_identity,
+            fixture_marker(input.key.proof_type),
+        )
+        .expect("bounded test fixture evidence should construct")
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone)]
+pub(crate) struct TestProofEvidenceInput {
+    key: ProofKey,
+    issuer: String,
+    trust_identity: String,
+    nonce: Vec<u8>,
+    operation_digest: [u8; 32],
+    purpose: ValueBearingPurpose,
+    policy_id: String,
+    subject_binding: Vec<u8>,
+    issued_at: u64,
+    expires_at: u64,
+    freshness_secs: u64,
+    replay_identity: Vec<u8>,
+}
+
+#[cfg(test)]
+impl TestProofEvidenceInput {
+    pub(crate) fn new(
         key: ProofKey,
-        issuer: &str,
-        trust_identity: &str,
-        nonce: Vec<u8>,
         operation_digest: [u8; 32],
         purpose: ValueBearingPurpose,
-        policy_id: &str,
-        subject_binding: Vec<u8>,
+    ) -> Self {
+        Self {
+            key,
+            issuer: "test-fixture-issuer".to_string(),
+            trust_identity: "test-fixture-root".to_string(),
+            nonce: b"nonce".to_vec(),
+            operation_digest,
+            purpose,
+            policy_id: "test-fixture-policy".to_string(),
+            subject_binding: b"subject-binding".to_vec(),
+            issued_at: 0,
+            expires_at: 100,
+            freshness_secs: 100,
+            replay_identity: b"replay".to_vec(),
+        }
+    }
+
+    pub(crate) fn from_policy(
+        policy: &ProofSetPolicy,
+        requirement: &ProofRequirement,
+        now_secs: u64,
+    ) -> Self {
+        Self::new(
+            requirement.key(),
+            *policy.operation_digest(),
+            policy.purpose(),
+        )
+        .with_issuer(requirement.issuer())
+        .with_trust_identity(requirement.trust_identity())
+        .with_nonce(policy.nonce().to_vec())
+        .with_policy_id(policy.policy_id())
+        .with_subject_binding(requirement.subject_binding().to_vec())
+        .with_times(
+            now_secs.saturating_sub(1),
+            now_secs.saturating_add(policy.max_age_secs().saturating_sub(1)),
+            policy.max_age_secs(),
+        )
+        .with_replay_identity(policy.replay_identity().to_vec())
+    }
+
+    pub(crate) fn with_key(mut self, key: ProofKey) -> Self {
+        self.key = key;
+        self
+    }
+
+    pub(crate) fn with_issuer(mut self, issuer: impl Into<String>) -> Self {
+        self.issuer = issuer.into();
+        self
+    }
+
+    pub(crate) fn with_trust_identity(mut self, trust_identity: impl Into<String>) -> Self {
+        self.trust_identity = trust_identity.into();
+        self
+    }
+
+    pub(crate) fn with_nonce(mut self, nonce: Vec<u8>) -> Self {
+        self.nonce = nonce;
+        self
+    }
+
+    pub(crate) fn with_operation_digest(mut self, operation_digest: [u8; 32]) -> Self {
+        self.operation_digest = operation_digest;
+        self
+    }
+
+    pub(crate) fn with_purpose(mut self, purpose: ValueBearingPurpose) -> Self {
+        self.purpose = purpose;
+        self
+    }
+
+    pub(crate) fn with_policy_id(mut self, policy_id: impl Into<String>) -> Self {
+        self.policy_id = policy_id.into();
+        self
+    }
+
+    pub(crate) fn with_subject_binding(mut self, subject_binding: Vec<u8>) -> Self {
+        self.subject_binding = subject_binding;
+        self
+    }
+
+    pub(crate) fn with_times(
+        mut self,
         issued_at: u64,
         expires_at: u64,
         freshness_secs: u64,
-        replay_identity: Vec<u8>,
     ) -> Self {
-        Self::new(
-            key,
-            issuer,
-            trust_identity,
-            nonce,
-            operation_digest,
-            purpose,
-            policy_id,
-            subject_binding,
-            issued_at,
-            expires_at,
-            freshness_secs,
-            replay_identity,
-            fixture_marker(key.proof_type),
-        )
-        .expect("bounded test fixture evidence should construct")
+        self.issued_at = issued_at;
+        self.expires_at = expires_at;
+        self.freshness_secs = freshness_secs;
+        self
+    }
+
+    pub(crate) fn with_replay_identity(mut self, replay_identity: Vec<u8>) -> Self {
+        self.replay_identity = replay_identity;
+        self
     }
 }
 
@@ -798,6 +905,12 @@ impl ProofSetPolicy {
     /// set.
     pub fn canonical_digest(&self) -> &[u8; 32] {
         &self.canonical_digest
+    }
+
+    /// Alias emphasizing that this digest is the policy integrity commitment,
+    /// while `policy_id` remains only a human/provider label.
+    pub fn policy_digest(&self) -> &[u8; 32] {
+        self.canonical_digest()
     }
 
     pub fn composer<'a>(&'a self, registry: &'a ProofVerifierRegistry) -> ProofSetComposer<'a> {
@@ -1359,7 +1472,7 @@ impl VerifiedProofSet {
         purpose: ValueBearingPurpose,
     ) -> bool {
         self.policy == *expected_policy
-            && self.policy_digest() == expected_policy.canonical_digest()
+            && self.policy_digest() == expected_policy.policy_digest()
             && self.operation_digest() == operation_digest
             && self.purpose() == purpose
             && self.proof_count() == expected_policy.requirements().len()
@@ -1389,20 +1502,11 @@ pub(crate) fn test_fixture_set_for_request(
         .requirements()
         .iter()
         .map(|requirement| {
-            RawProofEvidence::test_fixture(
-                requirement.key(),
-                requirement.issuer(),
-                requirement.trust_identity(),
-                policy.nonce().to_vec(),
-                *policy.operation_digest(),
-                policy.purpose(),
-                policy.policy_id(),
-                requirement.subject_binding().to_vec(),
-                now_secs.saturating_sub(1),
-                now_secs.saturating_add(policy.max_age_secs().saturating_sub(1)),
-                policy.max_age_secs(),
-                policy.replay_identity().to_vec(),
-            )
+            RawProofEvidence::test_fixture(TestProofEvidenceInput::from_policy(
+                policy,
+                requirement,
+                now_secs,
+            ))
         })
         .collect::<Vec<_>>();
     policy
@@ -1441,18 +1545,14 @@ mod tests {
         binding: &[u8],
     ) -> RawProofEvidence {
         RawProofEvidence::test_fixture(
-            key,
-            ISSUER,
-            ROOT,
-            nonce,
-            operation_digest,
-            purpose,
-            policy_id,
-            binding.to_vec(),
-            now.saturating_sub(1),
-            now.saturating_add(99),
-            100,
-            b"replay".to_vec(),
+            TestProofEvidenceInput::new(key, operation_digest, purpose)
+                .with_issuer(ISSUER)
+                .with_trust_identity(ROOT)
+                .with_nonce(nonce)
+                .with_policy_id(policy_id)
+                .with_subject_binding(binding.to_vec())
+                .with_times(now.saturating_sub(1), now.saturating_add(99), 100)
+                .with_replay_identity(b"replay".to_vec()),
         )
     }
 
@@ -1583,18 +1683,14 @@ mod tests {
         let registry = ProofVerifierRegistry::test_fixture();
 
         let wrong_nonce = RawProofEvidence::test_fixture(
-            key,
-            ISSUER,
-            ROOT,
-            b"wrong-nonce".to_vec(),
-            digest,
-            ValueBearingPurpose::Transaction,
-            POLICY,
-            b"binding".to_vec(),
-            now - 1,
-            now + 99,
-            100,
-            b"replay".to_vec(),
+            TestProofEvidenceInput::new(key, digest, ValueBearingPurpose::Transaction)
+                .with_issuer(ISSUER)
+                .with_trust_identity(ROOT)
+                .with_nonce(b"wrong-nonce".to_vec())
+                .with_policy_id(POLICY)
+                .with_subject_binding(b"binding".to_vec())
+                .with_times(now - 1, now + 99, 100)
+                .with_replay_identity(b"replay".to_vec()),
         );
         let error = policy
             .composer(&registry)
@@ -1609,18 +1705,18 @@ mod tests {
         ));
 
         let substituted = RawProofEvidence::test_fixture(
-            ProofKey::new(ProofType::Fido2WebAuthnAssertion, ProofSubject::User),
-            ISSUER,
-            ROOT,
-            b"nonce".to_vec(),
-            digest,
-            ValueBearingPurpose::Transaction,
-            POLICY,
-            b"binding".to_vec(),
-            now - 1,
-            now + 99,
-            100,
-            b"replay".to_vec(),
+            TestProofEvidenceInput::new(key, digest, ValueBearingPurpose::Transaction)
+                .with_key(ProofKey::new(
+                    ProofType::Fido2WebAuthnAssertion,
+                    ProofSubject::User,
+                ))
+                .with_issuer(ISSUER)
+                .with_trust_identity(ROOT)
+                .with_nonce(b"nonce".to_vec())
+                .with_policy_id(POLICY)
+                .with_subject_binding(b"binding".to_vec())
+                .with_times(now - 1, now + 99, 100)
+                .with_replay_identity(b"replay".to_vec()),
         );
         assert!(matches!(
             policy.composer(&registry).compose(&[substituted], now),
@@ -1636,18 +1732,14 @@ mod tests {
         let registry = ProofVerifierRegistry::test_fixture();
 
         let stale = RawProofEvidence::test_fixture(
-            key,
-            ISSUER,
-            ROOT,
-            b"nonce".to_vec(),
-            digest,
-            ValueBearingPurpose::Transaction,
-            POLICY,
-            b"b".to_vec(),
-            1,
-            10,
-            100,
-            b"replay".to_vec(),
+            TestProofEvidenceInput::new(key, digest, ValueBearingPurpose::Transaction)
+                .with_issuer(ISSUER)
+                .with_trust_identity(ROOT)
+                .with_nonce(b"nonce".to_vec())
+                .with_policy_id(POLICY)
+                .with_subject_binding(b"b".to_vec())
+                .with_times(1, 10, 100)
+                .with_replay_identity(b"replay".to_vec()),
         );
         assert!(matches!(
             policy.composer(&registry).compose(&[stale], 100),
@@ -1658,18 +1750,14 @@ mod tests {
         ));
 
         let future = RawProofEvidence::test_fixture(
-            key,
-            ISSUER,
-            ROOT,
-            b"nonce".to_vec(),
-            digest,
-            ValueBearingPurpose::Transaction,
-            POLICY,
-            b"b".to_vec(),
-            200,
-            300,
-            100,
-            b"replay".to_vec(),
+            TestProofEvidenceInput::new(key, digest, ValueBearingPurpose::Transaction)
+                .with_issuer(ISSUER)
+                .with_trust_identity(ROOT)
+                .with_nonce(b"nonce".to_vec())
+                .with_policy_id(POLICY)
+                .with_subject_binding(b"b".to_vec())
+                .with_times(200, 300, 100)
+                .with_replay_identity(b"replay".to_vec()),
         );
         assert!(matches!(
             policy.composer(&registry).compose(&[future], 100),
@@ -1742,18 +1830,14 @@ mod tests {
 
         let too_many = vec![
             RawProofEvidence::test_fixture(
-                key,
-                ISSUER,
-                ROOT,
-                b"nonce".to_vec(),
-                digest,
-                ValueBearingPurpose::Transaction,
-                POLICY,
-                b"b".to_vec(),
-                90,
-                110,
-                100,
-                b"replay".to_vec(),
+                TestProofEvidenceInput::new(key, digest, ValueBearingPurpose::Transaction)
+                    .with_issuer(ISSUER)
+                    .with_trust_identity(ROOT)
+                    .with_nonce(b"nonce".to_vec())
+                    .with_policy_id(POLICY)
+                    .with_subject_binding(b"b".to_vec())
+                    .with_times(90, 110, 100)
+                    .with_replay_identity(b"replay".to_vec()),
             );
             MAX_PROOF_COUNT + 1
         ];
@@ -1783,18 +1867,15 @@ mod tests {
         };
 
         let wrong_operation = RawProofEvidence::test_fixture(
-            key,
-            ISSUER,
-            ROOT,
-            b"nonce".to_vec(),
-            [14; 32],
-            ValueBearingPurpose::Transaction,
-            POLICY,
-            b"binding".to_vec(),
-            now - 1,
-            now + 99,
-            100,
-            b"replay".to_vec(),
+            TestProofEvidenceInput::new(key, digest, ValueBearingPurpose::Transaction)
+                .with_issuer(ISSUER)
+                .with_trust_identity(ROOT)
+                .with_nonce(b"nonce".to_vec())
+                .with_operation_digest([14; 32])
+                .with_policy_id(POLICY)
+                .with_subject_binding(b"binding".to_vec())
+                .with_times(now - 1, now + 99, 100)
+                .with_replay_identity(b"replay".to_vec()),
         );
         assert!(matches!(
             compose_error(wrong_operation),
@@ -1805,18 +1886,15 @@ mod tests {
         ));
 
         let wrong_purpose = RawProofEvidence::test_fixture(
-            key,
-            ISSUER,
-            ROOT,
-            b"nonce".to_vec(),
-            digest,
-            ValueBearingPurpose::Authorization,
-            POLICY,
-            b"binding".to_vec(),
-            now - 1,
-            now + 99,
-            100,
-            b"replay".to_vec(),
+            TestProofEvidenceInput::new(key, digest, ValueBearingPurpose::Transaction)
+                .with_issuer(ISSUER)
+                .with_trust_identity(ROOT)
+                .with_nonce(b"nonce".to_vec())
+                .with_purpose(ValueBearingPurpose::Authorization)
+                .with_policy_id(POLICY)
+                .with_subject_binding(b"binding".to_vec())
+                .with_times(now - 1, now + 99, 100)
+                .with_replay_identity(b"replay".to_vec()),
         );
         assert!(matches!(
             compose_error(wrong_purpose),
@@ -1827,18 +1905,14 @@ mod tests {
         ));
 
         let wrong_policy = RawProofEvidence::test_fixture(
-            key,
-            ISSUER,
-            ROOT,
-            b"nonce".to_vec(),
-            digest,
-            ValueBearingPurpose::Transaction,
-            "different-policy",
-            b"binding".to_vec(),
-            now - 1,
-            now + 99,
-            100,
-            b"replay".to_vec(),
+            TestProofEvidenceInput::new(key, digest, ValueBearingPurpose::Transaction)
+                .with_issuer(ISSUER)
+                .with_trust_identity(ROOT)
+                .with_nonce(b"nonce".to_vec())
+                .with_policy_id("different-policy")
+                .with_subject_binding(b"binding".to_vec())
+                .with_times(now - 1, now + 99, 100)
+                .with_replay_identity(b"replay".to_vec()),
         );
         assert!(matches!(
             compose_error(wrong_policy),
@@ -1849,18 +1923,14 @@ mod tests {
         ));
 
         let wrong_issuer = RawProofEvidence::test_fixture(
-            key,
-            "different-issuer",
-            ROOT,
-            b"nonce".to_vec(),
-            digest,
-            ValueBearingPurpose::Transaction,
-            POLICY,
-            b"binding".to_vec(),
-            now - 1,
-            now + 99,
-            100,
-            b"replay".to_vec(),
+            TestProofEvidenceInput::new(key, digest, ValueBearingPurpose::Transaction)
+                .with_issuer("different-issuer")
+                .with_trust_identity(ROOT)
+                .with_nonce(b"nonce".to_vec())
+                .with_policy_id(POLICY)
+                .with_subject_binding(b"binding".to_vec())
+                .with_times(now - 1, now + 99, 100)
+                .with_replay_identity(b"replay".to_vec()),
         );
         assert!(matches!(
             compose_error(wrong_issuer),
@@ -1871,18 +1941,14 @@ mod tests {
         ));
 
         let wrong_root = RawProofEvidence::test_fixture(
-            key,
-            ISSUER,
-            "different-root",
-            b"nonce".to_vec(),
-            digest,
-            ValueBearingPurpose::Transaction,
-            POLICY,
-            b"binding".to_vec(),
-            now - 1,
-            now + 99,
-            100,
-            b"replay".to_vec(),
+            TestProofEvidenceInput::new(key, digest, ValueBearingPurpose::Transaction)
+                .with_issuer(ISSUER)
+                .with_trust_identity("different-root")
+                .with_nonce(b"nonce".to_vec())
+                .with_policy_id(POLICY)
+                .with_subject_binding(b"binding".to_vec())
+                .with_times(now - 1, now + 99, 100)
+                .with_replay_identity(b"replay".to_vec()),
         );
         assert!(matches!(
             compose_error(wrong_root),
@@ -1893,18 +1959,14 @@ mod tests {
         ));
 
         let wrong_binding = RawProofEvidence::test_fixture(
-            key,
-            ISSUER,
-            ROOT,
-            b"nonce".to_vec(),
-            digest,
-            ValueBearingPurpose::Transaction,
-            POLICY,
-            b"different-binding".to_vec(),
-            now - 1,
-            now + 99,
-            100,
-            b"replay".to_vec(),
+            TestProofEvidenceInput::new(key, digest, ValueBearingPurpose::Transaction)
+                .with_issuer(ISSUER)
+                .with_trust_identity(ROOT)
+                .with_nonce(b"nonce".to_vec())
+                .with_policy_id(POLICY)
+                .with_subject_binding(b"different-binding".to_vec())
+                .with_times(now - 1, now + 99, 100)
+                .with_replay_identity(b"replay".to_vec()),
         );
         assert!(matches!(
             compose_error(wrong_binding),
@@ -1915,18 +1977,14 @@ mod tests {
         ));
 
         let wrong_replay = RawProofEvidence::test_fixture(
-            key,
-            ISSUER,
-            ROOT,
-            b"nonce".to_vec(),
-            digest,
-            ValueBearingPurpose::Transaction,
-            POLICY,
-            b"binding".to_vec(),
-            now - 1,
-            now + 99,
-            100,
-            b"different-replay".to_vec(),
+            TestProofEvidenceInput::new(key, digest, ValueBearingPurpose::Transaction)
+                .with_issuer(ISSUER)
+                .with_trust_identity(ROOT)
+                .with_nonce(b"nonce".to_vec())
+                .with_policy_id(POLICY)
+                .with_subject_binding(b"binding".to_vec())
+                .with_times(now - 1, now + 99, 100)
+                .with_replay_identity(b"different-replay".to_vec()),
         );
         assert!(matches!(
             compose_error(wrong_replay),
@@ -1937,18 +1995,18 @@ mod tests {
         ));
 
         let wrong_subject = RawProofEvidence::test_fixture(
-            ProofKey::new(ProofType::TeeAttestation, ProofSubject::PhoneDevice),
-            ISSUER,
-            ROOT,
-            b"nonce".to_vec(),
-            digest,
-            ValueBearingPurpose::Transaction,
-            POLICY,
-            b"binding".to_vec(),
-            now - 1,
-            now + 99,
-            100,
-            b"replay".to_vec(),
+            TestProofEvidenceInput::new(
+                ProofKey::new(ProofType::TeeAttestation, ProofSubject::PhoneDevice),
+                digest,
+                ValueBearingPurpose::Transaction,
+            )
+            .with_issuer(ISSUER)
+            .with_trust_identity(ROOT)
+            .with_nonce(b"nonce".to_vec())
+            .with_policy_id(POLICY)
+            .with_subject_binding(b"binding".to_vec())
+            .with_times(now - 1, now + 99, 100)
+            .with_replay_identity(b"replay".to_vec()),
         );
         let wrong_subject_failure = registry
             .verify_one(
@@ -2001,18 +2059,14 @@ mod tests {
         assert_ne!(
             raw_a.context().canonical_digest(),
             RawProofEvidence::test_fixture(
-                key_a,
-                ISSUER,
-                ROOT,
-                b"nonce".to_vec(),
-                digest,
-                ValueBearingPurpose::Authorization,
-                POLICY,
-                b"a".to_vec(),
-                now - 1,
-                now + 99,
-                100,
-                b"replay".to_vec(),
+                TestProofEvidenceInput::new(key_a, digest, ValueBearingPurpose::Authorization,)
+                    .with_issuer(ISSUER)
+                    .with_trust_identity(ROOT)
+                    .with_nonce(b"nonce".to_vec())
+                    .with_policy_id(POLICY)
+                    .with_subject_binding(b"a".to_vec())
+                    .with_times(now - 1, now + 99, 100)
+                    .with_replay_identity(b"replay".to_vec()),
             )
             .context()
             .canonical_digest()
@@ -2243,18 +2297,14 @@ mod tests {
         ));
 
         let conflicting = RawProofEvidence::test_fixture(
-            key_a,
-            ISSUER,
-            ROOT,
-            b"nonce".to_vec(),
-            digest,
-            ValueBearingPurpose::Transaction,
-            POLICY,
-            b"different-binding".to_vec(),
-            now - 1,
-            now + 99,
-            100,
-            b"replay".to_vec(),
+            TestProofEvidenceInput::new(key_a, digest, ValueBearingPurpose::Transaction)
+                .with_issuer(ISSUER)
+                .with_trust_identity(ROOT)
+                .with_nonce(b"nonce".to_vec())
+                .with_policy_id(POLICY)
+                .with_subject_binding(b"different-binding".to_vec())
+                .with_times(now - 1, now + 99, 100)
+                .with_replay_identity(b"replay".to_vec()),
         );
         assert!(matches!(
             policy
@@ -2274,18 +2324,18 @@ mod tests {
     #[test]
     fn raw_evidence_debug_does_not_expose_evidence_bytes() {
         let raw = RawProofEvidence::test_fixture(
-            ProofKey::new(ProofType::ServerIdentity, ProofSubject::Server),
-            ISSUER,
-            ROOT,
-            b"nonce".to_vec(),
-            [15; 32],
-            ValueBearingPurpose::Transaction,
-            POLICY,
-            b"binding".to_vec(),
-            999,
-            1_099,
-            100,
-            b"replay".to_vec(),
+            TestProofEvidenceInput::new(
+                ProofKey::new(ProofType::ServerIdentity, ProofSubject::Server),
+                [15; 32],
+                ValueBearingPurpose::Transaction,
+            )
+            .with_issuer(ISSUER)
+            .with_trust_identity(ROOT)
+            .with_nonce(b"nonce".to_vec())
+            .with_policy_id(POLICY)
+            .with_subject_binding(b"binding".to_vec())
+            .with_times(999, 1_099, 100)
+            .with_replay_identity(b"replay".to_vec()),
         );
         let diagnostic = format!("{raw:?}");
         assert!(!diagnostic.contains("CONXIAN-TEST-PROOF/v1:"));

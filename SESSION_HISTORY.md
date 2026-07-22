@@ -1,8 +1,41 @@
 # Session History
 
-> **Last Updated**: 2026-07-21 | **Agent Version**: v0.4.2
+> **Last Updated**: 2026-07-22 | **Agent Version**: v0.4.2
 
 This document tracks what was accomplished in previous sessions so future agents can continue the work seamlessly.
+
+---
+
+## Session: 2026-07-22 (PR #237 proof-policy and hardware research boundary)
+
+### Summary
+
+Hardened the Phase A proof-policy integrity boundary and recorded the provider
+research limits requested for PR [#237](https://github.com/Conxian/conxius-enclave-sdk/pull/237).
+The PR was already merged before this continuation (`88620b2` head, merge
+commit `8f3fa687`); the existing source branch is being recreated and pushed
+normally without force-push or a new PR.
+
+### Accomplishments
+
+- Added full versioned policy-digest checks from request-side expected policy
+  through `VerifiedProofSet`, rail authorization, and final dispatch.
+- Refactored test-fixture construction to remove the clippy
+  `too_many_arguments` exception without reducing negative-test coverage.
+- Added authorization and dispatch regressions for same-label weaker policies,
+  expected/verified digest mismatch, exact requirement identity, and freshness.
+- Added the public proof-policy specification, the PR-specific hardware
+  attestation research audit, and a dated primary-source research map.
+- Split provider/research capability rows conservatively; documentation and
+  research remain non-production evidence.
+
+### Remaining unsupported boundary
+
+Real provider verification, hardware/runtime integration, vendor roots and
+collateral/revocation, distributed replay, independent review, exact release
+artifacts, and a production-support decision remain open. Do not infer support
+from the research bibliography, local tests, generated matrix, or merged PR
+state.
 
 ---
 
