@@ -3,6 +3,7 @@ pub mod android_strongbox;
 pub mod attestation;
 #[cfg(any(test, feature = "development-simulators"))]
 pub mod cloud;
+pub mod proof;
 pub mod replay_guard;
 
 #[cfg(test)]
@@ -486,6 +487,7 @@ pub struct ValueBearingSignResponse {
     message_digest: [u8; 32],
     key_binding: SignerKeyBinding,
     attestation: DeviceIntegrityReport,
+    proof_set: Option<proof::VerifiedProofSet>,
     replay_authorization: Option<ValueBearingReplayAuthorization>,
 }
 
@@ -520,6 +522,12 @@ impl ValueBearingSignResponse {
         &self.attestation
     }
 
+    /// Independently verified proof factors attached to this response. Legacy
+    /// device reports are never silently upgraded into this set.
+    pub fn proof_set(&self) -> Option<&proof::VerifiedProofSet> {
+        self.proof_set.as_ref()
+    }
+
     /// Returns replay authorization only for responses returned by the common
     /// manager boundary. Direct test-only evidence construction is not enough
     /// to authorize settlement.
@@ -533,6 +541,20 @@ impl ValueBearingSignResponse {
     ) -> Self {
         self.replay_authorization = Some(replay_authorization);
         self
+    }
+
+    pub fn with_verified_proof_set(mut self, proof_set: proof::VerifiedProofSet) -> Self {
+        self.proof_set = Some(proof_set);
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_test_proof_set(
+        self,
+        request: &ValueBearingSignRequest,
+    ) -> ConclaveResult<Self> {
+        let proof_set = proof::test_fixture_set_for_request(request)?;
+        Ok(self.with_verified_proof_set(proof_set))
     }
 
     #[allow(dead_code)]
@@ -615,6 +637,7 @@ impl ValueBearingSignResponse {
             message_digest: *request.message_digest(),
             key_binding: request.key_binding().clone(),
             attestation: report,
+            proof_set: None,
             replay_authorization: None,
         })
     }
