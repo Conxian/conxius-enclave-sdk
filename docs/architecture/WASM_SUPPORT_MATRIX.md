@@ -73,8 +73,20 @@ provenance, or production support.
   boundary return the stable `INVALID_INPUT` code before native processing.
 - Cloud, localhost, software-only, and mock implementations are test/development
   paths. They cannot satisfy production hardware or runtime evidence.
+- `new_for_development` constructors remain behind the
+  `development-simulators` feature and are absent from the default generated
+  artifacts. Simulator execution therefore cannot satisfy the production
+  attestation policy.
 
 ## Required evidence before support promotion
+
+The dedicated `wasm-runtime` workflow checks out the exact tested commit,
+pins Rust, Node.js, npm, wasm-pack, and Chromium, builds fresh Node.js and Web
+artifacts, derives the browser bundler bundle from the generated Web package,
+and uploads the runtime provenance manifest. The manifest binds the tested
+head to the pull-request/merge-ref context and records toolchain, runtime, and
+browser identity; retained artifact/provenance digests and the CI result must
+remain attached to the same release scope.
 
 For each runtime lane, retain all of the following for the exact artifact and
 provider configuration:

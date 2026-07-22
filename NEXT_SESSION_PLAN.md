@@ -29,7 +29,7 @@ Remaining gates are already tracked by GitHub #195–#202. PR #205 and the typed
 
 ## Immediate blockers to prioritize
 
-1. ✅ **RESOLVED**: Defined and integrated `HardwareProvider` verifier with concrete `HardwareProviderType` (`IntelSgx`, `AndroidStrongBox`, `AwsNitro`), complete X.509 chain signature verification, validity date checking, and policy integration.
+1. Define and integrate the real provider verifier/signer contract, including hardware-generated keys, provider response/key binding, vendor roots, and collateral.
 2. Replace process-local replay containment with independently reviewed distributed replay authorization for the deployment scope.
 3. Add provider-backed hardware/runtime integration tests, including WASM runtime/platform evidence where supported; compilation is not runtime evidence.
 4. Obtain independent security/cryptographic review for the exact reviewed code and attach the findings.

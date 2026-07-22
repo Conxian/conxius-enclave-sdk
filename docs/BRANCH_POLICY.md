@@ -18,12 +18,16 @@ The following checks must pass before a Pull Request can be merged:
 - **Linting** (`Linting`): `cargo fmt --check` and `cargo clippy -- -D warnings` must pass.
 - **Hygiene** (`Repository Hygiene`): No testnet principals (`ST...`), forbidden extensions (`.key`, `.pem`), or sensitive files (`.env`) permitted in production paths.
 - **WASM Build** (`WASM Build`): `wasm-pack build` must succeed for SDK repositories.
+- **WASM Runtime Evidence** (`WASM Runtime Evidence`): generated Node.js,
+  bundler, browser, and Web Worker harnesses must execute against artifacts
+  built from the checked-out commit; build-only output is not runtime evidence.
 - **Secret Scan** (`gitleaks`): Gitleaks findings must fail CI (fail-closed).
 - **Coverage** (`Coverage Threshold (>= 70%)`): line coverage must remain at or above 70%.
 
 ## 4. Release Pipeline
 - **Validation**: High-risk changes should be validated on a `staged` branch before merging to `main`.
-- **Supply Chain Controls**: `Validate release metadata and package` and `SBOM + provenance attestation` must pass before `Publish crate to crates.io (manual gate)` can run.
+- **Supply Chain Controls**: The full-history Gitleaks scan, release metadata/package validation, SBOM/provenance evidence, and post-publication registry digest comparison must pass in the single `release-strict.yml` path before a GitHub Release can be created.
+- **Publication**: Only `release-strict.yml` publishes to crates.io. Its manual inputs either publish an absent version or verify an already-published matching artifact; they do not create a competing publisher.
 - **Changelog**: Every PR that modifies logic must update `CHANGELOG.md` under the `[Unreleased]` section.
 - **Versioning**: Version bumps must follow SemVer and occur during the final release tag workflow.
 

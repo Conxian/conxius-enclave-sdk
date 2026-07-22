@@ -21,6 +21,11 @@ not a release claim; the repository's latest visible release/tag remains
 - `WasmBitVm2Orchestrator::new()` and `ConclaveWasmClient::bitvm2()` are now
   fallible. They return `UNSUPPORTED_PROVIDER` instead of creating a localhost
   mock or panicking.
+- Generated bindings now include the same fallible constructor behavior; do
+  not assume that a JavaScript `new` expression returning an object means a
+  provider is available.
+- Malformed JSON, event, and boundary decoding errors return `INVALID_INPUT`.
+  Callers should not parse error strings or retry with a software key.
 - BitVM2's public input is named `taproot_internal_key_hex` to distinguish a
   public Taproot internal key from private key material.
 - WASM Fedimint methods that accept opaque handles currently return
@@ -43,6 +48,24 @@ not a release claim; the repository's latest visible release/tag remains
    when a future explicitly secret-bearing API returns it.
 4. Keep CloudEnclave, localhost, and mock providers confined to clearly marked
    tests. Their output is not production runtime or hardware evidence.
+
+## Runtime evidence
+
+The repository's executable runtime checks are intentionally fail-closed and
+do not promote a runtime lane to production support. Run the reproducible
+artifact harness from the repository root:
+
+```bash
+./scripts/run_wasm_runtime_evidence.sh /tmp/conxius-wasm-runtime-evidence
+```
+
+The harness builds the Node.js, bundler, and web packages from the same commit,
+executes Node and `worker_threads` checks, imports the bundler ESM package, and
+uses a real browser module Web Worker when a Chromium-compatible browser is
+available. CI requires the browser lane and uploads the toolchain, runtime,
+artifact-digest, and result evidence. Passing these checks still does not prove
+provider approval, hardware attestation, release provenance, or production
+support.
 
 The existing native Ark derivation function is retained for native/structural
 tests only. Changing the derivation scheme or using an external provider for
