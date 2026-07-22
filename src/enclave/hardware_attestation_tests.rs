@@ -196,52 +196,6 @@ mod trust_tier_tests {
 }
 
 // =============================================================================
-// Hardware Provider Verifier Tests
-// =============================================================================
-
-#[cfg(test)]
-mod hardware_provider_verifier_tests {
-    use super::*;
-    use crate::enclave::attestation::{
-        AttestationPolicy, HardwareProviderType, ProviderVerifierStatus,
-    };
-
-    #[test]
-    fn test_hardware_provider_verifier_status() {
-        let policy = AttestationPolicy::production();
-        let hardware_policy = policy.with_hardware_provider(
-            HardwareProviderType::AndroidStrongBox,
-            vec!["GOOGLE_STRONGBOX_ROOT_V1".to_string()],
-            None,
-        );
-
-        assert_eq!(
-            hardware_policy.provider_verifier_status(),
-            ProviderVerifierStatus::VerifiedHardware
-        );
-    }
-
-    #[test]
-    fn test_hardware_chain_signature_verification_failure() {
-        let generator = MockAttestationGenerator::new(AttestationLevel::StrongBox);
-        let nonce: [u8; 4] = random_nonce();
-        let report = generator.generate_valid_report(&nonce, 1_000_000);
-
-        let policy = AttestationPolicy::production().with_hardware_provider(
-            HardwareProviderType::AndroidStrongBox,
-            vec!["REAL_GOOGLE_STRONGBOX_ROOT_CA".to_string()],
-            None,
-        );
-
-        // Report has only mock/simulated CA roots so real cryptographic verification should fail-closed
-        assert!(
-            !policy.verify_hardware_chain_signature(&report, HardwareProviderType::AndroidStrongBox, &["REAL_GOOGLE_STRONGBOX_ROOT_CA".to_string()], None),
-            "Real hardware chain signature validation should fail-closed for unanchored certificate chains"
-        );
-    }
-}
-
-// =============================================================================
 // Freshness & Replay Protection Tests
 // =============================================================================
 
@@ -523,7 +477,7 @@ mod trust_enforcement_tests {
     fn test_production_signing_requires_hardware_attestation() {
         // Simulate a production signing request
         let generator = MockAttestationGenerator::new(AttestationLevel::Software);
-        let nonce = random_nonce();
+        let nonce: [u8; 4] = rand::random();
         let now = 1_000_000_u64;
 
         let report = generator.generate_valid_report(&nonce, now.saturating_sub(60));
@@ -550,11 +504,12 @@ mod edge_case_tests {
 
     #[test]
     fn test_empty_signature_rejected() {
+        let nonce = random_nonce();
         let report = DeviceIntegrityReport {
             report_version: ATTESTATION_ENVELOPE_VERSION,
             report_type: AttestationReportType::DeviceIntegrity,
             level: AttestationLevel::TEE,
-            challenge_nonce: random_nonce().to_vec(),
+            challenge_nonce: nonce.to_vec(),
             signature: vec![], // Empty signature
             attested_operation_public_key: vec![0x42; 32],
             signer_key_binding: None,
@@ -566,10 +521,7 @@ mod edge_case_tests {
         };
 
         // Empty signature should fail verification (signature is empty)
-        assert!(
-            !report.verify(&random_nonce()),
-            "Empty signature should be rejected"
-        );
+        assert!(!report.verify(&nonce), "Empty signature should be rejected");
     }
 
     #[test]

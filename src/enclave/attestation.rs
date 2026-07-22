@@ -314,23 +314,6 @@ fn level_tag(level: AttestationLevel) -> u8 {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum HardwareProviderType {
-    IntelSgx,
-    AndroidStrongBox,
-    AwsNitro,
-}
-
-impl HardwareProviderType {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::IntelSgx => "IntelSgx",
-            Self::AndroidStrongBox => "AndroidStrongBox",
-            Self::AwsNitro => "AwsNitro",
-        }
-    }
-}
-
 /// Status of the provider-specific verifier behind an attestation policy.
 ///
 /// `Unavailable` is the only production status in this release. Real Android,
@@ -338,23 +321,17 @@ impl HardwareProviderType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderVerifierStatus {
     Unavailable,
-    VerifiedHardware,
     #[cfg(test)]
     TestOnly,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ProviderVerifier {
+enum ProviderVerifier {
     Unavailable,
     #[cfg(test)]
     TestFixture {
         trusted_roots: Vec<String>,
         leaf_public_key: [u8; 32],
-    },
-    HardwareProvider {
-        provider_type: HardwareProviderType,
-        trusted_roots: Vec<String>,
-        leaf_public_key: Option<[u8; 32]>,
     },
 }
 
@@ -461,20 +438,6 @@ impl AttestationPolicy {
         Ok(self)
     }
 
-    pub fn with_hardware_provider(
-        mut self,
-        provider_type: HardwareProviderType,
-        trusted_roots: Vec<String>,
-        leaf_public_key: Option<[u8; 32]>,
-    ) -> Self {
-        self.provider_verifier = ProviderVerifier::HardwareProvider {
-            provider_type,
-            trusted_roots,
-            leaf_public_key,
-        };
-        self
-    }
-
     /// Compatibility wrapper for the former string-root configuration API.
     ///
     /// Production builds deliberately reject arbitrary roots because a string
@@ -575,11 +538,10 @@ impl AttestationPolicy {
     }
 
     pub fn provider_verifier_status(&self) -> ProviderVerifierStatus {
-        match &self.provider_verifier {
+        match self.provider_verifier {
             ProviderVerifier::Unavailable => ProviderVerifierStatus::Unavailable,
             #[cfg(test)]
             ProviderVerifier::TestFixture { .. } => ProviderVerifierStatus::TestOnly,
-            ProviderVerifier::HardwareProvider { .. } => ProviderVerifierStatus::VerifiedHardware,
         }
     }
 
@@ -593,145 +555,6 @@ impl AttestationPolicy {
         {
             false
         }
-    }
-
-    pub fn verify_hardware_chain_signature(
-        &self,
-        report: &DeviceIntegrityReport,
-        _provider_type: HardwareProviderType,
-        trusted_roots: &[String],
-        leaf_public_key: Option<[u8; 32]>,
-    ) -> bool {
-        if !report.certificate_chain_is_well_formed() {
-            return false;
-        }
-
-        // Production hardware verification requires a full, multi-level certificate chain (length > 2)
-        if report.certificate_chain.len() <= 2 {
-            return false;
-        }
-
-        // 1. Verify root CA matches one of our trusted roots
-        let root_matches = report
-            .certificate_chain
-            .last()
-            .is_some_and(|root| trusted_roots.iter().any(|trusted| trusted == root));
-        if !root_matches {
-            return false;
-        }
-
-        // 2. Verify leaf matches expected key if provided
-        if let Some(expected_leaf) = leaf_public_key {
-            let leaf_matches = report
-                .certificate_chain
-                .first()
-                .and_then(|entry| hex::decode(entry).ok())
-                .and_then(|key| <[u8; 32]>::try_from(key).ok())
-                .is_some_and(|key| key == expected_leaf);
-            if !leaf_matches {
-                return false;
-            }
-        }
-
-        // 3. Cryptographic chain verification starting from the first intermediate certificate (index 1)
-        for i in 1..report.certificate_chain.len() - 1 {
-            let child_der = match hex::decode(&report.certificate_chain[i]) {
-                Ok(der) => der,
-                Err(_) => return false,
-            };
-            let parent_der = match hex::decode(&report.certificate_chain[i + 1]) {
-                Ok(der) => der,
-                Err(_) => return false,
-            };
-
-            let child_cert = match Certificate::from_der(&child_der) {
-                Ok(cert) => cert,
-                Err(_) => return false,
-            };
-            let parent_cert = match Certificate::from_der(&parent_der) {
-                Ok(cert) => cert,
-                Err(_) => return false,
-            };
-
-            if !Self::verify_certificate_signature(&child_cert, &parent_cert) {
-                return false;
-            }
-
-            let now_secs = unix_time_secs();
-            if !Self::verify_certificate_validity(&child_cert, now_secs)
-                || !Self::verify_certificate_validity(&parent_cert, now_secs)
-            {
-                return false;
-            }
-        }
-
-        true
-    }
-
-    pub fn verify_certificate_signature(child: &Certificate, parent: &Certificate) -> bool {
-        let parent_pubkey_info = parent.tbs_certificate().subject_public_key_info();
-        let parent_pubkey_bytes = parent_pubkey_info.subject_public_key.raw_bytes();
-
-        let child_sig_bytes = child.signature().raw_bytes();
-
-        use der::Encode;
-        let signed_data = match child.tbs_certificate().to_der() {
-            Ok(der) => der,
-            Err(_) => return false,
-        };
-
-        let oid_str = child.signature_algorithm().oid.to_string();
-
-        if oid_str == "1.3.101.112" {
-            let verifying_key_bytes: [u8; 32] = match parent_pubkey_bytes.try_into() {
-                Ok(bytes) => bytes,
-                Err(_) => return false,
-            };
-            let verifying_key = match ed25519_dalek::VerifyingKey::from_bytes(&verifying_key_bytes)
-            {
-                Ok(key) => key,
-                Err(_) => return false,
-            };
-            let signature = match ed25519_dalek::Signature::from_slice(child_sig_bytes) {
-                Ok(sig) => sig,
-                Err(_) => return false,
-            };
-            verifying_key.verify(&signed_data, &signature).is_ok()
-        } else if oid_str == "1.2.840.10045.4.3.2" {
-            let digest = Sha256::digest(&signed_data);
-            let message = secp256k1::Message::from_digest(digest.into());
-            let signature = match secp256k1::ecdsa::Signature::from_der(child_sig_bytes) {
-                Ok(sig) => sig,
-                Err(_) => match secp256k1::ecdsa::Signature::from_compact(child_sig_bytes) {
-                    Ok(sig) => sig,
-                    Err(_) => return false,
-                },
-            };
-            let public_key = match secp256k1::PublicKey::from_slice(parent_pubkey_bytes) {
-                Ok(key) => key,
-                Err(_) => return false,
-            };
-            secp256k1::ecdsa::verify(&signature, message, &public_key).is_ok()
-        } else {
-            false
-        }
-    }
-
-    pub fn verify_certificate_validity(cert: &Certificate, now_secs: u64) -> bool {
-        let not_before = cert
-            .tbs_certificate()
-            .validity()
-            .not_before
-            .to_unix_duration()
-            .as_secs();
-        let not_after = cert
-            .tbs_certificate()
-            .validity()
-            .not_after
-            .to_unix_duration()
-            .as_secs();
-
-        now_secs >= not_before && now_secs <= not_after
     }
 
     fn verify_provider_evidence(&self, _report: &DeviceIntegrityReport) -> bool {
@@ -759,16 +582,6 @@ impl AttestationPolicy {
 
                 leaf_matches && root_matches
             }
-            ProviderVerifier::HardwareProvider {
-                provider_type,
-                trusted_roots,
-                leaf_public_key,
-            } => self.verify_hardware_chain_signature(
-                _report,
-                *provider_type,
-                trusted_roots,
-                *leaf_public_key,
-            ),
         }
     }
 }

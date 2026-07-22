@@ -107,10 +107,29 @@ export function runBoundaryAssertions(api) {
     "UNSUPPORTED_PROVIDER",
   );
 
+  const validLightningPaymentHash =
+    "0001020304050607080900010203040506070809000102030405060708090102";
+  const validLightningInvoice =
+    "lnbc2500u1pvjluezsp5zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygspp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq5xysxxatsyp3k7enxv4jsxqzpu9qrsgquk0rl77nj30yxdy8j9vdx85fkpmdla2087ne0xh8nhedh8w27kyke0lp53ut353s06fv3qfegext0eh0ymjpf39tuven09sam30g4vgpfna3rh";
+  const validLightningAmount = 250_000_000n;
+
+  expectTypedError(
+    checks,
+    "Lightning malformed payment hash",
+    () => new api.WasmLightningClient("payment-hash", validLightningInvoice, validLightningAmount, null),
+    "INVALID_INPUT",
+  );
+  expectTypedError(
+    checks,
+    "Lightning malformed invoice",
+    () => new api.WasmLightningClient(validLightningPaymentHash, "lnbc1-runtime-evidence", 1000n, null),
+    "INVALID_INPUT",
+  );
+
   const lightning = new api.WasmLightningClient(
-    "payment-hash",
-    "lnbc1-runtime-evidence",
-    1000n,
+    validLightningPaymentHash,
+    validLightningInvoice,
+    validLightningAmount,
     null,
   );
   assertCondition(lightning.get_status() === "Created", "Lightning client did not initialize");
