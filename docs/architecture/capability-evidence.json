@@ -1756,22 +1756,22 @@
       "id": "aws-nitro",
       "name": "AWS Nitro attestation",
       "family": "attestation-research",
-      "api": "no",
-      "implementation": "no",
+      "api": "yes",
+      "implementation": "partial",
       "integration": "no",
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
-      "evidenceRefs": ["RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://docs.aws.amazon.com/enclaves/latest/user/verify-root.html", "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/attestation-get-doc.html"],
+      "evidenceRefs": ["src/enclave/nitro.rs", "src/enclave/mod.rs", "src/enclave/attestation.rs", "Cargo.toml", "Cargo.lock", "RESEARCH_LOG.md", "docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://docs.aws.amazon.com/enclaves/latest/user/verify-root.html", "https://docs.aws.amazon.com/enclaves/latest/user/set-up-attestation.html", "https://docs.aws.amazon.com/kms/latest/APIReference/API_RecipientInfo.html", "https://docs.aws.amazon.com/kms/latest/developerguide/attested-calls.html"],
       "evidenceChain": [
-        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md"]},
-        {"stage": "code", "refs": []},
-        {"stage": "test", "refs": []},
+        {"stage": "requirement", "refs": ["docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md", "https://github.com/Conxian/conxius-enclave-sdk/issues/242", "https://github.com/Conxian/conxius-enclave-sdk/issues/240"]},
+        {"stage": "code", "refs": ["src/enclave/nitro.rs", "src/enclave/mod.rs", "src/enclave/attestation.rs"]},
+        {"stage": "test", "refs": ["src/enclave/nitro.rs", "src/enclave/attestation.rs"]},
         {"stage": "ci", "refs": []},
         {"stage": "artifact", "refs": []}
       ],
-      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Nitro documentation is not an NSM, COSE, AWS-root, PCR, nonce, or runtime verifier implementation.",
-      "notes": "Nitro root/debug boundaries remain explicit research requirements."
+      "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/240", "https://github.com/Conxian/conxius-enclave-sdk/issues/242", "https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
+      "exclusion": "Offline bounded parsing, P-384 COSE verification, exact local policy, release binding, and KMS recipient contract tests are structural evidence only. They are not AWS PKI/root or collateral validation, NSM/vsock/KMS/CloudTrail/EIF runtime integration, PCR provenance, distributed replay protection, independent review, release artifact, or production support.",
+      "notes": "The native-only offline boundary is not registered as a production provider verifier; AttestationPolicy::production() remains Unavailable and no AWS root, live identifier, endpoint, credential, or runtime integration is configured. Fixtures are test-only and carry no AWS provenance."
     },
     {
       "id": "arm-psa",

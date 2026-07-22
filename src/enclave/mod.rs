@@ -3,6 +3,8 @@ pub mod android_strongbox;
 pub mod attestation;
 #[cfg(any(test, feature = "development-simulators"))]
 pub mod cloud;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod nitro;
 pub mod proof;
 pub mod proofs;
 pub mod replay_guard;
