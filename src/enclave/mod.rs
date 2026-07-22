@@ -553,15 +553,6 @@ impl ValueBearingSignRequest {
         authorization: &proofs::ProofBoundValueBearingAuthorization,
     ) -> ConclaveResult<Self> {
         let expected_policy_digest = proofs::ProofPolicy::production().digest()?;
-        if self
-            .expected_proof_policy_digest_override
-            .is_some_and(|digest| digest != expected_policy_digest)
-        {
-            return Err(ConclaveError::Unsupported(
-                "request-side proof policy digest does not match canonical authorization"
-                    .to_string(),
-            ));
-        }
         if authorization.policy_digest() != &expected_policy_digest
             || authorization.verified_proofs().operation_digest() != &self.message_digest
             || authorization.verified_proofs().purpose()
@@ -574,10 +565,13 @@ impl ValueBearingSignRequest {
             ));
         }
 
-        // A legacy structured policy may still be present for compatibility,
-        // but a canonical authorization upgrades the request-side digest to
-        // the exact production six-proof policy. An independently supplied
-        // digest remains immutable and is checked above.
+        if self
+            .expected_proof_policy_digest_override
+            .is_some_and(|digest| digest != expected_policy_digest)
+        {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
         self.expected_proof_policy_digest_override = Some(expected_policy_digest);
         self.canonical_proof_policy_digest = Some(expected_policy_digest);
         self.canonical_proof_context_binding = Some(*authorization.context_binding());

@@ -74,12 +74,6 @@ const DURABLE_RAIL_REPLAY_UNAVAILABLE_MESSAGE: &str =
     "durable replay store is unavailable for RailProxy value-bearing authorization";
 const RAIL_ATTESTATION_SUBJECT: &str = "rail-attestation";
 const RAIL_ATTESTATION_MECHANISM: &str = "device-integrity-report";
-#[cfg(test)]
-const TYPED_SETTLEMENT_REPLAY_CAPACITY_MESSAGE: &str =
-    "typed settlement replay guard capacity is saturated";
-#[cfg(not(test))]
-const TYPED_SETTLEMENT_REPLAY_CAPACITY_MESSAGE: &str =
-    "durable rail replay store capacity is saturated";
 
 /// Reject built-in adapter dispatch before any adapter can construct or send a
 /// request containing typed authorization or device evidence.
@@ -278,7 +272,7 @@ impl VerifiedOperation {
 
         proof_authorization.observe_and_validate_at(proof_authorization_observed_at)?;
         if !proof_authorization.has_exact_production_proof_set()
-            || !proof_authorization.matches_request(request)
+            || !proof_authorization.matches_request(request)?
         {
             return Err(ConclaveError::Unsupported(
                 "typed settlement authorization requires the canonical six-proof production authorization"
@@ -438,15 +432,15 @@ pub struct RailProxy {
     min_trust_tier: TrustTier,
     attestation_policy: AttestationPolicy,
     replay_store: Option<Arc<dyn ReplayStore>>,
+    #[cfg(test)]
     /// Legacy attestation and final settlement replay domain. Canonical proof
     /// reservations use the separate `proof_replay_guard` because each
     /// settlement reserves one key per proof rather than one key per
     /// settlement.
-    #[cfg(test)]
     settlement_replay_guard: Arc<ReplayGuard>,
+    #[cfg(test)]
     /// Canonical proof-envelope replay domain. Its capacity is sized for the
     /// six proof reservations required by each production settlement.
-    #[cfg(test)]
     proof_replay_guard: Arc<ReplayGuard>,
     pub telemetry: Option<Arc<TelemetryClient>>,
 }
@@ -569,8 +563,6 @@ impl RailProxy {
         }
     }
 
-    /// Test-only compatibility configuration for the bounded process-local
-    /// settlement replay domain. Production authorization uses `with_replay_store`.
     #[cfg(test)]
     /// Configures final settlement replay storage (and the legacy attestation
     /// replay path) while preserving fail-closed saturation semantics.
@@ -762,7 +754,6 @@ impl RailProxy {
             &reservation,
             now_secs,
             "Attestation replay detected",
-            "durable rail replay store capacity is saturated",
         )
     }
 
@@ -820,18 +811,11 @@ impl RailProxy {
         reservation: &ReplayReservation,
         now_secs: u64,
         duplicate_message: &str,
-        capacity_message: &str,
     ) -> ConclaveResult<()> {
-        let outcome = replay_store
+        match replay_store
             .consume_once(reservation, now_secs)
-            .map_err(|error| {
-                if matches!(error, ReplayStoreError::CapacitySaturated) {
-                    ConclaveError::EnclaveFailure(capacity_message.to_string())
-                } else {
-                    map_rail_replay_store_error(error)
-                }
-            })?;
-        match outcome {
+            .map_err(map_rail_replay_store_error)?
+        {
             ReplayConsumeOutcome::Accepted => Ok(()),
             ReplayConsumeOutcome::Duplicate => {
                 Err(ConclaveError::EnclaveFailure(duplicate_message.to_string()))
@@ -899,18 +883,6 @@ impl RailProxy {
         operation: VerifiedOperation,
         trusted_now_secs: ConclaveResult<u64>,
     ) -> ConclaveResult<SwapResponse> {
-        // The process-local store is compiled only into unit-test fixtures so
-        // the historical capacity-domain regression remains covered. Public
-        // and downstream builds always require the configured durable store.
-        #[cfg(test)]
-        let replay_store: &dyn ReplayStore = if self.replay_store.is_some() {
-            self.settlement_replay_guard.as_ref()
-        } else {
-            // Preserve the production configuration gate even in tests that
-            // intentionally construct an unconfigured proxy.
-            self.durable_replay_store()?
-        };
-        #[cfg(not(test))]
         let replay_store = self.durable_replay_store()?;
         let intent = operation.intent();
         let authorization = operation.authorization();
@@ -961,7 +933,7 @@ impl RailProxy {
         if now_secs < authorization.proof_authorization_observed_at {
             return Err(ConclaveError::ClockRollback);
         }
-        if now_secs > authorization.proof_authorization_expires_at {
+        if now_secs >= authorization.proof_authorization_expires_at {
             return Err(ConclaveError::Unsupported(
                 "proof authorization has expired".to_string(),
             ));
@@ -988,7 +960,6 @@ impl RailProxy {
             &reservation,
             now_secs,
             "typed settlement authorization replay detected",
-            TYPED_SETTLEMENT_REPLAY_CAPACITY_MESSAGE,
         )?;
 
         if let Some(telemetry) = &self.telemetry {
@@ -2487,7 +2458,7 @@ mod rail_proxy_tests {
         assert!(matches!(
             proxy.dispatch_verified_operation(operation).await,
             Err(ConclaveError::EnclaveFailure(message))
-                if message.contains("typed settlement replay guard capacity is saturated")
+                if message.contains("durable rail replay store capacity is saturated")
         ));
 
         // A successful proof authorization deliberately remains consumed even
@@ -2511,13 +2482,15 @@ mod rail_proxy_tests {
         assert!(matches!(
             proxy.dispatch_verified_operation(next_operation).await,
             Err(ConclaveError::EnclaveFailure(message))
-                if message.contains("typed settlement replay guard capacity is saturated")
+                if message.contains("durable rail replay store capacity is saturated")
         ));
 
-        // Replacing only the saturated final-token guard permits the already
+        // Replacing only the saturated final-token store permits the already
         // authorized operation to continue. The proof authorization remains
         // bound to the operation and was not rolled back or re-admitted.
-        proxy = proxy.with_replay_guard(Arc::new(ReplayGuard::new(DEFAULT_REPLAY_TTL_SECS, 1)));
+        proxy = proxy
+            .with_replay_store(Arc::new(TestOnlyDurableReplayStore::new(1)))
+            .expect("replacement durable replay store should configure");
         assert!(proxy
             .dispatch_verified_operation(retry_after_capacity_failure)
             .await
