@@ -48,6 +48,11 @@ pub enum TrustTier {
 /// Canonical operation-context domain for typed settlement authorization.
 pub const SETTLEMENT_OPERATION_DOMAIN: &str = "conxian/settlement/v1";
 
+const DEFAULT_REPLAY_TTL_SECS: u64 = 1000;
+const DEFAULT_SETTLEMENT_REPLAY_MAX_ENTRIES: usize = 300;
+const DEFAULT_PROOF_REPLAY_MAX_ENTRIES: usize =
+    DEFAULT_SETTLEMENT_REPLAY_MAX_ENTRIES * ProofKind::all().len();
+
 /// Built-in settlement adapters remain quarantined until their wire contract
 /// and gateway compatibility are versioned and evidenced.
 pub(crate) const BUILTIN_ADAPTER_DISPATCH_DISABLED_MESSAGE: &str =
@@ -409,7 +414,14 @@ pub struct RailProxy {
     rails: HashMap<String, Box<dyn SovereignRail>>,
     min_trust_tier: TrustTier,
     attestation_policy: AttestationPolicy,
-    replay_guard: Arc<ReplayGuard>,
+    /// Legacy attestation and final settlement replay domain. Canonical proof
+    /// reservations use the separate `proof_replay_guard` because each
+    /// settlement reserves one key per proof rather than one key per
+    /// settlement.
+    settlement_replay_guard: Arc<ReplayGuard>,
+    /// Canonical proof-envelope replay domain. Its capacity is sized for the
+    /// six proof reservations required by each production settlement.
+    proof_replay_guard: Arc<ReplayGuard>,
     pub telemetry: Option<Arc<TelemetryClient>>,
 }
 
@@ -452,7 +464,14 @@ impl RailProxy {
             rails,
             min_trust_tier: TrustTier::T4,
             attestation_policy: default_attestation_policy(),
-            replay_guard: Arc::new(ReplayGuard::new(1000, 300)),
+            settlement_replay_guard: Arc::new(ReplayGuard::new(
+                DEFAULT_REPLAY_TTL_SECS,
+                DEFAULT_SETTLEMENT_REPLAY_MAX_ENTRIES,
+            )),
+            proof_replay_guard: Arc::new(ReplayGuard::new(
+                DEFAULT_REPLAY_TTL_SECS,
+                DEFAULT_PROOF_REPLAY_MAX_ENTRIES,
+            )),
             telemetry: None,
         }
     }
@@ -487,14 +506,24 @@ impl RailProxy {
         &self.attestation_policy
     }
 
-    /// Configures replay storage while preserving fail-closed saturation semantics.
+    /// Configures final settlement replay storage (and the legacy attestation
+    /// replay path) while preserving fail-closed saturation semantics.
+    /// Canonical proof-envelope reservations remain in their separate replay
+    /// domain and can be configured with [`Self::with_proof_replay_guard`].
     pub fn with_replay_guard(mut self, replay_guard: Arc<ReplayGuard>) -> Self {
-        self.replay_guard = replay_guard;
+        self.settlement_replay_guard = replay_guard;
+        self
+    }
+
+    /// Configures canonical proof-envelope replay storage independently from
+    /// final settlement-token replay storage.
+    pub fn with_proof_replay_guard(mut self, replay_guard: Arc<ReplayGuard>) -> Self {
+        self.proof_replay_guard = replay_guard;
         self
     }
 
     pub(crate) fn proof_replay_guard(&self) -> &ReplayGuard {
-        self.replay_guard.as_ref()
+        self.proof_replay_guard.as_ref()
     }
 
     #[cfg(test)]
@@ -650,7 +679,7 @@ impl RailProxy {
 
         // Replay state is consumed only after every report check succeeds.
         match self
-            .replay_guard
+            .settlement_replay_guard
             .try_check_and_record(&hex::encode(&intent.signable_hash), now_secs)
         {
             Ok(()) => Ok(()),
@@ -812,7 +841,7 @@ impl RailProxy {
             ));
         }
 
-        match self.replay_guard.try_check_and_record(
+        match self.settlement_replay_guard.try_check_and_record(
             &hex::encode(authorization.replay_authorization.token),
             now_secs,
         ) {
@@ -1057,6 +1086,7 @@ mod rail_proxy_tests {
     };
     use crate::enclave::proofs::{
         sign_value_bearing_with_proof_authorization, test_fixture_settlement_authorization,
+        test_fixture_settlement_authorization_with_replay_guard,
     };
     use crate::enclave::{EnclaveManager, SignRequest, SignResponse, SignerCapability};
     use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
@@ -1197,9 +1227,13 @@ mod rail_proxy_tests {
 
     impl SettlementFixtureProvider {
         fn new(policy_id: &str) -> Self {
+            Self::with_replay_capacity(policy_id, 32)
+        }
+
+        fn with_replay_capacity(policy_id: &str, max_entries: usize) -> Self {
             Self {
                 operation_key: SigningKey::from_bytes(&[7u8; 32]),
-                replay_guard: ReplayGuard::new(300, 32),
+                replay_guard: ReplayGuard::new(300, max_entries),
                 policy_id: policy_id.to_string(),
             }
         }
@@ -1394,34 +1428,47 @@ mod rail_proxy_tests {
         intent
     }
 
-    fn authorize_fixture_operation(
+    fn indexed_custom_settlement_intent(index: usize) -> SwapIntent {
+        let mut seed = vec![0u8; 32];
+        seed[..8].copy_from_slice(&(index as u64).to_be_bytes());
+        custom_settlement_intent(seed)
+    }
+
+    fn try_authorize_fixture_operation(
         proxy: &RailProxy,
         provider: &SettlementFixtureProvider,
         intent: SwapIntent,
-    ) -> VerifiedOperation {
+    ) -> ConclaveResult<VerifiedOperation> {
         let digest: [u8; 32] = intent
             .canonical_hash()
             .try_into()
-            .expect("canonical intent hash should be 32 bytes");
+            .map_err(|_| ConclaveError::InvalidPayload)?;
         let request = settlement_request(
             digest,
             provider.operation_public_key(),
             VALUE_BEARING_POLICY_ID,
         );
-        let proof_authorization =
-            test_fixture_settlement_authorization(&intent, digest.to_vec(), test_unix_time_secs())
-                .expect("canonical fixture proof authorization should verify");
-        let request = request
-            .with_proof_authorization(&proof_authorization)
-            .expect("canonical fixture authorization should bind to request");
+        let proof_authorization = test_fixture_settlement_authorization_with_replay_guard(
+            &intent,
+            digest.to_vec(),
+            test_unix_time_secs(),
+            proxy.proof_replay_guard(),
+        )?;
+        let request = request.with_proof_authorization(&proof_authorization)?;
         let response = sign_value_bearing_with_proof_authorization(
             provider,
             request.clone(),
             &proof_authorization,
-        )
-        .expect("fixture provider should issue typed evidence");
-        proxy
-            .authorize_verified_operation(intent, &request, response, &proof_authorization)
+        )?;
+        proxy.authorize_verified_operation(intent, &request, response, &proof_authorization)
+    }
+
+    fn authorize_fixture_operation(
+        proxy: &RailProxy,
+        provider: &SettlementFixtureProvider,
+        intent: SwapIntent,
+    ) -> VerifiedOperation {
+        try_authorize_fixture_operation(proxy, provider, intent)
             .expect("fixture evidence should authorize the typed operation")
     }
 
@@ -1978,6 +2025,83 @@ mod rail_proxy_tests {
             Err(ConclaveError::EnclaveFailure(message))
                 if message.contains("typed settlement authorization replay detected")
         ));
+    }
+
+    #[tokio::test]
+    async fn proof_authorized_settlements_use_separate_replay_capacity_domains() {
+        // The old shared 300-entry guard failed after 42 complete operations
+        // because each operation admitted six proof keys and one final token.
+        // Leave one extra proof bundle available so final-token saturation can
+        // be exercised independently after the intended 300-operation
+        // settlement capacity is reached.
+        let mut proxy = test_proxy()
+            .with_min_trust_tier(TrustTier::T4)
+            .with_proof_replay_guard(Arc::new(ReplayGuard::new(
+                DEFAULT_REPLAY_TTL_SECS,
+                DEFAULT_PROOF_REPLAY_MAX_ENTRIES + 2 * ProofKind::all().len(),
+            )));
+        proxy.register_rail(Box::new(CustomRail));
+        let provider = SettlementFixtureProvider::with_replay_capacity(
+            VALUE_BEARING_POLICY_ID,
+            DEFAULT_SETTLEMENT_REPLAY_MAX_ENTRIES + 2,
+        );
+
+        for index in 0..DEFAULT_SETTLEMENT_REPLAY_MAX_ENTRIES {
+            let operation = authorize_fixture_operation(
+                &proxy,
+                &provider,
+                indexed_custom_settlement_intent(index),
+            );
+            assert!(
+                proxy.dispatch_verified_operation(operation).await.is_ok(),
+                "distinct proof-authorized settlement {index} should remain available"
+            );
+        }
+
+        let saturated_intent =
+            indexed_custom_settlement_intent(DEFAULT_SETTLEMENT_REPLAY_MAX_ENTRIES);
+        let operation =
+            try_authorize_fixture_operation(&proxy, &provider, saturated_intent.clone())
+                .expect("proof replay capacity should remain independent of final-token capacity");
+        let retry_after_capacity_failure = operation.clone();
+        assert!(matches!(
+            proxy.dispatch_verified_operation(operation).await,
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("typed settlement replay guard capacity is saturated")
+        ));
+
+        // A successful proof authorization deliberately remains consumed even
+        // when final-token admission is unavailable; retrying the same bundle
+        // must still be rejected by the proof replay domain.
+        assert!(matches!(
+            try_authorize_fixture_operation(&proxy, &provider, saturated_intent),
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("independent proof replay detected")
+        ));
+
+        // A different proof-authorized settlement can still complete proof
+        // admission even though its final token is rejected by the saturated
+        // settlement domain.
+        let next_operation = try_authorize_fixture_operation(
+            &proxy,
+            &provider,
+            indexed_custom_settlement_intent(DEFAULT_SETTLEMENT_REPLAY_MAX_ENTRIES + 1),
+        )
+        .expect("final-token saturation must not consume proof-domain capacity");
+        assert!(matches!(
+            proxy.dispatch_verified_operation(next_operation).await,
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("typed settlement replay guard capacity is saturated")
+        ));
+
+        // Replacing only the saturated final-token guard permits the already
+        // authorized operation to continue. The proof authorization remains
+        // bound to the operation and was not rolled back or re-admitted.
+        proxy = proxy.with_replay_guard(Arc::new(ReplayGuard::new(DEFAULT_REPLAY_TTL_SECS, 1)));
+        assert!(proxy
+            .dispatch_verified_operation(retry_after_capacity_failure)
+            .await
+            .is_ok());
     }
 
     #[tokio::test]

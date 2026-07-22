@@ -1728,6 +1728,17 @@ pub(crate) fn test_fixture_settlement_authorization(
     nonce: Vec<u8>,
     now_secs: u64,
 ) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
+    let replay_guard = ReplayGuard::new(300, 32);
+    test_fixture_settlement_authorization_with_replay_guard(intent, nonce, now_secs, &replay_guard)
+}
+
+#[cfg(test)]
+pub(crate) fn test_fixture_settlement_authorization_with_replay_guard(
+    intent: &SwapIntent,
+    nonce: Vec<u8>,
+    now_secs: u64,
+    replay_guard: &ReplayGuard,
+) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
     let context = ProofVerificationContext::for_settlement(intent, nonce, now_secs)?;
     let bundle = ProofBundle::new(
         ProofKind::all()
@@ -1755,7 +1766,7 @@ pub(crate) fn test_fixture_settlement_authorization(
         &bundle,
         &ProofPolicy::production(),
         &context,
-        &ReplayGuard::new(300, 32),
+        replay_guard,
     )
 }
 

@@ -124,6 +124,16 @@ canonical intent hash and the `conxian/settlement/v1` operation domain.
 The current canonical proof and manager/rail replay authorization is
 process-local. It is reserved before downstream rail execution and is not a
 distributed replay protocol.
+
+`RailProxy` keeps canonical proof-envelope reservations and final settlement
+replay tokens in separate bounded replay domains. The default final-token
+domain retains 300 settlement entries, while the proof domain retains six
+entries per settlement (1,800 entries for that same default capacity). A
+successful proof authorization deliberately consumes its proof reservations;
+if final-token admission later fails because its own domain is saturated, the
+proof reservations are not rolled back, but they also cannot consume or
+accelerate saturation of final-token capacity. The legacy attestation replay
+path remains on the final/settlement domain for compatibility.
 Restart-safe, multi-replica, provider-coordinated, or cross-region replay
 semantics are **unsupported** until specified, implemented, independently
 reviewed, and tested against the deployment boundary.
