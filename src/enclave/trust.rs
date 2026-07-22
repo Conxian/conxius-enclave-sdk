@@ -1,11 +1,12 @@
-//! Provider-neutral trust, collateral, and normalized attestation contracts.
+//! Provider-neutral trust, collateral, and single-mechanism attestation contracts.
 //!
 //! This module deliberately stops at a contract boundary. The production
 //! authenticator and verifier are explicit unavailable routes; provider
 //! implementations, roots, collateral services, and hardware/runtime
-//! integrations belong in later provider-specific work. JSON is transport
-//! only. All security-sensitive digests and signatures use the deterministic
-//! canonical encodings below.
+//! integrations belong in later provider-specific work. The provider-extension
+//! seam is crate-private/test-only in Phase A. JSON is transport only. All
+//! security-sensitive digests and signatures use the deterministic canonical
+//! encodings below.
 
 use crate::enclave::proofs::{ProofKind, ProofPolicy, ProofVerificationContext};
 #[cfg(test)]
@@ -86,6 +87,25 @@ pub enum TrustError {
 }
 
 pub type TrustResult<T> = Result<T, TrustError>;
+
+/// Scope of a Phase A normalized trust result.
+///
+/// This type is intentionally separate from the complete proof-bundle
+/// authorization types. A normalized result proves and replays one mechanism
+/// only; it can never represent satisfaction of the six-factor production
+/// policy by itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TrustScope {
+    SingleMechanism,
+}
+
+impl TrustScope {
+    pub const fn canonical_tag(self) -> u8 {
+        match self {
+            Self::SingleMechanism => 1,
+        }
+    }
+}
 
 /// Revocation state is explicit. Only `Good` is authorizable.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -197,12 +217,12 @@ impl TrustSignatureAlgorithm {
 /// A trusted clock is an internal dependency of verification and replay
 /// authorization. Callers pass a clock object, not a timestamp, to the public
 /// orchestration helpers.
-pub trait TrustedClock: Send + Sync {
+pub(crate) trait TrustedClock: Send + Sync {
     fn now_secs(&self) -> TrustResult<u64>;
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SystemTrustedClock;
+pub(crate) struct SystemTrustedClock;
 
 /// Process-global production high-water mark. It intentionally has no reset
 /// path, so recreating a `SystemTrustedClock` cannot reopen an authorization
@@ -899,21 +919,24 @@ impl TrustVerificationRequest {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TrustAuthenticatorStatus {
+pub(crate) enum TrustAuthenticatorStatus {
     Unavailable,
     TestOnly,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TrustVerifierStatus {
+pub(crate) enum TrustVerifierStatus {
     Unavailable,
     TestOnly,
 }
 
 /// Production and future provider authenticators are constructor-controlled.
 /// The current production route is intentionally unavailable.
-pub trait TrustAuthenticator: Send + Sync {
+#[cfg(test)]
+pub(crate) trait TrustAuthenticator: Send + Sync {
     fn status(&self) -> TrustAuthenticatorStatus;
 
     fn authenticate(
@@ -926,7 +949,8 @@ pub trait TrustAuthenticator: Send + Sync {
 
 /// Provider verifier contract for collateral and evidence. The normalized
 /// orchestration obtains the trusted time before invoking either route.
-pub trait TrustVerifier: Send + Sync {
+#[cfg(test)]
+pub(crate) trait TrustVerifier: Send + Sync {
     fn status(&self) -> TrustVerifierStatus;
 
     fn verify_collateral(
@@ -948,9 +972,11 @@ pub trait TrustVerifier: Send + Sync {
     ) -> TrustResult<VerifiedAttestationEvidence>;
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, Default)]
-pub struct UnavailableTrustAuthenticator;
+pub(crate) struct UnavailableTrustAuthenticator;
 
+#[cfg(test)]
 impl TrustAuthenticator for UnavailableTrustAuthenticator {
     fn status(&self) -> TrustAuthenticatorStatus {
         TrustAuthenticatorStatus::Unavailable
@@ -966,9 +992,11 @@ impl TrustAuthenticator for UnavailableTrustAuthenticator {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, Default)]
-pub struct UnavailableTrustVerifier;
+pub(crate) struct UnavailableTrustVerifier;
 
+#[cfg(test)]
 impl TrustVerifier for UnavailableTrustVerifier {
     fn status(&self) -> TrustVerifierStatus {
         TrustVerifierStatus::Unavailable
@@ -997,11 +1025,13 @@ impl TrustVerifier for UnavailableTrustVerifier {
     }
 }
 
-pub fn production_trust_authenticator() -> UnavailableTrustAuthenticator {
+#[cfg(test)]
+pub(crate) fn production_trust_authenticator() -> UnavailableTrustAuthenticator {
     UnavailableTrustAuthenticator
 }
 
-pub fn production_trust_verifier() -> UnavailableTrustVerifier {
+#[cfg(test)]
+pub(crate) fn production_trust_verifier() -> UnavailableTrustVerifier {
     UnavailableTrustVerifier
 }
 
@@ -1424,12 +1454,14 @@ fn verify_signature(
         .map_err(|_| TrustError::InvalidSignature)
 }
 
+#[cfg(test)]
 #[derive(Clone)]
-pub struct VerifiedTrustBundle {
+pub(crate) struct VerifiedTrustBundle {
     bundle: TrustBundle,
     digest: [u8; 32],
 }
 
+#[cfg(test)]
 impl fmt::Debug for VerifiedTrustBundle {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -1444,6 +1476,7 @@ impl fmt::Debug for VerifiedTrustBundle {
     }
 }
 
+#[cfg(test)]
 impl VerifiedTrustBundle {
     pub fn digest(&self) -> [u8; 32] {
         self.digest
@@ -1460,22 +1493,16 @@ impl VerifiedTrustBundle {
     pub fn revision(&self) -> u64 {
         self.bundle.revision
     }
-
-    pub fn rollback_floor(&self) -> u64 {
-        self.bundle.rollback_floor
-    }
-
-    pub fn anchor_count(&self) -> usize {
-        self.bundle.anchors.len()
-    }
 }
 
+#[cfg(test)]
 #[derive(Clone)]
-pub struct VerifiedCollateralSnapshot {
+pub(crate) struct VerifiedCollateralSnapshot {
     snapshot: CollateralSnapshot,
     digest: [u8; 32],
 }
 
+#[cfg(test)]
 impl fmt::Debug for VerifiedCollateralSnapshot {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -1491,6 +1518,7 @@ impl fmt::Debug for VerifiedCollateralSnapshot {
     }
 }
 
+#[cfg(test)]
 impl VerifiedCollateralSnapshot {
     pub fn digest(&self) -> [u8; 32] {
         self.digest
@@ -1511,22 +1539,16 @@ impl VerifiedCollateralSnapshot {
     pub fn revision(&self) -> u64 {
         self.snapshot.revision
     }
-
-    pub fn revocation_status(&self) -> RevocationStatus {
-        self.snapshot.revocation_status
-    }
-
-    pub fn tcb_status(&self) -> TcbStatus {
-        self.snapshot.tcb_status
-    }
 }
 
+#[cfg(test)]
 #[derive(Clone)]
-pub struct VerifiedAttestationEvidence {
+pub(crate) struct VerifiedAttestationEvidence {
     evidence: AttestationEvidence,
     digest: [u8; 32],
 }
 
+#[cfg(test)]
 impl fmt::Debug for VerifiedAttestationEvidence {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -1545,6 +1567,7 @@ impl fmt::Debug for VerifiedAttestationEvidence {
     }
 }
 
+#[cfg(test)]
 impl VerifiedAttestationEvidence {
     pub fn digest(&self) -> [u8; 32] {
         self.digest
@@ -1595,12 +1618,13 @@ impl VerifiedAttestationEvidence {
     }
 }
 
-fn validate_exact_policy(
+#[cfg(test)]
+fn validate_single_mechanism_policy_context(
     policy: &ProofPolicy,
     evidence_kind: ProofKind,
     evidence_verifier_id: &str,
     request: &TrustVerificationRequest,
-) -> TrustResult<()> {
+) -> TrustResult<TrustScope> {
     policy.validate().map_err(|_| TrustError::InvalidPayload)?;
     request.validate()?;
     if !policy.is_exact_production() {
@@ -1618,7 +1642,7 @@ fn validate_exact_policy(
     {
         return Err(TrustError::VerifierMismatch);
     }
-    Ok(())
+    Ok(TrustScope::SingleMechanism)
 }
 
 #[cfg(test)]
@@ -1825,7 +1849,9 @@ fn verify_evidence(
 
 /// Authenticate a bundle through the supplied route using the process-global
 /// monotonic production clock.
-pub fn authenticate_trust_bundle(
+#[cfg(test)]
+#[allow(dead_code)]
+pub(crate) fn authenticate_trust_bundle(
     bundle: &TrustBundle,
     authenticator: &dyn TrustAuthenticator,
     request: &TrustVerificationRequest,
@@ -1837,7 +1863,9 @@ pub fn authenticate_trust_bundle(
 /// Normalize verified evidence into a privacy-safe result. The trusted clock
 /// is obtained internally before invoking the authenticator or verifier.
 #[allow(clippy::too_many_arguments)]
-pub fn normalize_attestation_result(
+#[cfg(test)]
+#[allow(dead_code)]
+pub(crate) fn normalize_attestation_result(
     evidence: &AttestationEvidence,
     collateral: &CollateralSnapshot,
     trust_bundle: &TrustBundle,
@@ -1846,7 +1874,7 @@ pub fn normalize_attestation_result(
     request: &TrustVerificationRequest,
     authenticator: &dyn TrustAuthenticator,
     verifier: &dyn TrustVerifier,
-) -> TrustResult<AttestationResult> {
+) -> TrustResult<SingleMechanismAttestationResult> {
     normalize_attestation_result_with_clock(
         evidence,
         collateral,
@@ -1861,6 +1889,7 @@ pub fn normalize_attestation_result(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 fn normalize_attestation_result_with_clock(
     evidence: &AttestationEvidence,
     collateral: &CollateralSnapshot,
@@ -1871,7 +1900,7 @@ fn normalize_attestation_result_with_clock(
     authenticator: &dyn TrustAuthenticator,
     verifier: &dyn TrustVerifier,
     clock: &dyn TrustedClock,
-) -> TrustResult<AttestationResult> {
+) -> TrustResult<SingleMechanismAttestationResult> {
     request.validate()?;
     context.validate().map_err(|_| TrustError::InvalidPayload)?;
     trust_bundle.validate()?;
@@ -1880,8 +1909,16 @@ fn normalize_attestation_result_with_clock(
     if evidence.provider != request.provider || evidence.profile != request.profile {
         return Err(TrustError::ProviderProfileMismatch);
     }
-    validate_exact_policy(policy, evidence.mechanism, &evidence.verifier_id, request)?;
+    let scope = validate_single_mechanism_policy_context(
+        policy,
+        evidence.mechanism,
+        &evidence.verifier_id,
+        request,
+    )?;
     let now_secs = clock.now_secs()?;
+    let trusted_context = context
+        .with_now_secs(now_secs)
+        .map_err(|_| TrustError::InvalidPayload)?;
     let verified_bundle = authenticator.authenticate(trust_bundle, request, now_secs)?;
     let verified_collateral =
         verifier.verify_collateral(collateral, &verified_bundle, request, now_secs)?;
@@ -1889,26 +1926,29 @@ fn normalize_attestation_result_with_clock(
         evidence,
         &verified_collateral,
         &verified_bundle,
-        context,
+        &trusted_context,
         request,
         now_secs,
     )?;
-    AttestationResult::from_verified(
+    SingleMechanismAttestationResult::from_verified(
         verified_evidence,
         verified_bundle,
         verified_collateral,
-        context,
+        &trusted_context,
         policy,
         request,
+        scope,
         now_secs,
     )
 }
 
-/// Normalized attestation output. Raw evidence, nonce bytes, anchor material,
-/// collateral, and signatures remain private and are never emitted by the
-/// default debug representation.
+/// Normalized output for exactly one verified mechanism. Raw evidence, nonce
+/// bytes, anchor material, collateral, and signatures remain private and are
+/// never emitted by the default debug representation. This type is not a
+/// complete proof-set authorization and has no conversion to one.
 #[derive(Clone, PartialEq, Eq)]
-pub struct AttestationResult {
+pub struct SingleMechanismAttestationResult {
+    scope: TrustScope,
     provider: String,
     profile: String,
     mechanism: ProofKind,
@@ -1929,10 +1969,11 @@ pub struct AttestationResult {
     result_digest: [u8; 32],
 }
 
-impl fmt::Debug for AttestationResult {
+impl fmt::Debug for SingleMechanismAttestationResult {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("AttestationResult")
+            .debug_struct("SingleMechanismAttestationResult")
+            .field("scope", &self.scope)
             .field("provider", &self.provider)
             .field("profile", &self.profile)
             .field("mechanism", &self.mechanism)
@@ -1955,7 +1996,9 @@ impl fmt::Debug for AttestationResult {
     }
 }
 
-impl AttestationResult {
+impl SingleMechanismAttestationResult {
+    #[cfg(test)]
+    #[allow(clippy::too_many_arguments)]
     fn from_verified(
         evidence: VerifiedAttestationEvidence,
         trust_bundle: VerifiedTrustBundle,
@@ -1963,15 +2006,19 @@ impl AttestationResult {
         context: &ProofVerificationContext,
         policy: &ProofPolicy,
         request: &TrustVerificationRequest,
+        scope: TrustScope,
         verified_at: u64,
     ) -> TrustResult<Self> {
         context.validate().map_err(|_| TrustError::InvalidPayload)?;
-        validate_exact_policy(
+        let policy_scope = validate_single_mechanism_policy_context(
             policy,
             evidence.mechanism(),
             evidence.verifier_id(),
             request,
         )?;
+        if scope != policy_scope {
+            return Err(TrustError::PolicyNotAuthorizable);
+        }
         let context_binding_digest = context
             .binding_digest()
             .map_err(|_| TrustError::InvalidPayload)?;
@@ -1993,6 +2040,7 @@ impl AttestationResult {
         }
         let policy_digest = policy.digest().map_err(|_| TrustError::InvalidPayload)?;
         let mut result = Self {
+            scope,
             provider: evidence.provider().to_owned(),
             profile: evidence.profile().to_owned(),
             mechanism: evidence.mechanism(),
@@ -2017,6 +2065,9 @@ impl AttestationResult {
     }
 
     fn validate(&self) -> TrustResult<()> {
+        if self.scope != TrustScope::SingleMechanism {
+            return Err(TrustError::PolicyNotAuthorizable);
+        }
         validate_identifier(&self.provider)?;
         validate_identifier(&self.profile)?;
         validate_identifier(&self.verifier_id)?;
@@ -2060,6 +2111,7 @@ impl AttestationResult {
         let mut output = Vec::new();
         append_len_prefixed(&mut output, ATTESTATION_RESULT_DOMAIN.as_bytes())?;
         output.extend_from_slice(&TRUST_CONTRACT_VERSION.to_be_bytes());
+        output.push(self.scope.canonical_tag());
         append_identifier(&mut output, &self.provider)?;
         append_identifier(&mut output, &self.profile)?;
         output.push(self.mechanism.canonical_tag());
@@ -2088,6 +2140,10 @@ impl AttestationResult {
 
     pub fn provider(&self) -> &str {
         &self.provider
+    }
+
+    pub fn scope(&self) -> TrustScope {
+        self.scope
     }
 
     pub fn profile(&self) -> &str {
@@ -2459,6 +2515,51 @@ impl TrustVerifier for FixtureTrustVerifier {
 }
 
 #[cfg(test)]
+struct ObservingTrustVerifier {
+    observations: std::sync::Arc<std::sync::Mutex<Vec<(u64, u64)>>>,
+}
+
+#[cfg(test)]
+impl TrustVerifier for ObservingTrustVerifier {
+    fn status(&self) -> TrustVerifierStatus {
+        TrustVerifierStatus::TestOnly
+    }
+
+    fn verify_collateral(
+        &self,
+        collateral: &CollateralSnapshot,
+        trust_bundle: &VerifiedTrustBundle,
+        request: &TrustVerificationRequest,
+        now_secs: u64,
+    ) -> TrustResult<VerifiedCollateralSnapshot> {
+        verify_collateral(collateral, trust_bundle, request, now_secs)
+    }
+
+    fn verify_evidence(
+        &self,
+        evidence: &AttestationEvidence,
+        collateral: &VerifiedCollateralSnapshot,
+        trust_bundle: &VerifiedTrustBundle,
+        context: &ProofVerificationContext,
+        request: &TrustVerificationRequest,
+        now_secs: u64,
+    ) -> TrustResult<VerifiedAttestationEvidence> {
+        self.observations
+            .lock()
+            .expect("observation mutex")
+            .push((context.now_secs, now_secs));
+        verify_evidence(
+            evidence,
+            collateral,
+            trust_bundle,
+            context,
+            request,
+            now_secs,
+        )
+    }
+}
+
+#[cfg(test)]
 struct CountingTrustAuthenticator {
     calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
@@ -2535,7 +2636,7 @@ pub(crate) fn test_fixture_attestation_result(
     now_secs: u64,
     revocation_status: RevocationStatus,
     tcb_status: TcbStatus,
-) -> AttestationResult {
+) -> SingleMechanismAttestationResult {
     let key = SigningKey::from_bytes(&[9; 32]);
     let bundle = fixture_bundle(&key, now_secs);
     let collateral = fixture_collateral(&key, now_secs, &bundle);
@@ -2571,7 +2672,7 @@ pub(crate) fn test_fixture_attestation_result_with_window(
     issued_at: u64,
     expires_at: u64,
     verified_at: u64,
-) -> AttestationResult {
+) -> SingleMechanismAttestationResult {
     let mut result = test_fixture_attestation_result(100, RevocationStatus::Good, TcbStatus::Good);
     result.issued_at = issued_at;
     result.expires_at = expires_at;
@@ -2636,7 +2737,7 @@ mod tests {
         request: &TrustVerificationRequest,
         policy: &ProofPolicy,
         clock: &FixtureClock,
-    ) -> TrustResult<AttestationResult> {
+    ) -> TrustResult<SingleMechanismAttestationResult> {
         normalize_attestation_result_with_clock(
             evidence,
             collateral,
@@ -2663,6 +2764,7 @@ mod tests {
             &clock,
         )
         .expect("fixture should verify");
+        assert_eq!(result.scope(), TrustScope::SingleMechanism);
         assert!(result.is_authorizable_at(100));
         assert_eq!(result.policy_digest(), policy.digest().expect("digest"));
         let debug = format!("{result:?}");
@@ -2674,6 +2776,57 @@ mod tests {
         let audit_json = serde_json::to_string(&audit).expect("audit json");
         assert!(!audit_json.contains("fixture-attestation-evidence"));
         assert!(!audit_json.contains("fixture-audience"));
+    }
+
+    #[test]
+    fn forged_context_freshness_time_is_replaced_before_provider_and_result() {
+        let (_key, bundle, collateral, evidence, context, request, policy, clock) = fixture();
+        let observations = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let verifier = ObservingTrustVerifier {
+            observations: std::sync::Arc::clone(&observations),
+        };
+
+        let mut future_context = context.clone();
+        future_context.now_secs = clock.now_secs + 50;
+        let future_result = normalize_attestation_result_with_clock(
+            &evidence,
+            &collateral,
+            &bundle,
+            &future_context,
+            &policy,
+            &request,
+            &FixtureTrustAuthenticator,
+            &verifier,
+            &clock,
+        )
+        .expect("future caller timestamp is replaced by trusted time");
+
+        let mut past_context = context;
+        past_context.now_secs = clock.now_secs - 1;
+        let past_result = normalize_attestation_result_with_clock(
+            &evidence,
+            &collateral,
+            &bundle,
+            &past_context,
+            &policy,
+            &request,
+            &FixtureTrustAuthenticator,
+            &verifier,
+            &clock,
+        )
+        .expect("past caller timestamp is replaced by trusted time");
+
+        assert_eq!(future_result.scope(), TrustScope::SingleMechanism);
+        assert_eq!(future_result.verified_at(), clock.now_secs);
+        assert_eq!(past_result.verified_at(), clock.now_secs);
+        assert_eq!(future_result.result_digest(), past_result.result_digest());
+        assert_eq!(
+            *observations.lock().expect("observation mutex"),
+            vec![
+                (clock.now_secs, clock.now_secs),
+                (clock.now_secs, clock.now_secs)
+            ]
+        );
     }
 
     #[test]

@@ -15,6 +15,15 @@ durable replay wrapper. It does **not** provide an Android or Nitro verifier,
 provider registration, a durable backend, WASM support, settlement dispatch,
 independent review, release artifacts, or production support.
 
+The final-head review boundary is explicit: the normalized public result is
+`SingleMechanismAttestationResult` with `TrustScope::SingleMechanism`, and
+durable replay returns only `SingleMechanismReplayAuthorization`. Exact
+`ProofPolicy::production()` and verifier binding remain contextual requirements;
+they do not let one mechanism satisfy the six-factor policy. Complete
+all-required authorization remains on the composed proof-bundle path, and the
+provider extension seam is crate-private/test-only until a supported adapter
+contract exists.
+
 Current residual gates:
 
 1. Select and pin one provider (Android or Nitro), its official verifier/root/

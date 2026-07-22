@@ -18,19 +18,28 @@ verifier identity are checked before normalization, while one fail-closed
 signer-anchor check enforces provider/profile/algorithm, status, inclusive
 validity, revision/rollback-floor, and configured constraint requirements for
 bundle, collateral, and evidence signatures. Only normalized,
-privacy-minimized `AttestationResult` data may cross into policy/replay
-authorization.
+privacy-minimized `SingleMechanismAttestationResult` data may cross into the
+single-mechanism policy/replay boundary. It carries an explicit
+`TrustScope::SingleMechanism`; exact production policy and verifier binding are
+contextual requirements, not proof that one mechanism satisfies the complete
+six-factor policy. Only `ProofVerifierRegistry::verify_bundle` (or an equally
+explicit composed proof type) can produce complete all-required authorization.
+The provider traits, verified material, and normalization factories are
+crate-private test seams in Phase A, so external provider adapters are not yet
+enabled.
 
 `src/enclave/durable_replay.rs` defines a backend-neutral synchronous
-`consume_once` contract. It does not replace the process-local `ReplayGuard`,
-does not implement a durable backend, and does not call `EnclaveManager`,
-`RailProxy`, signing, or settlement. The wrapper uses a trusted internal clock
-with process-global/per-authorizer monotonic high-water checks and authorizes
-only a consumed or backend-confirmed same-request idempotent outcome. A
-private/test-only clock seam is used for deterministic rollback and expiry
-regressions. Production trust authentication, provider verification, and
-durable replay are unavailable until provider/runtime, deployment,
-independent-review, and exact-artifact evidence is complete.
+`consume_once` contract. `DurableReplayAuthorizer` accepts only a
+`SingleMechanismAttestationResult` and returns only
+`SingleMechanismReplayAuthorization`; it does not replace the process-local
+`ReplayGuard`, does not implement a durable backend, and does not call
+`EnclaveManager`, `RailProxy`, signing, or settlement. The wrapper uses a
+trusted internal clock with process-global/per-authorizer monotonic high-water
+checks and authorizes only a consumed or backend-confirmed same-request
+idempotent outcome. A private/test-only clock seam is used for deterministic
+rollback and expiry regressions. Production trust authentication, provider
+verification, and durable replay are unavailable until provider/runtime,
+deployment, independent-review, and exact-artifact evidence is complete.
 
 The adapter API distinguishes wire representation from authorization: tier
 round trips use the explicitly named representation helpers, while

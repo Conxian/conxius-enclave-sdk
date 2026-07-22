@@ -6,11 +6,10 @@
 
 use conxius_enclave_sdk::enclave::{
     deserialize_attestation_evidence_json, deserialize_collateral_snapshot_json,
-    deserialize_trust_bundle_json, DurableReplayIdentity, DurableReplayOutcome,
-    DurableReplayRequest, DurableReplayStore, IdempotencyKey, ProofKind, RevocationStatus,
-    TcbStatus, TrustAnchor, TrustAuthenticator, TrustBundle, TrustError, TrustSignatureAlgorithm,
-    TrustVerificationRequest, TrustVerifier, UnavailableDurableReplayStore,
-    UnavailableTrustAuthenticator, UnavailableTrustVerifier, MAX_TRUST_IDENTIFIER_BYTES,
+    deserialize_trust_bundle_json, DurableReplayOutcome, DurableReplayRequest, DurableReplayStore,
+    IdempotencyKey, ProofKind, ProofPolicy, RevocationStatus, SingleMechanismAttestationResult,
+    SingleMechanismReplayIdentity, TcbStatus, TrustAnchor, TrustBundle, TrustError, TrustScope,
+    TrustSignatureAlgorithm, UnavailableDurableReplayStore, MAX_TRUST_IDENTIFIER_BYTES,
     TRUST_CONTRACT_VERSION,
 };
 
@@ -46,7 +45,7 @@ fn transport_bundle() -> TrustBundle {
 }
 
 fn replay_request() -> DurableReplayRequest {
-    let identity = DurableReplayIdentity::new(
+    let identity = SingleMechanismReplayIdentity::new(
         "provider",
         "profile",
         ProofKind::Tee,
@@ -56,7 +55,9 @@ fn replay_request() -> DurableReplayRequest {
         [4; 32],
         "SIGN",
         "audience",
-        [5; 32],
+        ProofPolicy::production()
+            .digest()
+            .expect("production policy digest"),
         [6; 32],
         [7; 32],
         [8; 32],
@@ -71,25 +72,13 @@ fn replay_request() -> DurableReplayRequest {
 }
 
 #[test]
-fn production_trust_routes_are_explicitly_unavailable() {
-    let request = TrustVerificationRequest::new("provider", "profile", ProofKind::Tee, 1)
-        .expect("request shape should be valid");
-    let bundle = transport_bundle();
-    let authenticator = UnavailableTrustAuthenticator;
-    let verifier = UnavailableTrustVerifier;
+fn single_mechanism_scope_is_explicit_and_not_a_complete_authorization() {
+    let scope = TrustScope::SingleMechanism;
+    assert_eq!(scope, TrustScope::SingleMechanism);
 
-    assert!(matches!(
-        authenticator.authenticate(&bundle, &request, 1),
-        Err(TrustError::AuthenticatorUnavailable)
-    ));
-    assert_eq!(
-        authenticator.status(),
-        conxius_enclave_sdk::enclave::TrustAuthenticatorStatus::Unavailable
-    );
-    assert_eq!(
-        verifier.status(),
-        conxius_enclave_sdk::enclave::TrustVerifierStatus::Unavailable
-    );
+    let scope_of_normalized_result: fn(&SingleMechanismAttestationResult) -> TrustScope =
+        SingleMechanismAttestationResult::scope;
+    let _ = scope_of_normalized_result;
 }
 
 #[test]

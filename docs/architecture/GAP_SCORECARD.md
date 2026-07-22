@@ -107,6 +107,10 @@ deployment → exact artifact/review → scoped support decision**.
 - **Resolution**: Added a versioned, domain-separated digest for the complete exact proof policy; carried the request-derived expected digest through response, rail authorization, and final dispatch; refactored test fixtures to satisfy locked clippy; and added public-safe provider research/specification artifacts plus conservative capability rows.
 - **Status**: Composer and typed-boundary containment evidence is implemented and tested. TLS, WebAuthn/FIDO, TPM, Android, Apple, Intel, AMD, AWS, ARM, collateral/revocation, provider/runtime, distributed replay, independent review, and release-artifact evidence remain unsupported; see [`PROOF_POLICY_SPEC.md`](./PROOF_POLICY_SPEC.md) and [`PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md`](../audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md).
 
+### 2. G240-TC final-head review closure
+- **Resolution**: Separated Phase A single-mechanism trust normalization and durable replay from complete proof-bundle authorization with `TrustScope::SingleMechanism`, scoped result/identity/authorization types, no public provider-extension seam, and a trusted-clock context copy before provider observation and canonicalization. Added scope and forged future/past caller-time regressions.
+- **Status**: The provider-neutral contract, negative tests, and fail-closed composition boundary are recorded at the reviewed code checkpoint. This does not provide provider, hardware, backend, independent-review, release-artifact, or production-support evidence.
+
 ## Technical Resolutions (v2.0.13)
 
 ### 1. BIP-110: Compliance & Alignment (Issue #179)

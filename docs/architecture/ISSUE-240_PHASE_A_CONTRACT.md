@@ -18,7 +18,8 @@ untrusted evidence
 provider verifier + authenticated trust/collateral material
         │
         ▼
-normalized AttestationResult
+normalized `SingleMechanismAttestationResult`
+        │ `TrustScope::SingleMechanism`
         │
         ▼
 ProofPolicy / ProofVerificationContext checks
@@ -28,13 +29,20 @@ durable replay identity + consume-once authorization
 ```
 
 The layers are intentionally separate. Evidence is transport data, trust and
-collateral are authenticated inputs, the normalized result is a privacy-safe
-authorization boundary, `ProofPolicy` remains the exact policy contract, and
-durable replay is an atomic backend interface rather than an in-process map.
+collateral are authenticated inputs, and the normalized result is a
+privacy-safe **single-mechanism evidence boundary**. `ProofPolicy` and the
+exact verifier identity remain required contextual bindings, but this result
+does not satisfy the six-factor production policy. Complete all-required
+authorization remains exclusively the composed proof-bundle path through
+`ProofVerifierRegistry::verify_bundle` (or an equally explicit composed type),
+and durable replay cannot convert a single-mechanism result into that
+authorization.
 
 The production trust authenticator, provider verifier, and durable replay store
-are explicit unavailable routes in this phase. Test fixtures are compiled only
-for unit tests and cannot satisfy a production route.
+are explicit unavailable routes in this phase. Provider extension traits,
+verified material, and normalization factories are crate-private test seams;
+external provider adapters are not enabled in Phase A. Test fixtures are
+compiled only for unit tests and cannot satisfy a production route.
 
 ## Versioned schemas and invariants
 
@@ -94,7 +102,10 @@ the same bundle; a second revoked, expired, not-yet-valid, or rolled-back
 anchor cannot be substituted for a valid signer.
 
 The default production clock retains a process-global monotonic high-water
-mark and rejects backward observations. Durable replay also keeps a
+mark and rejects backward observations. Normalization replaces any caller
+supplied freshness timestamp with a trusted clock copy before provider
+verification and result canonicalization; operation, purpose, audience, nonce,
+and bounded freshness windows are preserved. Durable replay also keeps a
 non-resettable per-authorizer high-water mark before store invocation. This is
 process-local rollback protection only: Phase A does not claim persistence
 across process restarts, distributed clock coordination, or a durable rollback
@@ -102,13 +113,20 @@ database. Deterministic timestamp injection is private/test-only.
 
 ## Normalized result and privacy
 
-`AttestationResult` binds the provider, profile, mechanism, exact verifier ID,
-subject digest, key identity digest, exact `ProofVerificationContext`, exact
+`SingleMechanismAttestationResult` binds the provider, profile, mechanism,
+exact verifier ID, `TrustScope::SingleMechanism`, subject digest, key identity
+digest, exact trusted `ProofVerificationContext`, exact
 `ProofPolicy::digest`, evidence/trust/collateral digests, status values, and
 issued/expires/verified times. Its result digest covers the complete normalized
-record. Raw evidence,
+single-mechanism record. The exact production policy is retained as a
+contextual composition requirement; it is not evidence that this one result
+satisfies all six requirements. Raw evidence,
 nonce bytes, trust-anchor payloads, collateral payloads, signatures, and raw
 subject/key identifiers are not exposed by default `Debug` or audit output.
+
+There is no public constructor or conversion from this result to a complete
+proof-set authorization. A complete all-required/value-bearing authorization
+must be produced by the explicit proof-bundle verifier/composer path.
 
 `AttestationAuditMetadata` is intentionally smaller: it contains approved
 digests, status values, and timestamps only. It is suitable for audit joins,
@@ -116,8 +134,9 @@ not for reconstructing evidence or secrets.
 
 ## Durable replay contract
 
-`DurableReplayIdentity` is a new versioned identity. It does not change the
-existing `ProofReplayKey` or local `ReplayGuard`. The durable identity binds:
+`SingleMechanismReplayIdentity` is a new versioned identity for one normalized
+mechanism. It does not change the existing `ProofReplayKey` or local
+`ReplayGuard`. The durable identity binds:
 
 - provider, profile, mechanism, and exact verifier identity;
 - subject and key identity digests;
@@ -133,11 +152,14 @@ the explicit outcomes `Consumed`, `AlreadyConsumedSameRequest`,
 input are errors. The unavailable production placeholder never authorizes.
 
 The contract-only wrapper obtains time from an internal trusted-clock object,
-builds the durable identity from a normalized result, and authorizes only
-`Consumed` or a backend-confirmed `AlreadyConsumedSameRequest`. Conflict,
-unavailable, uncertain commit, clock failure, status failure, and all other
-errors fail closed. The wrapper does not call `EnclaveManager`, `RailProxy`,
-signing, settlement, or the existing local `ReplayGuard`.
+builds a `SingleMechanismReplayIdentity` from a
+`SingleMechanismAttestationResult`, and returns only a
+`SingleMechanismReplayAuthorization` for `Consumed` or a backend-confirmed
+`AlreadyConsumedSameRequest`. Conflict, unavailable, uncertain commit, clock
+failure, status failure, and all other errors fail closed. The wrapper does not
+call `EnclaveManager`, `RailProxy`, signing, settlement, or the existing local
+`ReplayGuard`, and it cannot return a complete all-required/value-bearing
+authorization.
 
 ## Non-goals
 

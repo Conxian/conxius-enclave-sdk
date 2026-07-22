@@ -6,8 +6,10 @@
 //! process-local `ProofReplayKey` and `ReplayGuard` are intentionally
 //! unchanged and are not used here.
 
-use crate::enclave::proofs::ProofKind;
-use crate::enclave::trust::{AttestationResult, TrustError, TrustedClock};
+use crate::enclave::proofs::{ProofKind, ProofPolicy};
+use crate::enclave::trust::{
+    SingleMechanismAttestationResult, TrustError, TrustScope, TrustedClock,
+};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 #[cfg(test)]
@@ -77,12 +79,13 @@ fn append_digest(output: &mut Vec<u8>, value: &[u8; 32]) -> DurableReplayResult<
     append_len_prefixed(output, value)
 }
 
-/// A versioned identity for durable consume-once semantics. Raw evidence and
-/// secrets never enter the identity; provider/profile/mechanism names and
-/// purpose/audience are bounded contract labels, while subject/key/nonce and
-/// all material references are digests.
+/// A versioned identity for durable consume-once semantics for one mechanism.
+/// Raw evidence and secrets never enter the identity; provider/profile/
+/// mechanism names and purpose/audience are bounded contract labels, while
+/// subject/key/nonce and all material references are digests. This identity is
+/// not a complete six-factor proof authorization.
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct DurableReplayIdentity {
+pub struct SingleMechanismReplayIdentity {
     version: u16,
     provider: String,
     profile: String,
@@ -101,10 +104,10 @@ pub struct DurableReplayIdentity {
     expires_at: u64,
 }
 
-impl fmt::Debug for DurableReplayIdentity {
+impl fmt::Debug for SingleMechanismReplayIdentity {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("DurableReplayIdentity")
+            .debug_struct("SingleMechanismReplayIdentity")
             .field("version", &self.version)
             .field("provider", &self.provider)
             .field("profile", &self.profile)
@@ -125,7 +128,7 @@ impl fmt::Debug for DurableReplayIdentity {
     }
 }
 
-impl DurableReplayIdentity {
+impl SingleMechanismReplayIdentity {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         provider: impl Into<String>,
@@ -202,7 +205,12 @@ impl DurableReplayIdentity {
         Ok(identity)
     }
 
-    pub fn from_attestation_result(result: &AttestationResult) -> DurableReplayResult<Self> {
+    pub fn from_single_mechanism_result(
+        result: &SingleMechanismAttestationResult,
+    ) -> DurableReplayResult<Self> {
+        if result.scope() != TrustScope::SingleMechanism {
+            return Err(DurableReplayError::NotAuthorizable);
+        }
         Self::new_with_verifier(
             result.provider(),
             result.profile(),
@@ -234,7 +242,17 @@ impl DurableReplayIdentity {
         if self.verifier_id != self.mechanism.production_verifier_id() {
             return Err(DurableReplayError::InvalidPayload);
         }
+        let expected_policy_digest = ProofPolicy::production()
+            .digest()
+            .map_err(|_| DurableReplayError::InvalidPayload)?;
+        if self.policy_digest != expected_policy_digest {
+            return Err(DurableReplayError::NotAuthorizable);
+        }
         Ok(())
+    }
+
+    pub fn scope(&self) -> TrustScope {
+        TrustScope::SingleMechanism
     }
 
     pub fn canonical_bytes(&self) -> DurableReplayResult<Vec<u8>> {
@@ -242,6 +260,7 @@ impl DurableReplayIdentity {
         let mut output = Vec::new();
         append_len_prefixed(&mut output, DURABLE_REPLAY_IDENTITY_DOMAIN.as_bytes())?;
         output.extend_from_slice(&self.version.to_be_bytes());
+        output.push(TrustScope::SingleMechanism.canonical_tag());
         append_identifier(&mut output, &self.provider)?;
         append_identifier(&mut output, &self.profile)?;
         output.push(self.mechanism.canonical_tag());
@@ -367,7 +386,7 @@ impl IdempotencyKey {
 /// One exact request to the durable store.
 #[derive(Clone, PartialEq, Eq)]
 pub struct DurableReplayRequest {
-    identity: DurableReplayIdentity,
+    identity: SingleMechanismReplayIdentity,
     idempotency_key: IdempotencyKey,
     request_digest: [u8; 32],
 }
@@ -385,7 +404,7 @@ impl fmt::Debug for DurableReplayRequest {
 
 impl DurableReplayRequest {
     pub fn new(
-        identity: DurableReplayIdentity,
+        identity: SingleMechanismReplayIdentity,
         idempotency_key: IdempotencyKey,
     ) -> DurableReplayResult<Self> {
         identity.validate()?;
@@ -404,7 +423,7 @@ impl DurableReplayRequest {
         })
     }
 
-    pub fn identity(&self) -> &DurableReplayIdentity {
+    pub fn identity(&self) -> &SingleMechanismReplayIdentity {
         &self.identity
     }
 
@@ -455,14 +474,18 @@ impl DurableReplayStore for UnavailableDurableReplayStore {
 /// Authorization returned only for a consumed request or a backend-confirmed
 /// same-request idempotent retry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DurableReplayAuthorization {
+pub struct SingleMechanismReplayAuthorization {
     identity_digest: [u8; 32],
     idempotency_key_digest: [u8; 32],
     outcome: DurableReplayOutcome,
     expires_at: u64,
 }
 
-impl DurableReplayAuthorization {
+impl SingleMechanismReplayAuthorization {
+    pub fn scope(&self) -> TrustScope {
+        TrustScope::SingleMechanism
+    }
+
     pub fn identity_digest(&self) -> [u8; 32] {
         self.identity_digest
     }
@@ -487,8 +510,10 @@ impl DurableReplayAuthorization {
     }
 }
 
-/// Contract-only wrapper from a normalized result to durable replay. It does
-/// not call signing, settlement, `EnclaveManager`, `RailProxy`, or `ReplayGuard`.
+/// Contract-only wrapper from a single-mechanism normalized result to durable
+/// replay. It does not call signing, settlement, `EnclaveManager`, `RailProxy`,
+/// `ProofVerifierRegistry`, or `ReplayGuard`, and it cannot produce a
+/// value-bearing or all-required proof authorization.
 pub struct DurableReplayAuthorizer {
     store: Arc<dyn DurableReplayStore>,
     clock: Arc<dyn TrustedClock>,
@@ -521,30 +546,33 @@ impl DurableReplayAuthorizer {
         )
     }
 
-    pub fn identity_for(
+    pub fn identity_for_single_mechanism(
         &self,
-        result: &AttestationResult,
-    ) -> DurableReplayResult<DurableReplayIdentity> {
+        result: &SingleMechanismAttestationResult,
+    ) -> DurableReplayResult<SingleMechanismReplayIdentity> {
+        if result.scope() != TrustScope::SingleMechanism {
+            return Err(DurableReplayError::NotAuthorizable);
+        }
         result
             .validate_for_authorization()
             .map_err(|_| DurableReplayError::NotAuthorizable)?;
         if !result.revocation_status().is_authorizable() || !result.tcb_status().is_authorizable() {
             return Err(DurableReplayError::NotAuthorizable);
         }
-        DurableReplayIdentity::from_attestation_result(result)
+        SingleMechanismReplayIdentity::from_single_mechanism_result(result)
     }
 
     pub fn consume_once(
         &self,
-        result: &AttestationResult,
+        result: &SingleMechanismAttestationResult,
         idempotency_key: IdempotencyKey,
-    ) -> DurableReplayResult<DurableReplayAuthorization> {
+    ) -> DurableReplayResult<SingleMechanismReplayAuthorization> {
         let observed_secs = self.clock.now_secs().map_err(map_clock_error)?;
         let now_secs = self.observe_monotonic_time(observed_secs)?;
         if !result.is_authorizable_at(now_secs) {
             return Err(DurableReplayError::NotAuthorizable);
         }
-        let identity = self.identity_for(result)?;
+        let identity = self.identity_for_single_mechanism(result)?;
         if identity.expires_at() < now_secs {
             return Err(DurableReplayError::Expired);
         }
@@ -552,7 +580,7 @@ impl DurableReplayAuthorizer {
         let outcome = self.store.consume_once(&request, now_secs)?;
         match outcome {
             DurableReplayOutcome::Consumed | DurableReplayOutcome::AlreadyConsumedSameRequest => {
-                Ok(DurableReplayAuthorization {
+                Ok(SingleMechanismReplayAuthorization {
                     identity_digest: request.identity.digest()?,
                     idempotency_key_digest: request.idempotency_key.digest(),
                     outcome,
@@ -705,12 +733,16 @@ mod tests {
     use super::*;
     use crate::enclave::trust::{
         test_fixture_attestation_result, test_fixture_attestation_result_with_window,
-        RevocationStatus, TcbStatus,
+        RevocationStatus, TcbStatus, TrustScope,
     };
     use std::thread;
 
-    fn identity() -> DurableReplayIdentity {
-        DurableReplayIdentity::new(
+    fn production_policy_digest() -> [u8; 32] {
+        ProofPolicy::production().digest().expect("policy digest")
+    }
+
+    fn identity() -> SingleMechanismReplayIdentity {
+        SingleMechanismReplayIdentity::new(
             "provider",
             "profile",
             ProofKind::Tee,
@@ -720,7 +752,7 @@ mod tests {
             [4; 32],
             "SIGN",
             "audience",
-            [5; 32],
+            production_policy_digest(),
             [6; 32],
             [7; 32],
             [8; 32],
@@ -734,7 +766,7 @@ mod tests {
         let base = identity();
         let base_digest = base.digest().expect("digest");
         let variants = [
-            DurableReplayIdentity::new(
+            SingleMechanismReplayIdentity::new(
                 "other",
                 "profile",
                 ProofKind::Tee,
@@ -744,13 +776,13 @@ mod tests {
                 [4; 32],
                 "SIGN",
                 "audience",
-                [5; 32],
+                production_policy_digest(),
                 [6; 32],
                 [7; 32],
                 [8; 32],
                 200,
             ),
-            DurableReplayIdentity::new(
+            SingleMechanismReplayIdentity::new(
                 "provider",
                 "other",
                 ProofKind::Tee,
@@ -760,13 +792,13 @@ mod tests {
                 [4; 32],
                 "SIGN",
                 "audience",
-                [5; 32],
+                production_policy_digest(),
                 [6; 32],
                 [7; 32],
                 [8; 32],
                 200,
             ),
-            DurableReplayIdentity::new(
+            SingleMechanismReplayIdentity::new(
                 "provider",
                 "profile",
                 ProofKind::Fido,
@@ -776,13 +808,13 @@ mod tests {
                 [4; 32],
                 "SIGN",
                 "audience",
-                [5; 32],
+                production_policy_digest(),
                 [6; 32],
                 [7; 32],
                 [8; 32],
                 200,
             ),
-            DurableReplayIdentity::new(
+            SingleMechanismReplayIdentity::new(
                 "provider",
                 "profile",
                 ProofKind::Tee,
@@ -792,13 +824,13 @@ mod tests {
                 [4; 32],
                 "SIGN",
                 "audience",
-                [5; 32],
+                production_policy_digest(),
                 [6; 32],
                 [7; 32],
                 [8; 32],
                 200,
             ),
-            DurableReplayIdentity::new(
+            SingleMechanismReplayIdentity::new(
                 "provider",
                 "profile",
                 ProofKind::Tee,
@@ -808,13 +840,13 @@ mod tests {
                 [4; 32],
                 "SIGN",
                 "audience",
-                [5; 32],
+                production_policy_digest(),
                 [6; 32],
                 [7; 32],
                 [8; 32],
                 200,
             ),
-            DurableReplayIdentity::new(
+            SingleMechanismReplayIdentity::new(
                 "provider",
                 "profile",
                 ProofKind::Tee,
@@ -824,13 +856,13 @@ mod tests {
                 [4; 32],
                 "SIGN",
                 "audience",
-                [5; 32],
+                production_policy_digest(),
                 [6; 32],
                 [7; 32],
                 [8; 32],
                 200,
             ),
-            DurableReplayIdentity::new(
+            SingleMechanismReplayIdentity::new(
                 "provider",
                 "profile",
                 ProofKind::Tee,
@@ -840,13 +872,13 @@ mod tests {
                 [9; 32],
                 "SIGN",
                 "audience",
-                [5; 32],
+                production_policy_digest(),
                 [6; 32],
                 [7; 32],
                 [8; 32],
                 200,
             ),
-            DurableReplayIdentity::new(
+            SingleMechanismReplayIdentity::new(
                 "provider",
                 "profile",
                 ProofKind::Tee,
@@ -856,13 +888,13 @@ mod tests {
                 [4; 32],
                 "OTHER",
                 "audience",
-                [5; 32],
+                production_policy_digest(),
                 [6; 32],
                 [7; 32],
                 [8; 32],
                 200,
             ),
-            DurableReplayIdentity::new(
+            SingleMechanismReplayIdentity::new(
                 "provider",
                 "profile",
                 ProofKind::Tee,
@@ -872,13 +904,13 @@ mod tests {
                 [4; 32],
                 "SIGN",
                 "other",
-                [5; 32],
+                production_policy_digest(),
                 [6; 32],
                 [7; 32],
                 [8; 32],
                 200,
             ),
-            DurableReplayIdentity::new(
+            SingleMechanismReplayIdentity::new(
                 "provider",
                 "profile",
                 ProofKind::Tee,
@@ -888,29 +920,13 @@ mod tests {
                 [4; 32],
                 "SIGN",
                 "audience",
-                [9; 32],
-                [6; 32],
-                [7; 32],
-                [8; 32],
-                200,
-            ),
-            DurableReplayIdentity::new(
-                "provider",
-                "profile",
-                ProofKind::Tee,
-                [1; 32],
-                [2; 32],
-                [3; 32],
-                [4; 32],
-                "SIGN",
-                "audience",
-                [5; 32],
+                production_policy_digest(),
                 [9; 32],
                 [7; 32],
                 [8; 32],
                 200,
             ),
-            DurableReplayIdentity::new(
+            SingleMechanismReplayIdentity::new(
                 "provider",
                 "profile",
                 ProofKind::Tee,
@@ -920,13 +936,13 @@ mod tests {
                 [4; 32],
                 "SIGN",
                 "audience",
-                [5; 32],
+                production_policy_digest(),
                 [6; 32],
                 [9; 32],
                 [8; 32],
                 200,
             ),
-            DurableReplayIdentity::new(
+            SingleMechanismReplayIdentity::new(
                 "provider",
                 "profile",
                 ProofKind::Tee,
@@ -936,13 +952,13 @@ mod tests {
                 [4; 32],
                 "SIGN",
                 "audience",
-                [5; 32],
+                production_policy_digest(),
                 [6; 32],
                 [7; 32],
                 [9; 32],
                 200,
             ),
-            DurableReplayIdentity::new(
+            SingleMechanismReplayIdentity::new(
                 "provider",
                 "profile",
                 ProofKind::Tee,
@@ -952,7 +968,7 @@ mod tests {
                 [4; 32],
                 "SIGN",
                 "audience",
-                [5; 32],
+                production_policy_digest(),
                 [6; 32],
                 [7; 32],
                 [8; 32],
@@ -965,6 +981,25 @@ mod tests {
                 base_digest
             );
         }
+        assert_eq!(
+            SingleMechanismReplayIdentity::new(
+                "provider",
+                "profile",
+                ProofKind::Tee,
+                [1; 32],
+                [2; 32],
+                [3; 32],
+                [4; 32],
+                "SIGN",
+                "audience",
+                [9; 32],
+                [6; 32],
+                [7; 32],
+                [8; 32],
+                200,
+            ),
+            Err(DurableReplayError::NotAuthorizable)
+        );
     }
 
     #[test]
@@ -1051,6 +1086,7 @@ mod tests {
         let first = authorizer
             .consume_once(&result, IdempotencyKey::new(vec![1]).expect("key"))
             .expect("authorization");
+        assert_eq!(first.scope(), TrustScope::SingleMechanism);
         assert_eq!(first.outcome(), DurableReplayOutcome::Consumed);
         let retry = authorizer
             .consume_once(&result, IdempotencyKey::new(vec![1]).expect("key"))
@@ -1131,9 +1167,9 @@ mod tests {
 
         assert_eq!(
             authorizer.consume_once(&result, key()),
-            Ok(DurableReplayAuthorization {
+            Ok(SingleMechanismReplayAuthorization {
                 identity_digest: authorizer
-                    .identity_for(&result)
+                    .identity_for_single_mechanism(&result)
                     .expect("identity")
                     .digest()
                     .expect("digest"),
@@ -1209,7 +1245,8 @@ mod tests {
     #[test]
     fn no_raw_evidence_enters_identity_or_audit() {
         let result = test_fixture_attestation_result(100, RevocationStatus::Good, TcbStatus::Good);
-        let identity = DurableReplayIdentity::from_attestation_result(&result).expect("identity");
+        let identity =
+            SingleMechanismReplayIdentity::from_single_mechanism_result(&result).expect("identity");
         let debug = format!("{identity:?}");
         assert!(!debug.contains("fixture-attestation-evidence"));
         let audit = serde_json::to_string(&result.audit_metadata()).expect("audit");
