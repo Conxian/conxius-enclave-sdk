@@ -666,6 +666,7 @@ impl RailProxy {
             Err(ReplayGuardError::CapacitySaturated) => Err(ConclaveError::EnclaveFailure(
                 "Attestation replay guard capacity is saturated".to_string(),
             )),
+            Err(ReplayGuardError::ClockRollback) => Err(ConclaveError::ClockRollback),
             Err(ReplayGuardError::InvalidInput) => Err(ConclaveError::InvalidPayload),
             Err(ReplayGuardError::LockPoisoned) => Err(ConclaveError::EnclaveFailure(
                 "Attestation replay guard is unavailable".to_string(),
@@ -767,6 +768,9 @@ impl RailProxy {
                 return Err(ConclaveError::EnclaveFailure(
                     "typed settlement replay guard capacity is saturated".to_string(),
                 ));
+            }
+            Err(ReplayGuardError::ClockRollback) => {
+                return Err(ConclaveError::ClockRollback);
             }
             Err(ReplayGuardError::InvalidInput) => {
                 return Err(ConclaveError::InvalidPayload);

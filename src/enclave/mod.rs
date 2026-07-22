@@ -1034,12 +1034,13 @@ pub(crate) fn trusted_unix_time_secs() -> u64 {
 }
 
 fn map_replay_guard_error(error: ReplayGuardError) -> ConclaveError {
-    if matches!(error, ReplayGuardError::InvalidInput) {
-        return ConclaveError::InvalidPayload;
+    match error {
+        ReplayGuardError::InvalidInput => ConclaveError::InvalidPayload,
+        ReplayGuardError::ClockRollback => ConclaveError::ClockRollback,
+        error => ConclaveError::Unsupported(format!(
+            "value-bearing replay protection rejected operation: {error}"
+        )),
     }
-    ConclaveError::Unsupported(format!(
-        "value-bearing replay protection rejected operation: {error}"
-    ))
 }
 
 fn parse_ecdsa_recovery_id(value: u8) -> ConclaveResult<secp256k1::ecdsa::RecoveryId> {

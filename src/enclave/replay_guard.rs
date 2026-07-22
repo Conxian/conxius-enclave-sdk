@@ -12,6 +12,8 @@ pub enum ReplayGuardError {
     Duplicate,
     #[error("replay guard capacity is saturated")]
     CapacitySaturated,
+    #[error("replay guard clock moved backwards")]
+    ClockRollback,
     #[error("replay guard input is invalid")]
     InvalidInput,
     #[error("replay guard state is unavailable")]
@@ -23,9 +25,15 @@ struct ReplayEntry {
     retain_until: u64,
 }
 
+#[derive(Debug, Default)]
+struct ReplayState {
+    entries: HashMap<String, ReplayEntry>,
+    last_observed_secs: Option<u64>,
+}
+
 #[derive(Debug)]
 pub struct ReplayGuard {
-    entries: Mutex<HashMap<String, ReplayEntry>>,
+    state: Mutex<ReplayState>,
     ttl_secs: u64,
     max_entries: usize,
 }
@@ -33,7 +41,7 @@ pub struct ReplayGuard {
 impl ReplayGuard {
     pub fn new(ttl_secs: u64, max_entries: usize) -> Self {
         Self {
-            entries: Mutex::new(HashMap::new()),
+            state: Mutex::new(ReplayState::default()),
             ttl_secs,
             // A zero-capacity guard is intentionally unusable. Keep the zero
             // value so every insertion fails closed instead of silently
@@ -104,21 +112,34 @@ impl ReplayGuard {
             requested.push((key.to_string(), retain_until));
         }
 
-        let mut entries = self
-            .entries
+        let mut state = self
+            .state
             .lock()
             .map_err(|_| ReplayGuardError::LockPoisoned)?;
 
-        Self::prune_expired_entries(&mut entries, now_secs);
+        if state
+            .last_observed_secs
+            .is_some_and(|last_observed_secs| now_secs < last_observed_secs)
+        {
+            return Err(ReplayGuardError::ClockRollback);
+        }
+
+        // Record every non-rollback observation before pruning or insertion.
+        // This high-water mark intentionally survives entry eviction and also
+        // survives duplicate/capacity failures, because the process has still
+        // observed a valid forward timestamp.
+        state.last_observed_secs = Some(now_secs);
+        Self::prune_expired_entries(&mut state.entries, now_secs);
 
         let mut new_keys = std::collections::HashSet::with_capacity(requested.len());
         for (key, _) in &requested {
-            if entries.contains_key(key) || !new_keys.insert(key) {
+            if state.entries.contains_key(key) || !new_keys.insert(key) {
                 return Err(ReplayGuardError::Duplicate);
             }
         }
 
-        let resulting_len = entries
+        let resulting_len = state
+            .entries
             .len()
             .checked_add(requested.len())
             .ok_or(ReplayGuardError::CapacitySaturated)?;
@@ -127,7 +148,7 @@ impl ReplayGuard {
         }
 
         for (key, retain_until) in requested {
-            entries.insert(key, ReplayEntry { retain_until });
+            state.entries.insert(key, ReplayEntry { retain_until });
         }
 
         Ok(())
@@ -289,5 +310,26 @@ mod tests {
         );
         assert_eq!(guard.try_check_and_record("new-a", 100), Ok(()));
         assert_eq!(guard.try_check_and_record("new-b", 100), Ok(()));
+    }
+
+    #[test]
+    fn rejects_clock_rollback_after_horizon_pruning_without_reinsertion() {
+        let guard = ReplayGuard::new(1, 8);
+
+        assert_eq!(
+            guard.try_check_and_record_batch_with_horizons([("proof", 110)], 100),
+            Ok(())
+        );
+        // This forward observation prunes the proof entry while retaining the
+        // monotonic high-water timestamp.
+        assert_eq!(guard.try_check_and_record("advance", 111), Ok(()));
+
+        assert_eq!(
+            guard.try_check_and_record("proof", 105),
+            Err(super::ReplayGuardError::ClockRollback)
+        );
+        // Forward recovery is allowed, and the rejected rollback did not
+        // reinsert the pruned key.
+        assert_eq!(guard.try_check_and_record("proof", 112), Ok(()));
     }
 }

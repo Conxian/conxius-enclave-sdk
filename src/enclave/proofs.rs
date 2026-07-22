@@ -15,6 +15,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::marker::PhantomData;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 /// Current version of the independent proof envelope.
@@ -594,6 +595,12 @@ impl ProofVerificationContext {
         Ok(self.clone())
     }
 
+    fn with_now_secs(&self, now_secs: u64) -> ConclaveResult<Self> {
+        let mut context = self.clone();
+        context.now_secs = now_secs;
+        context.validate()
+    }
+
     pub fn binding_digest(&self) -> ConclaveResult<[u8; 32]> {
         self.validate()?;
         let mut output = Vec::new();
@@ -799,10 +806,15 @@ impl Default for ProofPolicy {
 
 /// A collection of envelopes. Construction and verification both reject
 /// duplicate semantic kinds and duplicate proof IDs.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
+///
+/// `ProofBundle` is serializable for transport, but deliberately does not
+/// implement generic `Deserialize`. Untrusted JSON must enter through
+/// [`deserialize_proof_bundle_json`], which enforces the outer transport bound
+/// before the private wire representation invokes the bounded field visitors.
+/// Serialized raw evidence is transport-only and must not be used for
+/// diagnostics; `Debug` implementations redact evidence contents.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ProofBundle {
-    #[serde(deserialize_with = "deserialize_bounded_proofs")]
     pub proofs: Vec<ProofEnvelope>,
 }
 
@@ -880,13 +892,23 @@ impl TryFrom<Vec<ProofEnvelope>> for ProofBundle {
     }
 }
 
-/// Parses a proof bundle through the documented transport-size boundary before
-/// invoking serde's bounded field and sequence visitors.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProofBundleWire {
+    #[serde(deserialize_with = "deserialize_bounded_proofs")]
+    proofs: Vec<ProofEnvelope>,
+}
+
+/// The only public untrusted JSON construction path for [`ProofBundle`]. It
+/// checks the complete outer payload before invoking the private wire
+/// representation and its bounded field and sequence visitors. Serialized raw
+/// evidence remains transport-only, not diagnostics.
 pub fn deserialize_proof_bundle_json(input: &[u8]) -> ConclaveResult<ProofBundle> {
     if input.len() > MAX_PROOF_TRANSPORT_BYTES {
         return Err(invalid_payload());
     }
-    serde_json::from_slice(input).map_err(|_| invalid_payload())
+    let wire: ProofBundleWire = serde_json::from_slice(input).map_err(|_| invalid_payload())?;
+    ProofBundle::new(wire.proofs)
 }
 
 /// Status of a verifier entry. Test-only positive status never exists in a
@@ -1126,6 +1148,7 @@ fn map_replay_error(error: ReplayGuardError) -> ConclaveError {
         ReplayGuardError::CapacitySaturated => ConclaveError::EnclaveFailure(
             "independent proof replay guard capacity is saturated".to_string(),
         ),
+        ReplayGuardError::ClockRollback => ConclaveError::ClockRollback,
         ReplayGuardError::InvalidInput => ConclaveError::InvalidPayload,
         ReplayGuardError::LockPoisoned => ConclaveError::EnclaveFailure(
             "independent proof replay guard is unavailable".to_string(),
@@ -1434,15 +1457,16 @@ impl VerifiedProofSet {
 /// Private, constructor-controlled carrier for proof-complete value-bearing
 /// authorization. It stores only verified receipts and binding digests.
 ///
-/// This carrier is cloneable but is not a one-shot token. Proof replay keys are
-/// reserved atomically while the bundle is verified, and downstream signing
-/// still requires the existing provider capability and operation replay gate;
-/// cloning cannot re-verify or bypass those guards.
-#[derive(Debug, Clone)]
+/// This carrier is not cloneable and retains an atomic authorization-time
+/// high-water mark. It is not a one-shot token: proof replay keys are reserved
+/// atomically while the bundle is verified, and downstream signing still
+/// requires the existing provider capability and operation replay gate.
+#[derive(Debug)]
 pub struct ProofBoundValueBearingAuthorization {
     verified_proofs: VerifiedProofSet,
     policy_digest: [u8; 32],
     authorization_expires_at: u64,
+    last_observed_secs: AtomicU64,
 }
 
 impl ProofBoundValueBearingAuthorization {
@@ -1450,10 +1474,17 @@ impl ProofBoundValueBearingAuthorization {
         let authorization_expires_at = verified_proofs
             .effective_expires_at()
             .ok_or_else(proof_verification_failed)?;
+        let last_observed_secs = verified_proofs
+            .receipts()
+            .iter()
+            .fold(0, |high_water, receipt| {
+                high_water.max(receipt.verified_at())
+            });
         Ok(Self {
             policy_digest: *verified_proofs.policy_digest(),
             verified_proofs,
             authorization_expires_at,
+            last_observed_secs: AtomicU64::new(last_observed_secs),
         })
     }
 
@@ -1473,8 +1504,34 @@ impl ProofBoundValueBearingAuthorization {
         self.authorization_expires_at
     }
 
-    fn is_valid_at(&self, now_secs: u64) -> bool {
-        now_secs <= self.authorization_expires_at
+    fn observe_and_validate_at(&self, now_secs: u64) -> ConclaveResult<()> {
+        let mut last_observed_secs = self.last_observed_secs.load(Ordering::Acquire);
+        loop {
+            if now_secs < last_observed_secs {
+                return Err(ConclaveError::ClockRollback);
+            }
+            if now_secs == last_observed_secs {
+                break;
+            }
+
+            match self.last_observed_secs.compare_exchange_weak(
+                last_observed_secs,
+                now_secs,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => break,
+                Err(observed_secs) => last_observed_secs = observed_secs,
+            }
+        }
+
+        if now_secs > self.authorization_expires_at {
+            return Err(ConclaveError::Unsupported(
+                "proof authorization has expired".to_string(),
+            ));
+        }
+
+        Ok(())
     }
 
     fn matches_request(&self, request: &ValueBearingSignRequest) -> bool {
@@ -1492,9 +1549,21 @@ impl ProofBoundValueBearingAuthorization {
 }
 
 /// Verifies a bundle and creates the additive proof-aware value-bearing
-/// authorization carrier. Existing serialized request/response shapes remain
-/// unchanged.
+/// authorization carrier. The supplied context's freshness timestamp is
+/// replaced with the SDK trusted process clock before verification. Existing
+/// serialized request/response shapes remain unchanged.
 pub fn authorize_value_bearing_with_proofs(
+    registry: &ProofVerifierRegistry,
+    bundle: &ProofBundle,
+    policy: &ProofPolicy,
+    context: &ProofVerificationContext,
+    replay_guard: &ReplayGuard,
+) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
+    let trusted_context = context.with_now_secs(crate::enclave::trusted_unix_time_secs())?;
+    authorize_value_bearing_with_proofs_at(registry, bundle, policy, &trusted_context, replay_guard)
+}
+
+fn authorize_value_bearing_with_proofs_at(
     registry: &ProofVerifierRegistry,
     bundle: &ProofBundle,
     policy: &ProofPolicy,
@@ -1512,11 +1581,33 @@ pub fn authorize_value_bearing_with_proofs(
     ProofBoundValueBearingAuthorization::from_verified(verified_proofs)
 }
 
-/// Builds proof authorization for a canonical settlement intent. The rail
-/// entry point is intentionally deferred: `RailProxy`'s legacy containment
-/// path cannot consume this carrier, and no existing serialized request or
-/// response shape is widened here.
+/// Builds proof authorization for a canonical settlement intent. The legacy
+/// timestamp argument is retained for source compatibility but ignored; the
+/// SDK trusted process clock controls proof freshness. The rail entry point is
+/// intentionally deferred: `RailProxy`'s legacy containment path cannot consume
+/// this carrier, and no existing serialized request or response shape is
+/// widened here.
 pub fn authorize_settlement_with_proofs(
+    registry: &ProofVerifierRegistry,
+    bundle: &ProofBundle,
+    policy: &ProofPolicy,
+    intent: &SwapIntent,
+    nonce: Vec<u8>,
+    _caller_supplied_now_secs: u64,
+    replay_guard: &ReplayGuard,
+) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
+    authorize_settlement_with_proofs_at(
+        registry,
+        bundle,
+        policy,
+        intent,
+        nonce,
+        crate::enclave::trusted_unix_time_secs(),
+        replay_guard,
+    )
+}
+
+fn authorize_settlement_with_proofs_at(
     registry: &ProofVerifierRegistry,
     bundle: &ProofBundle,
     policy: &ProofPolicy,
@@ -1526,7 +1617,7 @@ pub fn authorize_settlement_with_proofs(
     replay_guard: &ReplayGuard,
 ) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
     let context = ProofVerificationContext::for_settlement(intent, nonce, now_secs)?;
-    authorize_value_bearing_with_proofs(registry, bundle, policy, &context, replay_guard)
+    authorize_value_bearing_with_proofs_at(registry, bundle, policy, &context, replay_guard)
 }
 
 /// Additive proof-aware signing helper. It checks that the typed signing
@@ -1551,11 +1642,7 @@ fn sign_value_bearing_with_proof_authorization_at(
     authorization: &ProofBoundValueBearingAuthorization,
     now_secs: u64,
 ) -> ConclaveResult<ValueBearingSignResponse> {
-    if !authorization.is_valid_at(now_secs) {
-        return Err(ConclaveError::Unsupported(
-            "proof authorization has expired".to_string(),
-        ));
-    }
+    authorization.observe_and_validate_at(now_secs)?;
     if !authorization.matches_request(&request) {
         return Err(ConclaveError::Unsupported(
             "proof authorization does not match value-bearing operation context".to_string(),
@@ -1608,6 +1695,8 @@ mod tests {
         OperationContext, SignerKeyBinding, SigningAlgorithm, TrustRequirement,
         ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
     };
+    use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
+    use std::sync::Arc;
 
     const NOW: u64 = 1_000_000;
 
@@ -1666,6 +1755,34 @@ mod tests {
         .expect("fixture bundle")
     }
 
+    fn fixture_bundle_for_context(
+        context: &ProofVerificationContext,
+        now_secs: u64,
+    ) -> ProofBundle {
+        ProofBundle::new(
+            ProofKind::all()
+                .into_iter()
+                .enumerate()
+                .map(|(index, kind)| {
+                    ProofEnvelope::new(
+                        kind,
+                        format!("proof-{index}"),
+                        fixture_verifier_id(kind),
+                        context.operation_digest,
+                        context.purpose.clone(),
+                        context.audience.clone(),
+                        context.nonce.clone(),
+                        now_secs.saturating_sub(10),
+                        now_secs.saturating_add(60),
+                        format!("fixture:{}", kind.canonical_name()).into_bytes(),
+                    )
+                    .expect("fixture proof")
+                })
+                .collect(),
+        )
+        .expect("fixture bundle")
+    }
+
     fn fixture_policy() -> ProofPolicy {
         ProofPolicy::production()
     }
@@ -1710,6 +1827,59 @@ mod tests {
         };
         intent.signable_hash = intent.canonical_hash();
         intent
+    }
+
+    struct CountingProofVerifier {
+        kind: ProofKind,
+        verifier_id: String,
+        expected_evidence: Vec<u8>,
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl ProofVerifier for CountingProofVerifier {
+        fn kind(&self) -> ProofKind {
+            self.kind
+        }
+
+        fn verifier_id(&self) -> &str {
+            &self.verifier_id
+        }
+
+        fn status(&self) -> ProofVerifierStatus {
+            ProofVerifierStatus::TestOnly
+        }
+
+        fn verify(
+            &self,
+            envelope: &ProofEnvelope,
+            context: &ProofVerificationContext,
+        ) -> ConclaveResult<VerifiedProofReceipt> {
+            self.calls.fetch_add(1, AtomicOrdering::Relaxed);
+            if envelope.kind != self.kind
+                || envelope.verifier_id != self.verifier_id
+                || envelope.evidence != self.expected_evidence
+            {
+                return Err(proof_verification_failed());
+            }
+            VerifiedProofReceipt::from_fixture(envelope, context)
+        }
+    }
+
+    fn counting_registry(calls: Arc<AtomicUsize>) -> ProofVerifierRegistry {
+        let kind = ProofKind::Server;
+        let verifier_id = fixture_verifier_id(kind);
+        let verifier = CountingProofVerifier {
+            kind,
+            verifier_id: verifier_id.clone(),
+            expected_evidence: format!("fixture:{}", kind.canonical_name()).into_bytes(),
+            calls,
+        };
+        let mut verifiers = HashMap::new();
+        verifiers.insert(
+            (kind, verifier_id),
+            Arc::new(verifier) as Arc<dyn ProofVerifier>,
+        );
+        ProofVerifierRegistry { verifiers }
     }
 
     #[test]
@@ -2385,7 +2555,7 @@ mod tests {
 
     #[test]
     fn proof_authorization_rechecks_expiry_before_hardware_signing_gate() {
-        let authorization = authorize_value_bearing_with_proofs(
+        let authorization = authorize_value_bearing_with_proofs_at(
             &ProofVerifierRegistry::test_fixture_all_six(),
             &fixture_bundle(),
             &ProofPolicy::production(),
@@ -2419,6 +2589,100 @@ mod tests {
     }
 
     #[test]
+    fn public_proof_authorization_ignores_caller_supplied_future_time() {
+        let trusted_now = crate::enclave::trusted_unix_time_secs();
+        let future_now = trusted_now
+            .checked_add(DEFAULT_MAX_PROOF_FUTURE_SKEW_SECS + 60)
+            .expect("future test timestamp");
+        let future_context = context_at(future_now);
+        let future_bundle = fixture_bundle_at(future_now);
+
+        assert!(matches!(
+            authorize_value_bearing_with_proofs(
+                &ProofVerifierRegistry::test_fixture_all_six(),
+                &future_bundle,
+                &ProofPolicy::production(),
+                &future_context,
+                &ReplayGuard::new(300, 32),
+            ),
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("independent proof verification failed")
+        ));
+    }
+
+    #[test]
+    fn public_settlement_authorization_ignores_caller_supplied_future_time() {
+        let intent = fixture_settlement_intent();
+        let trusted_now = crate::enclave::trusted_unix_time_secs();
+        let future_now = trusted_now
+            .checked_add(DEFAULT_MAX_PROOF_FUTURE_SKEW_SECS + 60)
+            .expect("future test timestamp");
+        let future_context =
+            ProofVerificationContext::for_settlement(&intent, vec![1; 16], future_now)
+                .expect("future settlement context");
+        let future_bundle = fixture_bundle_for_context(&future_context, future_now);
+
+        assert!(matches!(
+            authorize_settlement_with_proofs(
+                &ProofVerifierRegistry::test_fixture_all_six(),
+                &future_bundle,
+                &ProofPolicy::production(),
+                &intent,
+                vec![1; 16],
+                future_now,
+                &ReplayGuard::new(300, 32),
+            ),
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("independent proof verification failed")
+        ));
+    }
+
+    #[test]
+    fn proof_authorization_rejects_clock_rollback_after_expiry() {
+        let base = 100;
+        let context = context_at(base);
+        let mut bundle = fixture_bundle_at(base);
+        for proof in &mut bundle.proofs {
+            proof.expires_at = 110;
+        }
+        let authorization = authorize_value_bearing_with_proofs_at(
+            &ProofVerifierRegistry::test_fixture_all_six(),
+            &bundle,
+            &ProofPolicy::production(),
+            &context,
+            &ReplayGuard::new(300, 32),
+        )
+        .expect("test-only production-shaped authorization");
+        let request = value_request(&context);
+        let enclave = crate::enclave::UnavailableEnclave;
+
+        assert!(matches!(
+            sign_value_bearing_with_proof_authorization_at(
+                &enclave,
+                request.clone(),
+                &authorization,
+                109,
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("provider-verified hardware enclave")
+        ));
+        assert!(matches!(
+            sign_value_bearing_with_proof_authorization_at(
+                &enclave,
+                request.clone(),
+                &authorization,
+                111,
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("proof authorization has expired")
+        ));
+        assert!(matches!(
+            sign_value_bearing_with_proof_authorization_at(&enclave, request, &authorization, 105,),
+            Err(ConclaveError::ClockRollback)
+        ));
+    }
+
+    #[test]
     fn public_proof_signing_path_uses_trusted_clock_and_hardware_gate() {
         let now_secs = crate::enclave::trusted_unix_time_secs();
         let context = context_at(now_secs);
@@ -2444,7 +2708,7 @@ mod tests {
 
     #[test]
     fn proof_authorization_rejects_context_mismatch_before_signing() {
-        let authorization = authorize_value_bearing_with_proofs(
+        let authorization = authorize_value_bearing_with_proofs_at(
             &ProofVerifierRegistry::test_fixture_all_six(),
             &fixture_bundle(),
             &ProofPolicy::production(),
@@ -2489,7 +2753,7 @@ mod tests {
             proofs: vec![fixture_proof(ProofKind::Server, "repeated"); MAX_PROOF_BUNDLE_SIZE + 1],
         };
         let bundle_bytes = serde_json::to_vec(&oversized_bundle).expect("serialize bundle");
-        assert!(serde_json::from_slice::<ProofBundle>(&bundle_bytes).is_err());
+        assert!(deserialize_proof_bundle_json(&bundle_bytes).is_err());
 
         let oversized_policy = ProofPolicy {
             required: vec![
@@ -2510,5 +2774,40 @@ mod tests {
     fn bounded_transport_entry_point_rejects_oversized_input() {
         let oversized = vec![b' '; MAX_PROOF_TRANSPORT_BYTES + 1];
         assert!(deserialize_proof_bundle_json(&oversized).is_err());
+    }
+
+    #[test]
+    fn bounded_transport_rejects_unknown_fields_before_provider_verification() {
+        let bundle = ProofBundle::new(vec![fixture_proof(ProofKind::Server, "transport")])
+            .expect("transport bundle");
+        let policy = ProofPolicy::new(
+            vec![
+                ProofRequirement::new(ProofKind::Server, fixture_verifier_id(ProofKind::Server))
+                    .expect("requirement"),
+            ],
+            UnlistedProofPolicy::Reject,
+        )
+        .expect("policy");
+        let context = context();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let registry = counting_registry(Arc::clone(&calls));
+
+        let mut unknown = serde_json::to_value(&bundle).expect("serialize bundle");
+        unknown["unexpected"] = serde_json::Value::String("x".repeat(1024));
+        let unknown_bytes = serde_json::to_vec(&unknown).expect("serialize unknown field");
+        let unknown_result = deserialize_proof_bundle_json(&unknown_bytes).and_then(|parsed| {
+            registry.verify_bundle(&parsed, &policy, &context, &ReplayGuard::new(300, 32))
+        });
+        assert!(unknown_result.is_err());
+        assert_eq!(calls.load(AtomicOrdering::Relaxed), 0);
+
+        unknown["unexpected"] = serde_json::Value::String("x".repeat(MAX_PROOF_TRANSPORT_BYTES));
+        let oversized_unknown_bytes = serde_json::to_vec(&unknown).expect("serialize oversized");
+        let oversized_result =
+            deserialize_proof_bundle_json(&oversized_unknown_bytes).and_then(|parsed| {
+                registry.verify_bundle(&parsed, &policy, &context, &ReplayGuard::new(300, 32))
+            });
+        assert!(oversized_result.is_err());
+        assert_eq!(calls.load(AtomicOrdering::Relaxed), 0);
     }
 }
