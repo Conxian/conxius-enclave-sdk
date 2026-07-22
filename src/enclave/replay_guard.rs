@@ -1,19 +1,31 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+/// Maximum number of replay keys accepted by one atomic reservation.
+pub const MAX_REPLAY_BATCH_KEYS: usize = 128;
+/// Maximum UTF-8 byte length of one replay key.
+pub const MAX_REPLAY_KEY_BYTES: usize = 512;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ReplayGuardError {
     #[error("replay key has already been recorded")]
     Duplicate,
     #[error("replay guard capacity is saturated")]
     CapacitySaturated,
+    #[error("replay guard input is invalid")]
+    InvalidInput,
     #[error("replay guard state is unavailable")]
     LockPoisoned,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct ReplayEntry {
+    retain_until: u64,
+}
+
 #[derive(Debug)]
 pub struct ReplayGuard {
-    entries: Mutex<HashMap<String, u64>>,
+    entries: Mutex<HashMap<String, ReplayEntry>>,
     ttl_secs: u64,
     max_entries: usize,
 }
@@ -32,23 +44,10 @@ impl ReplayGuard {
 
     /// Checks and records a key, returning the exact fail-closed outcome.
     pub fn try_check_and_record(&self, key: &str, now_secs: u64) -> Result<(), ReplayGuardError> {
-        let mut entries = self
-            .entries
-            .lock()
-            .map_err(|_| ReplayGuardError::LockPoisoned)?;
-
-        Self::prune_expired_entries(&mut entries, self.ttl_secs, now_secs);
-
-        if entries.contains_key(key) {
-            return Err(ReplayGuardError::Duplicate);
-        }
-
-        if entries.len() >= self.max_entries {
-            return Err(ReplayGuardError::CapacitySaturated);
-        }
-
-        entries.insert(key.to_string(), now_secs);
-        Ok(())
+        let retain_until = now_secs
+            .checked_add(self.ttl_secs)
+            .ok_or(ReplayGuardError::InvalidInput)?;
+        self.try_check_and_record_batch_with_horizons([(key, retain_until)], now_secs)
     }
 
     /// Atomically checks and records a batch of keys under one lock.
@@ -67,20 +66,53 @@ impl ReplayGuard {
         I: IntoIterator<Item = K>,
         K: AsRef<str>,
     {
-        let requested = keys
-            .into_iter()
-            .map(|key| key.as_ref().to_string())
-            .collect::<Vec<_>>();
+        let retain_until = now_secs
+            .checked_add(self.ttl_secs)
+            .ok_or(ReplayGuardError::InvalidInput)?;
+        self.try_check_and_record_batch_with_horizons(
+            keys.into_iter().map(|key| (key, retain_until)),
+            now_secs,
+        )
+    }
+
+    /// Atomically checks and records a batch with one absolute retention
+    /// horizon per key. Existing callers can continue using
+    /// [`Self::try_check_and_record_batch`] for the legacy fixed-TTL behavior.
+    ///
+    /// All key and batch bounds are checked while iterating, before the
+    /// caller-owned input is collected. No entry is inserted until every key,
+    /// horizon, duplicate, and capacity check succeeds.
+    pub fn try_check_and_record_batch_with_horizons<I, K>(
+        &self,
+        keys: I,
+        now_secs: u64,
+    ) -> Result<(), ReplayGuardError>
+    where
+        I: IntoIterator<Item = (K, u64)>,
+        K: AsRef<str>,
+    {
+        let mut requested = Vec::new();
+        for (key, retain_until) in keys {
+            if requested.len() >= MAX_REPLAY_BATCH_KEYS {
+                return Err(ReplayGuardError::InvalidInput);
+            }
+
+            let key = key.as_ref();
+            if key.is_empty() || key.len() > MAX_REPLAY_KEY_BYTES || retain_until < now_secs {
+                return Err(ReplayGuardError::InvalidInput);
+            }
+            requested.push((key.to_string(), retain_until));
+        }
 
         let mut entries = self
             .entries
             .lock()
             .map_err(|_| ReplayGuardError::LockPoisoned)?;
 
-        Self::prune_expired_entries(&mut entries, self.ttl_secs, now_secs);
+        Self::prune_expired_entries(&mut entries, now_secs);
 
         let mut new_keys = std::collections::HashSet::with_capacity(requested.len());
-        for key in &requested {
+        for (key, _) in &requested {
             if entries.contains_key(key) || !new_keys.insert(key) {
                 return Err(ReplayGuardError::Duplicate);
             }
@@ -94,8 +126,8 @@ impl ReplayGuard {
             return Err(ReplayGuardError::CapacitySaturated);
         }
 
-        for key in requested {
-            entries.insert(key, now_secs);
+        for (key, retain_until) in requested {
+            entries.insert(key, ReplayEntry { retain_until });
         }
 
         Ok(())
@@ -109,14 +141,11 @@ impl ReplayGuard {
         self.try_check_and_record(key, now_secs).is_ok()
     }
 
-    fn prune_expired_entries(entries: &mut HashMap<String, u64>, ttl_secs: u64, now_secs: u64) {
-        entries.retain(|_, seen_at| {
-            // Keep entries from the future until the clock catches up. A clock
-            // rollback must never make a live replay key disappear.
-            match now_secs.checked_sub(*seen_at) {
-                Some(age_secs) => age_secs <= ttl_secs,
-                None => true,
-            }
+    fn prune_expired_entries(entries: &mut HashMap<String, ReplayEntry>, now_secs: u64) {
+        entries.retain(|_, entry| {
+            // Retain through the inclusive horizon. A clock rollback also
+            // keeps future-dated entries live until the clock catches up.
+            now_secs <= entry.retain_until
         });
     }
 }
@@ -222,5 +251,43 @@ mod tests {
             guard.try_check_and_record("new-b", 102),
             Err(super::ReplayGuardError::CapacitySaturated)
         );
+    }
+
+    #[test]
+    fn horizon_aware_batch_retains_key_after_legacy_ttl() {
+        let guard = ReplayGuard::new(1, 8);
+
+        assert_eq!(
+            guard.try_check_and_record_batch_with_horizons([("proof", 160)], 100,),
+            Ok(())
+        );
+        assert_eq!(
+            guard.try_check_and_record("proof", 102),
+            Err(super::ReplayGuardError::Duplicate)
+        );
+        assert_eq!(guard.try_check_and_record("proof", 161), Ok(()));
+    }
+
+    #[test]
+    fn bounded_batch_rejects_oversized_keys_before_recording() {
+        let guard = ReplayGuard::new(300, 8);
+        let oversized = "x".repeat(super::MAX_REPLAY_KEY_BYTES + 1);
+
+        assert_eq!(
+            guard.try_check_and_record(&oversized, 100),
+            Err(super::ReplayGuardError::InvalidInput)
+        );
+        assert_eq!(guard.try_check_and_record("valid", 100), Ok(()));
+    }
+
+    #[test]
+    fn horizon_batch_failure_does_not_partially_insert_keys() {
+        let guard = ReplayGuard::new(300, 2);
+        assert_eq!(
+            guard.try_check_and_record_batch_with_horizons([("new-a", 200), ("new-b", 99)], 100,),
+            Err(super::ReplayGuardError::InvalidInput)
+        );
+        assert_eq!(guard.try_check_and_record("new-a", 100), Ok(()));
+        assert_eq!(guard.try_check_and_record("new-b", 100), Ok(()));
     }
 }

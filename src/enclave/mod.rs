@@ -9,11 +9,12 @@ pub mod replay_guard;
 
 pub use proofs::{
     authorize_settlement_with_proofs, authorize_value_bearing_with_proofs,
-    sign_value_bearing_with_proof_authorization, ProofBoundValueBearingAuthorization, ProofBundle,
-    ProofEnvelope, ProofKind, ProofPolicy, ProofReplayKey, ProofRequirement,
-    ProofVerificationContext, ProofVerifier, ProofVerifierRegistry, ProofVerifierStatus,
-    UnlistedProofPolicy, VerifiedProofReceipt, VerifiedProofSet, FIDO_PROOF_VERIFIER_ID,
-    PHONE_PROOF_VERIFIER_ID, PROOF_CONTEXT_DOMAIN, PROOF_ENVELOPE_DOMAIN, PROOF_ENVELOPE_VERSION,
+    deserialize_proof_bundle_json, sign_value_bearing_with_proof_authorization,
+    ProofBoundValueBearingAuthorization, ProofBundle, ProofEnvelope, ProofKind, ProofPolicy,
+    ProofReplayKey, ProofRequirement, ProofVerificationContext, ProofVerifier,
+    ProofVerifierRegistry, ProofVerifierStatus, UnlistedProofPolicy, VerifiedProofReceipt,
+    VerifiedProofSet, FIDO_PROOF_VERIFIER_ID, MAX_PROOF_TRANSPORT_BYTES, PHONE_PROOF_VERIFIER_ID,
+    PROOF_CONTEXT_DOMAIN, PROOF_ENVELOPE_DOMAIN, PROOF_ENVELOPE_VERSION, PROOF_POLICY_DOMAIN,
     PROOF_REPLAY_DOMAIN, SERVER_PROOF_VERIFIER_ID, SETTLEMENT_PROOF_AUDIENCE,
     SETTLEMENT_PROOF_PURPOSE, TEE_PROOF_VERIFIER_ID, TPM_PROOF_VERIFIER_ID, USER_PROOF_VERIFIER_ID,
 };
@@ -1025,7 +1026,17 @@ fn unix_time_secs() -> u64 {
         .as_secs()
 }
 
+/// Trusted process clock used by security-sensitive consumption paths. Tests
+/// may exercise their private deterministic helpers, but production callers
+/// cannot select the authorization-consumption timestamp.
+pub(crate) fn trusted_unix_time_secs() -> u64 {
+    unix_time_secs()
+}
+
 fn map_replay_guard_error(error: ReplayGuardError) -> ConclaveError {
+    if matches!(error, ReplayGuardError::InvalidInput) {
+        return ConclaveError::InvalidPayload;
+    }
     ConclaveError::Unsupported(format!(
         "value-bearing replay protection rejected operation: {error}"
     ))
