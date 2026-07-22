@@ -75,6 +75,14 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Recommendation**: Specify and independently review deployment-safe replay semantics, then add provider-backed and distributed integration tests with failure-closed behavior.
 - **Tracking**: [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195)
 
+#### SEC-004: Provider-Specific Proof Verification and Policy Evidence
+- **Category**: Security / Architecture / Testing
+- **Priority**: P1
+- **Description**: Phase A now binds the complete proof policy through the rail and final-dispatch boundaries, but provider-specific verification, roots, collateral/revocation, runtime integration, and exact artifact evidence remain unavailable.
+- **Risk**: Research specifications or typed taxonomy could be mistaken for an authenticated TLS/WebAuthn/FIDO/TPM/mobile/TEE provider claim.
+- **Recommendation**: Select one provider scope at a time, implement its authenticated verifier and exact policy namespace, add official vectors and provider-backed negative tests, then attach CI, independent-review, provenance, and release-artifact evidence.
+- **Tracking**: [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#199](https://github.com/Conxian/conxius-enclave-sdk/issues/199), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202)
+
 #### EVID-001: Provider, Runtime, and Artifact Evidence
 - **Category**: Testing
 - **Priority**: P1

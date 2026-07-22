@@ -7,7 +7,9 @@ pub(crate) mod x402;
 
 use crate::enclave::attestation::{AttestationPolicy, DeviceIntegrityReport};
 #[cfg(test)]
-use crate::enclave::proof::{ProofKey, ProofRequirement, ProofSetPolicy, ProofSubject, ProofType};
+use crate::enclave::proof::{
+    ProofKey, ProofRequirement, ProofSetPolicy, ProofSubject, ProofType, TestProofEvidenceInput,
+};
 use crate::enclave::replay_guard::{ReplayGuard, ReplayGuardError};
 use crate::enclave::{
     SignerProvenance, SignerVerification, SigningAlgorithm, ValueBearingPurpose,
@@ -94,7 +96,8 @@ struct VerifiedOperationAuthorization {
     provenance: SignerProvenance,
     verification: SignerVerification,
     policy_id: String,
-    proof_policy_digest: [u8; 32],
+    expected_proof_policy_digest: [u8; 32],
+    verified_proof_policy_digest: [u8; 32],
     proof_set_digest: [u8; 32],
     proof_count: usize,
     replay_authorization: ReplayAuthorization,
@@ -156,6 +159,7 @@ impl VerifiedOperation {
             vec![fixture_requirement],
         )
         .expect("legacy fixture policy should be valid");
+        let fixture_policy_digest = *fixture_policy.policy_digest();
         let fixture_request = ValueBearingSignRequest::new(
             crate::enclave::OperationContext::new(
                 SETTLEMENT_OPERATION_DOMAIN,
@@ -202,7 +206,8 @@ impl VerifiedOperation {
                 provenance: SignerProvenance::HardwareBacked,
                 verification: SignerVerification::ProviderVerified,
                 policy_id: VALUE_BEARING_POLICY_ID.to_string(),
-                proof_policy_digest: *fixture_proof_set.policy_digest(),
+                expected_proof_policy_digest: fixture_policy_digest,
+                verified_proof_policy_digest: *fixture_proof_set.policy_digest(),
                 proof_set_digest: *fixture_proof_set.canonical_digest(),
                 proof_count: fixture_proof_set.proof_count(),
                 replay_authorization,
@@ -296,6 +301,22 @@ impl VerifiedOperation {
                     .to_string(),
             )
         })?;
+        let response_expected_policy_digest =
+            response.expected_proof_policy_digest().ok_or_else(|| {
+                ConclaveError::Unsupported(
+                    "typed settlement authorization is missing the request-side proof policy digest"
+                        .to_string(),
+                )
+            })?;
+        let expected_policy_digest = expected_proof_policy.policy_digest();
+        if response_expected_policy_digest != expected_policy_digest
+            || proof_set.policy_digest() != expected_policy_digest
+        {
+            return Err(ConclaveError::EnclaveFailure(
+                "typed settlement proof policy digest does not match the request-side expected policy"
+                    .to_string(),
+            ));
+        }
         if !proof_set.matches_binding(
             expected_proof_policy,
             request.message_digest(),
@@ -357,7 +378,8 @@ impl VerifiedOperation {
                 provenance: response.signer_capability().provenance(),
                 verification: response.signer_capability().verification(),
                 policy_id: requirement.policy_id().to_string(),
-                proof_policy_digest: *expected_proof_policy.canonical_digest(),
+                expected_proof_policy_digest: *expected_policy_digest,
+                verified_proof_policy_digest: *proof_set.policy_digest(),
                 proof_set_digest: *proof_set.canonical_digest(),
                 proof_count: proof_set.proof_count(),
                 replay_authorization: ReplayAuthorization {
@@ -756,10 +778,22 @@ impl RailProxy {
         if authorization.canonical_intent_hash != canonical_intent_hash
             || authorization.replay_authorization.operation_binding
                 != authorization.operation_binding
-            || authorization.proof_policy_digest == [0; 32]
-            || authorization.proof_count == 0
-            || authorization.proof_set_digest == [0; 32]
         {
+            return Err(ConclaveError::EnclaveFailure(
+                "typed settlement authorization proof-set binding is incomplete or inconsistent"
+                    .to_string(),
+            ));
+        }
+        if authorization.expected_proof_policy_digest == [0; 32]
+            || authorization.verified_proof_policy_digest == [0; 32]
+            || authorization.expected_proof_policy_digest
+                != authorization.verified_proof_policy_digest
+        {
+            return Err(ConclaveError::EnclaveFailure(
+                "typed settlement authorization policy digest mismatch".to_string(),
+            ));
+        }
+        if authorization.proof_count == 0 || authorization.proof_set_digest == [0; 32] {
             return Err(ConclaveError::EnclaveFailure(
                 "typed settlement authorization proof-set binding is incomplete or inconsistent"
                     .to_string(),
@@ -1337,18 +1371,7 @@ mod rail_proxy_tests {
             .iter()
             .map(|requirement| {
                 crate::enclave::proof::RawProofEvidence::test_fixture(
-                    requirement.key(),
-                    requirement.issuer(),
-                    requirement.trust_identity(),
-                    policy.nonce().to_vec(),
-                    *policy.operation_digest(),
-                    policy.purpose(),
-                    policy.policy_id(),
-                    requirement.subject_binding().to_vec(),
-                    now_secs.saturating_sub(1),
-                    now_secs.saturating_add(policy.max_age_secs().saturating_sub(1)),
-                    policy.max_age_secs(),
-                    policy.replay_identity().to_vec(),
+                    TestProofEvidenceInput::from_policy(policy, requirement, now_secs),
                 )
             })
             .collect::<Vec<_>>();
@@ -1798,6 +1821,81 @@ mod rail_proxy_tests {
     }
 
     #[test]
+    fn typed_settlement_authorization_rejects_same_id_weaker_policy_digest() {
+        let proxy = test_proxy();
+        let intent = custom_settlement_intent(vec![36; 32]);
+        let digest: [u8; 32] = intent
+            .canonical_hash()
+            .try_into()
+            .expect("canonical intent hash should be 32 bytes");
+        let provider = SettlementFixtureProvider::new(VALUE_BEARING_POLICY_ID);
+        let base_request = settlement_request(
+            digest,
+            provider.operation_public_key(),
+            VALUE_BEARING_POLICY_ID,
+        );
+        let base_policy = base_request
+            .expected_proof_policy()
+            .expect("fixture request should carry an exact proof policy");
+        let expected_requirement = base_policy
+            .requirements()
+            .first()
+            .expect("fixture policy should require one proof")
+            .clone();
+        let additional_requirement = ProofRequirement::new(
+            ProofKey::new(ProofType::TpmQuote, ProofSubject::Server),
+            expected_requirement.issuer(),
+            expected_requirement.trust_identity(),
+            expected_requirement.subject_binding().to_vec(),
+        )
+        .expect("additional fixture requirement should be valid");
+        let strong_policy = ProofSetPolicy::test_fixture(
+            VALUE_BEARING_POLICY_ID,
+            digest,
+            ValueBearingPurpose::Settlement,
+            digest.to_vec(),
+            digest.to_vec(),
+            300,
+            30,
+            vec![expected_requirement.clone(), additional_requirement],
+        )
+        .expect("strong fixture policy should be valid");
+        let strong_request = base_request
+            .with_proof_policy(strong_policy.clone())
+            .expect("strong policy should match the settlement request");
+        let strong_response = provider
+            .sign_value_bearing(strong_request.clone())
+            .expect("fixture provider should issue typed evidence")
+            .with_test_proof_set(&strong_request)
+            .expect("complete strong fixture proof set should verify");
+
+        let weaker_policy = ProofSetPolicy::test_fixture(
+            VALUE_BEARING_POLICY_ID,
+            digest,
+            ValueBearingPurpose::Settlement,
+            digest.to_vec(),
+            digest.to_vec(),
+            300,
+            30,
+            vec![expected_requirement],
+        )
+        .expect("weaker fixture policy should be valid");
+        assert_ne!(
+            strong_policy.policy_digest(),
+            weaker_policy.policy_digest(),
+            "policy_id is only a label; removing a required proof must change the digest"
+        );
+
+        let response_with_weaker_set =
+            strong_response.with_test_unchecked_proof_set(compose_fixture_set(&weaker_policy));
+        assert!(matches!(
+            proxy.authorize_verified_operation(intent, &strong_request, response_with_weaker_set),
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("policy digest")
+        ));
+    }
+
+    #[test]
     fn typed_settlement_envelope_rejects_missing_attestation_and_replay_authorization() {
         let proxy = test_proxy();
         let intent = custom_settlement_intent(vec![32; 32]);
@@ -1951,6 +2049,22 @@ mod rail_proxy_tests {
             proxy.dispatch_verified_operation(replay).await,
             Err(ConclaveError::EnclaveFailure(message))
                 if message.contains("typed settlement authorization replay detected")
+        ));
+    }
+
+    #[tokio::test]
+    async fn typed_settlement_dispatch_rechecks_expected_and_verified_policy_digest() {
+        let mut proxy = test_proxy().with_min_trust_tier(TrustTier::T4);
+        proxy.register_rail(Box::new(CustomRail));
+        let provider = SettlementFixtureProvider::new(VALUE_BEARING_POLICY_ID);
+        let mut operation =
+            authorize_fixture_operation(&proxy, &provider, custom_settlement_intent(vec![37; 32]));
+        operation.authorization.verified_proof_policy_digest[0] ^= 1;
+
+        assert!(matches!(
+            proxy.dispatch_verified_operation(operation).await,
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("policy digest mismatch")
         ));
     }
 

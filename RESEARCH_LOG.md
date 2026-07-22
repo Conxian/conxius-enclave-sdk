@@ -1,13 +1,138 @@
 # Conclave SDK Research Log
 
 > External research findings, technology monitoring, and industry analysis
-> **Version**: v1.1.0 | **Last Updated**: 2026-07-21
+> **Version**: v1.2.0 | **Last Updated**: 2026-07-22
 
 ---
 
 ## Overview
 
 This document captures external research findings relevant to the Conclave SDK's development trajectory. Each entry includes source links and applicability notes for future reference.
+
+---
+
+## Hardware and proof-claim research map (2026-07-22)
+
+**Access date for every source in this section:** 2026-07-22. These findings
+are research/design evidence only. They do not establish a provider verifier,
+runtime integration, production support, independent review, or a release
+artifact for this repository.
+
+### 1. TLS 1.3 server identity is not TEE proof
+
+- [RFC 8446](https://www.rfc-editor.org/rfc/rfc8446.html) defines TLS 1.3
+  authentication and certificate/`CertificateVerify` behavior.
+- [RFC 9266](https://www.rfc-editor.org/rfc/rfc9266.html) documents server
+  identity considerations for TLS deployments.
+- **Boundary:** TLS server identity authenticates an endpoint under a PKI
+  contract. It does not prove a TEE, enclave measurement, device state, or
+  hardware-backed key origin. The proof taxonomy keeps `ServerIdentity`
+  separate from TEE/provider evidence.
+
+### 2. WebAuthn authorization versus FIDO provenance
+
+- [WebAuthn Level 3](https://www.w3.org/TR/webauthn-3/) specifies the RP,
+  origin, challenge, authenticator-data, user-presence, and user-verification
+  relationships in a WebAuthn ceremony.
+- [FIDO Metadata Service 3.1.1 RD02](https://fidoalliance.org/specs/mds/fido-metadata-service-v3.1.1-rd02-20260105.pdf)
+  and [The Truth About Attestation](https://fidoalliance.org/fido-technotes-the-truth-about-attestation/)
+  describe authenticator provenance/metadata and the choices an RP makes
+  about attestation.
+- **Boundary:** an assertion can authorize an RP operation; provenance and
+  metadata do not replace RP-origin, challenge, user-presence, or
+  user-verification checks. The SDK keeps user authorization and FIDO
+  provenance as distinct claims.
+
+### 3. TPM 2.0 quotes, PCRs, and replay inputs
+
+- The [TCG TPM Library Specification](https://trustedcomputinggroup.org/resource/tpm-library-specification/)
+  and [Part 2: Structures, Version 1.85](https://trustedcomputinggroup.org/wp-content/uploads/Trusted-Platform-Module-2.0-Library-Part-2-Structures_Version-185_pub.pdf)
+  define quote structures, PCR selections/digests, qualifying data, and key
+  structures.
+- A verifier must distinguish the Attestation Key (AK), any Endorsement Key
+  (EK) provenance, selected PCR values, the event log, and a verifier-provided
+  challenge/`qualifyingData`; freshness and replay are not inferred from a
+  PCR digest alone.
+- **Boundary:** `TpmQuote` is a typed category only. No TPM quote, AK/EK trust
+  store, PCR policy, event-log parser, or production verifier is shipped.
+
+### 4. Android Key Attestation, TEE, and StrongBox
+
+- [Android Key Attestation](https://developer.android.com/privacy-and-security/security-key-attestation)
+  describes attestation certificates and security-relevant challenge, app,
+  verified-boot, OS-version, and patch-level information.
+- [Android attestation status](https://android.googleapis.com/attestation/status)
+  is a provider status/revocation input, not a substitute for certificate
+  chain and policy verification.
+- The Android model distinguishes TEE-backed keys from StrongBox-backed keys;
+  key origin, security level, challenge binding, application identity,
+  verified-boot state, patch state, and status handling must be evaluated
+  together.
+- **Boundary:** the existing Android/TEE types and tests do not establish a
+  live Android provider verifier, StrongBox runtime, root store, or status
+  service. No generic `DeviceIntegrityReport` promotion is allowed.
+
+### 5. Apple App Attest versus Secure Enclave isolation
+
+- Apple documents [server validation for App Attest](https://developer.apple.com/documentation/devicecheck/validating-apps-that-connect-to-your-server)
+  and [establishing app integrity](https://developer.apple.com/documentation/DeviceCheck/establishing-your-apps-integrity).
+- [Protecting keys with the Secure Enclave](https://developer.apple.com/documentation/Security/protecting-keys-with-the-secure-enclave)
+  describes device-local key isolation and supported key operations.
+- **Boundary:** App Attest is an app-integrity protocol with a server
+  validation flow; Secure Enclave documents key isolation. These sources do
+  not justify a generic remote Secure Enclave attestation claim. The SDK keeps
+  `Apple App Attest` and `Apple Secure Enclave key operation` separate and
+  unsupported as providers.
+
+### 6. Intel SGX DCAP and TDX
+
+- [Intel SGX DCAP ECDSA Orientation 1.23](https://download.01.org/intel-sgx/sgx-dcap/1.23/linux/docs/DCAP_ECDSA_Orientation.pdf)
+  describes quote verification inputs including QE/PCK certificates,
+  collateral, TCB status, and revocation material.
+- [Intel TDX documentation](https://www.intel.com/content/www/us/en/developer/tools/trust-domain-extensions/documentation.html)
+  describes the TDX trust-domain measurement/report and quote ecosystem.
+- **Boundary:** report data, measurements, QE/PCK chains, CRLs, collateral,
+  TCB policy, and freshness must be verified for the exact platform. No SGX
+  DCAP or TDX verifier/runtime/collateral integration is present.
+
+### 7. AMD SEV-SNP
+
+- The [AMD SEV-SNP guest-hypervisor interface specification](https://www.amd.com/content/dam/amd/en/documents/developer/56860.pdf)
+  describes report data, policy, debug/migration controls, TCB values, and
+  VCEK/VLEK certificate relationships.
+- **Boundary:** `REPORT_DATA` is a verifier-bound input, not an independent
+  claim. VCEK/VLEK provenance, platform TCB policy, certificate status, and
+  runtime behavior are required. No SEV-SNP verifier/runtime is implemented.
+
+### 8. AWS Nitro NSM and attestation documents
+
+- AWS documents [Nitro root verification](https://docs.aws.amazon.com/enclaves/latest/user/verify-root.html)
+  and [obtaining an attestation document](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/attestation-get-doc.html).
+- The attestation document model includes COSE protection and verifier-bound
+  PCRs, nonce, user data, and public-key inputs; the AWS root/debug boundary
+  must be checked rather than assumed.
+- **Boundary:** no NSM client, COSE verifier, AWS root store, PCR policy, or
+  Nitro deployment integration is present in this repository.
+
+### 9. ARM PSA and CCA/EAT/COSE
+
+- [PSA Attestation API 1.0.2](https://developer.arm.com/-/media/Files/pdf/PlatformSecurityArchitecture/Implement/IHI0085-PSA_Attestation_API-1.0.2.pdf)
+  defines challenge-driven attestation and lifecycle/implementation/platform
+  claims.
+- [RFC 9783](https://www.rfc-editor.org/rfc/rfc9783.html) specifies the PSA
+  attestation token profile using EAT/COSE concepts; CCA deployments require
+  the realm/platform distinction and their own implementation evidence.
+- **Boundary:** PSA and CCA are not interchangeable generic TEE claims. No
+  EAT/COSE verifier, lifecycle policy, realm/platform runtime, or vendor root
+  integration is present.
+
+### Research-to-code action
+
+PR #237 records the research map as conservative capability rows only. The
+implemented code change is limited to exact policy digest binding, all-required
+composition, rail/final-dispatch mismatch rejection, and test-fixture lint
+refactoring. Provider rows remain unsupported until the requirement → code →
+test → CI → artifact chain exists for the exact provider and deployment.
 
 ---
 
