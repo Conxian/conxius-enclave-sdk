@@ -3,9 +3,11 @@ pub mod android_strongbox;
 pub mod attestation;
 #[cfg(any(test, feature = "development-simulators"))]
 pub mod cloud;
+pub mod durable_replay;
 pub mod proof;
 pub mod proofs;
 pub mod replay_guard;
+pub mod trust;
 
 pub use proofs::{
     authorize_settlement_with_proofs, authorize_value_bearing_with_proofs,
@@ -17,6 +19,30 @@ pub use proofs::{
     PROOF_CONTEXT_DOMAIN, PROOF_ENVELOPE_DOMAIN, PROOF_ENVELOPE_VERSION, PROOF_POLICY_DOMAIN,
     PROOF_REPLAY_DOMAIN, SERVER_PROOF_VERIFIER_ID, SETTLEMENT_PROOF_AUDIENCE,
     SETTLEMENT_PROOF_PURPOSE, TEE_PROOF_VERIFIER_ID, TPM_PROOF_VERIFIER_ID, USER_PROOF_VERIFIER_ID,
+};
+
+pub use durable_replay::{
+    DurableReplayAuthorization, DurableReplayAuthorizer, DurableReplayError, DurableReplayIdentity,
+    DurableReplayOutcome, DurableReplayRequest, DurableReplayResult, DurableReplayStore,
+    IdempotencyKey, UnavailableDurableReplayStore, DURABLE_REPLAY_CONTRACT_VERSION,
+    DURABLE_REPLAY_IDENTITY_DOMAIN, DURABLE_REPLAY_REQUEST_DOMAIN, IDEMPOTENCY_KEY_DOMAIN,
+    MAX_DURABLE_REPLAY_IDENTIFIER_BYTES, MAX_IDEMPOTENCY_KEY_BYTES,
+};
+
+pub use trust::{
+    authenticate_trust_bundle, deserialize_attestation_evidence_json,
+    deserialize_collateral_snapshot_json, deserialize_trust_bundle_json,
+    normalize_attestation_result, production_trust_authenticator, production_trust_verifier,
+    AttestationAuditMetadata, AttestationEvidence, AttestationResult, CollateralSnapshot,
+    RevocationStatus, SystemTrustedClock, TcbStatus, TrustAnchor, TrustAuthenticator,
+    TrustAuthenticatorStatus, TrustBundle, TrustError, TrustResult, TrustSignatureAlgorithm,
+    TrustVerificationRequest, TrustVerifier, TrustVerifierStatus, TrustedClock,
+    UnavailableTrustAuthenticator, UnavailableTrustVerifier, VerifiedAttestationEvidence,
+    VerifiedCollateralSnapshot, VerifiedTrustBundle, ATTESTATION_EVIDENCE_DOMAIN,
+    ATTESTATION_RESULT_DOMAIN, COLLATERAL_SNAPSHOT_DOMAIN, MAX_TRUST_ANCHORS,
+    MAX_TRUST_CONSTRAINT_BYTES, MAX_TRUST_IDENTIFIER_BYTES, MAX_TRUST_PAYLOAD_BYTES,
+    MAX_TRUST_PUBLIC_KEY_BYTES, MAX_TRUST_SIGNATURE_BYTES, MAX_TRUST_TRANSPORT_BYTES,
+    TRUST_ANCHOR_DOMAIN, TRUST_AUDIT_DOMAIN, TRUST_BUNDLE_DOMAIN, TRUST_CONTRACT_VERSION,
 };
 
 #[cfg(test)]
