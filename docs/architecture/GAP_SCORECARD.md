@@ -23,6 +23,12 @@ The [machine-readable capability evidence](./capability-evidence.json) and gener
 - **Resolution**: Added a versioned, domain-separated digest for the complete exact proof policy; carried the request-derived expected digest through response, rail authorization, and final dispatch; refactored test fixtures to satisfy locked clippy; and added public-safe provider research/specification artifacts plus conservative capability rows.
 - **Status**: Composer and typed-boundary containment evidence is implemented and tested. TLS, WebAuthn/FIDO, TPM, Android, Apple, Intel, AMD, AWS, ARM, collateral/revocation, provider/runtime, distributed replay, independent review, and release-artifact evidence remain unsupported; see [`PROOF_POLICY_SPEC.md`](./PROOF_POLICY_SPEC.md) and [`PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md`](../audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md).
 
+## Technical Resolutions (2026-07-22, CON-1543 / GitHub #240)
+
+### Provider-neutral collateral, replay, and release-evidence seams
+- **Resolution**: Added typed provider identity and digest-only collateral metadata with strict time, root-set, schema, verifier, and revocation validation; added a canonical secret-free replay binding covering provider, subject, mechanism, nonce, operation, purpose, policy, key, and evidence; defined an atomic durable-replay store contract with a clearly non-production in-memory adapter; and added exact-scope release-evidence manifest validation.
+- **Status**: Structural contracts and focused fail-closed tests are implemented. No provider roots, provider authenticator, collateral authority, durable backend, replay owner, promotion authority, independent review, release artifact, or production-support decision is established. Existing `ReplayGuard` remains process-local and is not replaced. See [`TRUST_REPLAY_RELEASE_CONTRACTS.md`](./TRUST_REPLAY_RELEASE_CONTRACTS.md).
+
 ## Technical Resolutions (v2.0.13)
 
 ### 1. BIP-110: Compliance & Alignment (Issue #179)

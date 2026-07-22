@@ -8,6 +8,7 @@ pub mod proof;
 pub mod proofs;
 pub mod replay_guard;
 pub mod trust;
+pub mod trust_contracts;
 
 pub use proofs::{
     authorize_settlement_with_durable_store, authorize_value_bearing_with_durable_store,
@@ -35,9 +36,18 @@ pub use trust::{
 };
 
 pub use replay_guard::{
-    ReplayBatchFailure, ReplayBatchOutcome, ReplayBinding, ReplayBindingError,
-    ReplayConsumeOutcome, ReplayReservation, ReplayStore, ReplayStoreDurability, ReplayStoreError,
-    UnavailableReplayStore, REPLAY_BINDING_DOMAIN, REPLAY_BINDING_VERSION,
+    ReplayBatchFailure, ReplayBatchOutcome, ReplayConsumeOutcome, ReplayReservation, ReplayStore,
+    ReplayStoreDurability, ReplayStoreError, UnavailableReplayStore, REPLAY_BINDING_DOMAIN,
+    REPLAY_BINDING_VERSION,
+};
+pub use trust_contracts::{
+    AttestationProvider, AuthenticatedCollateralMetadata, CollateralMetadata,
+    CollateralValidationContext, CollateralValidationError, DurableReplayError, DurableReplayStore,
+    EvidenceReference, NonProductionInMemoryReplayStore, ReleaseEvidenceError,
+    ReleaseEvidenceExpectation, ReleaseEvidenceKind, ReleaseEvidenceManifest,
+    ReplayBinding as TrustReplayBinding, ReplayBindingError as TrustReplayBindingError,
+    ReplayOperation, ReplayProofMechanism, ReplayProofSubject, ReplayPurpose,
+    ReplayReservation as DurableReplayReservation, TrustDigest,
 };
 
 pub use android_authorization::{
