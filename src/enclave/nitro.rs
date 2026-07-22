@@ -3,12 +3,18 @@
 //! This module deliberately stops at an offline, transport-neutral boundary.
 //! It parses the AWS Nitro CBOR/COSE shape, verifies the COSE P-384 signature,
 //! enforces exact local policy, and requires an injected certificate trust
-//! decision before returning a verified result. It does not contact NSM,
-//! vsock, AWS KMS, a network, or an AWS root store, and it is not exported to
-//! the WASM surface.
+//! decision before returning a narrowly scoped offline verification receipt.
+//! It does not contact NSM, vsock, AWS KMS, a network, or an AWS root store,
+//! and it is not exported to the WASM surface. The receipt is structural
+//! offline evidence only: durable replay consumption is not completed,
+//! production provider verification remains unavailable, and no value-bearing
+//! authorization is created.
 
 use ciborium::{de, ser, value::Value};
-use der::{asn1::ObjectIdentifier, Decode};
+use der::{
+    asn1::{ObjectIdentifier, SequenceRef, UintRef},
+    Decode,
+};
 use p384::ecdsa::{signature::Verifier, Signature, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -29,10 +35,12 @@ pub const MAX_NITRO_CERTIFICATE_BYTES: usize = 1_024;
 pub const MAX_NITRO_CA_BUNDLE_CERTIFICATES: usize = 16;
 /// Maximum optional user-data, nonce, or public-key field size.
 pub const MAX_NITRO_OPTIONAL_FIELD_BYTES: usize = 1_024;
-/// SHA-384 PCR width required by this SHA384-only boundary.
+/// SHA-384 PCR width required by this explicit SHA384-only profile.
 pub const NITRO_SHA384_PCR_BYTES: usize = 48;
 /// Maximum bounded ciphertext returned for a KMS recipient response.
-pub const MAX_NITRO_CIPHERTEXT_FOR_RECIPIENT_BYTES: usize = 65_536;
+pub const MAX_NITRO_CIPHERTEXT_FOR_RECIPIENT_BYTES: usize = 6_144;
+/// Minimum RSA recipient modulus size accepted by this offline profile.
+pub const MIN_NITRO_RSA_MODULUS_BITS: usize = 2_048;
 /// Version of the deterministic release binding carried in `user_data`.
 pub const NITRO_RELEASE_BINDING_VERSION: u16 = 1;
 
@@ -40,6 +48,7 @@ const MAX_MODULE_ID_BYTES: usize = 256;
 const MAX_PURPOSE_BYTES: usize = 128;
 const MAX_FUTURE_SKEW_MS: u64 = 5 * 60 * 1_000;
 const MAX_AGE_MS: u64 = 24 * 60 * 60 * 1_000;
+const MAX_NITRO_CBOR_DEPTH: usize = 64;
 const RELEASE_BINDING_DOMAIN: &[u8] = b"CONXIAN-NITRO-KMS-RELEASE-BINDING/v1\0";
 const EC_PUBLIC_KEY_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.10045.2.1");
 const P384_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.132.0.34");
@@ -58,6 +67,8 @@ pub enum NitroError {
     CborDuplicateMapKey,
     #[error("Nitro CBOR contains an unsupported value type")]
     CborUnsupportedType,
+    #[error("Nitro CBOR exceeds the bounded nesting depth")]
+    CborNestingTooDeep,
     #[error("COSE_Sign1 has an invalid shape")]
     CoseInvalidShape,
     #[error("COSE_Sign1 payload is missing")]
@@ -190,6 +201,15 @@ pub const fn nitro_pcr_semantic(index: u8) -> Option<NitroPcrSemantic> {
     }
 }
 
+/// Returns whether an index is structurally valid for a Nitro PCR map.
+///
+/// The parser and policy accept the full `0..=31` range. The semantic helper
+/// above intentionally names only the standard PCR0/PCR1/PCR2/PCR3/PCR4/PCR8
+/// meanings; deployments choose the exact indexes they require in policy.
+pub const fn is_valid_nitro_pcr_index(index: u8) -> bool {
+    index <= 31
+}
+
 /// Exact SHA-384 PCR measurements required by a caller's policy.
 #[derive(Clone, PartialEq, Eq)]
 pub struct NitroPcrPolicy {
@@ -217,10 +237,7 @@ impl NitroPcrPolicy {
     {
         let mut required = BTreeMap::new();
         for (index, value) in measurements {
-            if index > 31
-                || nitro_pcr_semantic(index).is_none()
-                || value.iter().all(|byte| *byte == 0)
-            {
+            if !is_valid_nitro_pcr_index(index) || value.iter().all(|byte| *byte == 0) {
                 return Err(NitroError::PcrPolicyInvalid);
             }
             if required.insert(index, value).is_some() {
@@ -346,26 +363,50 @@ pub trait NitroCertificateTrustBoundary: Send + Sync {
     ) -> Result<NitroTrustDecision, NitroError>;
 }
 
-/// Status returned only after COSE signature, local policy, and the injected
-/// certificate trust decision all pass.
+/// Status returned only after the complete offline release verification
+/// operation passes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum NitroVerificationStatus {
-    /// Offline cryptographic and policy checks passed with injected trust.
+pub enum NitroOfflineVerificationStatus {
+    /// Offline cryptographic, trust, policy, freshness, and binding checks passed.
     CoseAndInjectedCertificateTrustVerified,
 }
 
-/// A verified result that retains only bounded document data behind accessors.
-#[derive(Clone, PartialEq, Eq)]
-pub struct NitroVerifiedAttestation {
-    document: NitroAttestationDocument,
-    status: NitroVerificationStatus,
+/// Explicitly records that this slice has not consumed durable replay state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NitroOfflineReplayStatus {
+    /// Replay consumption is intentionally outside this offline boundary.
+    NotConsumed,
 }
 
-impl fmt::Debug for NitroVerifiedAttestation {
+/// Explicitly records that this slice cannot be used as production provider
+/// verification or value-bearing authorization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum NitroOfflineProductionStatus {
+    /// Production provider verification is unavailable for this receipt.
+    Unavailable,
+}
+
+/// Offline structural evidence for one fully composed Nitro release check.
+///
+/// This type has no public constructor and is deliberately named so it cannot
+/// be confused with production attestation or value-bearing authorization. It
+/// records that durable replay consumption did not occur and that production
+/// provider verification remains unavailable.
+#[derive(Clone, PartialEq, Eq)]
+pub struct NitroOfflineVerificationReceipt {
+    document: NitroAttestationDocument,
+    status: NitroOfflineVerificationStatus,
+    replay_status: NitroOfflineReplayStatus,
+    production_status: NitroOfflineProductionStatus,
+}
+
+impl fmt::Debug for NitroOfflineVerificationReceipt {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("NitroVerifiedAttestation")
+            .debug_struct("NitroOfflineVerificationReceipt")
             .field("status", &self.status)
+            .field("replay_status", &self.replay_status)
+            .field("production_status", &self.production_status)
             .field("module_id", &self.document.module_id)
             .field("timestamp_ms", &self.document.timestamp_ms)
             .field("pcr_count", &self.document.pcrs.len())
@@ -373,20 +414,46 @@ impl fmt::Debug for NitroVerifiedAttestation {
     }
 }
 
-impl NitroVerifiedAttestation {
+impl NitroOfflineVerificationReceipt {
     /// Returns the verification status.
-    pub const fn status(&self) -> NitroVerificationStatus {
+    pub const fn status(&self) -> NitroOfflineVerificationStatus {
         self.status
     }
 
-    /// Returns the verified document for subsequent binding checks.
-    pub fn document(&self) -> &NitroAttestationDocument {
-        &self.document
+    /// Returns the explicit replay-consumption status.
+    pub const fn replay_status(&self) -> NitroOfflineReplayStatus {
+        self.replay_status
+    }
+
+    /// Returns the explicit production-support status.
+    pub const fn production_status(&self) -> NitroOfflineProductionStatus {
+        self.production_status
+    }
+
+    /// Returns the module identifier carried by the checked document.
+    pub fn module_id(&self) -> &str {
+        &self.document.module_id
+    }
+
+    /// Returns the checked attestation timestamp.
+    pub const fn timestamp_ms(&self) -> u64 {
+        self.document.timestamp_ms
+    }
+
+    /// Returns one checked PCR value without exposing the raw document.
+    pub fn pcr(&self, index: u8) -> Option<&[u8; NITRO_SHA384_PCR_BYTES]> {
+        self.document.pcr(index)
     }
 }
 
-/// Parsed AWS Nitro attestation document. Raw sensitive-adjacent fields are
-/// private and intentionally omitted from `Debug` output.
+/// Parsed AWS Nitro attestation document. This value is explicitly **unverified**:
+/// parsing and structural checks do not establish authenticity, certificate
+/// trust, PCR policy, freshness, nonce binding, recipient-key binding, or
+/// release binding. Those checks are available only through the single
+/// composed [`Self::verify_offline`] operation.
+///
+/// Raw sensitive-adjacent fields are private and intentionally omitted from
+/// `Debug` output.
 #[derive(Clone, PartialEq, Eq)]
 pub struct NitroAttestationDocument {
     module_id: String,
@@ -533,8 +600,7 @@ impl NitroAttestationDocument {
         self.user_data.as_deref()
     }
 
-    /// Verifies the nonce independently of release binding and certificate trust.
-    pub fn verify_nonce(&self, expected_nonce: &[u8]) -> Result<(), NitroError> {
+    fn verify_nonce(&self, expected_nonce: &[u8]) -> Result<(), NitroError> {
         if expected_nonce.is_empty() || expected_nonce.len() > MAX_NITRO_OPTIONAL_FIELD_BYTES {
             return Err(NitroError::NonceMismatch);
         }
@@ -545,8 +611,7 @@ impl NitroAttestationDocument {
         }
     }
 
-    /// Verifies the attested recipient public key independently by SHA-256 hash.
-    pub fn verify_attested_recipient_public_key_hash(
+    fn verify_attested_recipient_public_key_hash(
         &self,
         expected_hash: [u8; 32],
     ) -> Result<(), NitroError> {
@@ -562,8 +627,7 @@ impl NitroAttestationDocument {
         }
     }
 
-    /// Parses and verifies the versioned release binding in `user_data`.
-    pub fn verify_release_binding(
+    fn verify_release_binding(
         &self,
         expected: &NitroReleaseBinding,
         now_ms: u64,
@@ -582,23 +646,36 @@ impl NitroAttestationDocument {
         Ok(())
     }
 
-    /// Verifies the COSE P-384 signature and then requires the injected trust
-    /// boundary, exact local policy, and freshness checks.
+    /// Verifies the complete offline release contract in one operation.
+    ///
+    /// The COSE signature is checked first. Only after signature validity,
+    /// injected certificate trust, exact PCR/module policy, freshness, nonce,
+    /// recipient-key hash, and release-binding expiry all pass is the receipt
+    /// constructed. This prevents a matching untrusted field from being
+    /// mistaken for an authenticated authorization result.
     pub fn verify_offline(
         &self,
         policy: &NitroAttestationPolicy,
         trust_boundary: &dyn NitroCertificateTrustBoundary,
         now_ms: u64,
-    ) -> Result<NitroVerifiedAttestation, NitroError> {
+        expected_nonce: &[u8],
+        expected_recipient_public_key_hash: [u8; 32],
+        expected_release_binding: &NitroReleaseBinding,
+    ) -> Result<NitroOfflineVerificationReceipt, NitroError> {
         self.verify_cose_signature()?;
         policy.verify(self, now_ms)?;
         let decision = trust_boundary.verify_certificate_path(self)?;
         if decision != NitroTrustDecision::Verified {
             return Err(NitroError::TrustBoundaryRequired);
         }
-        Ok(NitroVerifiedAttestation {
+        self.verify_nonce(expected_nonce)?;
+        self.verify_attested_recipient_public_key_hash(expected_recipient_public_key_hash)?;
+        self.verify_release_binding(expected_release_binding, now_ms)?;
+        Ok(NitroOfflineVerificationReceipt {
             document: self.clone(),
-            status: NitroVerificationStatus::CoseAndInjectedCertificateTrustVerified,
+            status: NitroOfflineVerificationStatus::CoseAndInjectedCertificateTrustVerified,
+            replay_status: NitroOfflineReplayStatus::NotConsumed,
+            production_status: NitroOfflineProductionStatus::Unavailable,
         })
     }
 
@@ -620,7 +697,7 @@ impl NitroAttestationDocument {
     }
 }
 
-/// Versioned, domain-separated release authorization carried in Nitro
+/// Versioned, domain-separated release-request binding carried in Nitro
 /// `user_data`. Raw identifiers are represented only by their hashes.
 #[derive(Clone, PartialEq, Eq)]
 pub struct NitroReleaseBinding {
@@ -664,7 +741,10 @@ impl NitroReleaseBinding {
         let purpose = purpose.into();
         validate_text(&purpose, MAX_PURPOSE_BYTES, true)
             .map_err(|_| NitroError::ReleaseBindingMalformed)?;
-        if policy_version == 0
+        if operation_digest.iter().all(|byte| *byte == 0)
+            || kms_key_identifier_hash.iter().all(|byte| *byte == 0)
+            || policy_digest.iter().all(|byte| *byte == 0)
+            || policy_version == 0
             || expires_at_ms == 0
             || replay_identity.iter().all(|byte| *byte == 0)
         {
@@ -838,21 +918,16 @@ impl fmt::Debug for NitroKmsRecipientResponse {
 }
 
 impl NitroKmsRecipientResponse {
-    /// Validates response fields without ever accepting or storing plaintext.
-    pub fn from_wire(
-        plaintext_present: bool,
-        ciphertext_for_recipient: Option<Vec<u8>>,
+    /// Constructs a safe response from only the dedicated
+    /// `CiphertextForRecipient` field. Raw KMS transport parsing is out of
+    /// scope; a future crate-private adapter must call
+    /// [`validate_raw_recipient_response`] with the actual raw fields first.
+    pub fn from_ciphertext_for_recipient(
+        ciphertext_for_recipient: Vec<u8>,
     ) -> Result<Self, NitroError> {
-        if plaintext_present {
-            return Err(NitroError::RecipientPlaintextRejected);
-        }
-        let ciphertext = ciphertext_for_recipient
-            .filter(|value| {
-                !value.is_empty() && value.len() <= MAX_NITRO_CIPHERTEXT_FOR_RECIPIENT_BYTES
-            })
-            .ok_or(NitroError::RecipientCiphertextInvalid)?;
+        validate_raw_recipient_response(None, Some(&ciphertext_for_recipient))?;
         Ok(Self {
-            ciphertext_for_recipient: ciphertext,
+            ciphertext_for_recipient,
         })
     }
 
@@ -860,6 +935,26 @@ impl NitroKmsRecipientResponse {
     pub fn ciphertext_for_recipient(&self) -> &[u8] {
         &self.ciphertext_for_recipient
     }
+}
+
+/// Validates raw KMS response fields for a future transport adapter without
+/// exposing plaintext or a caller-controlled presence boolean publicly.
+fn validate_raw_recipient_response(
+    plaintext: Option<&[u8]>,
+    ciphertext_for_recipient: Option<&[u8]>,
+) -> Result<(), NitroError> {
+    if plaintext.is_some_and(|value| !value.is_empty()) {
+        return Err(NitroError::RecipientPlaintextRejected);
+    }
+    let ciphertext = ciphertext_for_recipient
+        .filter(|value| {
+            !value.is_empty() && value.len() <= MAX_NITRO_CIPHERTEXT_FOR_RECIPIENT_BYTES
+        })
+        .ok_or(NitroError::RecipientCiphertextInvalid)?;
+    if ciphertext.is_empty() {
+        return Err(NitroError::RecipientCiphertextInvalid);
+    }
+    Ok(())
 }
 
 struct ParsedPayload {
@@ -882,7 +977,26 @@ fn decode_one(input: &[u8], max_len: usize) -> Result<Value, NitroError> {
     if cursor.position() as usize != input.len() {
         return Err(NitroError::CborTrailingData);
     }
+    validate_cbor_depth(&value, 0)?;
     Ok(value)
+}
+
+fn validate_cbor_depth(value: &Value, depth: usize) -> Result<(), NitroError> {
+    if depth > MAX_NITRO_CBOR_DEPTH {
+        return Err(NitroError::CborNestingTooDeep);
+    }
+    let child_depth = depth.checked_add(1).ok_or(NitroError::CborNestingTooDeep)?;
+    match value {
+        Value::Array(values) => values
+            .iter()
+            .try_for_each(|value| validate_cbor_depth(value, child_depth)),
+        Value::Map(entries) => entries.iter().try_for_each(|(key, value)| {
+            validate_cbor_depth(key, child_depth)?;
+            validate_cbor_depth(value, child_depth)
+        }),
+        Value::Tag(_, value) => validate_cbor_depth(value, child_depth),
+        _ => Ok(()),
+    }
 }
 
 fn validate_protected_header(value: &Value) -> Result<(), NitroError> {
@@ -1048,7 +1162,7 @@ fn parse_pcrs(value: &Value) -> Result<BTreeMap<u8, [u8; NITRO_SHA384_PCR_BYTES]
         let index = key.as_integer().ok_or(NitroError::InvalidPcrIndex)?;
         let index: i128 = index.into();
         let index = u8::try_from(index).map_err(|_| NitroError::InvalidPcrIndex)?;
-        if index > 31 || nitro_pcr_semantic(index).is_none() {
+        if !is_valid_nitro_pcr_index(index) {
             return Err(NitroError::InvalidPcrIndex);
         }
         let bytes = parse_bytes(value, NITRO_SHA384_PCR_BYTES, NITRO_SHA384_PCR_BYTES)?;
@@ -1143,11 +1257,61 @@ fn validate_recipient_public_key(bytes: &[u8]) -> Result<(), NitroError> {
     if spki.algorithm.oid != RSA_ENCRYPTION_OID {
         return Err(NitroError::InvalidRecipientPublicKey);
     }
+    let parameters_are_null = spki
+        .algorithm
+        .parameters
+        .as_ref()
+        .map(|parameters| parameters.to_ref().is_null())
+        .unwrap_or(false);
+    if !parameters_are_null {
+        return Err(NitroError::InvalidRecipientPublicKey);
+    }
     let key_bits = spki
         .subject_public_key
         .as_bytes()
         .ok_or(NitroError::InvalidRecipientPublicKey)?;
     if key_bits.is_empty() {
+        return Err(NitroError::InvalidRecipientPublicKey);
+    }
+
+    let rsa_public_key =
+        <&SequenceRef>::from_der(key_bits).map_err(|_| NitroError::InvalidRecipientPublicKey)?;
+    let (modulus, remaining) = UintRef::from_der_partial(rsa_public_key.as_bytes())
+        .map_err(|_| NitroError::InvalidRecipientPublicKey)?;
+    let (exponent, remaining) =
+        UintRef::from_der_partial(remaining).map_err(|_| NitroError::InvalidRecipientPublicKey)?;
+    if !remaining.is_empty() {
+        return Err(NitroError::InvalidRecipientPublicKey);
+    }
+
+    let modulus_bytes = modulus.as_bytes();
+    let modulus_bits = modulus_bytes
+        .first()
+        .and_then(|first| {
+            modulus_bytes
+                .len()
+                .checked_mul(8)
+                .and_then(|bits| bits.checked_sub(first.leading_zeros() as usize))
+        })
+        .ok_or(NitroError::InvalidRecipientPublicKey)?;
+    if modulus_bits < MIN_NITRO_RSA_MODULUS_BITS
+        || modulus_bytes.last().is_none_or(|byte| byte & 1 == 0)
+    {
+        return Err(NitroError::InvalidRecipientPublicKey);
+    }
+
+    let exponent_bytes = exponent.as_bytes();
+    if exponent_bytes.is_empty() || exponent_bytes.len() > std::mem::size_of::<u64>() {
+        return Err(NitroError::InvalidRecipientPublicKey);
+    }
+    let mut exponent_value = 0u64;
+    for byte in exponent_bytes {
+        exponent_value = exponent_value
+            .checked_shl(8)
+            .and_then(|value| value.checked_add(u64::from(*byte)))
+            .ok_or(NitroError::InvalidRecipientPublicKey)?;
+    }
+    if exponent_value < 3 || exponent_value.is_multiple_of(2) {
         return Err(NitroError::InvalidRecipientPublicKey);
     }
     Ok(())
@@ -1421,6 +1585,70 @@ mod tests {
         }
     }
 
+    fn der_length(length: usize) -> Vec<u8> {
+        if length < 128 {
+            return vec![length as u8];
+        }
+        let mut bytes = Vec::new();
+        let mut remaining = length;
+        while remaining != 0 {
+            bytes.push((remaining & 0xff) as u8);
+            remaining >>= 8;
+        }
+        bytes.reverse();
+        let mut output = vec![0x80 | bytes.len() as u8];
+        output.extend_from_slice(&bytes);
+        output
+    }
+
+    fn der_tlv(tag: u8, content: &[u8]) -> Vec<u8> {
+        let mut output = vec![tag];
+        output.extend_from_slice(&der_length(content.len()));
+        output.extend_from_slice(content);
+        output
+    }
+
+    fn der_sequence(content: &[u8]) -> Vec<u8> {
+        der_tlv(0x30, content)
+    }
+
+    fn der_integer(value: &[u8]) -> Vec<u8> {
+        let mut content = if value.is_empty() {
+            vec![0]
+        } else {
+            value.to_vec()
+        };
+        if content[0] & 0x80 != 0 {
+            content.insert(0, 0);
+        }
+        der_tlv(0x02, &content)
+    }
+
+    fn rsa_spki_with_key_bits(key_bits: &[u8], parameters: &[u8]) -> Vec<u8> {
+        let algorithm_oid = [
+            0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01,
+        ];
+        let algorithm = der_sequence(&[algorithm_oid.as_slice(), parameters].concat());
+        let mut bit_string_content = vec![0];
+        bit_string_content.extend_from_slice(key_bits);
+        let bit_string = der_tlv(0x03, &bit_string_content);
+        der_sequence(&[algorithm, bit_string].concat())
+    }
+
+    fn rsa_spki(modulus: &[u8], exponent: &[u8]) -> Vec<u8> {
+        let rsa_public_key = der_sequence(&[der_integer(modulus), der_integer(exponent)].concat());
+        rsa_spki_with_key_bits(&rsa_public_key, &[0x05, 0x00])
+    }
+
+    fn fixture_rsa_modulus() -> Vec<u8> {
+        let public_key = hex::decode(RECIPIENT_PUBLIC_KEY_HEX).expect("recipient key");
+        let spki = SubjectPublicKeyInfoOwned::from_der(&public_key).expect("SPKI");
+        let key_bits = spki.subject_public_key.as_bytes().expect("key bits");
+        let rsa_public_key = <&SequenceRef>::from_der(key_bits).expect("RSA key");
+        let (modulus, _) = UintRef::from_der_partial(rsa_public_key.as_bytes()).expect("modulus");
+        modulus.as_bytes().to_vec()
+    }
+
     #[test]
     fn parses_tagged_and_untagged_cose_with_real_p384_signature() {
         let (encoded, _, _) = build_fixture();
@@ -1546,6 +1774,20 @@ mod tests {
     }
 
     #[test]
+    fn rejects_deeply_nested_bounded_cbor() {
+        let mut value = Value::Null;
+        for _ in 0..=MAX_NITRO_CBOR_DEPTH {
+            value = Value::Array(vec![value]);
+        }
+        let mut encoded = Vec::new();
+        ser::into_writer(&value, &mut encoded).expect("nested CBOR");
+        assert_eq!(
+            decode_one(&encoded, MAX_NITRO_ATTESTATION_BYTES),
+            Err(NitroError::CborNestingTooDeep)
+        );
+    }
+
+    #[test]
     fn rejects_missing_payload_wrong_algorithm_duplicates_and_trailing_data() {
         let (encoded, _, _) = build_fixture();
         let mut trailing = encoded.clone();
@@ -1648,15 +1890,36 @@ mod tests {
             Err(NitroError::PayloadDuplicateField)
         );
 
-        let unsupported_pcr = rewrite_payload(&encoded, |payload| {
+        let nonsemantic_pcrs = rewrite_payload(&encoded, |payload| {
             let pcrs = payload_field_mut(payload, "pcrs");
             match pcrs {
-                Value::Map(entries) => entries[0].0 = Value::Integer(5.into()),
+                Value::Map(entries) => {
+                    entries.push((
+                        Value::Integer(5.into()),
+                        Value::Bytes(fixture_pcr(5).to_vec()),
+                    ));
+                    entries.push((
+                        Value::Integer(31.into()),
+                        Value::Bytes(fixture_pcr(31).to_vec()),
+                    ));
+                }
+                _ => unreachable!(),
+            }
+        });
+        let parsed = NitroAttestationDocument::parse(&nonsemantic_pcrs).expect("PCR range");
+        assert_eq!(parsed.pcr(5), Some(&fixture_pcr(5)));
+        assert_eq!(parsed.pcr(31), Some(&fixture_pcr(31)));
+        assert!(NitroPcrPolicy::new([(5, fixture_pcr(5)), (31, fixture_pcr(31))]).is_ok());
+
+        let rejected_pcr = rewrite_payload(&encoded, |payload| {
+            let pcrs = payload_field_mut(payload, "pcrs");
+            match pcrs {
+                Value::Map(entries) => entries[0].0 = Value::Integer(32.into()),
                 _ => unreachable!(),
             }
         });
         assert_eq!(
-            NitroAttestationDocument::parse(&unsupported_pcr),
+            NitroAttestationDocument::parse(&rejected_pcr),
             Err(NitroError::InvalidPcrIndex)
         );
     }
@@ -1685,16 +1948,28 @@ mod tests {
             ])
             .expect("PCR policy"),
         );
-        assert_eq!(
-            NitroPcrPolicy::new([(5, fixture_pcr(5))]),
-            Err(NitroError::PcrPolicyInvalid)
-        );
+        assert!(NitroPcrPolicy::new([(5, fixture_pcr(5))]).is_ok());
         let verified = document
-            .verify_offline(&policy, &AcceptingTrustBoundary, NOW_MS)
+            .verify_offline(
+                &policy,
+                &AcceptingTrustBoundary,
+                NOW_MS,
+                &[9, 8, 7],
+                public_key_hash,
+                &fixture_binding(),
+            )
             .expect("offline verification");
         assert_eq!(
             verified.status(),
-            NitroVerificationStatus::CoseAndInjectedCertificateTrustVerified
+            NitroOfflineVerificationStatus::CoseAndInjectedCertificateTrustVerified
+        );
+        assert_eq!(
+            verified.replay_status(),
+            NitroOfflineReplayStatus::NotConsumed
+        );
+        assert_eq!(
+            verified.production_status(),
+            NitroOfflineProductionStatus::Unavailable
         );
         document
             .verify_release_binding(&fixture_binding(), NOW_MS)
@@ -1708,16 +1983,37 @@ mod tests {
         .with_module_id("different-module")
         .expect("module policy id");
         assert_eq!(
-            document.verify_offline(&module_policy, &AcceptingTrustBoundary, NOW_MS),
+            document.verify_offline(
+                &module_policy,
+                &AcceptingTrustBoundary,
+                NOW_MS,
+                &[9, 8, 7],
+                public_key_hash,
+                &fixture_binding(),
+            ),
             Err(NitroError::ModuleIdMismatch)
         );
         document.verify_cose_signature().expect("COSE signature");
         assert_eq!(
-            document.verify_offline(&policy, &RejectingTrustBoundary, NOW_MS),
+            document.verify_offline(
+                &policy,
+                &RejectingTrustBoundary,
+                NOW_MS,
+                &[9, 8, 7],
+                public_key_hash,
+                &fixture_binding(),
+            ),
             Err(NitroError::TrustBoundaryRejected)
         );
         assert_eq!(
-            document.verify_offline(&policy, &UnavailableTrustBoundary, NOW_MS),
+            document.verify_offline(
+                &policy,
+                &UnavailableTrustBoundary,
+                NOW_MS,
+                &[9, 8, 7],
+                public_key_hash,
+                &fixture_binding(),
+            ),
             Err(NitroError::TrustBoundaryRequired)
         );
         assert_eq!(
@@ -1760,6 +2056,40 @@ mod tests {
     }
 
     #[test]
+    fn invalid_cose_signature_cannot_be_compensated_by_matching_bindings_or_trust() {
+        let (encoded, _, public_key_hash) = build_fixture();
+        let invalid_signature = rewrite_cose(&encoded, |value| {
+            let signature = match &mut cose_items_mut(value)[3] {
+                Value::Bytes(signature) => signature,
+                _ => unreachable!(),
+            };
+            signature[0] ^= 0x01;
+        });
+        let document = NitroAttestationDocument::parse(&invalid_signature).expect("parse");
+        let policy = NitroAttestationPolicy::new(
+            NitroPcrPolicy::new([
+                (0, fixture_pcr(1)),
+                (1, fixture_pcr(2)),
+                (2, fixture_pcr(3)),
+                (3, fixture_pcr(4)),
+                (8, fixture_pcr(8)),
+            ])
+            .expect("PCR policy"),
+        );
+        assert_eq!(
+            document.verify_offline(
+                &policy,
+                &AcceptingTrustBoundary,
+                NOW_MS,
+                &[9, 8, 7],
+                public_key_hash,
+                &fixture_binding(),
+            ),
+            Err(NitroError::SignatureInvalid)
+        );
+    }
+
+    #[test]
     fn rejects_missing_mismatched_and_all_zero_required_pcrs_or_expired_binding() {
         let (encoded, _, _) = build_fixture();
         let document = NitroAttestationDocument::parse(&encoded).expect("fixture parses");
@@ -1767,7 +2097,14 @@ mod tests {
             NitroPcrPolicy::new([(4, fixture_pcr(4))]).expect("policy"),
         );
         assert_eq!(
-            document.verify_offline(&missing, &AcceptingTrustBoundary, NOW_MS),
+            document.verify_offline(
+                &missing,
+                &AcceptingTrustBoundary,
+                NOW_MS,
+                &[9, 8, 7],
+                [0; 32],
+                &fixture_binding(),
+            ),
             Err(NitroError::MissingRequiredPcr)
         );
 
@@ -1775,7 +2112,14 @@ mod tests {
             NitroPcrPolicy::new([(0, fixture_pcr(9))]).expect("policy"),
         );
         assert_eq!(
-            document.verify_offline(&mismatched, &AcceptingTrustBoundary, NOW_MS),
+            document.verify_offline(
+                &mismatched,
+                &AcceptingTrustBoundary,
+                NOW_MS,
+                &[9, 8, 7],
+                [0; 32],
+                &fixture_binding(),
+            ),
             Err(NitroError::PcrMismatch)
         );
 
@@ -1789,20 +2133,41 @@ mod tests {
             NitroPcrPolicy::new([(0, fixture_pcr(1))]).expect("policy"),
         );
         assert_eq!(
-            all_zero.verify_offline(&exact, &AcceptingTrustBoundary, NOW_MS),
+            all_zero.verify_offline(
+                &exact,
+                &AcceptingTrustBoundary,
+                NOW_MS,
+                &[9, 8, 7],
+                [0; 32],
+                &fixture_binding(),
+            ),
             Err(NitroError::AllZeroRequiredPcr)
         );
 
         let mut future = document.clone();
         future.timestamp_ms = NOW_MS + MAX_FUTURE_SKEW_MS + 1;
         assert_eq!(
-            future.verify_offline(&exact, &AcceptingTrustBoundary, NOW_MS),
+            future.verify_offline(
+                &exact,
+                &AcceptingTrustBoundary,
+                NOW_MS,
+                &[9, 8, 7],
+                [0; 32],
+                &fixture_binding(),
+            ),
             Err(NitroError::TimestampFuture)
         );
         let mut stale = document.clone();
         stale.timestamp_ms = NOW_MS - MAX_AGE_MS - 1;
         assert_eq!(
-            stale.verify_offline(&exact, &AcceptingTrustBoundary, NOW_MS),
+            stale.verify_offline(
+                &exact,
+                &AcceptingTrustBoundary,
+                NOW_MS,
+                &[9, 8, 7],
+                [0; 32],
+                &fixture_binding(),
+            ),
             Err(NitroError::TimestampExpired)
         );
         assert_eq!(
@@ -1829,21 +2194,29 @@ mod tests {
             Err(NitroError::InputTooLarge)
         );
         assert_eq!(
-            NitroKmsRecipientResponse::from_wire(true, Some(vec![1])),
+            validate_raw_recipient_response(Some(&[1]), None),
             Err(NitroError::RecipientPlaintextRejected)
         );
         assert_eq!(
-            NitroKmsRecipientResponse::from_wire(false, None),
+            validate_raw_recipient_response(Some(&[1]), Some(&[2])),
+            Err(NitroError::RecipientPlaintextRejected)
+        );
+        assert!(validate_raw_recipient_response(Some(&[]), Some(&[1])).is_ok());
+        assert_eq!(
+            validate_raw_recipient_response(None, None),
             Err(NitroError::RecipientCiphertextInvalid)
         );
         assert_eq!(
-            NitroKmsRecipientResponse::from_wire(
-                false,
-                Some(vec![0; MAX_NITRO_CIPHERTEXT_FOR_RECIPIENT_BYTES + 1]),
-            ),
+            NitroKmsRecipientResponse::from_ciphertext_for_recipient(Vec::new()),
             Err(NitroError::RecipientCiphertextInvalid)
         );
-        assert!(NitroKmsRecipientResponse::from_wire(false, Some(vec![1, 2, 3])).is_ok());
+        assert_eq!(
+            NitroKmsRecipientResponse::from_ciphertext_for_recipient(vec![0; 6_145],),
+            Err(NitroError::RecipientCiphertextInvalid)
+        );
+        assert!(NitroKmsRecipientResponse::from_ciphertext_for_recipient(vec![0; 6_143]).is_ok());
+        assert!(NitroKmsRecipientResponse::from_ciphertext_for_recipient(vec![0; 6_144]).is_ok());
+        assert!(NitroKmsRecipientResponse::from_ciphertext_for_recipient(vec![1, 2, 3]).is_ok());
     }
 
     #[test]
@@ -1862,5 +2235,102 @@ mod tests {
             binding.digest().expect("digest"),
             binding.digest().expect("digest")
         );
+    }
+
+    #[test]
+    fn rejects_zero_operation_digest() {
+        assert_eq!(
+            NitroReleaseBinding::new(
+                [0; 32],
+                "KMS_RELEASE",
+                [2; 32],
+                7,
+                [3; 32],
+                NOW_MS + 60_000,
+                [4; 32],
+            ),
+            Err(NitroError::ReleaseBindingMalformed)
+        );
+    }
+
+    #[test]
+    fn rejects_zero_kms_key_identifier_hash() {
+        assert_eq!(
+            NitroReleaseBinding::new(
+                [1; 32],
+                "KMS_RELEASE",
+                [0; 32],
+                7,
+                [3; 32],
+                NOW_MS + 60_000,
+                [4; 32],
+            ),
+            Err(NitroError::ReleaseBindingMalformed)
+        );
+    }
+
+    #[test]
+    fn rejects_zero_policy_digest() {
+        assert_eq!(
+            NitroReleaseBinding::new(
+                [1; 32],
+                "KMS_RELEASE",
+                [2; 32],
+                7,
+                [0; 32],
+                NOW_MS + 60_000,
+                [4; 32],
+            ),
+            Err(NitroError::ReleaseBindingMalformed)
+        );
+    }
+
+    #[test]
+    fn rejects_zero_replay_identity() {
+        assert_eq!(
+            NitroReleaseBinding::new(
+                [1; 32],
+                "KMS_RELEASE",
+                [2; 32],
+                7,
+                [3; 32],
+                NOW_MS + 60_000,
+                [0; 32],
+            ),
+            Err(NitroError::ReleaseBindingMalformed)
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_weak_and_unsupported_rsa_recipient_keys() {
+        assert_eq!(
+            validate_recipient_public_key(&rsa_spki_with_key_bits(&[0x30, 0x00], &[0x05, 0x00])),
+            Err(NitroError::InvalidRecipientPublicKey)
+        );
+
+        let valid_modulus = fixture_rsa_modulus();
+        assert_eq!(
+            validate_recipient_public_key(&rsa_spki(&[], &[1, 0, 1])),
+            Err(NitroError::InvalidRecipientPublicKey)
+        );
+        assert_eq!(
+            validate_recipient_public_key(&rsa_spki(&[3], &[1, 0, 1])),
+            Err(NitroError::InvalidRecipientPublicKey)
+        );
+        for exponent in [[0], [1], [2]] {
+            assert_eq!(
+                validate_recipient_public_key(&rsa_spki(&valid_modulus, &exponent)),
+                Err(NitroError::InvalidRecipientPublicKey)
+            );
+        }
+
+        let public_key = hex::decode(RECIPIENT_PUBLIC_KEY_HEX).expect("recipient key");
+        let spki = SubjectPublicKeyInfoOwned::from_der(&public_key).expect("SPKI");
+        let key_bits = spki.subject_public_key.as_bytes().expect("key bits");
+        assert_eq!(
+            validate_recipient_public_key(&rsa_spki_with_key_bits(key_bits, &[0x06, 0x01, 0x2a],)),
+            Err(NitroError::InvalidRecipientPublicKey)
+        );
+        assert!(validate_recipient_public_key(&public_key).is_ok());
     }
 }
