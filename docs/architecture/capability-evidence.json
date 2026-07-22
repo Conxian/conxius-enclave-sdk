@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "schemaVersion": 1,
   "repository": "Conxian/conxius-enclave-sdk",
-  "reviewedRef": "31c8d270fa7a5363130f40340d6a9c3cd7bc23c4",
+  "reviewedRef": "fc51832249677e551f52b8ef87a1c197be0ac4de",
   "lastVerified": "2026-07-22",
   "maturity": "beta-conditional",
   "statusVocabulary": {
@@ -102,7 +102,7 @@
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Simulated fixtures and software attestation tests do not establish vendor-root, deployed-hardware, provider/runtime, or release-artifact support.",
-      "notes": "Phase A adds provider-neutral bounded trust material, explicit status semantics, constructor-controlled verified routes, normalized result binding, and privacy-safe audit metadata. A real provider verifier, vendor roots/collateral, deployed hardware, independent review, and artifacts remain unavailable; production support is unchanged."
+      "notes": "Reviewed fix commit fc51832249677e551f52b8ef87a1c197be0ac4de covers the Phase A provider-neutral bounded trust transport, exact production policy/verifier binding, centralized signer-anchor checks, normalized result binding, and privacy-safe audit metadata. This is local code/test contract evidence only; provider verifiers, vendor roots/collateral, deployed hardware/runtime, independent review, and release artifacts remain unavailable, so production support is unchanged."
     },
     {
       "id": "proof-composition",
@@ -165,7 +165,7 @@
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Replay authorization is process-local and fixture-tested; it is not distributed replay coordination or exact-artifact production evidence.",
-      "notes": "The existing ProofReplayKey and process-local ReplayGuard remain unchanged. Phase A adds a separate durable replay identity, idempotency key, atomic-store outcome contract, trusted-clock wrapper, and explicit unavailable production store; no durable backend or provider availability is claimed."
+      "notes": "Reviewed fix commit fc51832249677e551f52b8ef87a1c197be0ac4de covers the separate durable replay identity, bounded idempotency key, atomic-store outcome contract, trusted-clock wrapper, expiry-before-store checks, and process-local rollback high-water checks. Existing ProofReplayKey and ReplayGuard remain unchanged; no durable backend, distributed replay coordination, provider availability, independent review, or release-artifact support is claimed."
     },
     {
       "id": "rail-policy",
@@ -1853,7 +1853,7 @@
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/199", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "Phase A is provider-neutral trust-material validation and status binding only; it is not provider collateral, root, CRL/status, TCB, metadata, freshness, revocation-service, or production evidence.",
-      "notes": "The SDK now records a bounded collateral snapshot contract, payload/signature/digest/revision/window checks, explicit revocation and TCB states, normalized-result binding, and unavailable production verifier routes. Provider collateral, root distribution, revocation service, deployed integration, independent review, and artifacts remain open."
+      "notes": "Reviewed fix commit fc51832249677e551f52b8ef87a1c197be0ac4de covers provider-neutral bounded collateral snapshot validation, payload/signature/digest/revision/window/status binding, signer-anchor authorization in the test-only positive route, normalized-result binding, and unavailable production verifier routes. It does not evidence provider collateral/root/CRL/TCB/metadata freshness, revocation service, deployed integration, independent review, or release artifacts."
     }
   ]
 }
