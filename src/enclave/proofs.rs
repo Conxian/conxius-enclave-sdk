@@ -6,10 +6,12 @@
 //! satisfy the production registry.
 
 use crate::enclave::replay_guard::{
-    ReplayBinding, ReplayGuard, ReplayGuardError, ReplayReservation, ReplayStore,
-    ReplayStoreDurability, ReplayStoreError,
+    ReplayBinding, ReplayConsumeOutcome, ReplayGuard, ReplayGuardError, ReplayReservation,
+    ReplayStore, ReplayStoreDurability, ReplayStoreError,
 };
-use crate::enclave::{EnclaveManager, ValueBearingSignRequest, ValueBearingSignResponse};
+use crate::enclave::{
+    EnclaveManager, SignerKeyBinding, ValueBearingSignRequest, ValueBearingSignResponse,
+};
 use crate::protocol::intent::SwapIntent;
 use crate::{ConclaveError, ConclaveResult};
 use serde::de::{self, Deserializer, Error as DeError, SeqAccess, Visitor};
@@ -18,7 +20,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 /// Current version of the independent proof envelope.
@@ -35,6 +37,11 @@ pub const PROOF_POLICY_DOMAIN: &str = "CONXIAN-PROOF-POLICY/v1";
 
 /// Domain used by replay keys generated for proof envelopes.
 pub const PROOF_REPLAY_DOMAIN: &str = "CONXIAN-PROOF-REPLAY/v1";
+
+/// Distinct replay domain consumed at the final durable value-bearing signing
+/// boundary. Proof reservations and operation reservations must never share a
+/// key space.
+pub const VALUE_BEARING_OPERATION_REPLAY_DOMAIN: &str = "CONXIAN-VALUE-BEARING-OPERATION-REPLAY/v1";
 
 /// Settlement purpose and audience used by the additive enclave-side helper.
 pub const SETTLEMENT_PROOF_PURPOSE: &str = "SETTLEMENT";
@@ -459,7 +466,7 @@ impl ProofEnvelope {
             .expires_at
             .checked_sub(self.issued_at)
             .ok_or_else(invalid_payload)?;
-        if lifetime > MAX_PROOF_LIFETIME_SECS {
+        if lifetime == 0 || lifetime > MAX_PROOF_LIFETIME_SECS {
             return Err(invalid_payload());
         }
 
@@ -644,7 +651,7 @@ impl ProofVerificationContext {
                 return Err(proof_verification_failed());
             }
         }
-        if envelope.expires_at < self.now_secs {
+        if envelope.expires_at <= self.now_secs {
             return Err(proof_verification_failed());
         }
 
@@ -652,11 +659,15 @@ impl ProofVerificationContext {
             .issued_at
             .checked_add(self.max_age_secs)
             .ok_or_else(invalid_payload)?;
-        if self.now_secs > freshness_limit {
+        if self.now_secs >= freshness_limit {
             return Err(proof_verification_failed());
         }
 
-        Ok(envelope.expires_at.min(freshness_limit))
+        let effective_valid_until = envelope.expires_at.min(freshness_limit);
+        if self.now_secs >= effective_valid_until {
+            return Err(proof_verification_failed());
+        }
+        Ok(effective_valid_until)
     }
 
     fn verify_envelope_binding(&self, envelope: &ProofEnvelope) -> ConclaveResult<()> {
@@ -773,7 +784,7 @@ impl ProofPolicy {
     /// Returns true only for the constructor-controlled six-kind production
     /// policy. Generic proof verification intentionally remains configurable.
     pub fn is_exact_production(&self) -> bool {
-        self == &Self::production()
+        self.validate().is_ok() && self.digest().ok() == ProofPolicy::production().digest().ok()
     }
 
     pub fn validate(&self) -> ConclaveResult<()> {
@@ -1023,6 +1034,17 @@ impl ProofReplayBindingContext {
         })
     }
 
+    pub fn for_signer_key(
+        provider: impl Into<String>,
+        key_binding: &SignerKeyBinding,
+    ) -> ConclaveResult<Self> {
+        let provider = provider.into();
+        Ok(Self {
+            provider,
+            key_identity_digest: key_binding.replay_identity_digest()?,
+        })
+    }
+
     pub fn provider(&self) -> &str {
         &self.provider
     }
@@ -1091,7 +1113,7 @@ impl ProofVerifierRegistry {
 
     /// Verifies a proof bundle and consumes complete provider-neutral replay
     /// reservations through the additive store contract. The process-local
-    /// `ReplayGuard` path above remains source-compatible containment only.
+    /// `ReplayGuard` path above remains an explicit containment-only API.
     pub fn verify_bundle_with_store(
         &self,
         bundle: &ProofBundle,
@@ -1142,6 +1164,7 @@ impl ProofVerifierRegistry {
         binding_context: &ProofReplayBindingContext,
         replay_store: &dyn ReplayStore,
     ) -> ConclaveResult<VerifiedProofSet> {
+        ensure_exact_production_policy(policy)?;
         if replay_store.durability() != ReplayStoreDurability::DurableProvider {
             return Err(ConclaveError::Unsupported(
                 "durable replay store is required for production proof authorization".to_string(),
@@ -1298,6 +1321,17 @@ fn map_replay_store_error(error: ReplayStoreError) -> ConclaveError {
             "independent proof replay store capacity is saturated".to_string(),
         ),
     }
+}
+
+fn ensure_exact_production_policy(policy: &ProofPolicy) -> ConclaveResult<()> {
+    let expected_policy_digest = ProofPolicy::production().digest()?;
+    if !policy.is_exact_production() || policy.digest()? != expected_policy_digest {
+        return Err(ConclaveError::Unsupported(
+            "value-bearing proof authorization requires the exact production proof policy"
+                .to_string(),
+        ));
+    }
+    Ok(())
 }
 
 /// Replay key generated from the proof kind, proof ID, operation digest, and
@@ -1602,15 +1636,24 @@ impl VerifiedProofSet {
 /// authorization. It stores only verified receipts and binding digests.
 ///
 /// This carrier is not cloneable and retains an atomic authorization-time
-/// high-water mark. It is not a one-shot token: proof replay keys are reserved
-/// atomically while the bundle is verified, and downstream signing still
-/// requires the existing provider capability and operation replay gate.
+/// high-water mark. Durable carriers are signer-bound and one-shot at final
+/// signing: proof replay keys are reserved atomically while the bundle is
+/// verified, then a distinct operation replay key is consumed immediately
+/// before provider signing.
 #[derive(Debug)]
 pub struct ProofBoundValueBearingAuthorization {
     verified_proofs: VerifiedProofSet,
     policy_digest: [u8; 32],
     authorization_expires_at: u64,
     last_observed_secs: AtomicU64,
+    durable_binding: Option<DurableAuthorizationBinding>,
+    final_signing_consumed: AtomicBool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DurableAuthorizationBinding {
+    provider: String,
+    key_identity_digest: [u8; 32],
 }
 
 impl ProofBoundValueBearingAuthorization {
@@ -1629,7 +1672,21 @@ impl ProofBoundValueBearingAuthorization {
             verified_proofs,
             authorization_expires_at,
             last_observed_secs: AtomicU64::new(last_observed_secs),
+            durable_binding: None,
+            final_signing_consumed: AtomicBool::new(false),
         })
+    }
+
+    fn from_verified_with_durable_binding(
+        verified_proofs: VerifiedProofSet,
+        binding_context: &ProofReplayBindingContext,
+    ) -> ConclaveResult<Self> {
+        let mut authorization = Self::from_verified(verified_proofs)?;
+        authorization.durable_binding = Some(DurableAuthorizationBinding {
+            provider: binding_context.provider().to_string(),
+            key_identity_digest: *binding_context.key_identity_digest(),
+        });
+        Ok(authorization)
     }
 
     pub fn verified_proofs(&self) -> &VerifiedProofSet {
@@ -1669,7 +1726,7 @@ impl ProofBoundValueBearingAuthorization {
             }
         }
 
-        if now_secs > self.authorization_expires_at {
+        if now_secs >= self.authorization_expires_at {
             return Err(ConclaveError::Unsupported(
                 "proof authorization has expired".to_string(),
             ));
@@ -1678,9 +1735,15 @@ impl ProofBoundValueBearingAuthorization {
         Ok(())
     }
 
-    fn matches_request(&self, request: &ValueBearingSignRequest) -> bool {
+    fn matches_request(&self, request: &ValueBearingSignRequest) -> ConclaveResult<bool> {
         let expected_policy_digest = ProofPolicy::production().digest().ok();
-        self.policy_digest == *self.verified_proofs.policy_digest()
+        let key_matches = self.durable_binding.as_ref().is_none_or(|binding| {
+            request
+                .key_binding()
+                .replay_identity_digest()
+                .is_ok_and(|digest| digest == binding.key_identity_digest)
+        });
+        Ok(self.policy_digest == *self.verified_proofs.policy_digest()
             && expected_policy_digest.as_ref() == Some(&self.policy_digest)
             && request.trust_requirement().policy_id() == crate::enclave::VALUE_BEARING_POLICY_ID
             && !self.verified_proofs.is_empty()
@@ -1689,14 +1752,16 @@ impl ProofBoundValueBearingAuthorization {
                 == request.operation_context().purpose().canonical_token()
             && self.verified_proofs.audience() == request.operation_context().domain()
             && request.operation_context().context() == request.message_digest()
+            && key_matches)
     }
 }
 
-/// Verifies a bundle and creates the additive proof-aware value-bearing
-/// authorization carrier. The supplied context's freshness timestamp is
-/// replaced with the SDK trusted process clock before verification. Existing
-/// serialized request/response shapes remain unchanged.
-pub fn authorize_value_bearing_with_proofs(
+/// Test-only containment helper for verifying a bundle and creating a
+/// proof-aware value-bearing authorization carrier. The supplied context's
+/// freshness timestamp is replaced with the SDK trusted process clock before
+/// verification. It is not exported by the production library.
+#[cfg(test)]
+pub(crate) fn authorize_value_bearing_with_proofs(
     registry: &ProofVerifierRegistry,
     bundle: &ProofBundle,
     policy: &ProofPolicy,
@@ -1724,6 +1789,7 @@ pub fn authorize_value_bearing_with_durable_store(
     binding_context: &ProofReplayBindingContext,
     replay_store: &dyn ReplayStore,
 ) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
+    ensure_exact_production_policy(policy)?;
     let trusted_context = context.with_now_secs(crate::enclave::trusted_unix_time_secs()?)?;
     let verified_proofs = registry.verify_bundle_with_durable_store(
         bundle,
@@ -1732,9 +1798,13 @@ pub fn authorize_value_bearing_with_durable_store(
         binding_context,
         replay_store,
     )?;
-    ProofBoundValueBearingAuthorization::from_verified(verified_proofs)
+    ProofBoundValueBearingAuthorization::from_verified_with_durable_binding(
+        verified_proofs,
+        binding_context,
+    )
 }
 
+#[cfg(test)]
 fn authorize_value_bearing_with_proofs_with_trusted_clock(
     registry: &ProofVerifierRegistry,
     bundle: &ProofBundle,
@@ -1747,6 +1817,7 @@ fn authorize_value_bearing_with_proofs_with_trusted_clock(
     authorize_value_bearing_with_proofs_at(registry, bundle, policy, &trusted_context, replay_guard)
 }
 
+#[cfg(test)]
 fn authorize_value_bearing_with_proofs_at(
     registry: &ProofVerifierRegistry,
     bundle: &ProofBundle,
@@ -1754,13 +1825,7 @@ fn authorize_value_bearing_with_proofs_at(
     context: &ProofVerificationContext,
     replay_guard: &ReplayGuard,
 ) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
-    let expected_policy_digest = ProofPolicy::production().digest()?;
-    if !policy.is_exact_production() || policy.digest()? != expected_policy_digest {
-        return Err(ConclaveError::Unsupported(
-            "value-bearing proof authorization requires the exact production proof policy"
-                .to_string(),
-        ));
-    }
+    ensure_exact_production_policy(policy)?;
     let verified_proofs = registry.verify_bundle(bundle, policy, context, replay_guard)?;
     ProofBoundValueBearingAuthorization::from_verified(verified_proofs)
 }
@@ -1771,7 +1836,8 @@ fn authorize_value_bearing_with_proofs_at(
 /// intentionally deferred: `RailProxy`'s legacy containment path cannot consume
 /// this carrier, and no existing serialized request or response shape is
 /// widened here.
-pub fn authorize_settlement_with_proofs(
+#[cfg(test)]
+pub(crate) fn authorize_settlement_with_proofs(
     registry: &ProofVerifierRegistry,
     bundle: &ProofBundle,
     policy: &ProofPolicy,
@@ -1802,6 +1868,7 @@ pub fn authorize_settlement_with_durable_store(
     binding_context: &ProofReplayBindingContext,
     replay_store: &dyn ReplayStore,
 ) -> ConclaveResult<ProofBoundValueBearingAuthorization> {
+    ensure_exact_production_policy(policy)?;
     let context = ProofVerificationContext::for_settlement(
         intent,
         nonce,
@@ -1814,9 +1881,13 @@ pub fn authorize_settlement_with_durable_store(
         binding_context,
         replay_store,
     )?;
-    ProofBoundValueBearingAuthorization::from_verified(verified_proofs)
+    ProofBoundValueBearingAuthorization::from_verified_with_durable_binding(
+        verified_proofs,
+        binding_context,
+    )
 }
 
+#[cfg(test)]
 fn authorize_settlement_with_proofs_with_trusted_clock(
     registry: &ProofVerifierRegistry,
     bundle: &ProofBundle,
@@ -1837,6 +1908,7 @@ fn authorize_settlement_with_proofs_with_trusted_clock(
     )
 }
 
+#[cfg(test)]
 fn authorize_settlement_with_proofs_at(
     registry: &ProofVerifierRegistry,
     bundle: &ProofBundle,
@@ -1853,7 +1925,8 @@ fn authorize_settlement_with_proofs_at(
 /// Additive proof-aware signing helper. It checks that the typed signing
 /// request is bound to the verified proof context before invoking the existing
 /// provider-only value-bearing path. It never calls legacy raw signing.
-pub fn sign_value_bearing_with_proof_authorization(
+#[cfg(test)]
+pub(crate) fn sign_value_bearing_with_proof_authorization(
     enclave: &dyn EnclaveManager,
     request: ValueBearingSignRequest,
     authorization: &ProofBoundValueBearingAuthorization,
@@ -1866,6 +1939,7 @@ pub fn sign_value_bearing_with_proof_authorization(
     )
 }
 
+#[cfg(test)]
 fn sign_value_bearing_with_proof_authorization_with_trusted_clock(
     enclave: &dyn EnclaveManager,
     request: ValueBearingSignRequest,
@@ -1880,6 +1954,7 @@ fn sign_value_bearing_with_proof_authorization_with_trusted_clock(
     )
 }
 
+#[cfg(test)]
 fn sign_value_bearing_with_proof_authorization_at(
     enclave: &dyn EnclaveManager,
     request: ValueBearingSignRequest,
@@ -1887,12 +1962,109 @@ fn sign_value_bearing_with_proof_authorization_at(
     now_secs: u64,
 ) -> ConclaveResult<ValueBearingSignResponse> {
     authorization.observe_and_validate_at(now_secs)?;
-    if !authorization.matches_request(&request) {
+    if !authorization.matches_request(&request)? {
         return Err(ConclaveError::Unsupported(
             "proof authorization does not match value-bearing operation context".to_string(),
         ));
     }
     enclave.sign_value_bearing(request)
+}
+
+/// Signs a proof-authorized value-bearing operation only after consuming a
+/// distinct complete operation replay binding from the caller-supplied durable
+/// store. Duplicate, unavailable, indeterminate, rollback, and non-durable
+/// outcomes fail closed before provider code is invoked. The authorization
+/// carrier is one-shot and key-bound, so reuse across manager instances cannot
+/// produce a second signature.
+pub fn sign_value_bearing_with_proof_authorization_and_durable_store(
+    enclave: &dyn EnclaveManager,
+    request: ValueBearingSignRequest,
+    authorization: &ProofBoundValueBearingAuthorization,
+    replay_store: &dyn ReplayStore,
+) -> ConclaveResult<ValueBearingSignResponse> {
+    let now_secs = crate::enclave::trusted_unix_time_secs()?;
+    sign_value_bearing_with_proof_authorization_and_durable_store_at(
+        enclave,
+        request,
+        authorization,
+        replay_store,
+        now_secs,
+    )
+}
+
+fn sign_value_bearing_with_proof_authorization_and_durable_store_at(
+    enclave: &dyn EnclaveManager,
+    request: ValueBearingSignRequest,
+    authorization: &ProofBoundValueBearingAuthorization,
+    replay_store: &dyn ReplayStore,
+    now_secs: u64,
+) -> ConclaveResult<ValueBearingSignResponse> {
+    if replay_store.durability() != ReplayStoreDurability::DurableProvider {
+        return Err(ConclaveError::Unsupported(
+            "durable replay store is required for proof-authorized final signing".to_string(),
+        ));
+    }
+    authorization.observe_and_validate_at(now_secs)?;
+    if !authorization.matches_request(&request)? {
+        return Err(ConclaveError::Unsupported(
+            "proof authorization does not match value-bearing operation context".to_string(),
+        ));
+    }
+
+    let durable_binding = authorization.durable_binding.as_ref().ok_or_else(|| {
+        ConclaveError::Unsupported(
+            "proof authorization is not bound to a durable replay provider".to_string(),
+        )
+    })?;
+    let operation_digest = request.operation_binding()?;
+    let evidence_digest = authorization.verified_proofs.digest()?;
+    let binding = ReplayBinding::from_component_digests_with_domain(
+        VALUE_BEARING_OPERATION_REPLAY_DOMAIN,
+        durable_binding.provider.clone(),
+        "value-bearing-operation",
+        request.algorithm().canonical_token(),
+        *authorization.verified_proofs.nonce_digest(),
+        operation_digest,
+        request.operation_context().purpose().canonical_token(),
+        authorization.policy_digest,
+        durable_binding.key_identity_digest,
+        evidence_digest,
+        Some(hex::encode(evidence_digest)),
+        Some(request.operation_context().domain().to_string()),
+    )
+    .map_err(|_| invalid_payload())?;
+    let reservation = ReplayReservation::new(&binding, authorization.authorization_expires_at)
+        .map_err(|_| invalid_payload())?;
+
+    match replay_store
+        .consume_once(&reservation, now_secs)
+        .map_err(map_replay_store_error)?
+    {
+        ReplayConsumeOutcome::Accepted => {}
+        ReplayConsumeOutcome::Duplicate => {
+            return Err(ConclaveError::EnclaveFailure(
+                "value-bearing operation replay detected".to_string(),
+            ));
+        }
+    }
+
+    if authorization
+        .final_signing_consumed
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err(ConclaveError::EnclaveFailure(
+            "proof authorization has already been consumed for final signing".to_string(),
+        ));
+    }
+
+    let response = enclave.sign_value_bearing_provider(&request)?;
+    ValueBearingSignResponse::from_provider_at_time(
+        &request,
+        response,
+        enclave.signer_capability(),
+        now_secs,
+    )
 }
 
 #[cfg(test)]
@@ -1934,11 +2106,17 @@ impl ProofVerifier for FixtureProofVerifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::enclave::replay_guard::ReplayGuard;
-    use crate::enclave::{
-        OperationContext, SignerKeyBinding, SigningAlgorithm, TrustRequirement,
-        ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
+    use crate::enclave::attestation::{
+        parse_extension_data, AttestationLevel, AttestationPurpose, AttestationReportType,
+        DeviceIntegrityReport, SignerKeyBindingEvidence, ATTESTATION_ENVELOPE_VERSION,
     };
+    use crate::enclave::replay_guard::{ReplayBatchOutcome, ReplayGuard};
+    use crate::enclave::{
+        EnclaveManager, OperationContext, SignResponse, SignerCapability, SignerKeyBinding,
+        SigningAlgorithm, TrustRequirement, UnavailableReplayStore, ValueBearingPurpose,
+        ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
+    };
+    use ed25519_dalek::{Signer as _, SigningKey};
     use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
     use std::sync::Arc;
     use std::time::{Duration, SystemTime};
@@ -2127,6 +2305,158 @@ mod tests {
         ProofVerifierRegistry { verifiers }
     }
 
+    struct DurableFixtureReplayStore {
+        guard: ReplayGuard,
+    }
+
+    impl DurableFixtureReplayStore {
+        fn new(max_entries: usize) -> Self {
+            Self {
+                guard: ReplayGuard::new(300, max_entries),
+            }
+        }
+    }
+
+    impl ReplayStore for DurableFixtureReplayStore {
+        fn durability(&self) -> ReplayStoreDurability {
+            ReplayStoreDurability::DurableProvider
+        }
+
+        fn consume_once(
+            &self,
+            reservation: &ReplayReservation,
+            now_secs: u64,
+        ) -> Result<ReplayConsumeOutcome, ReplayStoreError> {
+            self.guard.consume_once(reservation, now_secs)
+        }
+
+        fn consume_once_batch(
+            &self,
+            reservations: &[ReplayReservation],
+            now_secs: u64,
+        ) -> Result<ReplayBatchOutcome, ReplayStoreError> {
+            self.guard.consume_once_batch(reservations, now_secs)
+        }
+    }
+
+    struct DurableFixtureProvider {
+        operation_key: SigningKey,
+        provider_calls: AtomicUsize,
+    }
+
+    impl DurableFixtureProvider {
+        fn new() -> Self {
+            Self {
+                operation_key: SigningKey::from_bytes(&[7; 32]),
+                provider_calls: AtomicUsize::new(0),
+            }
+        }
+
+        fn request(&self, context: &ProofVerificationContext) -> ValueBearingSignRequest {
+            ValueBearingSignRequest::new(
+                OperationContext::new(
+                    context.audience.clone(),
+                    ValueBearingPurpose::Settlement,
+                    context.operation_digest.to_vec(),
+                )
+                .expect("operation context"),
+                SigningAlgorithm::Ed25519,
+                TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)
+                    .expect("trust requirement"),
+                context.operation_digest,
+                SignerKeyBinding::new(
+                    "durable-test-key",
+                    "m/44'/0'/0'",
+                    self.operation_key.verifying_key().to_bytes().to_vec(),
+                )
+                .expect("key binding"),
+                None,
+            )
+            .expect("value-bearing request")
+        }
+
+        fn response_for(&self, request: &ValueBearingSignRequest) -> SignResponse {
+            let attestation_key = crate::enclave::attestation::test_signing_key();
+            let operation_public_key = self.operation_key.verifying_key().to_bytes();
+            let extension_data =
+                "PURPOSE_SIGN|ALGORITHM_ED25519|TEE_ENABLED|HARDWARE_ROOT_OF_TRUST|OS_VERSION_14"
+                    .to_string();
+            let extensions = parse_extension_data(&extension_data).expect("extensions");
+            let mut report = DeviceIntegrityReport {
+                report_version: ATTESTATION_ENVELOPE_VERSION,
+                report_type: AttestationReportType::DeviceIntegrity,
+                level: AttestationLevel::TEE,
+                challenge_nonce: request.message_digest().to_vec(),
+                signature: Vec::new(),
+                attested_operation_public_key: operation_public_key.to_vec(),
+                signer_key_binding: Some(
+                    SignerKeyBindingEvidence::new(
+                        request.key_binding().key_id(),
+                        request.key_binding().derivation_path(),
+                        request.key_binding().public_key(),
+                        &operation_public_key,
+                        request.message_digest(),
+                        request.operation_context().purpose().canonical_token(),
+                        AttestationPurpose::Sign,
+                        crate::enclave::attestation::AttestationAlgorithm::Ed25519,
+                    )
+                    .expect("key binding evidence"),
+                ),
+                certificate_chain: vec![
+                    hex::encode(attestation_key.verifying_key().to_bytes()),
+                    "CONCLAVE_ROOT_CA_V1".to_string(),
+                ],
+                timestamp: crate::enclave::trusted_unix_time_secs()
+                    .expect("test host clock should be available"),
+                extension_data,
+                extensions,
+            };
+            report
+                .sign_with_ed25519_key(&attestation_key)
+                .expect("attestation report");
+            SignResponse {
+                signature_hex: hex::encode(
+                    self.operation_key.sign(request.message_digest()).to_bytes(),
+                ),
+                public_key_hex: hex::encode(operation_public_key),
+                device_attestation: Some(serde_json::to_string(&report).expect("attestation json")),
+            }
+        }
+    }
+
+    impl EnclaveManager for DurableFixtureProvider {
+        fn initialize(&self) -> ConclaveResult<()> {
+            Ok(())
+        }
+
+        fn generate_key(&self, key_id: &str) -> ConclaveResult<String> {
+            Ok(key_id.to_string())
+        }
+
+        fn get_public_key(&self, _derivation_path: &str) -> ConclaveResult<String> {
+            Ok(hex::encode(self.operation_key.verifying_key().to_bytes()))
+        }
+
+        fn sign(&self, _request: crate::enclave::SignRequest) -> ConclaveResult<SignResponse> {
+            Err(ConclaveError::EnclaveFailure(
+                "durable fixture raw sign must not be called".to_string(),
+            ))
+        }
+
+        fn signer_capability(&self) -> SignerCapability {
+            SignerCapability::provider_verified(VALUE_BEARING_POLICY_ID)
+                .expect("provider capability")
+        }
+
+        fn sign_value_bearing_provider(
+            &self,
+            request: &ValueBearingSignRequest,
+        ) -> ConclaveResult<SignResponse> {
+            self.provider_calls.fetch_add(1, AtomicOrdering::Relaxed);
+            Ok(self.response_for(request))
+        }
+    }
+
     #[test]
     fn production_registry_has_six_explicit_unavailable_routes() {
         let registry = ProofVerifierRegistry::production();
@@ -2282,6 +2612,19 @@ mod tests {
             vec![0; MAX_EVIDENCE_BYTES + 1],
         )
         .is_err());
+        let zero_lifetime = ProofEnvelope::new(
+            ProofKind::Server,
+            "zero-lifetime",
+            fixture_verifier_id(ProofKind::Server),
+            [7; 32],
+            "SETTLEMENT",
+            "audience",
+            vec![1],
+            NOW,
+            NOW,
+            vec![1],
+        );
+        assert!(zero_lifetime.is_err());
     }
 
     #[test]
@@ -2826,7 +3169,7 @@ mod tests {
                 &enclave,
                 request,
                 &authorization,
-                NOW + 61,
+                NOW + 60,
             ),
             Err(ConclaveError::Unsupported(message))
                 if message.contains("proof authorization has expired")
@@ -3216,6 +3559,238 @@ mod tests {
             Err(ConclaveError::Unsupported(message))
                 if message.contains("durable replay store")
         ));
+    }
+
+    #[test]
+    fn durable_authorization_requires_exact_canonical_production_policy() {
+        let now_secs =
+            crate::enclave::trusted_unix_time_secs().expect("test host clock should be available");
+        let context = context_at(now_secs);
+        let bundle = fixture_bundle_at(now_secs);
+        let provider = DurableFixtureProvider::new();
+        let request = provider.request(&context);
+        let binding_context =
+            ProofReplayBindingContext::for_signer_key("fixture-provider", request.key_binding())
+                .expect("binding context");
+
+        let mut reordered = ProofPolicy::production();
+        reordered.required.reverse();
+        assert!(reordered.is_exact_production());
+        assert!(authorize_value_bearing_with_durable_store(
+            &ProofVerifierRegistry::test_fixture_all_six(),
+            &bundle,
+            &reordered,
+            &context,
+            &binding_context,
+            &DurableFixtureReplayStore::new(32),
+        )
+        .is_ok());
+
+        let reduced = ProofPolicy::new(
+            vec![
+                ProofRequirement::new(ProofKind::Server, fixture_verifier_id(ProofKind::Server))
+                    .expect("reduced requirement"),
+            ],
+            UnlistedProofPolicy::Reject,
+        )
+        .expect("reduced policy");
+        assert!(matches!(
+            authorize_value_bearing_with_durable_store(
+                &ProofVerifierRegistry::test_fixture_all_six(),
+                &bundle,
+                &reduced,
+                &context,
+                &binding_context,
+                &DurableFixtureReplayStore::new(32),
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("exact production proof policy")
+        ));
+
+        let empty = ProofPolicy {
+            required: Vec::new(),
+            unlisted: UnlistedProofPolicy::Reject,
+        };
+        assert!(matches!(
+            authorize_value_bearing_with_durable_store(
+                &ProofVerifierRegistry::test_fixture_all_six(),
+                &ProofBundle::new(Vec::new()).expect("empty bundle"),
+                &empty,
+                &context,
+                &binding_context,
+                &DurableFixtureReplayStore::new(32),
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("exact production proof policy")
+        ));
+
+        let mut changed = ProofPolicy::production();
+        changed.required[0].verifier_id = "changed-production-route".to_string();
+        assert!(!changed.is_exact_production());
+        assert!(matches!(
+            authorize_value_bearing_with_durable_store(
+                &ProofVerifierRegistry::test_fixture_all_six(),
+                &bundle,
+                &changed,
+                &context,
+                &binding_context,
+                &DurableFixtureReplayStore::new(32),
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("exact production proof policy")
+        ));
+    }
+
+    #[test]
+    fn process_local_replay_cannot_authorize_public_durable_value_path() {
+        let now_secs =
+            crate::enclave::trusted_unix_time_secs().expect("test host clock should be available");
+        let context = context_at(now_secs);
+        let provider = DurableFixtureProvider::new();
+        let request = provider.request(&context);
+        let binding_context =
+            ProofReplayBindingContext::for_signer_key("fixture-provider", request.key_binding())
+                .expect("binding context");
+
+        assert!(matches!(
+            authorize_value_bearing_with_durable_store(
+                &ProofVerifierRegistry::test_fixture_all_six(),
+                &fixture_bundle_at(now_secs),
+                &ProofPolicy::production(),
+                &context,
+                &binding_context,
+                &ReplayGuard::new(300, 32),
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("durable replay store")
+        ));
+    }
+
+    #[test]
+    fn durable_final_signing_consumes_operation_replay_once_across_managers() {
+        let now_secs =
+            crate::enclave::trusted_unix_time_secs().expect("test host clock should be available");
+        let context = context_at(now_secs);
+        let provider_one = DurableFixtureProvider::new();
+        let provider_two = DurableFixtureProvider::new();
+        let request = provider_one.request(&context);
+        let binding_context =
+            ProofReplayBindingContext::for_signer_key("fixture-provider", request.key_binding())
+                .expect("binding context");
+        let store = DurableFixtureReplayStore::new(64);
+        let authorization = authorize_value_bearing_with_durable_store(
+            &ProofVerifierRegistry::test_fixture_all_six(),
+            &fixture_bundle_at(now_secs),
+            &ProofPolicy::production(),
+            &context,
+            &binding_context,
+            &store,
+        )
+        .expect("durable authorization");
+
+        assert!(
+            sign_value_bearing_with_proof_authorization_and_durable_store(
+                &provider_one,
+                request.clone(),
+                &authorization,
+                &store,
+            )
+            .is_ok()
+        );
+        assert_eq!(provider_one.provider_calls.load(AtomicOrdering::Relaxed), 1);
+
+        assert!(matches!(
+            sign_value_bearing_with_proof_authorization_and_durable_store(
+                &provider_two,
+                request,
+                &authorization,
+                &store,
+            ),
+            Err(ConclaveError::EnclaveFailure(message))
+                if message.contains("replay detected")
+        ));
+        assert_eq!(provider_two.provider_calls.load(AtomicOrdering::Relaxed), 0);
+    }
+
+    #[test]
+    fn durable_final_signing_fails_closed_before_provider_on_uncertain_store() {
+        let now_secs =
+            crate::enclave::trusted_unix_time_secs().expect("test host clock should be available");
+        let context = context_at(now_secs);
+        let provider = DurableFixtureProvider::new();
+        let request = provider.request(&context);
+        let binding_context =
+            ProofReplayBindingContext::for_signer_key("fixture-provider", request.key_binding())
+                .expect("binding context");
+        let store = DurableFixtureReplayStore::new(64);
+        let authorization = authorize_value_bearing_with_durable_store(
+            &ProofVerifierRegistry::test_fixture_all_six(),
+            &fixture_bundle_at(now_secs),
+            &ProofPolicy::production(),
+            &context,
+            &binding_context,
+            &store,
+        )
+        .expect("durable authorization");
+
+        assert!(matches!(
+            sign_value_bearing_with_proof_authorization_and_durable_store(
+                &provider,
+                request.clone(),
+                &authorization,
+                &IndeterminateReplayStore,
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("unavailable or indeterminate")
+        ));
+        assert_eq!(provider.provider_calls.load(AtomicOrdering::Relaxed), 0);
+
+        assert!(matches!(
+            sign_value_bearing_with_proof_authorization_and_durable_store(
+                &provider,
+                request,
+                &authorization,
+                &UnavailableReplayStore,
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("durable replay store")
+        ));
+        assert_eq!(provider.provider_calls.load(AtomicOrdering::Relaxed), 0);
+    }
+
+    #[test]
+    fn durable_final_signing_rejects_policy_digest_mutation() {
+        let now_secs =
+            crate::enclave::trusted_unix_time_secs().expect("test host clock should be available");
+        let context = context_at(now_secs);
+        let provider = DurableFixtureProvider::new();
+        let request = provider.request(&context);
+        let binding_context =
+            ProofReplayBindingContext::for_signer_key("fixture-provider", request.key_binding())
+                .expect("binding context");
+        let store = DurableFixtureReplayStore::new(64);
+        let mut authorization = authorize_value_bearing_with_durable_store(
+            &ProofVerifierRegistry::test_fixture_all_six(),
+            &fixture_bundle_at(now_secs),
+            &ProofPolicy::production(),
+            &context,
+            &binding_context,
+            &store,
+        )
+        .expect("durable authorization");
+        authorization.policy_digest[0] ^= 1;
+
+        assert!(matches!(
+            sign_value_bearing_with_proof_authorization_and_durable_store(
+                &provider,
+                request,
+                &authorization,
+                &store,
+            ),
+            Err(ConclaveError::Unsupported(message))
+                if message.contains("does not match")
+        ));
+        assert_eq!(provider.provider_calls.load(AtomicOrdering::Relaxed), 0);
     }
 
     struct IndeterminateReplayStore;

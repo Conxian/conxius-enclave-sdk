@@ -158,7 +158,7 @@
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
       "exclusion": "The trust bundle verifier routes are explicitly unavailable in production, fixture verification is test-only, and ReplayGuard is process-local. No vendor roots, durable replay backend, distributed replay coordination, hardware runtime, independent-review, SBOM, provenance, or exact release-artifact support is claimed.",
-      "notes": "Issue #240 adds versioned canonical trust snapshots, authenticated digest/verifier boundaries, deterministic trust rejection states, refresh rotation/outage semantics, a typed atomic ReplayStore contract, and a complete provider/proof/nonce/operation/purpose/policy/key/evidence replay binding. Additive durable-gated proof APIs reject process-local or indeterminate stores; deployment and provider evidence remain open."
+      "notes": "Issue #240 adds versioned canonical trust snapshots, authenticated envelope route/source/profile digests, evidence issued_at freshness checks, deterministic trust rejection states, refresh rotation/outage semantics, a typed atomic ReplayStore contract, and complete provider/proof/nonce/operation/purpose/policy/key/evidence replay bindings. Durable proof authorization enforces the exact canonical production policy, and durable final signing consumes a distinct operation binding immediately before provider signing. Process-local or indeterminate stores remain rejected; a real durable backend, deployment, and provider evidence remain open."
     },
     {
       "id": "rail-policy",

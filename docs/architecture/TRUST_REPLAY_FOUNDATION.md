@@ -7,9 +7,9 @@
 
 Issue [#240](https://github.com/Conxian/conxius-enclave-sdk/issues/240) adds a
 bounded contract boundary for trust collateral and replay authorization. The
-boundary is intentionally additive: existing process-local containment APIs
-remain source-compatible, while new provider-facing entry points require the
-explicit capabilities described below.
+durable provider-facing entry points are additive, while legacy process-local
+proof authorization helpers are crate-test-only containment paths and are not
+part of the production public API.
 
 ## 1. Trust-bundle contract
 
@@ -28,14 +28,18 @@ sorted before encoding, so construction order cannot change the authenticated
 digest. Unknown fields, invalid ordering, duplicate set members, zero digests,
 and bounded-content violations fail closed.
 
-`TrustBundleEnvelope` carries the canonical digest, an exact verifier route,
-and the signature bytes. The validator checks that the supplied digest is the
-digest of the canonical snapshot and then delegates authentication to the
-registered `(provider, verifier_id)` route. A URI, transport location, or
-digest by itself is never treated as authenticated evidence. The production
-registry contains explicit unavailable routes for the known provider
-namespaces; it does not ship vendor roots, collateral, or provider verifier
-implementations.
+`TrustBundleEnvelope` carries an authenticated envelope digest, an exact
+verifier route/profile, source classification, and signature bytes. The
+authenticated digest is domain-separated and binds the canonical snapshot
+digest, provider, verifier ID/version, authentication profile, and source
+classification. The validator checks that digest before delegating
+authentication to the registered `(provider, verifier_id, version, profile)`
+route, and `TrustValidationReceipt::bundle_digest()` retains that authenticated
+digest. Changing any authenticated route or source field after signing fails
+closed. A URI or transport location is not trust evidence and is intentionally
+absent from the authenticated schema. The production registry contains explicit
+unavailable routes for the known provider namespaces; it does not ship vendor
+roots, collateral, or provider verifier implementations.
 
 The provider-neutral validator has deterministic rejection states for:
 
@@ -45,6 +49,8 @@ The provider-neutral validator has deterministic rejection states for:
 - not-yet-valid, expired, or stale collateral;
 - revoked evidence, unacceptable TCB, or unacceptable measurement;
 - provider/evidence mismatch;
+- evidence issued-at outside the authenticated bundle interval, beyond the
+  bounded future skew, or older than the configured maximum age;
 - test/software fixture promotion; and
 - unavailable, untrusted, or rolled-back security-clock input.
 
@@ -55,10 +61,17 @@ production validator.
 ## 2. Rotation and refresh semantics
 
 `TrustBundleCache` is a process-local coordination primitive for defining the
-state machine, not a durable refresh service. A provider snapshot can be
-installed only after authenticated validation and only when its sequence is
-strictly newer than the current snapshot. Equal or lower sequences return
-`SequenceRollback` without replacing the current receipt.
+state machine, not a durable refresh service. Install, refresh, and read paths
+must observe a trusted clock. The cache tracks a trusted-time high-water mark
+and rejects rollback. A provider snapshot can be installed only after
+authenticated validation and only when its sequence is strictly newer than the
+current snapshot. Equal or lower sequences return `SequenceRollback` without
+replacing the current receipt.
+
+Trust validity uses an exclusive expiry convention: `now >= expires_at` (and the
+receipt's `valid_until`) is expired. `current_for` never returns an expired
+receipt, including while the refresh state is `RefreshUnavailable`; callers
+receive an explicit expiry/error state and must revalidate or recover.
 
 Refresh state is explicit:
 
@@ -99,16 +112,24 @@ The additive proof APIs are:
   `authorize_value_bearing_with_durable_store`, and
   `authorize_settlement_with_durable_store` for value-bearing boundaries that
   reject any store other than `DurableProvider` before authorization is issued.
+- `sign_value_bearing_with_proof_authorization_and_durable_store` for the final
+  value-bearing boundary. It requires the same caller-supplied durable store,
+  consumes a distinct complete operation replay binding at signing time before
+  provider invocation, and treats duplicate, unavailable, indeterminate,
+  rollback, and non-durable outcomes as failures.
 
 Provider proof verification and durable replay are independent gates. A
 process-local store, unavailable backend, or indeterminate transaction cannot
 silently satisfy a value-bearing production path. Existing legacy APIs remain
-available for source compatibility and local containment only; they do not
-constitute production support.
+available only inside crate tests for local containment; they are not exported
+production value-bearing authorization APIs and do not constitute production
+support.
 
 ## 4. Canonical replay binding
 
-`ReplayBinding` uses the domain separator `CONXIAN-REPLAY-BINDING/v1` and binds
+`ReplayBinding` uses a domain-separated binding domain. Proof reservations use
+`CONXIAN-REPLAY-BINDING/v1`; final value-bearing signing uses the distinct
+`CONXIAN-VALUE-BEARING-OPERATION-REPLAY/v1` domain. Each complete binding binds
 all security-relevant dimensions needed by issue #240:
 
 - provider;
@@ -131,15 +152,20 @@ The proof-store path creates one complete binding per independently verified
 proof and consumes all reservations atomically. A replay duplicate or uncertain
 backend result therefore fails the complete authorization attempt rather than
 silently accepting a partial proof set. Legacy incomplete bindings are not
-upgraded into the new durable path.
+upgraded into the new durable path. The final signing path consumes its
+distinct operation reservation immediately before provider signing, and the
+carrier is one-shot and signer-bound so reuse across manager instances cannot
+produce a second signature.
 
 ## 5. Evidence and remaining gates
 
 The foundation is covered by focused unit/contract tests for canonical ordering,
 digest mutation, trust rejection states, fixture non-promotion, sequence
-rollback, refresh outage/recovery, redacted diagnostics, atomic duplicate
-semantics, retention, clock rollback, unavailable backends, and indeterminate
-durable-store outcomes.
+rollback, evidence freshness boundaries, refresh outage/recovery, expired-cache
+reads, trusted-time rollback, redacted diagnostics, atomic duplicate semantics,
+exclusive retention, clock rollback, unavailable backends, exact production
+policy enforcement, one-shot final signing, and indeterminate durable-store
+outcomes.
 
 The following evidence is deliberately **not** claimed:
 

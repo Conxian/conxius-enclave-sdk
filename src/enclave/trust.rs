@@ -15,9 +15,23 @@ use std::sync::{Arc, Mutex};
 pub const TRUST_BUNDLE_SCHEMA_VERSION: u16 = 1;
 /// Domain separator for the canonical snapshot digest.
 pub const TRUST_BUNDLE_DOMAIN: &str = "CONXIAN-TRUST-BUNDLE/v1";
+/// Domain separator for the authenticated envelope digest. This digest binds
+/// route and source metadata in addition to the snapshot digest.
+pub const TRUST_AUTHENTICATED_ENVELOPE_DOMAIN: &str = "CONXIAN-TRUST-ENVELOPE/v1";
+/// Authentication profile used by the current fixture verifier and reserved
+/// as the default for route descriptors until provider-specific profiles exist.
+pub const TRUST_AUTHENTICATION_PROFILE_ED25519: &str = "ed25519-signature";
+pub const TRUST_AUTHENTICATION_PROFILE_VERSION: u16 = 1;
 /// Maximum serialized trust-bundle transport accepted by the bounded entry
 /// point.
 pub const MAX_TRUST_BUNDLE_TRANSPORT_BYTES: usize = 256 * 1024;
+
+/// Default trusted-evidence freshness policy. Provider integrations may choose
+/// a stricter policy, but cannot exceed the bounded maxima below.
+pub const DEFAULT_MAX_TRUST_EVIDENCE_AGE_SECS: u64 = 5 * 60;
+pub const DEFAULT_MAX_TRUST_EVIDENCE_FUTURE_SKEW_SECS: u64 = 30;
+pub const MAX_TRUST_EVIDENCE_AGE_SECS: u64 = 24 * 60 * 60;
+pub const MAX_TRUST_EVIDENCE_FUTURE_SKEW_SECS: u64 = 15 * 60;
 
 pub const TRUST_PROVIDER_ANDROID_KEYMINT: &str = "android.keymint";
 pub const TRUST_PROVIDER_AWS_NITRO: &str = "aws.nitro";
@@ -84,6 +98,12 @@ pub enum TrustValidationError {
     ClockRollback,
     #[error("trust evidence provider does not match the bundle")]
     ProviderMismatch,
+    #[error("trust evidence is outside the bundle validity interval")]
+    EvidenceOutsideBundleValidity,
+    #[error("trust evidence is not yet valid under the trusted clock")]
+    EvidenceNotYetValid,
+    #[error("trust evidence is stale under the freshness policy")]
+    EvidenceStale,
 }
 
 /// Clock input is explicit so an untrusted wall clock cannot be silently used
@@ -96,13 +116,61 @@ pub enum TrustClockObservation {
     Rollback,
 }
 
-/// The source class is signed as part of the snapshot and is never enough by
-/// itself to authenticate a bundle. A test source is accepted only by the
-/// crate-internal fixture validator.
+/// The source class is authenticated as part of the envelope and is never
+/// enough by itself to authenticate a bundle. A test source is accepted only
+/// by the crate-internal fixture validator.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TrustBundleSource {
     Provider,
     TestFixture,
+}
+
+impl TrustBundleSource {
+    fn canonical_tag(self) -> u8 {
+        match self {
+            Self::Provider => 1,
+            Self::TestFixture => 2,
+        }
+    }
+}
+
+/// Explicit policy for the `TrustEvidence::issued_at` field. Evidence is
+/// accepted only when it is within the trusted-clock freshness window and the
+/// authenticated bundle validity interval.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrustEvidenceFreshnessPolicy {
+    max_age_secs: u64,
+    max_future_skew_secs: u64,
+}
+
+impl TrustEvidenceFreshnessPolicy {
+    pub fn new(max_age_secs: u64, max_future_skew_secs: u64) -> Result<Self, TrustValidationError> {
+        if max_age_secs == 0
+            || max_age_secs > MAX_TRUST_EVIDENCE_AGE_SECS
+            || max_future_skew_secs > MAX_TRUST_EVIDENCE_FUTURE_SKEW_SECS
+        {
+            return Err(TrustValidationError::Malformed);
+        }
+        Ok(Self {
+            max_age_secs,
+            max_future_skew_secs,
+        })
+    }
+
+    pub const fn defaults() -> Self {
+        Self {
+            max_age_secs: DEFAULT_MAX_TRUST_EVIDENCE_AGE_SECS,
+            max_future_skew_secs: DEFAULT_MAX_TRUST_EVIDENCE_FUTURE_SKEW_SECS,
+        }
+    }
+
+    pub const fn max_age_secs(self) -> u64 {
+        self.max_age_secs
+    }
+
+    pub const fn max_future_skew_secs(self) -> u64 {
+        self.max_future_skew_secs
+    }
 }
 
 fn validate_identifier(value: &str) -> Result<(), TrustValidationError> {
@@ -214,7 +282,8 @@ impl TrustBundleSnapshot {
         validate_identifier(&self.provider)?;
         if self.sequence == 0
             || self.issued_at > self.not_before
-            || self.not_before > self.stale_after
+            || self.not_before >= self.expires_at
+            || self.not_before >= self.stale_after
             || self.stale_after > self.expires_at
         {
             return Err(TrustValidationError::Malformed);
@@ -361,15 +430,20 @@ impl TrustEvidence {
     }
 }
 
-/// Authenticated envelope around a canonical snapshot. The signed digest is
-/// checked against the canonical snapshot bytes before the verifier sees the
-/// signature. A URI or digest without this signature path is never accepted.
+/// Authenticated envelope around a canonical snapshot. The signed digest is an
+/// authenticated envelope digest binding the snapshot and route/profile/source
+/// metadata before the verifier sees the signature. A URI or digest without
+/// this signature path is never accepted.
 #[derive(Clone, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct TrustBundleEnvelope {
     pub snapshot: TrustBundleSnapshot,
+    /// Digest of the authenticated envelope encoding, not merely the snapshot
+    /// digest. The signature must cover this field.
     pub signed_digest: [u8; 32],
     pub verifier_id: String,
+    pub verifier_version: u16,
+    pub authentication_profile: String,
     pub signature: Vec<u8>,
     pub source: TrustBundleSource,
 }
@@ -381,6 +455,8 @@ impl fmt::Debug for TrustBundleEnvelope {
             .field("snapshot", &self.snapshot)
             .field("signed_digest", &self.signed_digest)
             .field("verifier_id", &self.verifier_id)
+            .field("verifier_version", &self.verifier_version)
+            .field("authentication_profile", &self.authentication_profile)
             .field("signature_len", &self.signature.len())
             .field("source", &self.source)
             .finish()
@@ -393,28 +469,71 @@ impl TrustBundleEnvelope {
         verifier_id: impl Into<String>,
         signature: Vec<u8>,
     ) -> Result<Self, TrustValidationError> {
-        Self::new_with_source(
+        Self::new_with_authentication_and_source(
             snapshot,
             verifier_id,
+            TRUST_AUTHENTICATION_PROFILE_VERSION,
+            TRUST_AUTHENTICATION_PROFILE_ED25519,
             signature,
             TrustBundleSource::Provider,
         )
     }
 
+    /// Constructs an envelope with an explicit authenticated route/profile.
+    /// Operational transport locations are intentionally absent from this
+    /// schema; only security-relevant route metadata is authenticated.
+    pub fn new_with_authentication(
+        snapshot: TrustBundleSnapshot,
+        verifier_id: impl Into<String>,
+        verifier_version: u16,
+        authentication_profile: impl Into<String>,
+        signature: Vec<u8>,
+    ) -> Result<Self, TrustValidationError> {
+        Self::new_with_authentication_and_source(
+            snapshot,
+            verifier_id,
+            verifier_version,
+            authentication_profile,
+            signature,
+            TrustBundleSource::Provider,
+        )
+    }
+
+    #[cfg(test)]
     fn new_with_source(
         snapshot: TrustBundleSnapshot,
         verifier_id: impl Into<String>,
         signature: Vec<u8>,
         source: TrustBundleSource,
     ) -> Result<Self, TrustValidationError> {
-        let signed_digest = snapshot.canonical_digest()?;
-        let envelope = Self {
+        Self::new_with_authentication_and_source(
             snapshot,
-            signed_digest,
+            verifier_id,
+            TRUST_AUTHENTICATION_PROFILE_VERSION,
+            TRUST_AUTHENTICATION_PROFILE_ED25519,
+            signature,
+            source,
+        )
+    }
+
+    fn new_with_authentication_and_source(
+        snapshot: TrustBundleSnapshot,
+        verifier_id: impl Into<String>,
+        verifier_version: u16,
+        authentication_profile: impl Into<String>,
+        signature: Vec<u8>,
+        source: TrustBundleSource,
+    ) -> Result<Self, TrustValidationError> {
+        let mut envelope = Self {
+            snapshot,
+            signed_digest: [0; 32],
             verifier_id: verifier_id.into(),
+            verifier_version,
+            authentication_profile: authentication_profile.into(),
             signature,
             source,
         };
+        envelope.signed_digest = envelope.authenticated_digest()?;
         envelope.validate_shape()?;
         Ok(envelope)
     }
@@ -422,20 +541,53 @@ impl TrustBundleEnvelope {
     pub fn validate_shape(&self) -> Result<(), TrustValidationError> {
         self.snapshot.validate_shape()?;
         validate_identifier(&self.verifier_id)?;
+        if self.verifier_version == 0 {
+            return Err(TrustValidationError::Malformed);
+        }
+        validate_identifier(&self.authentication_profile)?;
         if self.signature.is_empty() {
             return Err(TrustValidationError::Malformed);
         }
         if self.signature.len() > MAX_SIGNATURE_BYTES {
             return Err(TrustValidationError::Oversized);
         }
-        if self.signed_digest != self.snapshot.canonical_digest()? {
+        if self.signed_digest != self.authenticated_digest()? {
             return Err(TrustValidationError::Malformed);
         }
         Ok(())
     }
 
+    /// Returns the canonical snapshot digest for callers that need to inspect
+    /// the snapshot commitment separately from the authenticated route digest.
     pub fn canonical_digest(&self) -> Result<[u8; 32], TrustValidationError> {
         self.snapshot.canonical_digest()
+    }
+
+    /// Canonical authenticated envelope bytes bind the snapshot digest,
+    /// provider, verifier identity/version, authentication profile, and source
+    /// classification. Mutable transport/URI text is deliberately excluded.
+    fn authenticated_canonical_bytes(&self) -> Result<Vec<u8>, TrustValidationError> {
+        self.snapshot.validate_shape()?;
+        validate_identifier(&self.verifier_id)?;
+        if self.verifier_version == 0 {
+            return Err(TrustValidationError::Malformed);
+        }
+        validate_identifier(&self.authentication_profile)?;
+
+        let mut output = Vec::new();
+        append_len_prefixed(&mut output, TRUST_AUTHENTICATED_ENVELOPE_DOMAIN.as_bytes())?;
+        output.extend_from_slice(&TRUST_AUTHENTICATION_PROFILE_VERSION.to_be_bytes());
+        output.extend_from_slice(&self.snapshot.canonical_digest()?);
+        append_identifier(&mut output, &self.snapshot.provider)?;
+        append_identifier(&mut output, &self.verifier_id)?;
+        output.extend_from_slice(&self.verifier_version.to_be_bytes());
+        append_identifier(&mut output, &self.authentication_profile)?;
+        output.push(self.source.canonical_tag());
+        Ok(output)
+    }
+
+    pub fn authenticated_digest(&self) -> Result<[u8; 32], TrustValidationError> {
+        Ok(Sha256::digest(self.authenticated_canonical_bytes()?).into())
     }
 
     pub fn snapshot(&self) -> &TrustBundleSnapshot {
@@ -448,6 +600,14 @@ impl TrustBundleEnvelope {
 
     pub fn verifier_id(&self) -> &str {
         &self.verifier_id
+    }
+
+    pub fn verifier_version(&self) -> u16 {
+        self.verifier_version
+    }
+
+    pub fn authentication_profile(&self) -> &str {
+        &self.authentication_profile
     }
 
     pub fn source(&self) -> TrustBundleSource {
@@ -467,9 +627,11 @@ impl TrustBundleEnvelope {
         snapshot: TrustBundleSnapshot,
         signature: Vec<u8>,
     ) -> Result<Self, TrustValidationError> {
-        Self::new_with_source(
+        Self::new_with_authentication_and_source(
             snapshot,
             TEST_FIXTURE_VERIFIER_ID,
+            TRUST_AUTHENTICATION_PROFILE_VERSION,
+            TRUST_AUTHENTICATION_PROFILE_ED25519,
             signature,
             TrustBundleSource::TestFixture,
         )
@@ -482,6 +644,8 @@ struct TrustBundleWire {
     snapshot: TrustBundleSnapshot,
     signed_digest: [u8; 32],
     verifier_id: String,
+    verifier_version: u16,
+    authentication_profile: String,
     signature: Vec<u8>,
     source: TrustBundleSource,
 }
@@ -500,6 +664,8 @@ pub fn deserialize_trust_bundle_json(
         snapshot: wire.snapshot,
         signed_digest: wire.signed_digest,
         verifier_id: wire.verifier_id,
+        verifier_version: wire.verifier_version,
+        authentication_profile: wire.authentication_profile,
         signature: wire.signature,
         source: wire.source,
     };
@@ -516,14 +682,16 @@ pub enum TrustBundleVerifierStatus {
     TestOnly,
 }
 
-/// Authenticated verifier boundary for a canonical bundle digest.
+/// Authenticated verifier boundary for a canonical envelope digest.
 pub trait TrustBundleVerifier: Send + Sync {
     fn provider(&self) -> &str;
     fn verifier_id(&self) -> &str;
+    fn verifier_version(&self) -> u16;
+    fn authentication_profile(&self) -> &str;
     fn status(&self) -> TrustBundleVerifierStatus;
     fn verify(
         &self,
-        canonical_digest: &[u8; 32],
+        authenticated_digest: &[u8; 32],
         signature: &[u8],
     ) -> Result<(), TrustValidationError>;
 }
@@ -531,6 +699,8 @@ pub trait TrustBundleVerifier: Send + Sync {
 struct UnavailableTrustBundleVerifier {
     provider: &'static str,
     verifier_id: &'static str,
+    verifier_version: u16,
+    authentication_profile: &'static str,
 }
 
 impl TrustBundleVerifier for UnavailableTrustBundleVerifier {
@@ -542,13 +712,21 @@ impl TrustBundleVerifier for UnavailableTrustBundleVerifier {
         self.verifier_id
     }
 
+    fn verifier_version(&self) -> u16 {
+        self.verifier_version
+    }
+
+    fn authentication_profile(&self) -> &str {
+        self.authentication_profile
+    }
+
     fn status(&self) -> TrustBundleVerifierStatus {
         TrustBundleVerifierStatus::Unavailable
     }
 
     fn verify(
         &self,
-        _canonical_digest: &[u8; 32],
+        _authenticated_digest: &[u8; 32],
         _signature: &[u8],
     ) -> Result<(), TrustValidationError> {
         Err(TrustValidationError::AuthenticationUnavailable)
@@ -570,27 +748,35 @@ impl TrustBundleVerifier for FixtureTrustBundleVerifier {
         TEST_FIXTURE_VERIFIER_ID
     }
 
+    fn verifier_version(&self) -> u16 {
+        TRUST_AUTHENTICATION_PROFILE_VERSION
+    }
+
+    fn authentication_profile(&self) -> &str {
+        TRUST_AUTHENTICATION_PROFILE_ED25519
+    }
+
     fn status(&self) -> TrustBundleVerifierStatus {
         TrustBundleVerifierStatus::TestOnly
     }
 
     fn verify(
         &self,
-        canonical_digest: &[u8; 32],
+        authenticated_digest: &[u8; 32],
         signature: &[u8],
     ) -> Result<(), TrustValidationError> {
         let verifying_key = ed25519_dalek::SigningKey::from_bytes(&[0x42; 32]).verifying_key();
         let signature = ed25519_dalek::Signature::from_slice(signature)
             .map_err(|_| TrustValidationError::Unauthenticated)?;
-        ed25519_dalek::Verifier::verify(&verifying_key, canonical_digest, &signature)
+        ed25519_dalek::Verifier::verify(&verifying_key, authenticated_digest, &signature)
             .map_err(|_| TrustValidationError::Unauthenticated)
     }
 }
 
-/// Exact `(provider, verifier_id)` trust routes. No provider roots or URI
-/// fetches are installed by this registry.
+/// Exact `(provider, verifier_id, version, profile)` trust routes. No provider
+/// roots or URI fetches are installed by this registry.
 pub struct TrustBundleVerifierRegistry {
-    verifiers: HashMap<(String, String), Arc<dyn TrustBundleVerifier>>,
+    verifiers: HashMap<(String, String, u16, String), Arc<dyn TrustBundleVerifier>>,
 }
 
 impl fmt::Debug for TrustBundleVerifierRegistry {
@@ -604,7 +790,8 @@ impl fmt::Debug for TrustBundleVerifierRegistry {
 
 impl TrustBundleVerifierRegistry {
     pub fn production() -> Self {
-        let mut verifiers: HashMap<(String, String), Arc<dyn TrustBundleVerifier>> = HashMap::new();
+        let mut verifiers: HashMap<(String, String, u16, String), Arc<dyn TrustBundleVerifier>> =
+            HashMap::new();
         for provider in [
             TRUST_PROVIDER_ANDROID_KEYMINT,
             TRUST_PROVIDER_AWS_NITRO,
@@ -615,10 +802,17 @@ impl TrustBundleVerifierRegistry {
         ] {
             if let Some(verifier_id) = production_verifier_id(provider) {
                 verifiers.insert(
-                    (provider.to_string(), verifier_id.to_string()),
+                    (
+                        provider.to_string(),
+                        verifier_id.to_string(),
+                        TRUST_AUTHENTICATION_PROFILE_VERSION,
+                        TRUST_AUTHENTICATION_PROFILE_ED25519.to_string(),
+                    ),
                     Arc::new(UnavailableTrustBundleVerifier {
                         provider,
                         verifier_id,
+                        verifier_version: TRUST_AUTHENTICATION_PROFILE_VERSION,
+                        authentication_profile: TRUST_AUTHENTICATION_PROFILE_ED25519,
                     }),
                 );
             }
@@ -630,14 +824,25 @@ impl TrustBundleVerifierRegistry {
         self.verifiers.len()
     }
 
-    fn verifier(&self, provider: &str, verifier_id: &str) -> Option<&Arc<dyn TrustBundleVerifier>> {
-        self.verifiers
-            .get(&(provider.to_string(), verifier_id.to_string()))
+    fn verifier(
+        &self,
+        provider: &str,
+        verifier_id: &str,
+        verifier_version: u16,
+        authentication_profile: &str,
+    ) -> Option<&Arc<dyn TrustBundleVerifier>> {
+        self.verifiers.get(&(
+            provider.to_string(),
+            verifier_id.to_string(),
+            verifier_version,
+            authentication_profile.to_string(),
+        ))
     }
 
     #[cfg(test)]
     fn test_fixture() -> Self {
-        let mut verifiers: HashMap<(String, String), Arc<dyn TrustBundleVerifier>> = HashMap::new();
+        let mut verifiers: HashMap<(String, String, u16, String), Arc<dyn TrustBundleVerifier>> =
+            HashMap::new();
         for provider in [
             TRUST_PROVIDER_ANDROID_KEYMINT,
             TRUST_PROVIDER_AWS_NITRO,
@@ -647,7 +852,12 @@ impl TrustBundleVerifierRegistry {
             TRUST_PROVIDER_FIDO,
         ] {
             verifiers.insert(
-                (provider.to_string(), TEST_FIXTURE_VERIFIER_ID.to_string()),
+                (
+                    provider.to_string(),
+                    TEST_FIXTURE_VERIFIER_ID.to_string(),
+                    TRUST_AUTHENTICATION_PROFILE_VERSION,
+                    TRUST_AUTHENTICATION_PROFILE_ED25519.to_string(),
+                ),
                 Arc::new(FixtureTrustBundleVerifier { provider }),
             );
         }
@@ -699,6 +909,7 @@ impl TrustValidationReceipt {
 pub struct TrustBundleValidator {
     registry: Arc<TrustBundleVerifierRegistry>,
     allow_test_fixture: bool,
+    evidence_freshness: TrustEvidenceFreshnessPolicy,
 }
 
 impl fmt::Debug for TrustBundleValidator {
@@ -716,6 +927,7 @@ impl TrustBundleValidator {
         Self {
             registry: Arc::new(TrustBundleVerifierRegistry::production()),
             allow_test_fixture: false,
+            evidence_freshness: TrustEvidenceFreshnessPolicy::defaults(),
         }
     }
 
@@ -724,7 +936,16 @@ impl TrustBundleValidator {
         Self {
             registry: Arc::new(TrustBundleVerifierRegistry::test_fixture()),
             allow_test_fixture: true,
+            evidence_freshness: TrustEvidenceFreshnessPolicy::defaults(),
         }
+    }
+
+    pub fn with_evidence_freshness_policy(
+        mut self,
+        evidence_freshness: TrustEvidenceFreshnessPolicy,
+    ) -> Self {
+        self.evidence_freshness = evidence_freshness;
+        self
     }
 
     pub fn validate(
@@ -759,10 +980,17 @@ impl TrustBundleValidator {
 
         let verifier = self
             .registry
-            .verifier(&snapshot.provider, bundle.verifier_id())
+            .verifier(
+                &snapshot.provider,
+                bundle.verifier_id(),
+                bundle.verifier_version(),
+                bundle.authentication_profile(),
+            )
             .ok_or(TrustValidationError::UnknownAuthentication)?;
         if verifier.provider() != snapshot.provider
             || verifier.verifier_id() != bundle.verifier_id()
+            || verifier.verifier_version() != bundle.verifier_version()
+            || verifier.authentication_profile() != bundle.authentication_profile()
         {
             return Err(TrustValidationError::UnknownAuthentication);
         }
@@ -807,6 +1035,23 @@ impl TrustBundleValidator {
             return Err(TrustValidationError::UnacceptableMeasurement);
         }
 
+        if evidence.issued_at < snapshot.not_before || evidence.issued_at >= snapshot.expires_at {
+            return Err(TrustValidationError::EvidenceOutsideBundleValidity);
+        }
+        if evidence.issued_at
+            > now_secs.saturating_add(self.evidence_freshness.max_future_skew_secs())
+        {
+            return Err(TrustValidationError::EvidenceNotYetValid);
+        }
+        if evidence.issued_at <= now_secs {
+            let age = now_secs
+                .checked_sub(evidence.issued_at)
+                .ok_or(TrustValidationError::EvidenceStale)?;
+            if age > self.evidence_freshness.max_age_secs() {
+                return Err(TrustValidationError::EvidenceStale);
+            }
+        }
+
         Ok(TrustValidationReceipt {
             provider: snapshot.provider.clone(),
             sequence: snapshot.sequence,
@@ -836,6 +1081,7 @@ pub enum TrustRefreshOutcome {
 struct TrustCacheState {
     current: HashMap<String, TrustValidationReceipt>,
     refresh_state: TrustRefreshState,
+    last_observed_secs: Option<u64>,
 }
 
 /// Process-local trust snapshot cache used to define rotation and outage
@@ -853,8 +1099,37 @@ impl TrustBundleCache {
             state: Mutex::new(TrustCacheState {
                 current: HashMap::new(),
                 refresh_state: TrustRefreshState::Empty,
+                last_observed_secs: None,
             }),
         }
+    }
+
+    fn observe_trusted_time(
+        &self,
+        clock: TrustClockObservation,
+    ) -> Result<u64, TrustValidationError> {
+        let now_secs = match clock {
+            TrustClockObservation::Trusted(now_secs) => now_secs,
+            TrustClockObservation::Untrusted(_) => {
+                return Err(TrustValidationError::ClockUntrusted)
+            }
+            TrustClockObservation::Unavailable => {
+                return Err(TrustValidationError::ClockUnavailable)
+            }
+            TrustClockObservation::Rollback => return Err(TrustValidationError::ClockRollback),
+        };
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| TrustValidationError::BackendUnavailable)?;
+        if state
+            .last_observed_secs
+            .is_some_and(|last_observed_secs| now_secs < last_observed_secs)
+        {
+            return Err(TrustValidationError::ClockRollback);
+        }
+        state.last_observed_secs = Some(now_secs);
+        Ok(now_secs)
     }
 
     pub fn install(
@@ -863,7 +1138,10 @@ impl TrustBundleCache {
         evidence: &TrustEvidence,
         clock: TrustClockObservation,
     ) -> Result<TrustRefreshOutcome, TrustValidationError> {
-        let receipt = self.validator.validate(bundle, evidence, clock)?;
+        let now_secs = self.observe_trusted_time(clock)?;
+        let receipt =
+            self.validator
+                .validate(bundle, evidence, TrustClockObservation::Trusted(now_secs))?;
         let mut state = self
             .state
             .lock()
@@ -905,11 +1183,24 @@ impl TrustBundleCache {
             .unwrap_or(TrustRefreshState::RefreshUnavailable)
     }
 
-    pub fn current_for(&self, provider: &str) -> Option<TrustValidationReceipt> {
-        self.state
+    /// Returns only a currently valid receipt after observing a trusted clock.
+    /// Expired receipts and refresh-outage cache entries at the expiry boundary
+    /// are rejected rather than returned for downstream validation.
+    pub fn current_for(
+        &self,
+        provider: &str,
+        clock: TrustClockObservation,
+    ) -> Result<Option<TrustValidationReceipt>, TrustValidationError> {
+        let now_secs = self.observe_trusted_time(clock)?;
+        let state = self
+            .state
             .lock()
-            .ok()
-            .and_then(|state| state.current.get(provider).cloned())
+            .map_err(|_| TrustValidationError::BackendUnavailable)?;
+        match state.current.get(provider).cloned() {
+            Some(receipt) if now_secs < receipt.valid_until() => Ok(Some(receipt)),
+            Some(_) => Err(TrustValidationError::Expired),
+            None => Ok(None),
+        }
     }
 
     /// Applies an explicit refresh result. Backend errors transition the cache
@@ -919,8 +1210,11 @@ impl TrustBundleCache {
         result: Result<(TrustBundleEnvelope, TrustEvidence), TrustValidationError>,
         clock: TrustClockObservation,
     ) -> Result<TrustRefreshOutcome, TrustValidationError> {
+        let now_secs = self.observe_trusted_time(clock)?;
         match result {
-            Ok((bundle, evidence)) => self.install(&bundle, &evidence, clock),
+            Ok((bundle, evidence)) => {
+                self.install(&bundle, &evidence, TrustClockObservation::Trusted(now_secs))
+            }
             Err(TrustValidationError::BackendUnavailable) => {
                 self.mark_refresh_unavailable();
                 Err(TrustValidationError::BackendUnavailable)
@@ -957,18 +1251,35 @@ mod tests {
     fn signed_fixture(sequence: u64) -> TrustBundleEnvelope {
         let signing_key = SigningKey::from_bytes(&[0x42; 32]);
         let snapshot = snapshot(sequence, true);
-        let digest = snapshot.canonical_digest().expect("digest should be valid");
-        TrustBundleEnvelope::test_fixture(snapshot, signing_key.sign(&digest).to_bytes().to_vec())
-            .expect("fixture bundle should be valid")
+        let mut bundle = TrustBundleEnvelope::test_fixture(snapshot, vec![0; 64])
+            .expect("fixture bundle should be valid");
+        let digest = *bundle.signed_digest();
+        bundle.signature = signing_key.sign(&digest).to_bytes().to_vec();
+        bundle
+            .validate_shape()
+            .expect("signed fixture should remain well formed");
+        bundle
+    }
+
+    fn resign_fixture(bundle: &mut TrustBundleEnvelope) {
+        let signing_key = SigningKey::from_bytes(&[0x42; 32]);
+        bundle.signed_digest = bundle
+            .authenticated_digest()
+            .expect("fixture digest should be valid");
+        bundle.signature = signing_key.sign(bundle.signed_digest()).to_bytes().to_vec();
     }
 
     fn evidence() -> TrustEvidence {
+        evidence_at(120)
+    }
+
+    fn evidence_at(issued_at: u64) -> TrustEvidence {
         TrustEvidence::new(
             TRUST_PROVIDER_ANDROID_KEYMINT,
             [1; 32],
             "TCB-1",
             [7; 32],
-            120,
+            issued_at,
         )
         .expect("evidence should be valid")
     }
@@ -1025,6 +1336,118 @@ mod tests {
     }
 
     #[test]
+    fn authenticated_digest_binds_route_source_and_receipt_identity() {
+        let validator = TrustBundleValidator::test_fixture();
+        let bundle = signed_fixture(1);
+        let receipt = validator
+            .validate(&bundle, &evidence(), TrustClockObservation::Trusted(NOW))
+            .expect("fixture bundle should validate");
+        assert_eq!(receipt.bundle_digest(), bundle.signed_digest());
+        assert_eq!(
+            bundle.authenticated_digest().expect("auth digest"),
+            *bundle.signed_digest()
+        );
+        assert_ne!(
+            bundle.canonical_digest().expect("snapshot digest"),
+            *bundle.signed_digest()
+        );
+
+        let mut verifier_id = bundle.clone();
+        verifier_id.verifier_id = "mutated-verifier".to_string();
+        assert_eq!(
+            validator.validate(
+                &verifier_id,
+                &evidence(),
+                TrustClockObservation::Trusted(NOW)
+            ),
+            Err(TrustValidationError::Malformed)
+        );
+
+        let mut version = bundle.clone();
+        version.verifier_version += 1;
+        assert_eq!(
+            validator.validate(&version, &evidence(), TrustClockObservation::Trusted(NOW)),
+            Err(TrustValidationError::Malformed)
+        );
+
+        let mut profile = bundle.clone();
+        profile.authentication_profile = "mutated-profile".to_string();
+        assert_eq!(
+            validator.validate(&profile, &evidence(), TrustClockObservation::Trusted(NOW)),
+            Err(TrustValidationError::Malformed)
+        );
+
+        let mut source = bundle.clone();
+        source.source = TrustBundleSource::Provider;
+        assert_eq!(
+            validator.validate(&source, &evidence(), TrustClockObservation::Trusted(NOW)),
+            Err(TrustValidationError::Malformed)
+        );
+
+        let mut provider = bundle;
+        provider.snapshot.provider = TRUST_PROVIDER_AWS_NITRO.to_string();
+        assert_eq!(
+            validator.validate(&provider, &evidence(), TrustClockObservation::Trusted(NOW)),
+            Err(TrustValidationError::Malformed)
+        );
+    }
+
+    #[test]
+    fn evidence_freshness_enforces_bundle_interval_skew_and_age_boundaries() {
+        let validator = TrustBundleValidator::test_fixture().with_evidence_freshness_policy(
+            TrustEvidenceFreshnessPolicy::new(10, 5).expect("freshness policy"),
+        );
+        let bundle = signed_fixture(1);
+
+        assert!(validator
+            .validate(
+                &bundle,
+                &evidence_at(NOW - 10),
+                TrustClockObservation::Trusted(NOW),
+            )
+            .is_ok());
+        assert_eq!(
+            validator.validate(
+                &bundle,
+                &evidence_at(NOW - 11),
+                TrustClockObservation::Trusted(NOW),
+            ),
+            Err(TrustValidationError::EvidenceStale)
+        );
+        assert!(validator
+            .validate(
+                &bundle,
+                &evidence_at(NOW + 5),
+                TrustClockObservation::Trusted(NOW),
+            )
+            .is_ok());
+        assert_eq!(
+            validator.validate(
+                &bundle,
+                &evidence_at(NOW + 6),
+                TrustClockObservation::Trusted(NOW),
+            ),
+            Err(TrustValidationError::EvidenceNotYetValid)
+        );
+        assert_eq!(
+            validator.validate(
+                &bundle,
+                &evidence_at(99),
+                TrustClockObservation::Trusted(NOW),
+            ),
+            Err(TrustValidationError::EvidenceOutsideBundleValidity)
+        );
+        assert_eq!(
+            validator.validate(
+                &bundle,
+                &evidence_at(400),
+                TrustClockObservation::Trusted(NOW),
+            ),
+            Err(TrustValidationError::EvidenceOutsideBundleValidity)
+        );
+    }
+
+    #[test]
     fn validator_exposes_each_fail_closed_state() {
         let validator = TrustBundleValidator::test_fixture();
         let base = signed_fixture(1);
@@ -1042,10 +1465,7 @@ mod tests {
 
         let mut unknown_provider = base.clone();
         unknown_provider.snapshot.provider = "unknown.provider".to_string();
-        unknown_provider.signed_digest = unknown_provider
-            .snapshot
-            .canonical_digest()
-            .expect("unknown provider digest");
+        resign_fixture(&mut unknown_provider);
         assert_eq!(
             validator.validate(
                 &unknown_provider,
@@ -1057,6 +1477,7 @@ mod tests {
 
         let mut unknown_authentication = base.clone();
         unknown_authentication.verifier_id = "unknown.verifier".to_string();
+        resign_fixture(&mut unknown_authentication);
         assert_eq!(
             validator.validate(
                 &unknown_authentication,
@@ -1068,15 +1489,7 @@ mod tests {
 
         let mut not_yet_valid = signed_fixture(1);
         not_yet_valid.snapshot.not_before = NOW + 1;
-        not_yet_valid.signed_digest = not_yet_valid
-            .snapshot
-            .canonical_digest()
-            .expect("future digest");
-        let digest = *not_yet_valid.signed_digest();
-        not_yet_valid.signature = SigningKey::from_bytes(&[0x42; 32])
-            .sign(&digest)
-            .to_bytes()
-            .to_vec();
+        resign_fixture(&mut not_yet_valid);
         assert_eq!(
             validator.validate(
                 &not_yet_valid,
@@ -1089,12 +1502,7 @@ mod tests {
         let mut expired = signed_fixture(1);
         expired.snapshot.expires_at = NOW;
         expired.snapshot.stale_after = NOW;
-        expired.signed_digest = expired.snapshot.canonical_digest().expect("expired digest");
-        let digest = *expired.signed_digest();
-        expired.signature = SigningKey::from_bytes(&[0x42; 32])
-            .sign(&digest)
-            .to_bytes()
-            .to_vec();
+        resign_fixture(&mut expired);
         assert_eq!(
             validator.validate(&expired, &evidence(), TrustClockObservation::Trusted(NOW)),
             Err(TrustValidationError::Expired)
@@ -1102,12 +1510,7 @@ mod tests {
 
         let mut stale = signed_fixture(1);
         stale.snapshot.stale_after = NOW;
-        stale.signed_digest = stale.snapshot.canonical_digest().expect("stale digest");
-        let digest = *stale.signed_digest();
-        stale.signature = SigningKey::from_bytes(&[0x42; 32])
-            .sign(&digest)
-            .to_bytes()
-            .to_vec();
+        resign_fixture(&mut stale);
         assert_eq!(
             validator.validate(&stale, &evidence(), TrustClockObservation::Trusted(NOW)),
             Err(TrustValidationError::StaleCollateral)
@@ -1230,10 +1633,108 @@ mod tests {
         );
         assert_eq!(
             cache
-                .current_for(TRUST_PROVIDER_ANDROID_KEYMINT)
-                .map(|r| r.sequence()),
-            Some(2)
+                .current_for(
+                    TRUST_PROVIDER_ANDROID_KEYMINT,
+                    TrustClockObservation::Trusted(NOW),
+                )
+                .map(|receipt| receipt.map(|r| r.sequence())),
+            Ok(Some(2))
         );
+    }
+
+    #[test]
+    fn cache_requires_trusted_monotonic_time_and_rejects_expiry_equality() {
+        let cache = TrustBundleCache::new(TrustBundleValidator::test_fixture());
+        cache
+            .install(
+                &signed_fixture(1),
+                &evidence(),
+                TrustClockObservation::Trusted(NOW),
+            )
+            .expect("install fixture");
+        let valid_until = 300;
+
+        assert!(cache
+            .current_for(
+                TRUST_PROVIDER_ANDROID_KEYMINT,
+                TrustClockObservation::Trusted(valid_until - 1),
+            )
+            .expect("current receipt")
+            .is_some());
+        assert_eq!(
+            cache.current_for(
+                TRUST_PROVIDER_ANDROID_KEYMINT,
+                TrustClockObservation::Trusted(valid_until),
+            ),
+            Err(TrustValidationError::Expired)
+        );
+        assert_eq!(
+            cache.current_for(
+                TRUST_PROVIDER_ANDROID_KEYMINT,
+                TrustClockObservation::Trusted(valid_until + 1),
+            ),
+            Err(TrustValidationError::Expired)
+        );
+        assert_eq!(
+            cache.current_for(
+                TRUST_PROVIDER_ANDROID_KEYMINT,
+                TrustClockObservation::Trusted(valid_until - 2),
+            ),
+            Err(TrustValidationError::ClockRollback)
+        );
+        assert_eq!(
+            cache.install(
+                &signed_fixture(2),
+                &evidence(),
+                TrustClockObservation::Trusted(valid_until - 3),
+            ),
+            Err(TrustValidationError::ClockRollback)
+        );
+        assert_eq!(
+            cache.current_for(
+                TRUST_PROVIDER_ANDROID_KEYMINT,
+                TrustClockObservation::Untrusted(valid_until + 2),
+            ),
+            Err(TrustValidationError::ClockUntrusted)
+        );
+        assert_eq!(
+            cache.current_for(
+                TRUST_PROVIDER_ANDROID_KEYMINT,
+                TrustClockObservation::Unavailable,
+            ),
+            Err(TrustValidationError::ClockUnavailable)
+        );
+    }
+
+    #[test]
+    fn refresh_unavailable_never_returns_expired_cached_trust() {
+        let cache = TrustBundleCache::new(TrustBundleValidator::test_fixture());
+        cache
+            .install(
+                &signed_fixture(1),
+                &evidence(),
+                TrustClockObservation::Trusted(NOW),
+            )
+            .expect("install fixture");
+        assert_eq!(
+            cache.mark_refresh_unavailable(),
+            TrustRefreshState::RefreshUnavailable
+        );
+        assert!(cache
+            .current_for(
+                TRUST_PROVIDER_ANDROID_KEYMINT,
+                TrustClockObservation::Trusted(NOW + 1),
+            )
+            .expect("valid cached receipt")
+            .is_some());
+        assert_eq!(
+            cache.current_for(
+                TRUST_PROVIDER_ANDROID_KEYMINT,
+                TrustClockObservation::Trusted(300),
+            ),
+            Err(TrustValidationError::Expired)
+        );
+        assert_eq!(cache.refresh_state(), TrustRefreshState::RefreshUnavailable);
     }
 
     #[test]
@@ -1263,6 +1764,34 @@ mod tests {
 
     #[test]
     fn malformed_and_oversized_content_is_rejected() {
+        assert!(TrustBundleSnapshot::new(
+            TRUST_PROVIDER_ANDROID_KEYMINT,
+            1,
+            90,
+            100,
+            100,
+            100,
+            [8; 32],
+            vec!["TCB-1".to_string()],
+            vec![[7; 32]],
+            Vec::new(),
+            true,
+        )
+        .is_err());
+        assert!(TrustBundleSnapshot::new(
+            TRUST_PROVIDER_ANDROID_KEYMINT,
+            1,
+            90,
+            100,
+            200,
+            100,
+            [8; 32],
+            vec!["TCB-1".to_string()],
+            vec![[7; 32]],
+            Vec::new(),
+            true,
+        )
+        .is_err());
         let mut oversized = snapshot(1, true);
         oversized.acceptable_tcb = (0..=MAX_TCB_ENTRIES)
             .map(|index| format!("TCB-{index}"))

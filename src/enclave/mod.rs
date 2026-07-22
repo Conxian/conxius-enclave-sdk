@@ -9,9 +9,8 @@ pub mod replay_guard;
 pub mod trust;
 
 pub use proofs::{
-    authorize_settlement_with_durable_store, authorize_settlement_with_proofs,
-    authorize_value_bearing_with_durable_store, authorize_value_bearing_with_proofs,
-    deserialize_proof_bundle_json, sign_value_bearing_with_proof_authorization,
+    authorize_settlement_with_durable_store, authorize_value_bearing_with_durable_store,
+    deserialize_proof_bundle_json, sign_value_bearing_with_proof_authorization_and_durable_store,
     ProofBoundValueBearingAuthorization, ProofBundle, ProofEnvelope, ProofKind, ProofPolicy,
     ProofReplayBindingContext, ProofReplayKey, ProofRequirement, ProofVerificationContext,
     ProofVerifier, ProofVerifierRegistry, ProofVerifierStatus, UnlistedProofPolicy,
@@ -19,13 +18,14 @@ pub use proofs::{
     PHONE_PROOF_VERIFIER_ID, PROOF_CONTEXT_DOMAIN, PROOF_ENVELOPE_DOMAIN, PROOF_ENVELOPE_VERSION,
     PROOF_POLICY_DOMAIN, PROOF_REPLAY_DOMAIN, SERVER_PROOF_VERIFIER_ID, SETTLEMENT_PROOF_AUDIENCE,
     SETTLEMENT_PROOF_PURPOSE, TEE_PROOF_VERIFIER_ID, TPM_PROOF_VERIFIER_ID, USER_PROOF_VERIFIER_ID,
+    VALUE_BEARING_OPERATION_REPLAY_DOMAIN,
 };
 
 pub use trust::{
     deserialize_trust_bundle_json, TrustBundleCache, TrustBundleEnvelope, TrustBundleSnapshot,
     TrustBundleSource, TrustBundleValidator, TrustBundleVerifier, TrustBundleVerifierRegistry,
-    TrustBundleVerifierStatus, TrustClockObservation, TrustEvidence, TrustRefreshOutcome,
-    TrustRefreshState, TrustValidationError, TrustValidationReceipt,
+    TrustBundleVerifierStatus, TrustClockObservation, TrustEvidence, TrustEvidenceFreshnessPolicy,
+    TrustRefreshOutcome, TrustRefreshState, TrustValidationError, TrustValidationReceipt,
     MAX_TRUST_BUNDLE_TRANSPORT_BYTES, TRUST_BUNDLE_DOMAIN, TRUST_BUNDLE_SCHEMA_VERSION,
     TRUST_PROVIDER_AMD_SEV_SNP, TRUST_PROVIDER_ANDROID_KEYMINT, TRUST_PROVIDER_AWS_NITRO,
     TRUST_PROVIDER_FIDO, TRUST_PROVIDER_INTEL_DCAP, TRUST_PROVIDER_TPM, TRUST_VERIFIER_AMD_SEV_SNP,
@@ -48,7 +48,7 @@ use crate::enclave::attestation::{
 };
 #[cfg(test)]
 use crate::enclave::attestation::{AttestationExtension, AttestationLevel};
-use crate::enclave::replay_guard::{ReplayGuard, ReplayGuardError};
+use crate::enclave::replay_guard::{key_identity_digest, ReplayGuard, ReplayGuardError};
 use crate::{ConclaveError, ConclaveResult};
 use ed25519_dalek::Verifier as _;
 use serde::{Deserialize, Serialize};
@@ -87,6 +87,14 @@ pub enum SigningAlgorithm {
 }
 
 impl SigningAlgorithm {
+    pub(crate) fn canonical_token(self) -> &'static str {
+        match self {
+            Self::EcdsaSecp256k1 => "ecdsa-secp256k1",
+            Self::SchnorrSecp256k1 => "schnorr-secp256k1",
+            Self::Ed25519 => "ed25519",
+        }
+    }
+
     fn canonical_tag(self) -> u8 {
         match self {
             Self::EcdsaSecp256k1 => 1,
@@ -338,6 +346,13 @@ impl SignerKeyBinding {
         append_len_prefixed(output, self.key_id.as_bytes())?;
         append_len_prefixed(output, self.derivation_path.as_bytes())?;
         append_len_prefixed(output, &self.public_key)
+    }
+
+    pub fn replay_identity_digest(&self) -> ConclaveResult<[u8; 32]> {
+        let mut canonical = Vec::new();
+        append_len_prefixed(&mut canonical, b"CONXIAN-SIGNER-KEY-IDENTITY/v1")?;
+        self.append_canonical(&mut canonical)?;
+        key_identity_digest(&canonical).map_err(|_| ConclaveError::InvalidPayload)
     }
 }
 
@@ -698,7 +713,7 @@ impl ValueBearingSignResponse {
         Self::from_provider_at_time(request, response, capability, now_secs)
     }
 
-    fn from_provider_at_time(
+    pub(crate) fn from_provider_at_time(
         request: &ValueBearingSignRequest,
         response: SignResponse,
         capability: SignerCapability,

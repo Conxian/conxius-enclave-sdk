@@ -41,6 +41,16 @@ fn hash_binding_component(label: &str, value: &[u8]) -> Result<[u8; 32], ReplayB
     Ok(Sha256::digest(canonical).into())
 }
 
+pub(crate) fn key_identity_digest(key_identity: &[u8]) -> Result<[u8; 32], ReplayBindingError> {
+    if key_identity.is_empty() {
+        return Err(ReplayBindingError::EmptyInput);
+    }
+    if key_identity.len() > MAX_BINDING_KEY_IDENTITY_BYTES {
+        return Err(ReplayBindingError::OversizedInput);
+    }
+    hash_binding_component("key-identity", key_identity)
+}
+
 /// Construction failures for the canonical replay binding. Raw nonce, key
 /// identity, and evidence bytes are hashed and never retained by the binding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -61,6 +71,7 @@ pub enum ReplayBindingError {
 /// and evidence cross the storage boundary.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ReplayBinding {
+    domain: String,
     provider: String,
     proof_subject: String,
     proof_mechanism: String,
@@ -79,6 +90,7 @@ impl std::fmt::Debug for ReplayBinding {
         formatter
             .debug_struct("ReplayBinding")
             .field("digest", &self.digest().ok())
+            .field("domain", &self.domain)
             .field("provider", &self.provider)
             .field("proof_subject", &self.proof_subject)
             .field("proof_mechanism", &self.proof_mechanism)
@@ -109,12 +121,45 @@ impl ReplayBinding {
         proof_id: Option<impl Into<String>>,
         audience: Option<impl Into<String>>,
     ) -> Result<Self, ReplayBindingError> {
+        Self::new_with_domain(
+            REPLAY_BINDING_DOMAIN,
+            provider,
+            proof_subject,
+            proof_mechanism,
+            nonce,
+            operation_digest,
+            purpose,
+            policy_digest,
+            key_identity,
+            evidence_digest,
+            proof_id,
+            audience,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_domain(
+        domain: impl Into<String>,
+        provider: impl Into<String>,
+        proof_subject: impl Into<String>,
+        proof_mechanism: impl Into<String>,
+        nonce: &[u8],
+        operation_digest: [u8; 32],
+        purpose: impl Into<String>,
+        policy_digest: [u8; 32],
+        key_identity: &[u8],
+        evidence_digest: [u8; 32],
+        proof_id: Option<impl Into<String>>,
+        audience: Option<impl Into<String>>,
+    ) -> Result<Self, ReplayBindingError> {
+        let domain = domain.into();
         let provider = provider.into();
         let proof_subject = proof_subject.into();
         let proof_mechanism = proof_mechanism.into();
         let purpose = purpose.into();
         let proof_id = proof_id.map(Into::into);
         let audience = audience.map(Into::into);
+        validate_binding_identifier(&domain)?;
         validate_binding_identifier(&provider)?;
         validate_binding_identifier(&proof_subject)?;
         validate_binding_identifier(&proof_mechanism)?;
@@ -136,6 +181,7 @@ impl ReplayBinding {
         }
 
         Ok(Self {
+            domain,
             provider,
             proof_subject,
             proof_mechanism,
@@ -143,7 +189,7 @@ impl ReplayBinding {
             operation_digest,
             purpose,
             policy_digest,
-            key_identity_digest: hash_binding_component("key-identity", key_identity)?,
+            key_identity_digest: key_identity_digest(key_identity)?,
             evidence_digest,
             proof_id,
             audience,
@@ -152,6 +198,10 @@ impl ReplayBinding {
 
     pub fn provider(&self) -> &str {
         &self.provider
+    }
+
+    pub fn domain(&self) -> &str {
+        &self.domain
     }
 
     pub fn proof_subject(&self) -> &str {
@@ -196,7 +246,7 @@ impl ReplayBinding {
 
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, ReplayBindingError> {
         let mut output = Vec::new();
-        append_len_prefixed(&mut output, REPLAY_BINDING_DOMAIN.as_bytes())?;
+        append_len_prefixed(&mut output, self.domain.as_bytes())?;
         output.extend_from_slice(&REPLAY_BINDING_VERSION.to_be_bytes());
         append_len_prefixed(&mut output, self.provider.as_bytes())?;
         append_len_prefixed(&mut output, self.proof_subject.as_bytes())?;
@@ -229,11 +279,7 @@ impl ReplayBinding {
     }
 
     pub fn as_key(&self) -> Result<String, ReplayBindingError> {
-        Ok(format!(
-            "{}:{}",
-            REPLAY_BINDING_DOMAIN,
-            hex::encode(self.digest()?)
-        ))
+        Ok(format!("{}:{}", self.domain, hex::encode(self.digest()?)))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -250,10 +296,43 @@ impl ReplayBinding {
         proof_id: Option<String>,
         audience: Option<String>,
     ) -> Result<Self, ReplayBindingError> {
+        Self::from_component_digests_with_domain(
+            REPLAY_BINDING_DOMAIN,
+            provider,
+            proof_subject,
+            proof_mechanism,
+            nonce_digest,
+            operation_digest,
+            purpose,
+            policy_digest,
+            key_identity_digest,
+            evidence_digest,
+            proof_id,
+            audience,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn from_component_digests_with_domain(
+        domain: impl Into<String>,
+        provider: impl Into<String>,
+        proof_subject: impl Into<String>,
+        proof_mechanism: impl Into<String>,
+        nonce_digest: [u8; 32],
+        operation_digest: [u8; 32],
+        purpose: impl Into<String>,
+        policy_digest: [u8; 32],
+        key_identity_digest: [u8; 32],
+        evidence_digest: [u8; 32],
+        proof_id: Option<String>,
+        audience: Option<String>,
+    ) -> Result<Self, ReplayBindingError> {
+        let domain = domain.into();
         let provider = provider.into();
         let proof_subject = proof_subject.into();
         let proof_mechanism = proof_mechanism.into();
         let purpose = purpose.into();
+        validate_binding_identifier(&domain)?;
         validate_binding_identifier(&provider)?;
         validate_binding_identifier(&proof_subject)?;
         validate_binding_identifier(&proof_mechanism)?;
@@ -265,6 +344,7 @@ impl ReplayBinding {
             validate_binding_identifier(audience)?;
         }
         Ok(Self {
+            domain,
             provider,
             proof_subject,
             proof_mechanism,
@@ -284,6 +364,7 @@ impl ReplayBinding {
 /// digest is retained by the replay store.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReplayReservation {
+    domain: String,
     binding_digest: [u8; 32],
     retain_until: u64,
 }
@@ -291,6 +372,7 @@ pub struct ReplayReservation {
 impl ReplayReservation {
     pub fn new(binding: &ReplayBinding, retain_until: u64) -> Result<Self, ReplayBindingError> {
         Ok(Self {
+            domain: binding.domain.clone(),
             binding_digest: binding.digest()?,
             retain_until,
         })
@@ -298,6 +380,7 @@ impl ReplayReservation {
 
     pub fn from_digest(binding_digest: [u8; 32], retain_until: u64) -> Self {
         Self {
+            domain: REPLAY_BINDING_DOMAIN.to_string(),
             binding_digest,
             retain_until,
         }
@@ -316,11 +399,7 @@ impl ReplayReservation {
     }
 
     fn encoded_key(&self) -> String {
-        format!(
-            "{}:{}",
-            REPLAY_BINDING_DOMAIN,
-            hex::encode(self.binding_digest)
-        )
+        format!("{}:{}", self.domain, hex::encode(self.binding_digest))
     }
 }
 
@@ -533,7 +612,7 @@ impl ReplayGuard {
             }
 
             let key = key.as_ref();
-            if key.is_empty() || key.len() > MAX_REPLAY_KEY_BYTES || retain_until < now_secs {
+            if key.is_empty() || key.len() > MAX_REPLAY_KEY_BYTES || retain_until <= now_secs {
                 return Err(ReplayGuardError::InvalidInput);
             }
             requested.push((key.to_string(), retain_until));
@@ -591,9 +670,9 @@ impl ReplayGuard {
 
     fn prune_expired_entries(entries: &mut HashMap<String, ReplayEntry>, now_secs: u64) {
         entries.retain(|_, entry| {
-            // Retain through the inclusive horizon. A clock rollback also
-            // keeps future-dated entries live until the clock catches up.
-            now_secs <= entry.retain_until
+            // Expiry is exclusive: now >= retain_until rejects the entry. A
+            // clock rollback is rejected before pruning and cannot revive it.
+            now_secs < entry.retain_until
         });
     }
 }
@@ -611,7 +690,7 @@ impl ReplayStore for ReplayGuard {
         if !reservation.has_valid_digest() {
             return Err(ReplayStoreError::InvalidKey);
         }
-        if reservation.retain_until < now_secs {
+        if reservation.retain_until <= now_secs {
             return Err(ReplayStoreError::InvalidRetention);
         }
         match self.try_check_and_record_batch_with_horizons(
@@ -640,7 +719,7 @@ impl ReplayStore for ReplayGuard {
                         ReplayBatchFailure::InvalidKey,
                     ));
                 }
-                if reservation.retain_until < now_secs {
+                if reservation.retain_until <= now_secs {
                     return Err(ReplayStoreError::AtomicBatchFailure(
                         ReplayBatchFailure::InvalidRetention,
                     ));
@@ -695,6 +774,21 @@ mod tests {
 
         assert!(guard.check_and_record("attestation-1", 100));
         assert!(guard.check_and_record("attestation-1", 111));
+    }
+
+    #[test]
+    fn retention_horizon_is_exclusive_at_equality() {
+        let guard = ReplayGuard::new(10, 128);
+        let reservation = ReplayReservation::new(&binding(), 110).expect("reservation");
+
+        assert_eq!(
+            guard.consume_once(&reservation, 100),
+            Ok(ReplayConsumeOutcome::Accepted)
+        );
+        assert_eq!(
+            guard.consume_once(&reservation, 110),
+            Err(ReplayStoreError::InvalidRetention)
+        );
     }
 
     #[test]

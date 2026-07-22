@@ -107,13 +107,21 @@ canonical intent hash and the `conxian/settlement/v1` operation domain.
 
 The current manager/rail replay authorization is process-local. It is consumed
 before downstream rail execution and is not a distributed replay protocol. The
+legacy proof authorization helpers that accept `&ReplayGuard` are test-only
+containment APIs and are not exported as production public helpers. The
 additive `ReplayStore` contract and canonical `ReplayBinding` are documented in
 [`TRUST_REPLAY_FOUNDATION.md`](./TRUST_REPLAY_FOUNDATION.md). The new durable
 proof/authorization entry points reject process-local stores, but no durable
-store implementation is shipped. Restart-safe, multi-replica,
-provider-coordinated, or cross-region replay semantics are **unsupported**
 until specified, implemented, independently reviewed, and tested against the
 deployment boundary.
+store implementation is shipped. Durable proof authorization also requires the
+exact canonical production policy before issuing its carrier. Final proof-aware
+signing requires the caller to pass the same durable-store contract again and
+consumes a distinct, complete operation replay binding immediately before
+provider signing; the carrier is one-shot and signer-key-bound. Restart-safe,
+multi-replica, provider-coordinated, or cross-region replay semantics are
+**unsupported** until specified, implemented, independently reviewed, and tested
+against the deployment boundary.
 
 ## 6. Trust roots and collateral
 
@@ -161,6 +169,10 @@ The following conditions reject value-bearing authorization:
   atomic replay outcome, or exact release evidence where the deployment
   requires it.
 
+Proof and trust validity use an exclusive expiry convention: `now >=
+expires_at` rejects the item. Replay reservations use the same convention with
+`retain_until`.
+
 Errors expose bounded diagnostic text and identifiers only. Raw evidence,
 secrets, credentials, private keys, and privileged operational details are not
 part of the public policy surface.
@@ -171,7 +183,7 @@ part of the public policy surface.
 | --- | --- | --- |
 | Policy digest, exact requirement digests, all-required composition | **Implemented, beta/conditional** | Repository code and negative/unit tests cover the composer and typed binding. |
 | Request/response/rail/final-dispatch policy-digest checks | **Implemented, beta/conditional** | The path fails closed on independently derived digest mismatch. |
-| Provider-neutral trust bundle, authenticated digest/verifier boundary, canonical replay binding, and replay-store contract | **Implemented, beta/conditional** | Versioned types, bounded validation, explicit unavailable production routes, local atomic contract tests, and additive durable-gated proof APIs exist; provider roots, durable backends, and deployment evidence remain open. |
+| Provider-neutral trust bundle, authenticated digest/verifier boundary, canonical replay binding, replay-store contract, and durable final-signing boundary | **Implemented, beta/conditional** | Versioned types, bounded validation, explicit unavailable production routes, local atomic contract tests, exact-policy issuance, and durable-gated final signing exist; provider roots, a real durable backend, and deployment evidence remain open. |
 | TLS identity, WebAuthn authorization, FIDO provenance, TPM, Android, Apple, SGX, TDX, SEV-SNP, Nitro, PSA, CCA | **Research/design only** | Provider-specific verification is not implemented or production-supported. |
 | Vendor roots, collateral, revocation, runtime/provider integration | **Unsupported** | No exact repository evidence chain exists. |
 | Distributed replay, independent review, release artifact/provenance, production support | **Unsupported** | These gates remain open and are not inferred from local tests or documentation. |
