@@ -87,10 +87,13 @@ The canonical value-bearing rail binding is:
 2. The canonical value-bearing path requires the exact six-proof production
    policy: server identity, user authorization, phone/device attestation, TEE
    attestation, FIDO2/WebAuthn assertion, and TPM quote. It verifies every
-   independently typed envelope and rejects clock rollback. The production
-   registry is intentionally unavailable, so production authorization fails
-   closed before signing. Process-local proof helpers remain test-only
-   containment paths.
+   independently typed envelope and rejects clock rollback. The opportunity
+   path performs this provider-verifier preflight without replay consumption
+   before signer key lookup; durable authorization then repeats verification
+   and consumes durable proof reservations after key binding is known. The
+   production registry is intentionally unavailable, so production
+   authorization fails closed before signing. Process-local proof helpers
+   remain test-only containment paths.
 3. Legacy rail requests retain the complete expected `ProofSetPolicy`, while
    durable proof-aware requests carry an exact `expected_proof_policy_digest()`
    commitment. `ValueBearingSignRequest::with_proof_authorization` also binds
