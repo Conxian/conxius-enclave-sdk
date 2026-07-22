@@ -5,6 +5,33 @@ This document tracks the resolution of production-path logic, architectural gaps
 
 The [machine-readable capability evidence](./capability-evidence.json) and generated [capability matrix](./CAPABILITY_MATRIX.md) are authoritative for the distinction between API presence, implementation, integration, independent review, and production support. A completed structural/API task below does not promote a capability to production support.
 
+## Normalized 2026-07-22 shortlist
+
+The scored shortlist below is a prioritization aid, not an evidence grade or
+support decision. Scores preserve the 75-point planning scale used for issue
+#240 and its follow-on lanes.
+
+| Gap ID | Scope | Score | Dependency phase |
+| --- | --- | ---: | --- |
+| `G240-TC` | Provider-neutral trust/collateral contract | 73 | Phase A — contract and negative evidence |
+| `G240-RP` | Durable replay contract and uncertainty semantics | 66 | Phase A — contract; backend selection follows |
+| `G-DOC` | Canonical documentation and evidence normalization | 65 | Phase A — current residual gates |
+| `G200-WASM` | WASM secret boundary and runtime/platform evidence | 61 | Phase B — provider/runtime evidence |
+| `G241-AP` | Android KeyMint/StrongBox authorization and Play Integrity | 59 | Phase B — Android provider lane |
+| `G198-AM` | Asset metadata and account-model containment | 57 | Phase B — protocol/provider lane |
+| `G242-NP` | AWS Nitro attestation and KMS release boundary | 56 | Phase B — Nitro provider lane |
+| `G199-REL` | Reproducible release, SBOM, and provenance evidence | 54 | Phase C — exact artifact gate |
+| `G198-AA` | Account abstraction boundary | 53 | Phase B — protocol/provider lane |
+| `G198-CCTP` | CCTP attestation and cross-chain authorization | 52 | Phase B — protocol/provider lane |
+| `G-live-AP` | Live Android/Nitro runtime evidence | 45 | Phase B — provider/runtime evidence |
+| `G202-REV` | Independent review and release acceptance | 44 | Phase C — reviewed artifact gate |
+
+Phase A closes only the provider-neutral contract slice represented by
+`G240-TC`, `G240-RP`, and the documentation portion of `G-DOC`. It does not
+close provider, runtime, backend, independent-review, release, or production
+support gates. The dependency order is **contract → provider/runtime → durable
+deployment → exact artifact/review → scoped support decision**.
+
 > **2026-07-21 status correction:** Entries below that describe FROST,
 > Fedimint, Ark, or BitVM2 work as implemented or complete are historical
 > structural/API records. They are superseded for current support decisions by

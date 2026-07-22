@@ -5,6 +5,25 @@ This document defines the module boundaries and interface contracts for the Conc
 For the cycle-safe shared control-model boundary with `lib-conxian-core`, see
 [Core Control-Model Adapter Boundary](./CONTROL_MODEL_ADAPTER_BOUNDARY.md).
 
+## Phase A trust and replay boundary
+
+The provider-neutral trust contract lives in `src/enclave/trust.rs` and is
+separate from provider adapters and the existing proof modules. Untrusted
+`TrustAnchor`, `TrustBundle`, `CollateralSnapshot`, and `AttestationEvidence`
+transport uses bounded/versioned fields and deterministic SHA-256 encodings;
+JSON is never a signed or digest encoding. Authenticated trust/collateral
+material is constructor-controlled, and only normalized, privacy-minimized
+`AttestationResult` data may cross into policy/replay authorization.
+
+`src/enclave/durable_replay.rs` defines a backend-neutral synchronous
+`consume_once` contract. It does not replace the process-local `ReplayGuard`,
+does not implement a durable backend, and does not call `EnclaveManager`,
+`RailProxy`, signing, or settlement. The wrapper uses a trusted internal clock
+and authorizes only a consumed or backend-confirmed same-request idempotent
+outcome. Production trust authentication, provider verification, and durable
+replay are unavailable until provider/runtime, deployment, independent-review,
+and exact-artifact evidence is complete.
+
 The adapter API distinguishes wire representation from authorization: tier
 round trips use the explicitly named representation helpers, while
 `project_production_rail_policy` requires a Core verification class and

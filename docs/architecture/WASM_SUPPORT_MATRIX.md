@@ -107,3 +107,10 @@ evidence only.
 
 Until then, the matrix remains explicitly unsupported and the repository's
 beta/conditional posture is unchanged. See [issue #200](https://github.com/Conxian/conxius-enclave-sdk/issues/200).
+
+> **Evidence-path note:** The repository currently has separate WASM workflow
+> and Playwright/runtime evidence paths. They are intentionally noted here but
+> not consolidated in Issue #240 Phase A. Any future consolidation must retain
+> exact commit/artifact/runtime provenance and be handled in the dedicated
+> WASM/release lanes (#200 and #199); duplicate paths are not evidence of
+> additional support.

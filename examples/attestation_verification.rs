@@ -9,10 +9,10 @@ fn main() {
 
     // Trust Tiers
     println!("Trust Tiers:");
-    println!("  - CloudTEE: Production (Intel SGX / AMD SEV-SNP) ✓");
-    println!("  - StrongBox: Production (ARM PSA) ✓");
-    println!("  - TEE: Development only");
-    println!("  - Software: Blocked for production ✗\n");
+    println!("  - CloudTEE: Conditional vocabulary; provider verifier unavailable");
+    println!("  - StrongBox: Conditional vocabulary; provider verifier unavailable");
+    println!("  - TEE: Development/test evidence only");
+    println!("  - Software: Blocked for production\n");
 
     // Verification Flow
     println!("Verification Flow:");
@@ -30,11 +30,14 @@ fn main() {
 
     // Freshness Check Example
     println!("Freshness Validation:");
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let attestation_time = now - 30; // 30 seconds ago
+    let now = match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(duration) => duration.as_secs(),
+        Err(_) => {
+            println!("  Trusted clock unavailable; fail closed");
+            return;
+        }
+    };
+    let attestation_time = now.saturating_sub(30); // 30 seconds ago
     let freshness_window = 60_u64;
     let is_fresh = (now - attestation_time) <= freshness_window;
     println!("  Current: {}", now);
@@ -43,6 +46,10 @@ fn main() {
         "  Fresh: {} (within {}s window)\n",
         is_fresh, freshness_window
     );
+
+    println!("Provider note: this example is functional documentation only.");
+    println!("It does not verify a vendor root, provider collateral, hardware,");
+    println!("KMS release, durable replay, or production readiness.\n");
 
     println!("Example completed successfully!");
 }

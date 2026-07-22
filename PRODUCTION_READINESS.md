@@ -9,6 +9,15 @@ Merged PR [#205](https://github.com/Conxian/conxius-enclave-sdk/pull/205), merge
 
 Phase A of CON-1512 adds an explicit proof-factor taxonomy and fail-closed composition boundary for server identity, user authorization, phone/device attestation, TEE attestation, FIDO2/WebAuthn assertions, and TPM quotes. These are independently typed API/composition categories only: the production verifier registry is intentionally unavailable, test fixtures are test-only, and no category is production-supported until concrete provider roots/collateral, runtime integration, replay coordination, independent review, and exact release artifacts exist. Existing `DeviceIntegrityReport` remains the current device/TEE adapter and is never silently promoted into the new proof categories.
 
+Issue #240 Phase A additionally defines the provider-neutral trust/collateral,
+normalized-result, audit-redaction, and durable-replay contracts. The new
+transport types and negative/fixture tests are containment evidence only. The
+production authenticator, provider verifier, and durable replay store remain
+explicitly unavailable; the contract's revision/rollback fields are stateless,
+and the local fake replay store is test-only. No Android, Nitro, provider,
+hardware, persistent rollback, distributed replay, WASM, release, independent
+review, or production-support gate is checked by this phase.
+
 Issue #145 is a **historical CI/CD baseline**, not current release-acceptance evidence. Repository-control work for toolchain, dependency, publisher, scanning, SBOM, provenance, and exact-artifact evidence is tracked by [issue #199](https://github.com/Conxian/conxius-enclave-sdk/issues/199); independent review and release acceptance remain open in [issue #202](https://github.com/Conxian/conxius-enclave-sdk/issues/202). Historical issues #145, #154, #169, #172, #173, #174, and #180 provide context only and must not be used as current production proof.
 
 ---

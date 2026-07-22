@@ -5,6 +5,34 @@
 > **Priority Order**: P1 → P2 → P3
 > **Knowledge Base**: v0.4.2
 
+## 2026-07-22 Issue #240 Phase A handoff
+
+Phase A is the provider-neutral trust and durable-replay contract slice. It
+adds bounded/versioned transport types, deterministic non-JSON canonical
+encodings, explicit status semantics, constructor-controlled verified material,
+privacy-minimized normalized results/audit metadata, and a contract-only
+durable replay wrapper. It does **not** provide an Android or Nitro verifier,
+provider registration, a durable backend, WASM support, settlement dispatch,
+independent review, release artifacts, or production support.
+
+Current residual gates:
+
+1. Select and pin one provider (Android or Nitro), its official verifier/root/
+   collateral/status inputs, runtime, and independent vectors.
+2. Implement provider-specific verification and hardware/runtime integration;
+   keep `productionSupport` unchanged until the full evidence chain exists.
+3. Select and review a durable replay deployment with atomicity, restart,
+   replica, regional recovery, and uncertain-commit evidence. The Phase A
+   interface and local fake store are not a backend.
+4. Consolidate the duplicate WASM workflow/Playwright evidence paths only in
+   the dedicated #200/#199 lane; compilation and negative runtime tests remain
+   non-promotion evidence.
+5. Attach exact CI, artifact, SBOM/provenance, and independent-review evidence
+   for the exact code ref before changing any capability support decision.
+
+The canonical contract is
+[`docs/architecture/ISSUE-240_PHASE_A_CONTRACT.md`](docs/architecture/ISSUE-240_PHASE_A_CONTRACT.md).
+
 ## 2026-07-22 PR #237 follow-up
 
 The proof-policy hardening and provider research boundary are recorded in
@@ -19,7 +47,8 @@ and artifact evidence is available.
 Immediate next work is provider-specific evidence only: choose one provider
 scope, pin its official verifier/runtime and roots/collateral, add independent
 vectors and negative tests, and attach exact CI/artifact/review evidence before
-changing any production-support status.
+changing any production-support status. Phase A's contract is a prerequisite,
+not evidence that this provider work is complete.
 
 ## Historical ordered end-of-sprint follow-up (2026-07-20)
 
