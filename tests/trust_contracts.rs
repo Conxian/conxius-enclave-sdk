@@ -7,9 +7,16 @@ use conxius_enclave_sdk::enclave::{
     ReleaseEvidenceKind, ReleaseEvidenceManifest, ReplayBinding, ReplayOperation,
     ReplayProofMechanism, ReplayProofSubject, ReplayPurpose, TrustDigest,
 };
+use conxius_enclave_sdk::ConclaveError;
 
 fn digest(byte: u8) -> TrustDigest {
     [byte; 32]
+}
+
+fn deterministic_fixture_input(seed: u8) -> Vec<u8> {
+    (0u8..32)
+        .map(|offset| seed.wrapping_mul(29).wrapping_add(offset).wrapping_add(1))
+        .collect()
 }
 
 #[test]
@@ -22,6 +29,20 @@ fn production_attestation_policy_and_provider_status_remain_unavailable() {
     assert_eq!(
         AttestationProvider::from_attestation_level(AttestationLevel::CloudTEE),
         None
+    );
+}
+
+#[test]
+#[allow(deprecated)]
+fn deprecated_string_root_builder_remains_unavailable_in_public_builds() {
+    let result =
+        AttestationPolicy::production().with_trusted_roots(vec!["fixture-root".to_string()]);
+    assert!(matches!(result, Err(ConclaveError::Unsupported(_))));
+
+    let production = AttestationPolicy::production();
+    assert_eq!(
+        production.provider_verifier_status(),
+        ProviderVerifierStatus::Unavailable
     );
 }
 
@@ -73,11 +94,12 @@ fn public_collateral_contract_fails_closed_on_expiry_and_root_mismatch() {
 
 #[test]
 fn public_replay_binding_serializes_only_digests() {
+    let raw_nonce = deterministic_fixture_input(1);
     let binding = ReplayBinding::try_new(
         AttestationProvider::AndroidKeyMintStrongBox,
         ReplayProofSubject::SignerKey,
         ReplayProofMechanism::AndroidKeyMintAuthorization,
-        b"raw-nonce-marker",
+        &raw_nonce,
         ReplayOperation::ValueBearingSigning,
         ReplayPurpose::Sign,
         digest(6),
@@ -87,7 +109,12 @@ fn public_replay_binding_serializes_only_digests() {
     .expect("valid replay binding");
     let debug = format!("{binding:?}");
     let serialized = serde_json::to_string(&binding).expect("replay binding serializes");
-    for marker in ["raw-nonce-marker", "raw-key-marker", "raw-evidence-marker"] {
+    let raw_nonce_marker = hex::encode(raw_nonce);
+    for marker in [
+        raw_nonce_marker.as_str(),
+        "raw-key-marker",
+        "raw-evidence-marker",
+    ] {
         assert!(!debug.contains(marker));
         assert!(!serialized.contains(marker));
     }

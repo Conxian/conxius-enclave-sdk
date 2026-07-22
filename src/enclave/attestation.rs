@@ -333,9 +333,10 @@ enum ProviderVerifier {
 /// Until a provider-specific verifier is implemented, production verification
 /// remains unavailable and fails closed.
 ///
-/// Compatibility note: the former public string-root builder was intentionally
-/// removed. A future provider implementation must expose typed authenticated
-/// verifier configuration instead of restoring that API.
+/// Compatibility note: the former public string-root builder remains as a
+/// deprecated fail-closed shim. A future provider implementation must expose
+/// typed authenticated verifier configuration at the provider-neutral
+/// collateral/provider verifier boundary instead.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AttestationPolicy {
     allowed_levels: Vec<AttestationLevel>,
@@ -428,6 +429,32 @@ impl AttestationPolicy {
         self.max_age_secs = max_age_secs;
         self.max_future_skew_secs = max_future_skew_secs;
         Ok(self)
+    }
+
+    /// Deprecated compatibility wrapper for the former string-root
+    /// configuration API.
+    ///
+    /// Normal library builds reject arbitrary roots and never install them.
+    /// Unit-test builds retain the prior fixture-only behavior through the
+    /// explicitly test-only verifier, so this compatibility surface cannot
+    /// broaden production trust.
+    #[deprecated(
+        since = "2.0.12",
+        note = "Use the provider-neutral authenticated collateral/provider verifier boundary; arbitrary string roots are not a production configuration surface."
+    )]
+    pub fn with_trusted_roots(self, trusted_roots: Vec<String>) -> ConclaveResult<Self> {
+        #[cfg(test)]
+        {
+            self.with_test_trusted_roots(trusted_roots)
+        }
+
+        #[cfg(not(test))]
+        {
+            let _ = trusted_roots;
+            Err(ConclaveError::Unsupported(
+                "arbitrary attestation roots require an unavailable provider verifier".to_string(),
+            ))
+        }
     }
 
     pub fn with_required_purpose(mut self, purpose: AttestationPurpose) -> Self {

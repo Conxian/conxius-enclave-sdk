@@ -5,7 +5,9 @@
 //! backend, or promote any capability to production support. The existing
 //! [`super::replay_guard::ReplayGuard`] remains a process-local compatibility
 //! guard; [`NonProductionInMemoryReplayStore`] is a test/development adapter
-//! and is not wired into a production path.
+//! and is not wired into a production path. That adapter retains consumed
+//! binding tombstones for the process lifetime, independently of reservation
+//! expiry; production retention and storage remain architecture decisions.
 
 use super::attestation::AttestationLevel;
 use serde::{Deserialize, Serialize};
@@ -835,8 +837,10 @@ impl ReplayReservation {
 /// behavior, and fail closed with [`DurableReplayError::Unavailable`],
 /// [`DurableReplayError::Uncertain`], [`DurableReplayError::BackendRollback`],
 /// or [`DurableReplayError::RecoveryRequired`] whenever the outcome cannot be
-/// proven. This contract deliberately does not choose a database, replay
-/// owner, retention policy, or deployment topology.
+/// proven. Reservation validity is separate from retention of a consumed
+/// binding identity after that validity expires. This contract deliberately
+/// does not choose a database, replay owner, retention policy, or deployment
+/// topology.
 pub trait DurableReplayStore: Send + Sync {
     /// Atomically consumes every reservation or consumes none of the new
     /// reservations. Implementations may advance internal clock metadata on a
@@ -859,18 +863,22 @@ pub trait DurableReplayStore: Send + Sync {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct InMemoryReplayEntry {
-    expires_at: u64,
-}
+struct InMemoryReplayTombstone;
 
 #[derive(Debug, Default)]
 struct InMemoryReplayState {
-    entries: HashMap<TrustDigest, InMemoryReplayEntry>,
+    /// Consumed binding identities are retained independently of reservation
+    /// expiry so a caller cannot reuse a digest by submitting a later expiry.
+    entries: HashMap<TrustDigest, InMemoryReplayTombstone>,
     last_observed_secs: Option<u64>,
 }
 
 /// Explicitly non-production, process-local replay adapter for tests and
 /// development. It is not wired into signing, settlement, or provider paths.
+/// A successfully consumed binding remains as a process-lifetime tombstone
+/// after its reservation expires. That is intentionally distinct from
+/// reservation validity; production retention and storage policy remain an
+/// architecture decision.
 #[derive(Debug, Default)]
 pub struct NonProductionInMemoryReplayStore {
     state: Mutex<InMemoryReplayState>,
@@ -920,19 +928,13 @@ impl DurableReplayStore for NonProductionInMemoryReplayStore {
         // passes every check, so a rejected batch cannot partially insert.
         state.last_observed_secs = Some(now_secs);
         let mut next_entries = state.entries.clone();
-        next_entries.retain(|_, entry| entry.expires_at > now_secs);
         for reservation in reservations {
             if next_entries.contains_key(&reservation.binding_digest) {
                 return Err(DurableReplayError::Duplicate);
             }
         }
         for reservation in reservations {
-            next_entries.insert(
-                reservation.binding_digest,
-                InMemoryReplayEntry {
-                    expires_at: reservation.expires_at,
-                },
-            );
+            next_entries.insert(reservation.binding_digest, InMemoryReplayTombstone);
         }
         state.entries = next_entries;
         Ok(())
@@ -1379,148 +1381,137 @@ mod tests {
         assert!(bundle.binding_digest().is_ok());
     }
 
-    fn replay_binding(
+    fn deterministic_fixture_input(seed: u8) -> Vec<u8> {
+        (0u8..32)
+            .map(|offset| seed.wrapping_mul(29).wrapping_add(offset).wrapping_add(1))
+            .collect()
+    }
+
+    struct ReplayBindingFixture {
         provider: AttestationProvider,
         subject: ReplayProofSubject,
         mechanism: ReplayProofMechanism,
-        nonce: &[u8],
+        nonce: Vec<u8>,
         operation: ReplayOperation,
         purpose: ReplayPurpose,
         policy_digest: TrustDigest,
-        key_identity: &[u8],
-        evidence: &[u8],
-    ) -> ReplayBinding {
-        ReplayBinding::try_new(
-            provider,
-            subject,
-            mechanism,
-            nonce,
-            operation,
-            purpose,
-            policy_digest,
-            key_identity,
-            evidence,
-        )
-        .expect("valid replay binding")
+        key_identity: Vec<u8>,
+        evidence: Vec<u8>,
+    }
+
+    impl Default for ReplayBindingFixture {
+        fn default() -> Self {
+            Self {
+                provider: AttestationProvider::AwsNitroEnclave,
+                subject: ReplayProofSubject::Device,
+                mechanism: ReplayProofMechanism::AwsNitroAttestationDocument,
+                nonce: deterministic_fixture_input(1),
+                operation: ReplayOperation::ValueBearingSigning,
+                purpose: ReplayPurpose::Sign,
+                policy_digest: digest(10),
+                key_identity: deterministic_fixture_input(2),
+                evidence: deterministic_fixture_input(3),
+            }
+        }
+    }
+
+    impl ReplayBindingFixture {
+        fn with_provider(mut self, provider: AttestationProvider) -> Self {
+            self.provider = provider;
+            self
+        }
+
+        fn with_subject(mut self, subject: ReplayProofSubject) -> Self {
+            self.subject = subject;
+            self
+        }
+
+        fn with_mechanism(mut self, mechanism: ReplayProofMechanism) -> Self {
+            self.mechanism = mechanism;
+            self
+        }
+
+        fn with_nonce(mut self, nonce: Vec<u8>) -> Self {
+            self.nonce = nonce;
+            self
+        }
+
+        fn with_operation(mut self, operation: ReplayOperation) -> Self {
+            self.operation = operation;
+            self
+        }
+
+        fn with_purpose(mut self, purpose: ReplayPurpose) -> Self {
+            self.purpose = purpose;
+            self
+        }
+
+        fn with_policy_digest(mut self, policy_digest: TrustDigest) -> Self {
+            self.policy_digest = policy_digest;
+            self
+        }
+
+        fn with_key_identity(mut self, key_identity: Vec<u8>) -> Self {
+            self.key_identity = key_identity;
+            self
+        }
+
+        fn with_evidence(mut self, evidence: Vec<u8>) -> Self {
+            self.evidence = evidence;
+            self
+        }
+
+        fn build(self) -> ReplayBinding {
+            ReplayBinding::try_new(
+                self.provider,
+                self.subject,
+                self.mechanism,
+                &self.nonce,
+                self.operation,
+                self.purpose,
+                self.policy_digest,
+                &self.key_identity,
+                &self.evidence,
+            )
+            .expect("valid replay binding")
+        }
     }
 
     fn base_replay_binding() -> ReplayBinding {
-        replay_binding(
-            AttestationProvider::AwsNitroEnclave,
-            ReplayProofSubject::Device,
-            ReplayProofMechanism::AwsNitroAttestationDocument,
-            b"nonce-secret-marker",
-            ReplayOperation::ValueBearingSigning,
-            ReplayPurpose::Sign,
-            digest(10),
-            b"key-identity-secret-marker",
-            b"raw-evidence-secret-marker",
-        )
+        ReplayBindingFixture::default().build()
     }
 
     #[test]
     fn every_replay_binding_field_changes_the_digest() {
         let base = base_replay_binding().digest();
         let cases = [
-            replay_binding(
-                AttestationProvider::AndroidKeyMintStrongBox,
-                ReplayProofSubject::Device,
-                ReplayProofMechanism::AwsNitroAttestationDocument,
-                b"nonce-secret-marker",
-                ReplayOperation::ValueBearingSigning,
-                ReplayPurpose::Sign,
-                digest(10),
-                b"key-identity-secret-marker",
-                b"raw-evidence-secret-marker",
-            ),
-            replay_binding(
-                AttestationProvider::AwsNitroEnclave,
-                ReplayProofSubject::Workload,
-                ReplayProofMechanism::AwsNitroAttestationDocument,
-                b"nonce-secret-marker",
-                ReplayOperation::ValueBearingSigning,
-                ReplayPurpose::Sign,
-                digest(10),
-                b"key-identity-secret-marker",
-                b"raw-evidence-secret-marker",
-            ),
-            replay_binding(
-                AttestationProvider::AwsNitroEnclave,
-                ReplayProofSubject::Device,
-                ReplayProofMechanism::TpmQuote,
-                b"nonce-secret-marker",
-                ReplayOperation::ValueBearingSigning,
-                ReplayPurpose::Sign,
-                digest(10),
-                b"key-identity-secret-marker",
-                b"raw-evidence-secret-marker",
-            ),
-            replay_binding(
-                AttestationProvider::AwsNitroEnclave,
-                ReplayProofSubject::Device,
-                ReplayProofMechanism::AwsNitroAttestationDocument,
-                b"different-nonce",
-                ReplayOperation::ValueBearingSigning,
-                ReplayPurpose::Sign,
-                digest(10),
-                b"key-identity-secret-marker",
-                b"raw-evidence-secret-marker",
-            ),
-            replay_binding(
-                AttestationProvider::AwsNitroEnclave,
-                ReplayProofSubject::Device,
-                ReplayProofMechanism::AwsNitroAttestationDocument,
-                b"nonce-secret-marker",
-                ReplayOperation::SettlementDispatch,
-                ReplayPurpose::Sign,
-                digest(10),
-                b"key-identity-secret-marker",
-                b"raw-evidence-secret-marker",
-            ),
-            replay_binding(
-                AttestationProvider::AwsNitroEnclave,
-                ReplayProofSubject::Device,
-                ReplayProofMechanism::AwsNitroAttestationDocument,
-                b"nonce-secret-marker",
-                ReplayOperation::ValueBearingSigning,
-                ReplayPurpose::Authorize,
-                digest(10),
-                b"key-identity-secret-marker",
-                b"raw-evidence-secret-marker",
-            ),
-            replay_binding(
-                AttestationProvider::AwsNitroEnclave,
-                ReplayProofSubject::Device,
-                ReplayProofMechanism::AwsNitroAttestationDocument,
-                b"nonce-secret-marker",
-                ReplayOperation::ValueBearingSigning,
-                ReplayPurpose::Sign,
-                digest(11),
-                b"key-identity-secret-marker",
-                b"raw-evidence-secret-marker",
-            ),
-            replay_binding(
-                AttestationProvider::AwsNitroEnclave,
-                ReplayProofSubject::Device,
-                ReplayProofMechanism::AwsNitroAttestationDocument,
-                b"nonce-secret-marker",
-                ReplayOperation::ValueBearingSigning,
-                ReplayPurpose::Sign,
-                digest(10),
-                b"different-key-identity",
-                b"raw-evidence-secret-marker",
-            ),
-            replay_binding(
-                AttestationProvider::AwsNitroEnclave,
-                ReplayProofSubject::Device,
-                ReplayProofMechanism::AwsNitroAttestationDocument,
-                b"nonce-secret-marker",
-                ReplayOperation::ValueBearingSigning,
-                ReplayPurpose::Sign,
-                digest(10),
-                b"key-identity-secret-marker",
-                b"different-raw-evidence",
-            ),
+            ReplayBindingFixture::default()
+                .with_provider(AttestationProvider::AndroidKeyMintStrongBox)
+                .build(),
+            ReplayBindingFixture::default()
+                .with_subject(ReplayProofSubject::Workload)
+                .build(),
+            ReplayBindingFixture::default()
+                .with_mechanism(ReplayProofMechanism::TpmQuote)
+                .build(),
+            ReplayBindingFixture::default()
+                .with_nonce(deterministic_fixture_input(4))
+                .build(),
+            ReplayBindingFixture::default()
+                .with_operation(ReplayOperation::SettlementDispatch)
+                .build(),
+            ReplayBindingFixture::default()
+                .with_purpose(ReplayPurpose::Authorize)
+                .build(),
+            ReplayBindingFixture::default()
+                .with_policy_digest(digest(11))
+                .build(),
+            ReplayBindingFixture::default()
+                .with_key_identity(deterministic_fixture_input(5))
+                .build(),
+            ReplayBindingFixture::default()
+                .with_evidence(deterministic_fixture_input(6))
+                .build(),
         ];
         for binding in cases {
             assert_ne!(base, binding.digest());
@@ -1532,13 +1523,14 @@ mod tests {
         let binding = base_replay_binding();
         let debug = format!("{binding:?}");
         let serialized = to_string(&binding).expect("replay binding serializes");
-        for marker in [
-            "nonce-secret-marker",
-            "key-identity-secret-marker",
-            "raw-evidence-secret-marker",
-        ] {
-            assert!(!debug.contains(marker));
-            assert!(!serialized.contains(marker));
+        let raw_markers = [
+            hex::encode(deterministic_fixture_input(1)),
+            hex::encode(deterministic_fixture_input(2)),
+            hex::encode(deterministic_fixture_input(3)),
+        ];
+        for marker in raw_markers {
+            assert!(!debug.contains(&marker));
+            assert!(!serialized.contains(&marker));
         }
         assert!(debug.contains("nonce_digest"));
         assert!(serialized.contains("evidence_digest"));
@@ -1556,17 +1548,12 @@ mod tests {
         );
 
         let second = ReplayReservation::from_binding(
-            &replay_binding(
-                AttestationProvider::AwsNitroEnclave,
-                ReplayProofSubject::Workload,
-                ReplayProofMechanism::AwsNitroAttestationDocument,
-                b"second",
-                ReplayOperation::ValueBearingSigning,
-                ReplayPurpose::Sign,
-                digest(10),
-                b"second-key",
-                b"second-evidence",
-            ),
+            &ReplayBindingFixture::default()
+                .with_subject(ReplayProofSubject::Workload)
+                .with_nonce(deterministic_fixture_input(7))
+                .with_key_identity(deterministic_fixture_input(8))
+                .with_evidence(deterministic_fixture_input(9))
+                .build(),
             200,
         )
         .expect("valid second reservation");
@@ -1575,6 +1562,26 @@ mod tests {
             Err(DurableReplayError::Duplicate)
         );
         assert_eq!(store.consume_once(&second, 103), Ok(()));
+    }
+
+    #[test]
+    fn in_memory_store_retains_consumed_identity_after_reservation_expiry() {
+        let store = NonProductionInMemoryReplayStore::new();
+        let original = ReplayReservation::from_binding(&base_replay_binding(), 100)
+            .expect("valid original replay reservation");
+        assert_eq!(store.consume_once(&original, 10), Ok(()));
+        assert!(original.expires_at() < 200);
+
+        let extended = ReplayReservation::from_binding(&base_replay_binding(), 300)
+            .expect("valid extended replay reservation");
+        assert_eq!(
+            store.consume_once(&extended, 200),
+            Err(DurableReplayError::Duplicate)
+        );
+        assert_eq!(
+            store.consume_once(&extended, 199),
+            Err(DurableReplayError::ClockRollback)
+        );
     }
 
     #[test]
