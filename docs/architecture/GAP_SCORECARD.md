@@ -5,6 +5,90 @@ This document tracks the resolution of production-path logic, architectural gaps
 
 The [machine-readable capability evidence](./capability-evidence.json) and generated [capability matrix](./CAPABILITY_MATRIX.md) are authoritative for the distinction between API presence, implementation, integration, independent review, and production support. A completed structural/API task below does not promote a capability to production support.
 
+## Normalized 2026-07-22 shortlist
+
+The scored shortlist below is a prioritization aid, not an evidence grade or
+support decision. Scores preserve the 75-point planning scale used for issue
+#240 and its follow-on lanes.
+
+| Gap ID | Scope | Score | Dependency phase |
+| --- | --- | ---: | --- |
+| `G240-TC` | Provider-neutral trust/collateral contract | 73 | Phase A — contract and negative evidence |
+| `G240-RP` | Durable replay contract and uncertainty semantics | 66 | Phase A — contract; backend selection follows |
+| `G-DOC` | Canonical documentation and evidence normalization | 65 | Phase A — current residual gates |
+| `G200-WASM` | WASM secret boundary and runtime/platform evidence | 61 | Phase B — provider/runtime evidence |
+| `G241-AP` | Android KeyMint/StrongBox authorization and Play Integrity | 59 | Phase B — Android provider lane |
+| `G198-AM` | Asset metadata and account-model containment | 57 | Phase B — protocol/provider lane |
+| `G242-NP` | AWS Nitro attestation and KMS release boundary | 56 | Phase B — Nitro provider lane |
+| `G199-REL` | Reproducible release, SBOM, and provenance evidence | 54 | Phase C — exact artifact gate |
+| `G198-AA` | Account abstraction boundary | 53 | Phase B — protocol/provider lane |
+| `G198-CCTP` | CCTP attestation and cross-chain authorization | 52 | Phase B — protocol/provider lane |
+| `G-live-AP` | Live Android/Nitro runtime evidence | 45 | Phase B — provider/runtime evidence |
+| `G202-REV` | Independent review and release acceptance | 44 | Phase C — reviewed artifact gate |
+
+## Exact weighted scoring formula and rubric
+
+The shortlist score is reproducible from eight integer dimension values on a
+1–5 scale. The exact formula is:
+
+```text
+score = 3×security
+      + 3×production blocker
+      + 2×dependency unlock
+      + 2×evidence availability
+      + 2×implementation confidence
+      + 1×effort efficiency
+      + 1×external dependency burden
+      + 1×documentation contradiction risk
+```
+
+The weights sum to 15, so the maximum score is 75. A value of 5 means the
+dimension is strongest for prioritization; a value of 1 means weakest. The
+dimensions use this rubric:
+
+- **Security**: 5 is a direct trust, authorization, or secret-boundary risk;
+  1 is advisory or low-impact.
+- **Production blocker**: 5 blocks a production gate or value-bearing path;
+  1 does not block a release decision.
+- **Dependency unlock**: 5 unlocks several downstream lanes; 1 is mostly
+  isolated.
+- **Evidence availability**: 5 has local deterministic code/tests/docs
+  evidence; 1 requires unavailable external evidence.
+- **Implementation confidence**: 5 has a precise bounded design and direct
+  regression coverage; 1 is exploratory.
+- **Effort efficiency**: 5 is low effort with high leverage; 1 is expensive
+  or narrowly useful.
+- **External dependency burden**: 5 is local/software-only and reproducible;
+  1 depends on external providers, hardware, deployment, or unavailable
+  services.
+- **Documentation contradiction risk**: 5 has a high risk that stale claims
+  could misstate support or authorization; 1 has little contradiction risk.
+
+The following dimension values produce every score in the table above. The
+last column shows the formula result and is the source for the displayed
+score, rather than an informal ranking:
+
+| Gap ID | Sec | Blocker | Unlock | Evidence | Confidence | Efficiency | External (5=local/software) | Doc risk | Formula result |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `G240-TC` | 5 | 5 | 5 | 5 | 5 | 3 | 5 | 5 | 73 |
+| `G240-RP` | 5 | 5 | 4 | 4 | 4 | 4 | 4 | 4 | 66 |
+| `G-DOC` | 4 | 4 | 4 | 5 | 5 | 4 | 4 | 5 | 65 |
+| `G200-WASM` | 4 | 5 | 4 | 3 | 4 | 4 | 4 | 4 | 61 |
+| `G241-AP` | 5 | 4 | 4 | 2 | 4 | 4 | 4 | 4 | 59 |
+| `G198-AM` | 4 | 4 | 4 | 3 | 4 | 3 | 4 | 4 | 57 |
+| `G242-NP` | 5 | 4 | 4 | 2 | 3 | 3 | 4 | 4 | 56 |
+| `G199-REL` | 4 | 4 | 3 | 4 | 3 | 3 | 3 | 4 | 54 |
+| `G198-AA` | 4 | 4 | 4 | 2 | 3 | 4 | 3 | 4 | 53 |
+| `G198-CCTP` | 4 | 4 | 4 | 2 | 3 | 3 | 3 | 4 | 52 |
+| `G-live-AP` | 5 | 4 | 2 | 1 | 2 | 2 | 2 | 4 | 45 |
+| `G202-REV` | 4 | 4 | 3 | 1 | 2 | 3 | 2 | 3 | 44 |
+
+Phase A closes only the provider-neutral contract slice represented by
+`G240-TC`, `G240-RP`, and the documentation portion of `G-DOC`. It does not
+close provider, runtime, backend, independent-review, release, or production
+support gates. The dependency order is **contract → provider/runtime → durable
+deployment → exact artifact/review → scoped support decision**.
+
 > **2026-07-21 status correction:** Entries below that describe FROST,
 > Fedimint, Ark, or BitVM2 work as implemented or complete are historical
 > structural/API records. They are superseded for current support decisions by
@@ -28,6 +112,10 @@ The [machine-readable capability evidence](./capability-evidence.json) and gener
 ### Provider-neutral collateral, replay, and release-evidence seams
 - **Resolution**: Added typed provider identity and digest-only collateral metadata with strict time, root-set, schema, verifier, and revocation validation; added a canonical secret-free replay binding covering provider, subject, mechanism, nonce, operation, purpose, policy, key, and evidence; defined an atomic durable-replay store contract with a clearly non-production in-memory adapter; and added exact-scope release-evidence manifest validation.
 - **Status**: Structural contracts and focused fail-closed tests are implemented. No provider roots, provider authenticator, collateral authority, durable backend, replay owner, promotion authority, independent review, release artifact, or production-support decision is established. Existing `ReplayGuard` remains process-local and is not replaced. See [`TRUST_REPLAY_RELEASE_CONTRACTS.md`](./TRUST_REPLAY_RELEASE_CONTRACTS.md).
+
+### G240-TC final-head review closure
+- **Resolution**: Separated Phase A single-mechanism trust normalization and durable replay from complete proof-bundle authorization with `TrustScope::SingleMechanism`, scoped result/identity/authorization types, no public provider-extension seam, and a trusted-clock context copy before provider observation and canonicalization. Added scope and forged future/past caller-time regressions.
+- **Status**: The provider-neutral contract, negative tests, and fail-closed composition boundary remain separate from canonical all-required authorization. This does not provide provider, hardware, backend, independent-review, release-artifact, or production-support evidence.
 
 ## Technical Resolutions (v2.0.13)
 

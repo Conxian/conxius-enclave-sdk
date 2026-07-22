@@ -614,7 +614,9 @@ impl ProofVerificationContext {
         Ok(self.clone())
     }
 
-    fn with_now_secs(&self, now_secs: u64) -> ConclaveResult<Self> {
+    /// Replaces only the freshness observation with a trusted value while
+    /// preserving operation, purpose, audience, nonce, and bounded windows.
+    pub(crate) fn with_now_secs(&self, now_secs: u64) -> ConclaveResult<Self> {
         let mut context = self.clone();
         context.now_secs = now_secs;
         context.validate()

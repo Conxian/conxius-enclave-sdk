@@ -70,6 +70,14 @@ the policy must have one independently verified, exact-key proof. Missing,
 duplicate, conflicting, stale, future, malformed, wrong-type, or fixture-only
 evidence fails closed.
 
+This composer is intentionally distinct from the Phase A trust normalization
+boundary. `SingleMechanismAttestationResult` records and replays exactly one
+verified mechanism with `TrustScope::SingleMechanism`; its binding to the exact
+production policy does not make it a six-factor authorization. Only
+`ProofVerifierRegistry::verify_bundle` (or an equally explicit composed proof
+type) can produce the complete all-required authorization used by value-bearing
+paths.
+
 **Proposed, not implemented:** an alternative/threshold composition language
 could support explicit groups, cardinality, and nested policies. Such a
 language must have its own versioned canonical encoding, duplicate rules,

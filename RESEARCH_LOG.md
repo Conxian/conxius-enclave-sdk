@@ -11,6 +11,108 @@ This document captures external research findings relevant to the Conclave SDK's
 
 ---
 
+## Issue #240 Phase A research and roadmap normalization (2026-07-22)
+
+The entries below separate **facts from primary sources** from **repository
+recommendations**. They are design evidence only and do not establish a live
+provider, runtime, durable backend, production support, independent review, or
+release artifact.
+
+### RATS, PKI, and status inputs
+
+**Facts:** [RFC 9334](https://www.rfc-editor.org/rfc/rfc9334.html) separates
+Evidence, Verifiers, Relying Parties, trust anchors, appraisal policies, and
+Attestation Results. [RFC 9711](https://www.rfc-editor.org/rfc/rfc9711.html)
+defines an EAT framework and nonce/identity claim vocabulary.
+[RFC 5280](https://www.rfc-editor.org/rfc/rfc5280.html) defines certificate
+path and CRL processing, while [RFC
+6960](https://www.rfc-editor.org/rfc/rfc6960.html) defines an online
+certificate-status protocol. [RFC
+6024](https://www.rfc-editor.org/rfc/rfc6024) treats trust anchors as public
+keys plus scoped associated data and calls out source authentication, replay
+detection, and recovery requirements.
+
+**Recommendation:** Keep transport evidence, authenticated trust/collateral
+material, normalized results, policy, and durable replay as separate contracts.
+Represent `Good`, `Revoked`, `Unknown`, `Unavailable`, `Expired`,
+`NotYetValid`, and `Unsupported` explicitly; only `Good` can authorize. A
+status response or certificate parser must not be treated as a complete
+provider verifier without roots, policy, freshness, and deployment evidence.
+
+### Android P-256 custody distinction
+
+**Facts:** Android documents ECDSA P-256 as a Keystore algorithm and documents
+hardware-backed key security levels separately from key attestation. The
+[hardware-backed key attestation
+guide](https://developer.android.com/privacy-and-security/security-key-attestation)
+requires chain/root, security-level, validity, and revocation checks before
+trusting the hardware claim. The [Android Keystore
+documentation](https://developer.android.com/privacy-and-security/keystore)
+describes key authorization and hardware storage, while the [digital
+credentials attestation
+guide](https://developer.android.com/identity/digital-credentials/credential-issuer/keystore-attestation)
+binds an attestation challenge to a generated key.
+
+**Recommendation:** Do not equate “P-256”, a successful signing operation, or
+an API-level `StrongBox` request with custody proof. The Android lane must bind
+the generated key, challenge/nonce, authorization policy, certificate chain,
+security level, verified boot/patch claims where required, and current status.
+
+### Nitro workload versus KMS release
+
+**Facts:** AWS documents Nitro attestation documents, measurements, and
+attestation verification in [Nitro attestation setup](https://docs.aws.amazon.com/enclaves/latest/user/set-up-attestation.html).
+AWS KMS evaluates an attestation document against key-policy condition keys in
+[cryptographic attestation support](https://docs.aws.amazon.com/kms/latest/developerguide/cryptographic-attestation.html)
+and [Nitro condition keys](https://docs.aws.amazon.com/kms/latest/developerguide/conditions-nitro-enclave.html).
+
+**Recommendation:** Keep “the workload produced a valid attestation” separate
+from “KMS released a key/data operation under an approved policy”. A future
+Nitro implementation must verify the document/root/COSE/PCR/nonce inputs and
+separately evidence the KMS policy, request, release, audit, and failure
+semantics. The Phase A contract intentionally implements neither provider path.
+
+### Distributed replay caveats
+
+**Facts:** The repository's existing `ReplayGuard` is process-local. A generic
+identity digest cannot provide atomicity across replicas, restarts, or regions;
+an ambiguous commit result cannot safely be interpreted as “not consumed”.
+
+**Recommendation:** Define a synchronous object-safe `consume_once` contract
+with distinct consumed, same-request idempotent, conflicting, unavailable, and
+uncertain outcomes. Keep idempotency keys separate from subject/key identity,
+use a trusted internal clock, and fail closed on uncertainty. A local fake
+store can test atomicity but must not be represented as a durable backend.
+
+### CCTP, ERC-4337, and ERC-7579 boundaries
+
+**Facts:** [Circle CCTP documentation](https://developers.circle.com/stablecoins/cctp-technical-guide)
+describes message attestation and burn/mint protocol roles. [ERC-4337](https://eips.ethereum.org/EIPS/eip-4337)
+defines account-abstraction UserOperations and EntryPoint processing.
+[ERC-7579](https://eips.ethereum.org/EIPS/eip-7579) defines modular smart-account
+interfaces and validation/execution modes.
+
+**Recommendation:** Keep CCTP attestation, account-abstraction validation, and
+module execution as separate protocol/provider gates. Typed DTOs or local hash
+checks do not establish Circle attestation, EntryPoint interoperability,
+module security, or settlement support.
+
+### WASM and release evidence
+
+**Facts:** [wasm-bindgen-test usage](https://wasm-bindgen.github.io/wasm-bindgen/wasm-bindgen-test/usage.html)
+distinguishes test authoring from execution in Node and browsers. [SLSA
+provenance](https://slsa.dev/spec/v1.1/provenance) and [GitHub artifact
+attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations)
+describe build/provenance evidence, not merely workflow definitions.
+
+**Recommendation:** Keep WASM API/build/runtime/provider/hardware and release
+artifact evidence as separate axes. Record the repository's duplicate WASM
+workflow/Playwright evidence paths until they are deliberately consolidated;
+do not infer support from a passing local build, negative runtime test, or
+generated binding.
+
+---
+
 ## Hardware and proof-claim research map (2026-07-22)
 
 **Access date for every source in this section:** 2026-07-22. These findings

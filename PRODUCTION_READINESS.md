@@ -9,7 +9,25 @@ Merged PR [#205](https://github.com/Conxian/conxius-enclave-sdk/pull/205), merge
 
 Phase A of CON-1512 adds an explicit proof-factor taxonomy and fail-closed composition boundary for server identity, user authorization, phone/device attestation, TEE attestation, FIDO2/WebAuthn assertions, and TPM quotes. The canonical `ProofBoundValueBearingAuthorization` is now required by the value-bearing settlement rail boundary; the production verifier registry is intentionally unavailable, test fixtures are test-only, and no category is production-supported until concrete provider roots/collateral, runtime integration, replay coordination, independent review, and exact release artifacts exist. Existing `DeviceIntegrityReport` and legacy `ProofSetPolicy`/`VerifiedProofSet` types are not silently promoted into the canonical proof authorization.
 
-Issue #240 adds a provider-neutral, versioned trust-bundle validator, explicit refresh/rollback states, an authenticated envelope digest/verifier boundary, a typed atomic `ReplayStore` contract, and complete domain-separated proof and final-operation replay bindings. Durable proof authorization enforces the exact canonical production policy, and proof-aware final signing consumes a distinct operation binding from a caller-supplied durable store before provider signing. These are contract and local-test foundations only. The production registry still exposes unavailable provider routes; `ReplayGuard` remains process-local; no real durable backend, vendor roots, hardware runtime evidence, distributed replay, independent review, SBOM, provenance, or exact release artifact is claimed. The legacy process-local proof authorization helpers are test-only containment APIs. See [TRUST_REPLAY_FOUNDATION.md](./docs/architecture/TRUST_REPLAY_FOUNDATION.md).
+Issue #240 Phase A defines provider-neutral trust/collateral and versioned
+trust-bundle contracts, explicit refresh/rollback states, an authenticated
+envelope digest/verifier boundary, a single-mechanism normalized result,
+privacy-safe audit metadata, a typed atomic `ReplayStore`, and domain-separated
+proof and final-operation replay bindings. A normalized result and replay
+authorization are explicitly scoped to one mechanism; exact
+`ProofPolicy::production()` and verifier binding are contextual requirements,
+not six-factor authorization, and complete all-required authorization remains
+exclusively the composed proof-bundle path. Durable proof authorization enforces
+the canonical production policy, while proof-aware final signing consumes a
+distinct operation binding immediately before provider signing. These transport,
+contract, negative-test, and local-fixture paths are containment evidence only.
+The production authenticator and verifier routes remain unavailable, replay
+stores are not durable or distributed, `ReplayGuard` remains process-local, the
+contract's revision/rollback fields are stateless, and local fake stores and
+legacy process-local proof helpers are test-only. No Android, Nitro, provider,
+hardware, persistent rollback, distributed replay, WASM, release, independent
+review, SBOM, provenance, or production-support gate is checked by this phase.
+See [TRUST_REPLAY_FOUNDATION.md](./docs/architecture/TRUST_REPLAY_FOUNDATION.md).
 
 Issue #145 is a **historical CI/CD baseline**, not current release-acceptance evidence. Repository-control work for toolchain, dependency, publisher, scanning, SBOM, provenance, and exact-artifact evidence is tracked by [issue #199](https://github.com/Conxian/conxius-enclave-sdk/issues/199); independent review and release acceptance remain open in [issue #202](https://github.com/Conxian/conxius-enclave-sdk/issues/202). Historical issues #145, #154, #169, #172, #173, #174, and #180 provide context only and must not be used as current production proof.
 
@@ -36,8 +54,8 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [ ] Replay protection verified on every value-bearing path (P0/P1)
 - [x] Provider-neutral trust, secret-free replay, durable-replay, and release-evidence contract foundations plus focused fail-closed tests are recorded in [TRUST_REPLAY_FOUNDATION.md](./docs/architecture/TRUST_REPLAY_FOUNDATION.md) and [TRUST_REPLAY_RELEASE_CONTRACTS.md](./docs/architecture/TRUST_REPLAY_RELEASE_CONTRACTS.md); provider authentication, durable deployment, authority, promotion, and value-bearing support decisions remain open ([CON-1543](https://linear.app/conxian-labs/issue/CON-1543/p0-operationalize-attestation-roots-collateral-revocation-and), [#240](https://github.com/Conxian/conxius-enclave-sdk/issues/240))
 - [x] Typed error surface exists (`ConclaveResult`); production fail-closed behavior remains gated
-- [x] Typed value-bearing settlement containment enforces settlement purpose/domain/context, canonical six-proof authorization, process-local replay, and raw-dispatch rejection; the no-proof Opportunity path rejects before provider key lookup and the explicit proof path stops at the unavailable production verifier; all built-in adapter dispatch remains disabled pending a versioned wire contract and gateway compatibility evidence; this remains containment rather than provider or production evidence
-- [x] Phase A composer-level typed proof-factor taxonomy and explicit all-required proof-set behavior are bounded, independently diagnosable, and fail closed; actual providers/runtimes, vendor roots/collateral, distributed replay, independent review, and release artifacts remain unsupported, so server, user, phone/device, TEE, FIDO2/WebAuthn, and TPM categories are not production-supported
+- [x] Typed value-bearing settlement containment enforces settlement purpose/domain/context, canonical six-proof authorization, process-local replay, and raw-dispatch rejection; Opportunity preflight is validation-only, the no-proof path rejects before provider key lookup, the explicit proof path stops at the unavailable production verifier, and all built-in adapter dispatch remains disabled pending a versioned wire contract and gateway compatibility evidence; this remains containment rather than provider or production evidence
+- [x] Phase A composer-level typed proof-factor taxonomy and explicit all-required proof-set behavior are bounded, independently diagnosable, and fail closed; single-mechanism trust normalization/replay is not complete authorization, and actual providers/runtimes, vendor roots/collateral, distributed replay, independent review, and release artifacts remain unsupported, so server, user, phone/device, TEE, FIDO2/WebAuthn, and TPM categories are not production-supported
 - [ ] FROST treasury DKG and signing production readiness (issue #180; current `src/protocol/frost.rs` is a typed boundary/quarantine, not production FROST cryptography)
 - [x] Protocol boundary quarantine for FROST, Fedimint, Ark, and BitVM2 (typed models and exact unsupported errors; see roadmap)
 - [ ] Protocol implementation, vector, provider, persistence, independent-review, and exact-artifact gates (issue #197 and roadmap)

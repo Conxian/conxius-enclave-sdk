@@ -12,10 +12,16 @@ Conxian is committed to providing high-integrity, hardware-secure infrastructure
 - **Code Ownership**: All critical repositories have defined owners and require mandatory peer reviews for any changes to production paths.
 - **Public/Private Boundary**: We strictly sanitize all public repositories to ensure no non-public strategic, legal, or operational material is exposed.
 
-## 3. Release Discipline
-- **Mainnet-Only Standard**: The `main` branch contains only mainnet-ready, production-quality code. All testnet or validation work is isolated to `dev` or `staged` branches.
+## 3. Release Discipline (target architecture, not current status)
+- **Protected-branch intent**: The project targets a reviewed `main` branch for releasable changes; branch protection and review records are not evidence that every current checkout is mainnet-ready.
 - **Continuous Hygiene**: We perform regular audits for secret exposure, dependency drift, and simulated/mock residue in production paths.
 - **Versioning**: We follow Semantic Versioning (SemVer) and maintain a consistent `CHANGELOG.md` across all core repositories.
+
+The SDK is currently **Beta / conditional**. Passing local tests, a merged
+change, a workflow definition, or a package version does not establish
+mainnet-ready code, provider support, hardware evidence, independent review,
+or a verified release artifact. See `PRODUCTION_READINESS.md` and the
+capability evidence matrix for the current decision boundary.
 
 ## 4. Cryptographic Proof
 - **Sovereign Handshake**: Users retain full control over their assets. Transaction intents are signed locally within the user's hardware enclave before being broadcast to liquidity rails.

@@ -4,6 +4,7 @@ pub mod android_strongbox;
 pub mod attestation;
 #[cfg(any(test, feature = "development-simulators"))]
 pub mod cloud;
+pub mod durable_replay;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod nitro;
 pub mod proof;
@@ -25,14 +26,15 @@ pub use proofs::{
     VALUE_BEARING_OPERATION_REPLAY_DOMAIN,
 };
 
-pub use trust::{
-    deserialize_trust_bundle_json, TrustBundleCache, TrustBundleEnvelope, TrustBundleSnapshot,
-    TrustBundleSource, TrustBundleValidator, TrustBundleVerifier, TrustBundleVerifierRegistry,
-    TrustBundleVerifierStatus, TrustClockObservation, TrustEvidence, TrustEvidenceFreshnessPolicy,
-    TrustRefreshOutcome, TrustRefreshState, TrustValidationError, TrustValidationReceipt,
-    MAX_TRUST_BUNDLE_TRANSPORT_BYTES, TRUST_BUNDLE_DOMAIN, TRUST_BUNDLE_SCHEMA_VERSION,
-    TRUST_PROVIDER_AMD_SEV_SNP, TRUST_PROVIDER_ANDROID_KEYMINT, TRUST_PROVIDER_AWS_NITRO,
-    TRUST_PROVIDER_FIDO, TRUST_PROVIDER_INTEL_DCAP, TRUST_PROVIDER_TPM, TRUST_VERIFIER_AMD_SEV_SNP,
+pub use trust::trust_bundle::{
+    deserialize_trust_bundle_json as deserialize_trust_bundle_envelope_json, TrustBundleCache,
+    TrustBundleEnvelope, TrustBundleSnapshot, TrustBundleSource, TrustBundleValidator,
+    TrustBundleVerifier, TrustBundleVerifierRegistry, TrustBundleVerifierStatus,
+    TrustClockObservation, TrustEvidence, TrustEvidenceFreshnessPolicy, TrustRefreshOutcome,
+    TrustRefreshState, TrustValidationError, TrustValidationReceipt,
+    MAX_TRUST_BUNDLE_TRANSPORT_BYTES, TRUST_BUNDLE_SCHEMA_VERSION, TRUST_PROVIDER_AMD_SEV_SNP,
+    TRUST_PROVIDER_ANDROID_KEYMINT, TRUST_PROVIDER_AWS_NITRO, TRUST_PROVIDER_FIDO,
+    TRUST_PROVIDER_INTEL_DCAP, TRUST_PROVIDER_TPM, TRUST_VERIFIER_AMD_SEV_SNP,
     TRUST_VERIFIER_ANDROID_KEYMINT, TRUST_VERIFIER_AWS_NITRO, TRUST_VERIFIER_FIDO,
     TRUST_VERIFIER_INTEL_DCAP, TRUST_VERIFIER_TPM,
 };
@@ -45,12 +47,16 @@ pub use replay_guard::{
 };
 pub use trust_contracts::{
     AttestationProvider, AuthenticatedCollateralMetadata, CollateralMetadata,
-    CollateralValidationContext, CollateralValidationError, DurableReplayError, DurableReplayStore,
-    EvidenceReference, NonProductionInMemoryReplayStore, ReleaseEvidenceError,
-    ReleaseEvidenceExpectation, ReleaseEvidenceKind, ReleaseEvidenceManifest,
-    ReplayBinding as TrustReplayBinding, ReplayBindingError as TrustReplayBindingError,
-    ReplayOperation, ReplayProofMechanism, ReplayProofSubject, ReplayPurpose,
-    ReplayReservation as DurableReplayReservation, TrustDigest,
+    CollateralValidationContext, CollateralValidationError,
+    DurableReplayError as TrustContractDurableReplayError,
+    DurableReplayStore as TrustContractDurableReplayStore, EvidenceReference,
+    NonProductionInMemoryReplayStore, ReleaseEvidenceError, ReleaseEvidenceExpectation,
+    ReleaseEvidenceKind, ReleaseEvidenceManifest, ReplayBinding,
+    ReplayBinding as TrustReplayBinding, ReplayBindingError,
+    ReplayBindingError as TrustReplayBindingError, ReplayOperation, ReplayProofMechanism,
+    ReplayProofSubject, ReplayPurpose, ReplayReservation as DurableReplayReservation,
+    ReplayReservation as TrustContractReplayReservation, TrustDigest,
+    DURABLE_REPLAY_CONTRACT_VERSION as TRUST_REPLAY_CONTRACT_VERSION,
 };
 
 pub use android_authorization::{
@@ -63,6 +69,26 @@ pub use android_authorization::{
     MAX_ANDROID_CHALLENGE_BYTES, MAX_ANDROID_DER_CERTIFICATE_BYTES, MAX_ANDROID_DER_CHAIN_BYTES,
     MAX_ANDROID_DER_CHAIN_LENGTH, MAX_ANDROID_KEY_ID_BYTES, MAX_ANDROID_NONCE_BYTES,
     MAX_ANDROID_PACKAGE_NAME_BYTES, MAX_PLAY_INTEGRITY_EVIDENCE_BYTES,
+};
+
+pub use durable_replay::{
+    DurableReplayAuthorizer, DurableReplayError, DurableReplayOutcome, DurableReplayRequest,
+    DurableReplayResult, DurableReplayStore, IdempotencyKey, SingleMechanismReplayAuthorization,
+    SingleMechanismReplayIdentity, UnavailableDurableReplayStore, DURABLE_REPLAY_CONTRACT_VERSION,
+    DURABLE_REPLAY_IDENTITY_DOMAIN, DURABLE_REPLAY_REQUEST_DOMAIN, IDEMPOTENCY_KEY_DOMAIN,
+    MAX_DURABLE_REPLAY_IDENTIFIER_BYTES, MAX_IDEMPOTENCY_KEY_BYTES,
+};
+
+pub use trust::{
+    deserialize_attestation_evidence_json, deserialize_collateral_snapshot_json,
+    deserialize_trust_bundle_json, AttestationAuditMetadata, AttestationEvidence,
+    CollateralSnapshot, RevocationStatus, SingleMechanismAttestationResult, TcbStatus, TrustAnchor,
+    TrustBundle, TrustError, TrustResult, TrustScope, TrustSignatureAlgorithm,
+    TrustVerificationRequest, ATTESTATION_EVIDENCE_DOMAIN, ATTESTATION_RESULT_DOMAIN,
+    COLLATERAL_SNAPSHOT_DOMAIN, MAX_TRUST_ANCHORS, MAX_TRUST_CONSTRAINT_BYTES,
+    MAX_TRUST_IDENTIFIER_BYTES, MAX_TRUST_PAYLOAD_BYTES, MAX_TRUST_PUBLIC_KEY_BYTES,
+    MAX_TRUST_SIGNATURE_BYTES, MAX_TRUST_TRANSPORT_BYTES, TRUST_ANCHOR_DOMAIN, TRUST_AUDIT_DOMAIN,
+    TRUST_BUNDLE_DOMAIN, TRUST_CONTRACT_VERSION,
 };
 
 #[cfg(test)]
