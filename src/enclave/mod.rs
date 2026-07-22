@@ -1,3 +1,4 @@
+pub mod android_authorization;
 #[cfg(any(test, feature = "development-simulators"))]
 pub mod android_strongbox;
 pub mod attestation;
@@ -39,6 +40,19 @@ pub use replay_guard::{
     UnavailableReplayStore, REPLAY_BINDING_DOMAIN, REPLAY_BINDING_VERSION,
 };
 
+pub use android_authorization::{
+    request_binding_digest, request_binding_digest_at, AndroidAuthorizationEvidence,
+    AndroidAuthorizationRequest, AndroidKeyAlgorithm, AndroidKeyPurpose,
+    AndroidPlayIntegrityEvidence, AndroidReportedTier, AndroidSecurityPolicy,
+    ANDROID_AUTHORIZATION_BINDING_DOMAIN, ANDROID_AUTHORIZATION_DOMAIN,
+    ANDROID_AUTHORIZATION_VERIFIER_ID, ANDROID_AUTHORIZATION_VERSION,
+    ANDROID_KEYMINT_PROOF_VERIFIER_ID, MAX_ANDROID_AUTHORIZATION_AGE_SECS,
+    MAX_ANDROID_AUTHORIZATION_FUTURE_SKEW_SECS, MAX_ANDROID_AUTHORIZATION_LIFETIME_SECS,
+    MAX_ANDROID_CHALLENGE_BYTES, MAX_ANDROID_DER_CERTIFICATE_BYTES, MAX_ANDROID_DER_CHAIN_BYTES,
+    MAX_ANDROID_DER_CHAIN_LENGTH, MAX_ANDROID_KEY_ID_BYTES, MAX_ANDROID_NONCE_BYTES,
+    MAX_ANDROID_PACKAGE_NAME_BYTES, MAX_PLAY_INTEGRITY_EVIDENCE_BYTES,
+};
+
 #[cfg(test)]
 mod hardware_attestation_tests;
 
@@ -60,6 +74,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 /// Domain separator for all value-bearing signing request bindings.
 pub const VALUE_BEARING_SIGNING_DOMAIN: &str = "CONXIAN-VALUE-BEARING-SIGNING/v1";
 pub const VALUE_BEARING_PROOF_POLICY_DOMAIN: &str = "CONXIAN-VALUE-BEARING-PROOF-POLICY/v1";
+pub const VALUE_BEARING_CANONICAL_PROOF_AUTHORIZATION_DOMAIN: &str =
+    "CONXIAN-VALUE-BEARING-CANONICAL-PROOF-AUTHORIZATION/v1";
 pub const VALUE_BEARING_POLICY_ID: &str = "conxian.production.signing.v1";
 
 const MAX_CONTEXT_BYTES: usize = 4096;
@@ -375,6 +391,12 @@ pub struct ValueBearingSignRequest {
     expected_proof_policy: Option<proof::ProofSetPolicy>,
     #[serde(skip)]
     expected_proof_policy_digest_override: Option<[u8; 32]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    canonical_proof_policy_digest: Option<[u8; 32]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    canonical_proof_context_binding: Option<[u8; 32]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    canonical_proof_set_digest: Option<[u8; 32]>,
 }
 
 impl ValueBearingSignRequest {
@@ -405,6 +427,9 @@ impl ValueBearingSignRequest {
             taproot_tweak,
             expected_proof_policy: None,
             expected_proof_policy_digest_override: None,
+            canonical_proof_policy_digest: None,
+            canonical_proof_context_binding: None,
+            canonical_proof_set_digest: None,
         })
     }
 
@@ -448,6 +473,18 @@ impl ValueBearingSignRequest {
                     .as_ref()
                     .map(proof::ProofSetPolicy::canonical_digest)
             })
+    }
+
+    pub(crate) fn canonical_proof_policy_digest(&self) -> Option<&[u8; 32]> {
+        self.canonical_proof_policy_digest.as_ref()
+    }
+
+    pub(crate) fn canonical_proof_context_binding(&self) -> Option<&[u8; 32]> {
+        self.canonical_proof_context_binding.as_ref()
+    }
+
+    pub(crate) fn canonical_proof_set_digest(&self) -> Option<&[u8; 32]> {
+        self.canonical_proof_set_digest.as_ref()
     }
 
     /// Binds a complete, exact proof policy to this request. The operation,
@@ -497,6 +534,47 @@ impl ValueBearingSignRequest {
         Ok(self)
     }
 
+    /// Binds the constructor-controlled canonical proof authorization to this
+    /// request. The authorization carries the exact six-proof production
+    /// policy and the operation/purpose/audience/nonce context digest; callers
+    /// cannot provide either digest independently.
+    pub fn with_proof_authorization(
+        mut self,
+        authorization: &proofs::ProofBoundValueBearingAuthorization,
+    ) -> ConclaveResult<Self> {
+        let expected_policy_digest = proofs::ProofPolicy::production().digest()?;
+        if self
+            .expected_proof_policy_digest_override
+            .is_some_and(|digest| digest != expected_policy_digest)
+        {
+            return Err(ConclaveError::Unsupported(
+                "request-side proof policy digest does not match canonical authorization"
+                    .to_string(),
+            ));
+        }
+        if authorization.policy_digest() != &expected_policy_digest
+            || authorization.verified_proofs().operation_digest() != &self.message_digest
+            || authorization.verified_proofs().purpose()
+                != self.operation_context.purpose().canonical_token()
+            || authorization.verified_proofs().audience() != self.operation_context.domain()
+            || self.operation_context.context() != self.message_digest
+        {
+            return Err(ConclaveError::Unsupported(
+                "proof authorization does not match value-bearing operation context".to_string(),
+            ));
+        }
+
+        // A legacy structured policy may still be present for compatibility,
+        // but a canonical authorization upgrades the request-side digest to
+        // the exact production six-proof policy. An independently supplied
+        // digest remains immutable and is checked above.
+        self.expected_proof_policy_digest_override = Some(expected_policy_digest);
+        self.canonical_proof_policy_digest = Some(expected_policy_digest);
+        self.canonical_proof_context_binding = Some(*authorization.context_binding());
+        self.canonical_proof_set_digest = Some(authorization.verified_proofs().digest()?);
+        Ok(self)
+    }
+
     /// Returns the canonical digest binding every security-relevant request
     /// field under [`VALUE_BEARING_SIGNING_DOMAIN`].
     pub fn operation_binding(&self) -> ConclaveResult<[u8; 32]> {
@@ -519,6 +597,31 @@ impl ValueBearingSignRequest {
             Some(policy_digest) => {
                 canonical.push(1);
                 append_len_prefixed(&mut canonical, policy_digest)?;
+            }
+            None => canonical.push(0),
+        }
+        append_len_prefixed(
+            &mut canonical,
+            VALUE_BEARING_CANONICAL_PROOF_AUTHORIZATION_DOMAIN.as_bytes(),
+        )?;
+        match self.canonical_proof_policy_digest() {
+            Some(policy_digest) => {
+                canonical.push(1);
+                append_len_prefixed(&mut canonical, policy_digest)?;
+            }
+            None => canonical.push(0),
+        }
+        match self.canonical_proof_context_binding() {
+            Some(context_binding) => {
+                canonical.push(1);
+                append_len_prefixed(&mut canonical, context_binding)?;
+            }
+            None => canonical.push(0),
+        }
+        match self.canonical_proof_set_digest() {
+            Some(proof_set_digest) => {
+                canonical.push(1);
+                append_len_prefixed(&mut canonical, proof_set_digest)?;
             }
             None => canonical.push(0),
         }
@@ -659,10 +762,6 @@ impl ValueBearingSignResponse {
         self.proof_set.as_ref()
     }
 
-    pub(crate) fn expected_proof_policy_digest(&self) -> Option<&[u8; 32]> {
-        self.expected_proof_policy_digest.as_ref()
-    }
-
     /// Returns replay authorization only for responses returned by the common
     /// manager boundary. Direct test-only evidence construction is not enough
     /// to authorize settlement.
@@ -733,15 +832,6 @@ impl ValueBearingSignResponse {
     ) -> ConclaveResult<Self> {
         let proof_set = proof::test_fixture_set_for_request(request)?;
         self.with_verified_proof_set(request, proof_set)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn with_test_unchecked_proof_set(
-        mut self,
-        proof_set: proof::VerifiedProofSet,
-    ) -> Self {
-        self.proof_set = Some(proof_set);
-        self
     }
 
     #[allow(dead_code)]

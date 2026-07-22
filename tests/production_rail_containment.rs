@@ -8,7 +8,8 @@ use conxius_enclave_sdk::enclave::replay_guard::{
     ReplayStoreDurability, ReplayStoreError,
 };
 use conxius_enclave_sdk::enclave::{
-    EnclaveManager, SignRequest, SignResponse, ValueBearingSignRequest,
+    EnclaveManager, ProofBundle, ProofEnvelope, ProofKind, ProofPolicy, ProofVerificationContext,
+    SignRequest, SignResponse, ValueBearingSignRequest,
 };
 use conxius_enclave_sdk::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
 use conxius_enclave_sdk::protocol::business::BusinessRegistry;
@@ -22,6 +23,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn proxy() -> RailProxy {
     RailProxy::new(
@@ -233,13 +235,72 @@ async fn production_opportunity_dispatch_reaches_provider_boundary() {
 
     assert!(matches!(
         result,
-        Err(ConclaveError::EnclaveFailure(message))
-            if message.contains("typed opportunity reached provider key boundary")
+        Err(ConclaveError::Unsupported(message))
+            if message.contains("canonical six-proof settlement authorization")
     ));
-    // The default integration fixture remains software/unverified, so the
-    // provider signing callback is intentionally still fail-closed. Reaching
-    // key lookup proves the non-test preflight no longer rejects the typed path.
-    assert_eq!(enclave.provider_calls.load(Ordering::Relaxed), 1);
+    // The no-proof compatibility path is rejected before provider key lookup;
+    // callers must use the explicit proof-bearing entry point.
+    assert_eq!(enclave.provider_calls.load(Ordering::Relaxed), 0);
+}
+
+#[tokio::test]
+async fn production_explicit_proof_path_stops_at_unavailable_verifier() {
+    let enclave = CountingEnclave::new();
+    let rail_proxy = Arc::new(proxy());
+    let dispatcher = OpportunityDispatcher::new(&enclave, Arc::clone(&rail_proxy));
+    let intent = rail_proxy
+        .prepare_intent("x402", request(), None)
+        .expect("x402 request should prepare");
+    let now_secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("test clock should be after the Unix epoch")
+        .as_secs();
+    let nonce = vec![0x42; 16];
+    let context = ProofVerificationContext::for_settlement(&intent, nonce.clone(), now_secs)
+        .expect("settlement proof context should bind");
+    let bundle = ProofBundle::new(
+        ProofKind::all()
+            .into_iter()
+            .enumerate()
+            .map(|(index, kind)| {
+                ProofEnvelope::new(
+                    kind,
+                    format!("production-containment-proof-{index}"),
+                    kind.production_verifier_id(),
+                    context.operation_digest,
+                    context.purpose.clone(),
+                    context.audience.clone(),
+                    context.nonce.clone(),
+                    now_secs.saturating_sub(1),
+                    now_secs.saturating_add(30),
+                    format!("shaped-but-unverified:{index}").into_bytes(),
+                )
+                .expect("proof envelope should be well-shaped")
+            })
+            .collect(),
+    )
+    .expect("six-proof bundle should be well-shaped");
+
+    let payload = OpportunityPayload::Swap {
+        from_chain: Chain::BITCOIN,
+        from_symbol: "BTC".to_string(),
+        to_chain: Chain::ETHEREUM,
+        to_symbol: "ETH".to_string(),
+        amount: 100,
+        recipient: "merchant".to_string(),
+        rail: Some("x402".to_string()),
+    };
+    let result = dispatcher
+        .execute_with_proofs(payload, &bundle, nonce)
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(ConclaveError::Unsupported(message))
+            if message.contains("independent proof verifier is unavailable")
+    ));
+    assert_eq!(enclave.provider_calls.load(Ordering::Relaxed), 0);
+    assert_eq!(ProofPolicy::production().required.len(), 6);
 }
 
 #[test]
