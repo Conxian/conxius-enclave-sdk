@@ -530,6 +530,7 @@ pub struct ValueBearingSignResponse {
     key_binding: SignerKeyBinding,
     attestation: DeviceIntegrityReport,
     proof_set: Option<proof::VerifiedProofSet>,
+    expected_proof_policy_digest: Option<[u8; 32]>,
     replay_authorization: Option<ValueBearingReplayAuthorization>,
 }
 
@@ -570,6 +571,10 @@ impl ValueBearingSignResponse {
         self.proof_set.as_ref()
     }
 
+    pub(crate) fn expected_proof_policy_digest(&self) -> Option<&[u8; 32]> {
+        self.expected_proof_policy_digest.as_ref()
+    }
+
     /// Returns replay authorization only for responses returned by the common
     /// manager boundary. Direct test-only evidence construction is not enough
     /// to authorize settlement.
@@ -608,6 +613,12 @@ impl ValueBearingSignResponse {
                 "verified proof attachment does not match the signing request".to_string(),
             ));
         }
+        if proof_set.policy_digest() != expected_policy.policy_digest() {
+            return Err(ConclaveError::EnclaveFailure(
+                "verified proof attachment policy digest does not match the request-side expected policy"
+                    .to_string(),
+            ));
+        }
         if proof_set.proof_count() == 0
             || !proof_set.matches_binding(
                 expected_policy,
@@ -622,6 +633,7 @@ impl ValueBearingSignResponse {
         }
 
         self.proof_set = Some(proof_set);
+        self.expected_proof_policy_digest = Some(*expected_policy.policy_digest());
         Ok(self)
     }
 
@@ -632,6 +644,15 @@ impl ValueBearingSignResponse {
     ) -> ConclaveResult<Self> {
         let proof_set = proof::test_fixture_set_for_request(request)?;
         self.with_verified_proof_set(request, proof_set)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_test_unchecked_proof_set(
+        mut self,
+        proof_set: proof::VerifiedProofSet,
+    ) -> Self {
+        self.proof_set = Some(proof_set);
+        self
     }
 
     #[allow(dead_code)]
@@ -715,6 +736,7 @@ impl ValueBearingSignResponse {
             key_binding: request.key_binding().clone(),
             attestation: report,
             proof_set: None,
+            expected_proof_policy_digest: None,
             replay_authorization: None,
         })
     }
