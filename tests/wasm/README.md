@@ -23,6 +23,14 @@ These are negative/runtime and structural lifecycle tests only; passing them
 does not establish provider, attestation, hardware, artifact-provenance, or
 production support.
 
+The runner also builds one dedicated Node.js artifact with the existing
+`development-simulators` feature solely to obtain a test client for the
+otherwise-unconstructable `accounts()` and `cctp()` routes. The harness passes
+valid-looking local values and requires both routes to return typed fail-closed
+errors without an execution or burn payload. This simulator artifact is not a
+production provider, is not published, and does not change the default-artifact
+checks that require development constructors to be absent.
+
 From the repository root, install the pinned local tools and run all lanes with:
 
 ```bash
