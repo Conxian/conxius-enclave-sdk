@@ -31,6 +31,11 @@ build_target nodejs
 build_target bundler
 build_target web
 
+echo "BUILD target=nodejs-development-containment output=$OUTPUT_DIR/nodejs-development-containment"
+wasm-pack build --release --target nodejs \
+  --out-dir "$OUTPUT_DIR/nodejs-development-containment" \
+  -- --locked --features development-simulators
+
 echo "ARTIFACTS"
 for target in nodejs bundler web; do
   echo "target=$target"
@@ -41,6 +46,8 @@ done
 node scripts/wasm_runtime_harness.mjs node "$OUTPUT_DIR/nodejs"
 node scripts/wasm_runtime_harness.mjs worker "$OUTPUT_DIR/nodejs"
 node --experimental-wasm-modules scripts/wasm_runtime_harness.mjs bundler "$OUTPUT_DIR/bundler"
+node scripts/wasm_fail_closed_protocol_harness.cjs \
+  "$OUTPUT_DIR/nodejs-development-containment"
 
 cp scripts/wasm_runtime/browser.html \
   scripts/wasm_runtime/boundary_assertions.mjs \

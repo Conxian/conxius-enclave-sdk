@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "schemaVersion": 1,
   "repository": "Conxian/conxius-enclave-sdk",
-  "reviewedRef": "99f8415be19d59ed4a2e5a07ff66b70902ede106",
-  "lastVerified": "2026-07-22",
+  "reviewedRef": "0b3634fa1984a7f16c2b179f8dfd970098aeb791",
+  "lastVerified": "2026-07-26",
   "maturity": "beta-conditional",
   "statusVocabulary": {
     "evidence": ["yes", "partial", "no", "not-evidenced"],
@@ -477,21 +477,24 @@
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/protocol/asset.rs:1-280",
+        "src/protocol/asset.rs:1-814",
         "src/protocol/asset_tests.rs:1-260",
+        "tests/fail_closed_protocol_surfaces.rs",
         "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:230-280",
+        "https://github.com/Conxian/conxius-enclave-sdk/pull/212",
+        "https://github.com/Conxian/conxius-enclave-sdk/commit/451202f51a9efed8fde70b7a5567a3e7e16c1db9",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
       ],
       "evidenceChain": [
         {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:230-280", "https://github.com/Conxian/conxius-enclave-sdk/issues/198"]},
-        {"stage": "code", "refs": ["src/protocol/asset.rs:1-280"]},
-        {"stage": "test", "refs": ["src/protocol/asset_tests.rs:1-260"]},
+        {"stage": "code", "refs": ["src/protocol/asset.rs:1-814", "https://github.com/Conxian/conxius-enclave-sdk/pull/212", "https://github.com/Conxian/conxius-enclave-sdk/commit/451202f51a9efed8fde70b7a5567a3e7e16c1db9"]},
+        {"stage": "test", "refs": ["src/protocol/asset_tests.rs:1-260", "tests/fail_closed_protocol_surfaces.rs"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/198", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Catalog/API completeness and registry tests do not validate executable address provenance or settlement safety.",
-      "notes": "Display/catalog metadata must remain distinct from active, verified executable assets."
+      "exclusion": "Catalog/API completeness and containment tests do not establish provider-backed executable address provenance or production settlement safety.",
+      "notes": "Merged PR #212 and commit 451202f51a9efed8fde70b7a5567a3e7e16c1db9 quarantine unproven metadata. The conflicting_metadata_cannot_replace_canonical_state_or_change_rail_selection and quarantined_unknown_metadata_cannot_enter_rail_selection tests prove containment; they do not validate arbitrary assets or promote production support."
     },
     {
       "id": "frost",
@@ -660,18 +663,22 @@
       "evidenceRefs": [
         "src/protocol/cctp.rs:1-180",
         "src/wasm_bindings.rs:217-256",
+        "tests/fail_closed_protocol_surfaces.rs",
+        "scripts/wasm_fail_closed_protocol_harness.cjs",
+        "https://github.com/Conxian/conxius-enclave-sdk/pull/212",
+        "https://github.com/Conxian/conxius-enclave-sdk/commit/451202f51a9efed8fde70b7a5567a3e7e16c1db9",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
       ],
       "evidenceChain": [
         {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-220", "https://github.com/Conxian/conxius-enclave-sdk/issues/198"]},
-        {"stage": "code", "refs": ["src/protocol/cctp.rs:1-180", "src/wasm_bindings.rs:217-256"]},
-        {"stage": "test", "refs": ["src/protocol/cctp.rs:1-180"]},
+        {"stage": "code", "refs": ["src/protocol/cctp.rs:1-180", "src/wasm_bindings.rs:217-256", "https://github.com/Conxian/conxius-enclave-sdk/pull/212", "https://github.com/Conxian/conxius-enclave-sdk/commit/451202f51a9efed8fde70b7a5567a3e7e16c1db9"]},
+        {"stage": "test", "refs": ["src/protocol/cctp.rs:1-180", "tests/fail_closed_protocol_surfaces.rs", "scripts/wasm_fail_closed_protocol_harness.cjs"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/198", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Empty payload and non-empty-attestation acceptance behavior is explicitly not production CCTP support.",
-      "notes": "CCTP remains disabled pending canonical message and attestation validation."
+      "exclusion": "Local intent validation and deterministic rejection do not establish Circle network metadata, calldata, Iris verification, provider integration, or production CCTP support.",
+      "notes": "Merged PR #212 and commit 451202f51a9efed8fde70b7a5567a3e7e16c1db9 disable burn encoding and attestation acceptance. The valid_looking_cctp_inputs_cannot_produce_calldata_or_validate_iris_attestation test and the WASM route harness prove valid-looking local inputs still fail closed; CCTP remains disabled pending canonical message, network, and Iris evidence."
     },
     {
       "id": "account-abstraction",
@@ -685,18 +692,22 @@
       "evidenceRefs": [
         "src/protocol/account_abstraction.rs:1-180",
         "src/wasm_bindings.rs:202-216",
+        "tests/fail_closed_protocol_surfaces.rs",
+        "scripts/wasm_fail_closed_protocol_harness.cjs",
+        "https://github.com/Conxian/conxius-enclave-sdk/pull/212",
+        "https://github.com/Conxian/conxius-enclave-sdk/commit/451202f51a9efed8fde70b7a5567a3e7e16c1db9",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
       ],
       "evidenceChain": [
         {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-220", "https://github.com/Conxian/conxius-enclave-sdk/issues/198"]},
-        {"stage": "code", "refs": ["src/protocol/account_abstraction.rs:1-180", "src/wasm_bindings.rs:202-216"]},
-        {"stage": "test", "refs": ["src/protocol/account_abstraction.rs:1-180"]},
+        {"stage": "code", "refs": ["src/protocol/account_abstraction.rs:1-180", "src/wasm_bindings.rs:202-216", "https://github.com/Conxian/conxius-enclave-sdk/pull/212", "https://github.com/Conxian/conxius-enclave-sdk/commit/451202f51a9efed8fde70b7a5567a3e7e16c1db9"]},
+        {"stage": "test", "refs": ["src/protocol/account_abstraction.rs:1-180", "tests/fail_closed_protocol_surfaces.rs", "scripts/wasm_fail_closed_protocol_harness.cjs"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/198", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Structural batch preparation and non-empty module validation are not canonical account-abstraction execution evidence.",
-      "notes": "Unsupported modules must fail closed before production enablement."
+      "exclusion": "Local action/module shape validation and deterministic rejection are not ERC-7579 execution, entry-point, registry, module-provenance, provider, or production evidence.",
+      "notes": "Merged PR #212 and commit 451202f51a9efed8fde70b7a5567a3e7e16c1db9 disable execution and provenance claims. The valid_looking_erc7579_inputs_cannot_execute_or_claim_module_provenance test and the WASM route harness prove valid-looking actions and modules remain unsupported before production enablement."
     },
     {
       "id": "covenant",
