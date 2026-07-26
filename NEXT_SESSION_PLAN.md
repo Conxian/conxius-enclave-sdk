@@ -5,6 +5,29 @@
 > **Priority Order**: P1 → P2 → P3
 > **Knowledge Base**: v0.4.2
 
+## 2026-07-26 durable replay deployment decision gate (#191 / #240)
+
+The active `enclave::replay_guard::ReplayStore` now has a backend-neutral
+conformance/fault model and canonical requirements in
+[`docs/architecture/DURABLE_REPLAY_CONFORMANCE.md`](docs/architecture/DURABLE_REPLAY_CONFORMANCE.md).
+This is contract evidence only and does not select a backend or justify a
+capability/status change.
+
+The exact next decision is: **choose one deployment-scoped durable replay
+adapter and consistency topology, or explicitly defer deployment**. Before
+implementation or promotion, record the candidate product/version, region and
+replica topology, conditional-write/transaction primitive, complete binding-key
+schema, trusted-clock source, exclusive-retention enforcement, timeout and
+uncertain-commit mapping, and backup/failover ownership.
+
+The evidence gate is one reviewed requirement -> adapter code -> real-adapter
+conformance test -> crash/restart/failover/restore test -> exact CI run -> exact
+artifact/provenance chain. It must include single-key and overlapping-batch
+contention, before/after-commit faults, retained high-water rollback state, TTL
+boundary behavior independent of asynchronous deletion, and independent
+security review. Until that chain exists, keep `capability-evidence.json` and
+all production-support decisions unchanged.
+
 ## 2026-07-22 Issue #240 Phase A handoff
 
 Phase A is the provider-neutral trust and durable-replay contract slice. It

@@ -93,6 +93,22 @@ cross-replica consistency remain integration work.
 
 ## 3. Replay-store contract
 
+The canonical backend-neutral conformance and recovery requirements are in
+[`DURABLE_REPLAY_CONFORMANCE.md`](./DURABLE_REPLAY_CONFORMANCE.md). That
+document traces the selected
+[#191](https://github.com/Conxian/conxius-enclave-sdk/issues/191) slice to the
+distributed replay gate in
+[#240](https://github.com/Conxian/conxius-enclave-sdk/issues/240).
+
+The repository has three distinct replay contracts. The active
+`replay_guard::ReplayStore` used by proof authorization, final signing, and
+rail dispatch is separate from `durable_replay::DurableReplayStore` and
+`trust_contracts::DurableReplayStore`. Their fixtures, outcomes, and evidence
+must not be combined. `ReplayStoreDurability::DurableProvider` is an adapter
+assertion, not durability evidence. In-memory fixtures returning that value are
+test-only contract scaffolding; a real adapter still requires deployment
+evidence satisfying the conformance gate.
+
 `src/enclave/replay_guard.rs` defines the provider-neutral `ReplayStore` trait:
 
 - `consume_once` returns `Accepted` or `Duplicate` for one reservation;
@@ -108,8 +124,8 @@ backend. `ReplayGuard` implements the contract for compatibility and local
 containment, but its durability is explicitly `ProcessLocal`: it is not
 restart-safe, multi-replica, cross-region, or production replay coordination.
 No distributed database or arbitrary persistence technology is selected by
-this foundation. Any in-memory store used by crate tests to exercise the
-`DurableProvider` contract is a test fixture only; it is not evidence of a
+this foundation. Any in-memory store used by crate tests that claims
+`DurableProvider` is a test fixture only; the claim is not evidence of a
 distributed backend.
 
 `RailProxy::with_replay_store` rejects `ProcessLocal` and `Unavailable` stores

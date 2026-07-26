@@ -1,13 +1,81 @@
 # Conclave SDK Research Log
 
 > External research findings, technology monitoring, and industry analysis
-> **Version**: v1.2.0 | **Last Updated**: 2026-07-22
+> **Version**: v1.2.1 | **Last Updated**: 2026-07-26
 
 ---
 
 ## Overview
 
 This document captures external research findings relevant to the Conclave SDK's development trajectory. Each entry includes source links and applicability notes for future reference.
+
+---
+
+## Durable replay and atomic admission patterns (2026-07-26)
+
+These primary sources inform the active `ReplayStore` conformance contract.
+They are design patterns and evaluation options only; no database backend or
+deployment support is selected.
+
+### IETF replay and idempotency concepts
+
+**Facts:** [RFC 9110, Section
+9.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2) defines an
+idempotent method by the intended server effect of repeated identical requests
+and explains why a client may retry after losing a response. [RFC 8446,
+Section 8](https://www.rfc-editor.org/rfc/rfc8446.html#section-8) warns that
+replay safety across server zones requires shared state or an equivalent
+at-most-once mechanism.
+
+**Repository application:** A lost response does not prove non-commit. The
+active replay adapter must distinguish definite pre-commit failure from an
+indeterminate commit and must restore the replay ledger plus high-water clock
+before accepting protected operations after restart/failover. The complete
+binding digest, not a transport retry token alone, defines the replay identity.
+As this SDK's fail-closed policy inference from the RFC replay model, a freshly
+started implementation must not accept protected traffic for a recording
+window it cannot reconstruct; that sentence is repository policy, not RFC
+wording.
+
+### DynamoDB conditional and transactional writes
+
+**Facts:** AWS documents [condition
+expressions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ConditionExpressions.html)
+for modifying an item only when a predicate holds, including existence tests,
+and [DynamoDB
+transactions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transactions.html)
+for all-or-nothing groups of condition checks and writes.
+
+**Repository application:** Conditional absence and transactional batch writes
+are representative primitives for consume-once admission. A future adapter
+would still need exact timeout/cancellation mapping, high-water persistence,
+retention enforcement, topology/failover tests, and artifact evidence; the
+existence of these APIs is not provider selection or support.
+
+### Spanner transactions and commit timestamps
+
+**Facts:** Google documents [read-write
+transactions](https://cloud.google.com/spanner/docs/transactions) and [commit
+timestamps](https://cloud.google.com/spanner/docs/commit-timestamp), where the
+database assigns the timestamp when a transaction commits.
+
+**Repository application:** Serializable transaction and commit-order metadata
+are candidate tools for atomic batches and recovery ordering. They do not by
+themselves define the SDK trusted clock, exclusive retention policy, ambiguous
+commit response, or regional recovery contract.
+
+### PostgreSQL serializable isolation
+
+**Facts:** PostgreSQL documents that [Serializable
+isolation](https://www.postgresql.org/docs/16/transaction-iso.html#XACT-SERIALIZABLE)
+allows committed transactions only when they can be arranged as a serial order
+and requires applications to retry serialization failures.
+
+**Repository application:** A unique replay key plus a reviewed serializable
+transaction is another candidate pattern for overlapping batches. A future
+adapter must distinguish a confirmed serialization abort from a lost response
+after commit and must prove restart, restore, clock, retention, and failover
+semantics in the deployment under review.
 
 ---
 
@@ -597,6 +665,7 @@ workspace/
 | 2026-07-20 | Artifact provenance | GitHub attestations and SLSA provenance separate build intent from exact artifact evidence | Keep artifact stage empty until exact release evidence exists |
 | 2026-07-20 | WASM runtime evidence | wasm-bindgen-test uses wasm-pack runners for Node/headless-browser execution; build output is not runtime support | Track browser/Node/bundler/worker/provider/hardware evidence in #200 |
 | 2026-07-20 | Evidence schemas | NIST SSDF provides a common secure-development vocabulary and provenance-oriented practices | Validate deterministic capability JSON and ordered evidence chain |
+| 2026-07-26 | Durable replay conformance | IETF retry/replay guidance and official conditional/transaction primitives reinforce atomic admission and uncertain-commit handling | Evaluate one deployment-scoped adapter against the full conformance gate |
 
 ---
 
@@ -650,5 +719,5 @@ BIP-110 is a temporary softfork that moves Bitcoin policy limits into consensus 
 ---
 
 *Research log initiated: 2026-07-15*
-*Updated: 2026-07-20 (Capability evidence follow-up)*
+*Updated: 2026-07-26 (Durable replay conformance research)*
 *Maintained by: SDK Team*
