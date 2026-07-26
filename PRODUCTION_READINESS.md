@@ -1,11 +1,13 @@
 # Production Enablement Checklist
 
 > This is a gated checklist, not a production-readiness claim.
-> Status: Beta / conditional | Last Updated: 2026-07-22
+> Status: Beta / conditional | Last Updated: 2026-07-26
 
 The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), [machine-readable evidence](./docs/architecture/capability-evidence.json), [trust/replay foundation](./docs/architecture/TRUST_REPLAY_FOUNDATION.md), [public operations runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md), [release recovery runbook](./docs/operations/RELEASE_RECOVERY_RUNBOOK.md), and [protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.11`; `Cargo.toml` declaring `2.0.12` does not establish a supported release.
 
 Merged PR [#205](https://github.com/Conxian/conxius-enclave-sdk/pull/205), merged PR [#216](https://github.com/Conxian/conxius-enclave-sdk/pull/216), and the typed-settlement follow-up code checkpoint are containment and evidence-boundary work only. They make missing provider evidence fail closed and preserve signer-identity binding; they do not establish real hardware/provider integration, distributed replay, runtime support, independent review, release artifacts, or production readiness. Issue [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) remains open.
+
+Merged PR [#212](https://github.com/Conxian/conxius-enclave-sdk/pull/212) at commit `451202f51a9efed8fde70b7a5567a3e7e16c1db9` quarantines CCTP burn/attestation operations, ERC-7579 execution/module provenance, and unproven asset metadata. The adversarial public-boundary checks in `tests/fail_closed_protocol_surfaces.rs` prove containment only: valid-looking inputs remain rejected and quarantined metadata cannot enter rail selection. They do not enable or establish Circle/Iris, account-provider/module, arbitrary asset, WASM value-operation, hardware-provider, or production support.
 
 Phase A of CON-1512 adds an explicit proof-factor taxonomy and fail-closed composition boundary for server identity, user authorization, phone/device attestation, TEE attestation, FIDO2/WebAuthn assertions, and TPM quotes. The canonical `ProofBoundValueBearingAuthorization` is now required by the value-bearing settlement rail boundary; the production verifier registry is intentionally unavailable, test fixtures are test-only, and no category is production-supported until concrete provider roots/collateral, runtime integration, replay coordination, independent review, and exact release artifacts exist. Existing `DeviceIntegrityReport` and legacy `ProofSetPolicy`/`VerifiedProofSet` types are not silently promoted into the canonical proof authorization.
 
@@ -72,7 +74,9 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [x] Tracked WASM runtime execution harness covers Node, browser, bundler, and worker lanes; passing negative/runtime tests do not establish provider, hardware, or production support
 - [x] WASM private-key export path removed; provider/runtime support remains fail-closed
 - [x] Negative tests cover missing provider evidence, simulator exclusion, typed proof-factor/context mismatches, incomplete proof sets, typed binding mismatches, and raw settlement dispatch rejection
+- [x] Cross-module negative tests cover valid-looking CCTP and ERC-7579 inputs plus conflicting/quarantined asset metadata; these checks prove rejection and routing containment only, not provider or protocol support
 - [x] WASM FROST/Fedimint/Ark/BitVM2 quarantine methods propagate typed unsupported errors without secret-bearing outputs; legacy BitVM challenge signing/aggregation also fail with `PROTOCOL_UNSUPPORTED` before decoding
+- [x] A dedicated test-only WASM simulator artifact exercises `accounts()` and `cctp()` with valid-looking inputs and requires typed rejection; the default artifact still excludes development constructors, and this is containment rather than provider/runtime support
 - [ ] Fuzz testing for critical paths
 
 ### 📦 Dependency Requirements

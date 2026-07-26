@@ -144,4 +144,11 @@ build_lane() {
 build_lane nodejs "$GENERATED/node"
 build_lane web "$GENERATED/web"
 
+echo "Building test-only fail-closed route package: target=nodejs output=$GENERATED/node-development-containment"
+CFLAGS="$CFLAGS_VALUE" wasm-pack build --release --target nodejs \
+  --out-dir "$GENERATED/node-development-containment" \
+  -- --locked --features development-simulators
+
 node "$ROOT/tests/wasm/run.mjs"
+node "$ROOT/scripts/wasm_fail_closed_protocol_harness.cjs" \
+  "$GENERATED/node-development-containment"
