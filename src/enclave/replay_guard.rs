@@ -527,6 +527,19 @@ pub struct ReplayBatchOutcome {
 }
 
 impl ReplayBatchOutcome {
+    /// Constructs the success result returned after an implementation has
+    /// atomically committed every reservation in a batch.
+    ///
+    /// Backend adapters must not construct this value until the complete
+    /// batch is durably committed according to their advertised contract. The
+    /// count is derived from that exact batch and is descriptive; it is not
+    /// independent proof that the durability assertion is true.
+    pub fn accepted_for(reservations: &[ReplayReservation]) -> Self {
+        Self {
+            accepted_count: reservations.len(),
+        }
+    }
+
     pub fn accepted_count(self) -> usize {
         self.accepted_count
     }
@@ -833,9 +846,7 @@ impl ReplayStore for ReplayGuard {
             .collect::<Result<Vec<_>, ReplayStoreError>>()?;
 
         match self.try_check_and_record_batch_with_horizons(requested, now_secs) {
-            Ok(()) => Ok(ReplayBatchOutcome {
-                accepted_count: reservations.len(),
-            }),
+            Ok(()) => Ok(ReplayBatchOutcome::accepted_for(reservations)),
             Err(ReplayGuardError::Duplicate) => Err(ReplayStoreError::AtomicBatchFailure(
                 ReplayBatchFailure::Duplicate,
             )),
@@ -854,8 +865,9 @@ impl ReplayStore for ReplayGuard {
 #[cfg(test)]
 mod tests {
     use super::{
-        ReplayBatchFailure, ReplayBinding, ReplayConsumeOutcome, ReplayGuard, ReplayReservation,
-        ReplayStore, ReplayStoreDurability, ReplayStoreError, UnavailableReplayStore,
+        ReplayBatchFailure, ReplayBatchOutcome, ReplayBinding, ReplayConsumeOutcome, ReplayGuard,
+        ReplayReservation, ReplayStore, ReplayStoreDurability, ReplayStoreError,
+        UnavailableReplayStore,
     };
     use sha2::{Digest, Sha256};
 
@@ -1210,6 +1222,19 @@ mod tests {
         );
         assert!(!debug.contains(&hex::encode(&fixture_input)));
         assert!(!debug.contains("fixture-key-identity"));
+    }
+
+    #[test]
+    fn batch_outcome_count_is_derived_from_the_reservation_slice() {
+        assert_eq!(ReplayBatchOutcome::accepted_for(&[]).accepted_count(), 0);
+        let reservations = [
+            ReplayReservation::from_digest([1; 32], 500),
+            ReplayReservation::from_digest([2; 32], 500),
+        ];
+        assert_eq!(
+            ReplayBatchOutcome::accepted_for(&reservations).accepted_count(),
+            reservations.len()
+        );
     }
 
     #[test]
