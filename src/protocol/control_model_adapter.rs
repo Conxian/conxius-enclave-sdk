@@ -99,19 +99,49 @@ pub enum CoreVerificationClass {
     ZkVerified,
 }
 
-/// Core's reviewed concrete-chain taxonomy.
+/// Core's reviewed concrete-chain taxonomy (v0.3.0, bitcoinlayers.org-aligned).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CoreChain {
+    // ── Bitcoin L1 ──
     Bitcoin,
+    // ── Bitcoin Native ──
+    Lightning,
+    Spark,
+    MercuryLayer,
+    Second,
+    Arkade,
+    // ── Sidesystems ──
     Stacks,
     Liquid,
-    Lightning,
+    Rootstock,
+    Botanix,
+    Citrea,
+    Alpen,
+    Arch,
+    Midl,
+    Nomic,
+    SideProtocol,
+    // ── Other Bitcoin-adjacent ──
     Babylon,
     Bob,
     Mezo,
-    Citrea,
-    Botanix,
+    Alkanes,
+    Bevm,
+    Bitlayer,
+    Bsquared,
+    Core,
+    Corn,
+    Flashnet,
+    Fractal,
+    Goat,
+    Hemi,
+    InternetComputer,
+    Merlin,
+    Rgb,
+    Rollux,
+    Starknet,
+    // ── Cross-ecosystem ──
     Ethereum,
     Base,
     Arbitrum,
@@ -129,21 +159,42 @@ pub enum CoreChain {
 }
 
 impl CoreChain {
-    /// Returns Core's canonical family for this exact chain.
+    /// Returns Core's canonical family for this exact chain (v0.3.0).
     pub const fn family(self) -> CoreChainFamily {
         match self {
-            Self::Bitcoin | Self::Stacks | Self::Liquid | Self::Lightning | Self::Babylon => {
-                CoreChainFamily::BitcoinUtxo
-            }
+            // ── Bitcoin L1 ──
+            Self::Bitcoin => CoreChainFamily::BitcoinUtxo,
+            // ── Bitcoin Native ──
+            Self::Lightning => CoreChainFamily::BitcoinUtxo,
+            Self::Spark | Self::MercuryLayer => CoreChainFamily::Statechain,
+            Self::Second | Self::Arkade => CoreChainFamily::Ark,
+            // ── Sidesystems ──
+            Self::Stacks => CoreChainFamily::Anchor,
+            Self::Liquid => CoreChainFamily::Federation,
+            Self::Rootstock => CoreChainFamily::MergeMined,
+            Self::Botanix => CoreChainFamily::Federation,
+            Self::Citrea | Self::Alpen => CoreChainFamily::Rollup,
+            Self::Arch | Self::Midl | Self::Nomic | Self::SideProtocol => CoreChainFamily::Bpos,
+            // ── Other Bitcoin-adjacent ──
+            Self::Babylon | Self::Core => CoreChainFamily::Bpos,
             Self::Bob
-            | Self::Mezo
-            | Self::Citrea
-            | Self::Botanix
-            | Self::Ethereum
-            | Self::Base
-            | Self::Arbitrum
-            | Self::Optimism
-            | Self::Polygon => CoreChainFamily::Evm,
+            | Self::Bsquared
+            | Self::Hemi
+            | Self::Corn
+            | Self::Merlin
+            | Self::Rollux => CoreChainFamily::AltRollup,
+            Self::Mezo | Self::Bitlayer => CoreChainFamily::Federation,
+            Self::Alkanes => CoreChainFamily::Rollup,
+            Self::Bevm | Self::Goat => CoreChainFamily::AltLayer1,
+            Self::Fractal => CoreChainFamily::MergeMined,
+            Self::Flashnet => CoreChainFamily::Hybrid,
+            Self::InternetComputer => CoreChainFamily::Hybrid,
+            Self::Rgb => CoreChainFamily::Csv,
+            Self::Starknet => CoreChainFamily::AltRollup,
+            // ── Cross-ecosystem ──
+            Self::Ethereum | Self::Base | Self::Arbitrum | Self::Optimism | Self::Polygon => {
+                CoreChainFamily::Evm
+            }
             Self::CosmosHub | Self::Osmosis | Self::Celestia => CoreChainFamily::CosmosIbc,
             Self::Solana | Self::Eclipse => CoreChainFamily::SolanaSvm,
             Self::Aptos | Self::Sui => CoreChainFamily::Move,
@@ -152,16 +203,50 @@ impl CoreChain {
     }
 }
 
-/// Core's reviewed chain-family taxonomy.
+/// Core's reviewed chain-family taxonomy (v0.3.0, bitcoinlayers.org-aligned).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CoreChainFamily {
+    /// Bitcoin L1 and UTXO-native protocols.
     BitcoinUtxo,
+    /// Statechain protocols (Spark, Mercury Layer).
+    Statechain,
+    /// Ark protocol implementations (Second, Arkade).
+    Ark,
+    /// Bitcoin-secured Proof-of-Stake networks (Babylon, Core, Arch, Midl, Nomic, SideProtocol).
+    #[serde(rename = "b_po_s")]
+    Bpos,
+    /// Federated Bitcoin sidechains (Liquid, Botanix, Bitlayer, Mezo).
+    Federation,
+    /// Merge-mined Bitcoin sidechains (Rootstock, Fractal).
+    #[serde(rename = "merge_mined")]
+    MergeMined,
+    /// Bitcoin anchor-based layers (Stacks).
+    Anchor,
+    /// Bitcoin rollups (Citrea, Alpen, Alkanes).
+    Rollup,
+    /// Alternative rollup designs (BOB, Merlin, Bsquared, Hemi, Corn, Rollux, Starknet).
+    #[serde(rename = "alt_rollup")]
+    AltRollup,
+    /// Alternative Layer-1 chains with Bitcoin bridging (BEVM, GOAT).
+    #[serde(rename = "alt_layer1")]
+    AltLayer1,
+    /// Client-side validation protocols (RGB).
+    Csv,
+    /// EVM-compatible chains.
     Evm,
+    /// Cosmos/IBC ecosystem.
+    #[serde(rename = "cosmos_ibc")]
     CosmosIbc,
+    /// Solana SVM ecosystem.
+    #[serde(rename = "solana_svm")]
     SolanaSvm,
+    /// Move-based chains (Aptos, Sui).
     Move,
+    /// Substrate/Polkadot ecosystem.
     Substrate,
+    /// Hybrid/other architectures (Internet Computer, Flashnet).
+    Hybrid,
 }
 
 /// Maps only SDK chains that are exact current Core concrete-chain values.
@@ -175,10 +260,12 @@ pub fn sdk_chain_to_core(value: Chain) -> ConclaveResult<CoreChain> {
         Chain::LIQUID => CoreChain::Liquid,
         Chain::LIGHTNING => CoreChain::Lightning,
         Chain::BABYLON => CoreChain::Babylon,
+        Chain::ROOTSTOCK => CoreChain::Rootstock,
         Chain::BOB => CoreChain::Bob,
         Chain::MEZO => CoreChain::Mezo,
         Chain::CITREA => CoreChain::Citrea,
         Chain::BOTANIX => CoreChain::Botanix,
+        Chain::STARKNET => CoreChain::Starknet,
         Chain::ETHEREUM => CoreChain::Ethereum,
         Chain::BASE => CoreChain::Base,
         Chain::ARBITRUM => CoreChain::Arbitrum,
@@ -399,14 +486,39 @@ mod tests {
     fn core_chain_and_family_use_exact_reviewed_names() {
         let chains = [
             (CoreChain::Bitcoin, "bitcoin"),
+            (CoreChain::Lightning, "lightning"),
+            (CoreChain::Spark, "spark"),
+            (CoreChain::MercuryLayer, "mercury_layer"),
+            (CoreChain::Second, "second"),
+            (CoreChain::Arkade, "arkade"),
             (CoreChain::Stacks, "stacks"),
             (CoreChain::Liquid, "liquid"),
-            (CoreChain::Lightning, "lightning"),
+            (CoreChain::Rootstock, "rootstock"),
+            (CoreChain::Botanix, "botanix"),
+            (CoreChain::Citrea, "citrea"),
+            (CoreChain::Alpen, "alpen"),
+            (CoreChain::Arch, "arch"),
+            (CoreChain::Midl, "midl"),
+            (CoreChain::Nomic, "nomic"),
+            (CoreChain::SideProtocol, "side_protocol"),
             (CoreChain::Babylon, "babylon"),
             (CoreChain::Bob, "bob"),
             (CoreChain::Mezo, "mezo"),
-            (CoreChain::Citrea, "citrea"),
-            (CoreChain::Botanix, "botanix"),
+            (CoreChain::Alkanes, "alkanes"),
+            (CoreChain::Bevm, "bevm"),
+            (CoreChain::Bitlayer, "bitlayer"),
+            (CoreChain::Bsquared, "bsquared"),
+            (CoreChain::Core, "core"),
+            (CoreChain::Corn, "corn"),
+            (CoreChain::Flashnet, "flashnet"),
+            (CoreChain::Fractal, "fractal"),
+            (CoreChain::Goat, "goat"),
+            (CoreChain::Hemi, "hemi"),
+            (CoreChain::InternetComputer, "internet_computer"),
+            (CoreChain::Merlin, "merlin"),
+            (CoreChain::Rgb, "rgb"),
+            (CoreChain::Rollux, "rollux"),
+            (CoreChain::Starknet, "starknet"),
             (CoreChain::Ethereum, "ethereum"),
             (CoreChain::Base, "base"),
             (CoreChain::Arbitrum, "arbitrum"),
@@ -435,11 +547,22 @@ mod tests {
 
         let families = [
             (CoreChainFamily::BitcoinUtxo, "bitcoin_utxo"),
+            (CoreChainFamily::Statechain, "statechain"),
+            (CoreChainFamily::Ark, "ark"),
+            (CoreChainFamily::Bpos, "b_po_s"),
+            (CoreChainFamily::Federation, "federation"),
+            (CoreChainFamily::MergeMined, "merge_mined"),
+            (CoreChainFamily::Anchor, "anchor"),
+            (CoreChainFamily::Rollup, "rollup"),
+            (CoreChainFamily::AltRollup, "alt_rollup"),
+            (CoreChainFamily::AltLayer1, "alt_layer1"),
+            (CoreChainFamily::Csv, "csv"),
             (CoreChainFamily::Evm, "evm"),
             (CoreChainFamily::CosmosIbc, "cosmos_ibc"),
             (CoreChainFamily::SolanaSvm, "solana_svm"),
             (CoreChainFamily::Move, "move"),
             (CoreChainFamily::Substrate, "substrate"),
+            (CoreChainFamily::Hybrid, "hybrid"),
         ];
         for (value, expected) in families {
             assert_eq!(
@@ -575,35 +698,22 @@ mod tests {
     #[test]
     fn supported_chains_map_without_family_collapsing() {
         let supported = [
-            (
-                Chain::BITCOIN,
-                CoreChain::Bitcoin,
-                CoreChainFamily::BitcoinUtxo,
-            ),
-            (
-                Chain::STACKS,
-                CoreChain::Stacks,
-                CoreChainFamily::BitcoinUtxo,
-            ),
-            (
-                Chain::LIQUID,
-                CoreChain::Liquid,
-                CoreChainFamily::BitcoinUtxo,
-            ),
-            (
-                Chain::LIGHTNING,
-                CoreChain::Lightning,
-                CoreChainFamily::BitcoinUtxo,
-            ),
-            (
-                Chain::BABYLON,
-                CoreChain::Babylon,
-                CoreChainFamily::BitcoinUtxo,
-            ),
-            (Chain::BOB, CoreChain::Bob, CoreChainFamily::Evm),
-            (Chain::MEZO, CoreChain::Mezo, CoreChainFamily::Evm),
-            (Chain::CITREA, CoreChain::Citrea, CoreChainFamily::Evm),
-            (Chain::BOTANIX, CoreChain::Botanix, CoreChainFamily::Evm),
+            // ── Bitcoin L1 ──
+            (Chain::BITCOIN, CoreChain::Bitcoin, CoreChainFamily::BitcoinUtxo),
+            // ── Bitcoin Native ──
+            (Chain::LIGHTNING, CoreChain::Lightning, CoreChainFamily::BitcoinUtxo),
+            // ── Sidesystems ──
+            (Chain::STACKS, CoreChain::Stacks, CoreChainFamily::Anchor),
+            (Chain::LIQUID, CoreChain::Liquid, CoreChainFamily::Federation),
+            (Chain::ROOTSTOCK, CoreChain::Rootstock, CoreChainFamily::MergeMined),
+            (Chain::BOTANIX, CoreChain::Botanix, CoreChainFamily::Federation),
+            (Chain::CITREA, CoreChain::Citrea, CoreChainFamily::Rollup),
+            // ── Other ──
+            (Chain::BABYLON, CoreChain::Babylon, CoreChainFamily::Bpos),
+            (Chain::BOB, CoreChain::Bob, CoreChainFamily::AltRollup),
+            (Chain::MEZO, CoreChain::Mezo, CoreChainFamily::Federation),
+            (Chain::STARKNET, CoreChain::Starknet, CoreChainFamily::AltRollup),
+            // ── Cross-ecosystem ──
             (Chain::ETHEREUM, CoreChain::Ethereum, CoreChainFamily::Evm),
             (Chain::BASE, CoreChain::Base, CoreChainFamily::Evm),
             (Chain::ARBITRUM, CoreChain::Arbitrum, CoreChainFamily::Evm),
