@@ -177,12 +177,9 @@ impl CoreChain {
             Self::Arch | Self::Midl | Self::Nomic | Self::SideProtocol => CoreChainFamily::Bpos,
             // ── Other Bitcoin-adjacent ──
             Self::Babylon | Self::Core => CoreChainFamily::Bpos,
-            Self::Bob
-            | Self::Bsquared
-            | Self::Hemi
-            | Self::Corn
-            | Self::Merlin
-            | Self::Rollux => CoreChainFamily::AltRollup,
+            Self::Bob | Self::Bsquared | Self::Hemi | Self::Corn | Self::Merlin | Self::Rollux => {
+                CoreChainFamily::AltRollup
+            }
             Self::Mezo | Self::Bitlayer => CoreChainFamily::Federation,
             Self::Alkanes => CoreChainFamily::Rollup,
             Self::Bevm | Self::Goat => CoreChainFamily::AltLayer1,
@@ -699,20 +696,44 @@ mod tests {
     fn supported_chains_map_without_family_collapsing() {
         let supported = [
             // ── Bitcoin L1 ──
-            (Chain::BITCOIN, CoreChain::Bitcoin, CoreChainFamily::BitcoinUtxo),
+            (
+                Chain::BITCOIN,
+                CoreChain::Bitcoin,
+                CoreChainFamily::BitcoinUtxo,
+            ),
             // ── Bitcoin Native ──
-            (Chain::LIGHTNING, CoreChain::Lightning, CoreChainFamily::BitcoinUtxo),
+            (
+                Chain::LIGHTNING,
+                CoreChain::Lightning,
+                CoreChainFamily::BitcoinUtxo,
+            ),
             // ── Sidesystems ──
             (Chain::STACKS, CoreChain::Stacks, CoreChainFamily::Anchor),
-            (Chain::LIQUID, CoreChain::Liquid, CoreChainFamily::Federation),
-            (Chain::ROOTSTOCK, CoreChain::Rootstock, CoreChainFamily::MergeMined),
-            (Chain::BOTANIX, CoreChain::Botanix, CoreChainFamily::Federation),
+            (
+                Chain::LIQUID,
+                CoreChain::Liquid,
+                CoreChainFamily::Federation,
+            ),
+            (
+                Chain::ROOTSTOCK,
+                CoreChain::Rootstock,
+                CoreChainFamily::MergeMined,
+            ),
+            (
+                Chain::BOTANIX,
+                CoreChain::Botanix,
+                CoreChainFamily::Federation,
+            ),
             (Chain::CITREA, CoreChain::Citrea, CoreChainFamily::Rollup),
             // ── Other ──
             (Chain::BABYLON, CoreChain::Babylon, CoreChainFamily::Bpos),
             (Chain::BOB, CoreChain::Bob, CoreChainFamily::AltRollup),
             (Chain::MEZO, CoreChain::Mezo, CoreChainFamily::Federation),
-            (Chain::STARKNET, CoreChain::Starknet, CoreChainFamily::AltRollup),
+            (
+                Chain::STARKNET,
+                CoreChain::Starknet,
+                CoreChainFamily::AltRollup,
+            ),
             // ── Cross-ecosystem ──
             (Chain::ETHEREUM, CoreChain::Ethereum, CoreChainFamily::Evm),
             (Chain::BASE, CoreChain::Base, CoreChainFamily::Evm),
