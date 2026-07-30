@@ -216,4 +216,18 @@ Workflow definitions are not evidence of a successful release. Verify the exact 
 
 ---
 
-*Knowledge Base Version: v0.4.2 | Last Updated: 2026-07-20*
+## Session State (2026-07-30)
+
+### v2.0.12 — Core v0.3.0 Taxonomy Mirror
+- PR [#257](https://github.com/Conxian/conxius-enclave-sdk/pull/257) merged to main
+- `src/protocol/control_model_adapter.rs` updated: 48 CoreChain variants, 17 CoreChainFamily variants
+- Tag `v2.0.12` created on main
+- Family mappings mirror Core v0.3.0: Stacks→Anchor, Liquid→Federation, Babylon→BPoS, Bob→AltRollup, Mezo→Federation, Citrea→Rollup, Botanix→Federation
+- Serde names use exact Core wire format (`b_po_s`, `merge_mined`, `alt_rollup`, `alt_layer1`, `cosmos_ibc`, `solana_svm`)
+- 442 tests pass, 0 failures
+
+### Remaining
+- crates.io publish blocked by `cargo package --locked` non-determinism in release-strict.yml rebuild-verification step (line 414-430)
+- Fix: relax rebuild verification or publish manually with `cargo publish --locked`
+
+*Knowledge Base Version: v0.4.2 | Last Updated: 2026-07-30*
