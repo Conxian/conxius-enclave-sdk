@@ -1,4 +1,4 @@
-# Conclave SDK: Agent Directives (v0.3.0 — Session 47, Aug 2026)
+# Conclave SDK: Agent Directives (v0.3.1 — Session 48, Aug 2026)
 
 ## Core Ethos
 The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native Bitcoin applications. We prioritize hardware-backed security (TEE, StrongBox), non-custodial orchestration, and universal asset support.
@@ -9,9 +9,9 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 - **No-Panic**: Avoid `panic!`, `unwrap()`, and `expect()` in production paths. Use `ConclaveResult` for error handling.
 - **Zeroization**: Sensitive data must be zeroed out when no longer needed.
 
-## Protocol Module Catalog (Session 47 — Aug 2026) — 39 Modules
+## Protocol Module Catalog (Session 48 — Aug 2026) — 40 Modules
 
-### Blockchain Protocols (18 modules)
+### Blockchain Protocols (19 modules)
 
 | Module | Path | Description | Status |
 |--------|------|-------------|--------|
@@ -30,10 +30,11 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 | mmr | `src/protocol/mmr.rs` | Merkle mountain range proofs | ✅ |
 | ethereum | `src/protocol/ethereum.rs` | EVM chain abstraction, EIP-1559 | ✅ |
 | solana | `src/protocol/solana.rs` | Solana program integration | ✅ |
+| statechain | `src/protocol/statechain.rs` | Spark statechain protocol boundary (577 lines) | ✅ Structural |
 | sidl | `src/protocol/sidl.rs` | Sovereign Interface Definition Lang | ✅ |
 | credit | `src/protocol/credit.rs` | Credit facility management | ✅ |
 | fiat | `src/protocol/fiat.rs` | Fiat on/off ramp types | ✅ |
-| asset | `src/protocol/asset.rs` | Multi-asset registry (41+ chains) | ✅ |
+| asset | `src/protocol/asset.rs` | Multi-asset registry (42 chains incl. SPARK) | ✅ |
 
 ### Cross-cutting Protocols (14 modules)
 
