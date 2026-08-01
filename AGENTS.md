@@ -17,7 +17,8 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 |--------|------|-------------|--------|
 | bitcoin | `src/protocol/bitcoin.rs` | Core Bitcoin primitives, PSBT, script | ✅ |
 | bip322 | `src/protocol/bip322.rs` | BIP-322 message signing | ✅ |
-| bitvm | `src/protocol/bitvm.rs` | BitVM2 proof verification | ✅ |
+| bitvm | `src/protocol/bitvm.rs` | BitVM proof primitive types | ✅ |
+| bitvm2 | `src/protocol/bitvm2.rs` | BitVM2 protocol boundary (roles, commitments, challenges) | ✅ |
 | dlc | `src/protocol/dlc.rs` | Discreet Log Contracts | ✅ |
 | frost | `src/protocol/frost.rs` | FROST DKG, threshold signing | ✅ |
 | lightning | `src/protocol/lightning.rs` | BOLT 12, BIP-353, LNURL | ✅ |
@@ -47,6 +48,7 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 | chain_abstraction | `src/protocol/chain_abstraction.rs` | Unified chain interface | ✅ |
 | account_abstraction | `src/protocol/account_abstraction.rs` | ERC-4337, smart accounts | ✅ |
 | a2p | `src/protocol/a2p.rs` | Agent-to-protocol bridge | ✅ |
+| control_model_adapter | `src/protocol/control_model_adapter.rs` | Cycle-safe Core control-model DTO mirror | ✅ |
 | identity | `src/protocol/identity.rs` | DID, resolution, verifiable credentials | ✅ |
 | economy | `src/protocol/economy.rs` | Machine economy, M2M settlement | ✅ |
 | job_card | `src/protocol/job_card.rs` | CJCS integration, SLA enforcement | ✅ |
