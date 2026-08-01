@@ -91,6 +91,27 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 | conxian-nexus | Indirect via lib-conxian-core `core_types` re-exports | ✅ Aligned |
 | conxian-gateway | Contract bridge + Clarity calls | ✅ Bridge added |
 
+### Market Enhancement Integration (Session 48)
+
+Statechain (Spark) module is now a documented settlement rail in the market layer:
+
+| Market Doc | Statechain Role | Reference |
+|------------|----------------|-----------|
+| `SETTLEMENT_RAILS.md` §2 | VTXO lifecycle, fees, trust model | T2 Managed tier |
+| `trust_tier_pricing.md` | Rail routing by tier | Managed+ access |
+| `monitoring.md` | Via gateway adapter metrics | Prometheus endpoint |
+| `FUNDING_AND_ECONOMICS.md` §3.4 | VTXO fees in revenue model | Micro revenue stream |
+
+> Statechain struct validation complete (577 lines). Cryptography ops (FROST DKG, threshold signing)
+> remain behind `ProtocolUnsupported` gate pending audit. MARKET-010 closed with structural evidence.
+
+### TrustTier Enforcement (Session 48)
+Enclave attestation is the gating mechanism for Managed/Strict tier auto-execution:
+- **Managed**: Enclave attestation required for Statechain, sBTC, RGB, Babylon rails
+- **Strict**: TEE + ZK proof required for all rails, institutional SLA
+- **Expedient**: Light client verification only (Fedimint, Lightning, ALEX)
+- **ObserverOnly**: No verification needed (discovery only)
+
 ## Directory Map
 - `src/enclave/`: Hardware attestation and secure signing (TEE/StrongBox).
 - `src/protocol/`: Core Bitcoin/Multi-chain orchestration logic.
