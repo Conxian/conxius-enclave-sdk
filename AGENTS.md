@@ -9,9 +9,9 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 - **No-Panic**: Avoid `panic!`, `unwrap()`, and `expect()` in production paths. Use `ConclaveResult` for error handling.
 - **Zeroization**: Sensitive data must be zeroed out when no longer needed.
 
-## Protocol Module Catalog (Session 48 — Aug 2026) — 40 Modules
+## Protocol Module Catalog (Session 48 — Aug 2026) — 46 Modules
 
-### Blockchain Protocols (19 modules)
+### Blockchain Protocols (20 modules)
 
 | Module | Path | Description | Status |
 |--------|------|-------------|--------|
@@ -36,7 +36,7 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 | fiat | `src/protocol/fiat.rs` | Fiat on/off ramp types | ✅ |
 | asset | `src/protocol/asset.rs` | Multi-asset registry (42 chains incl. SPARK) | ✅ |
 
-### Cross-cutting Protocols (14 modules)
+### Cross-cutting Protocols (15 modules)
 
 | Module | Path | Description | Status |
 |--------|------|-------------|--------|
@@ -82,7 +82,7 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 | telemetry | `src/telemetry.rs` | Observability, metrics, tracing | ✅ |
 | wasm_bindings | `src/wasm_bindings.rs` | WASM sub-clients for web integration | ✅ |
 
-## Consumer Wiring (Session 47)
+## Consumer Wiring (Session 48)
 
 | Consumer | Integration Path | Status |
 |----------|-----------------|--------|
