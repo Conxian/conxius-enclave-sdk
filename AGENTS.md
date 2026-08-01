@@ -9,41 +9,75 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 - **No-Panic**: Avoid `panic!`, `unwrap()`, and `expect()` in production paths. Use `ConclaveResult` for error handling.
 - **Zeroization**: Sensitive data must be zeroed out when no longer needed.
 
-## Protocol Module Catalog (Session 47 — Aug 2026)
+## Protocol Module Catalog (Session 47 — Aug 2026) — 39 Modules
 
-| Module | Path | Status |
-|--------|------|--------|
-| bitcoin | `src/protocol/bitcoin/` | ✅ Core Bitcoin primitives |
-| bip322 | `src/protocol/bip322/` | ✅ BIP-322 message signing |
-| bitvm | `src/protocol/bitvm/` | ✅ BitVM2 proof verification |
-| dlc | `src/protocol/dlc/` | ✅ Discreet Log Contracts |
-| frost | `src/protocol/frost/` | ✅ FROST DKG |
-| lightning | `src/protocol/lightning/` | ✅ BOLT 12, BIP-353 |
-| musig2 | `src/protocol/musig2/` | ✅ MuSig2 multisig |
-| stacks | `src/protocol/stacks/` | ✅ Stacks Nakamoto |
-| zkml | `src/protocol/zkml/` | ✅ Zero-Knowledge ML |
-| intent | `src/protocol/intent/` | ✅ Cross-chain intents |
-| settlement | `src/protocol/settlement/` | ✅ Settlement rails |
-| swap_router | `src/protocol/swap_router/` | ✅ DEX routing |
-| stablecoin | `src/protocol/stablecoin/` | ✅ Stablecoin protocols |
-| solver | `src/protocol/solver/` | ✅ Solver network |
-| rails/bisq | `src/protocol/rails/bisq/` | ✅ P2P exchange |
-| rails/boltz | `src/protocol/rails/boltz/` | ✅ Atomic swap |
-| rails/changelly | `src/protocol/rails/changelly/` | ✅ Instant exchange |
-| rails/wormhole | `src/protocol/rails/wormhole/` | ✅ Cross-chain messaging |
-| rails/ntt | `src/protocol/rails/ntt/` | ✅ Native token transfer |
-| rails/x402 | `src/protocol/rails/x402/` | ✅ HTTP payment protocol |
-| ark | `src/protocol/ark/` | ✅ Ark protocol |
-| covenant | `src/protocol/covenant/` | ✅ Bitcoin covenants |
-| identity | `src/protocol/identity/` | ✅ DID, resolution |
-| economy | `src/protocol/economy/` | ✅ Machine economy |
-| chain_abstraction | `src/protocol/chain_abstraction/` | ✅ Chain abstraction |
-| account_abstraction | `src/protocol/account_abstraction/` | ✅ Account abstraction |
-| a2p | `src/protocol/a2p/` | ✅ Agent-to-protocol |
-| job_card | `src/protocol/job_card/` | ✅ CJCS integration |
-| mmr | `src/protocol/mmr/` | ✅ Merkle mountain range |
-| sidl | `src/protocol/sidl/` | ✅ Sovereign IDL |
-| cctp | `src/protocol/cctp/` | ✅ Cross-chain transfer |
+### Blockchain Protocols (18 modules)
+
+| Module | Path | Description | Status |
+|--------|------|-------------|--------|
+| bitcoin | `src/protocol/bitcoin.rs` | Core Bitcoin primitives, PSBT, script | ✅ |
+| bip322 | `src/protocol/bip322.rs` | BIP-322 message signing | ✅ |
+| bitvm | `src/protocol/bitvm.rs` | BitVM2 proof verification | ✅ |
+| dlc | `src/protocol/dlc.rs` | Discreet Log Contracts | ✅ |
+| frost | `src/protocol/frost.rs` | FROST DKG, threshold signing | ✅ |
+| lightning | `src/protocol/lightning.rs` | BOLT 12, BIP-353, LNURL | ✅ |
+| musig2 | `src/protocol/musig2.rs` | MuSig2 multisig, nonce aggregation | ✅ |
+| stacks | `src/protocol/stacks.rs` | Stacks Nakamoto, Clarity types | ✅ |
+| covenant | `src/protocol/covenant.rs` | Bitcoin covenants (OP_CAT) | ✅ |
+| ark | `src/protocol/ark.rs` | Ark protocol, VTXOs | ✅ |
+| cctp | `src/protocol/cctp.rs` | Cross-chain transfer protocol | ✅ |
+| mmr | `src/protocol/mmr.rs` | Merkle mountain range proofs | ✅ |
+| ethereum | `src/protocol/ethereum.rs` | EVM chain abstraction, EIP-1559 | ✅ |
+| solana | `src/protocol/solana.rs` | Solana program integration | ✅ |
+| sidl | `src/protocol/sidl.rs` | Sovereign Interface Definition Lang | ✅ |
+| credit | `src/protocol/credit.rs` | Credit facility management | ✅ |
+| fiat | `src/protocol/fiat.rs` | Fiat on/off ramp types | ✅ |
+| asset | `src/protocol/asset.rs` | Multi-asset registry (41+ chains) | ✅ |
+
+### Cross-cutting Protocols (14 modules)
+
+| Module | Path | Description | Status |
+|--------|------|-------------|--------|
+| intent | `src/protocol/intent.rs` | Cross-chain intent solving (ERC-7683) | ✅ |
+| settlement | `src/protocol/settlement.rs` | Settlement rail abstraction | ✅ |
+| settlement_service | `src/protocol/settlement_service.rs` | Settlement orchestration service | ✅ |
+| swap_router | `src/protocol/swap_router.rs` | DEX routing, liquidity aggregation | ✅ |
+| stablecoin_orchestrator | `src/protocol/stablecoin_orchestrator.rs` | Stablecoin protocol orchestration | ✅ |
+| solver | `src/protocol/solver.rs` | Solver network, Fill-or-Kill | ✅ |
+| chain_abstraction | `src/protocol/chain_abstraction.rs` | Unified chain interface | ✅ |
+| account_abstraction | `src/protocol/account_abstraction.rs` | ERC-4337, smart accounts | ✅ |
+| a2p | `src/protocol/a2p.rs` | Agent-to-protocol bridge | ✅ |
+| identity | `src/protocol/identity.rs` | DID, resolution, verifiable credentials | ✅ |
+| economy | `src/protocol/economy.rs` | Machine economy, M2M settlement | ✅ |
+| job_card | `src/protocol/job_card.rs` | CJCS integration, SLA enforcement | ✅ |
+| business | `src/protocol/business.rs` | Business logic orchestration | ✅ |
+| opportunity | `src/protocol/opportunity.rs` | Yield opportunity discovery | ✅ |
+
+### Rails (6 modules)
+
+| Module | Path | Description | Status |
+|--------|------|-------------|--------|
+| bisq | `src/protocol/rails/bisq.rs` | P2P exchange rail | ✅ |
+| boltz | `src/protocol/rails/boltz.rs` | Atomic swap rail | ✅ |
+| changelly | `src/protocol/rails/changelly.rs` | Instant exchange rail | ✅ |
+| wormhole | `src/protocol/rails/wormhole.rs` | Cross-chain messaging rail | ✅ |
+| ntt | `src/protocol/rails/ntt.rs` | Native token transfer rail | ✅ |
+| x402 | `src/protocol/rails/x402.rs` | HTTP payment protocol rail | ✅ |
+
+### Nexus Integration
+
+| Module | Path | Description | Status |
+|--------|------|-------------|--------|
+| fedimint | `src/protocol/nexus/fedimint.rs` | Fedimint consensus integration | ✅ |
+
+### SDK Infrastructure (4 modules)
+
+| Module | Path | Description | Status |
+|--------|------|-------------|--------|
+| config | `src/config.rs` | SDK runtime configuration | ✅ |
+| state | `src/state/mod.rs` | State management abstraction | ✅ |
+| telemetry | `src/telemetry.rs` | Observability, metrics, tracing | ✅ |
+| wasm_bindings | `src/wasm_bindings.rs` | WASM sub-clients for web integration | ✅ |
 
 ## Consumer Wiring (Session 47)
 
