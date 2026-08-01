@@ -38,6 +38,7 @@ pub mod solana;
 pub mod solver;
 pub mod stablecoin_orchestrator;
 pub mod stacks;
+pub mod statechain;
 pub mod swap_router;
 pub mod universal_tests;
 pub mod zkml;
