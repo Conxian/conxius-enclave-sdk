@@ -4,6 +4,7 @@ ignore = [
     "RUSTSEC-2026-0173", # proc-macro-error2 is unmaintained
     "RUSTSEC-2024-0388", # derivative is unmaintained
     "RUSTSEC-2026-0009", # time stack exhaustion
+    "RUSTSEC-2026-0220", # ruint v1.19 — transitive via risc0-zkvm
 ]
 
 [yanked]

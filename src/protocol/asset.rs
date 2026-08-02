@@ -19,6 +19,7 @@ pub enum Chain {
     OPTIMISM,
     LINEA,
     LIGHTNING,
+    SPARK,
     ROOTSTOCK,
     BOB,
     POLYGON,
@@ -65,6 +66,7 @@ impl Chain {
             Chain::OPTIMISM => "OPTIMISM",
             Chain::LINEA => "LINEA",
             Chain::LIGHTNING => "LIGHTNING",
+            Chain::SPARK => "SPARK",
             Chain::ROOTSTOCK => "ROOTSTOCK",
             Chain::BOB => "BOB",
             Chain::POLYGON => "POLYGON",
@@ -197,6 +199,7 @@ fn is_native_asset(id: &AssetIdentifier) -> bool {
             | (Chain::FANTOM, "FTM")
             | (Chain::GNOSIS, "GNO")
             | (Chain::LIGHTNING, "BTC")
+            | (Chain::SPARK, "BTC")
             | (Chain::LIQUID, "L-BTC")
             | (Chain::ROOTSTOCK, "RBTC")
             | (Chain::SUI, "SUI")
@@ -223,6 +226,7 @@ fn canonical_native_metadata(id: &AssetIdentifier) -> Option<(&'static str, u8)>
         (Chain::FANTOM, "FTM") => Some(("Fantom", 18)),
         (Chain::GNOSIS, "GNO") => Some(("Gnosis", 18)),
         (Chain::LIGHTNING, "BTC") => Some(("Lightning Bitcoin", 8)),
+        (Chain::SPARK, "BTC") => Some(("Spark", 8)),
         (Chain::LIQUID, "L-BTC") => Some(("Liquid Bitcoin", 8)),
         (Chain::ROOTSTOCK, "RBTC") => Some(("Smart Bitcoin", 18)),
         (Chain::SUI, "SUI") => Some(("Sui", 9)),
@@ -425,6 +429,7 @@ impl AssetRegistry {
             (Chain::FANTOM, "FTM", "Fantom", 18),
             (Chain::GNOSIS, "GNO", "Gnosis", 18),
             (Chain::LIGHTNING, "BTC", "Lightning Bitcoin", 8),
+            (Chain::SPARK, "BTC", "Spark", 8),
             (Chain::LIQUID, "L-BTC", "Liquid Bitcoin", 8),
             (Chain::SUI, "SUI", "Sui", 9),
             (Chain::APTOS, "APT", "Aptos", 8),
