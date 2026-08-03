@@ -1,4 +1,4 @@
-# Conclave SDK: Agent Directives (v0.3.0 — Session 47, Aug 2026)
+# Conclave SDK: Agent Directives (v0.3.1 — Session 48, Aug 2026)
 
 ## Core Ethos
 The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native Bitcoin applications. We prioritize hardware-backed security (TEE, StrongBox), non-custodial orchestration, and universal asset support.
@@ -9,9 +9,9 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 - **No-Panic**: Avoid `panic!`, `unwrap()`, and `expect()` in production paths. Use `ConclaveResult` for error handling.
 - **Zeroization**: Sensitive data must be zeroed out when no longer needed.
 
-## Protocol Module Catalog (Session 47 — Aug 2026) — 39 Modules
+## Protocol Module Catalog (Session 48 — Aug 2026) — 46 Modules
 
-### Blockchain Protocols (18 modules)
+### Blockchain Protocols (20 modules)
 
 | Module | Path | Description | Status |
 |--------|------|-------------|--------|
@@ -30,12 +30,13 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 | mmr | `src/protocol/mmr.rs` | Merkle mountain range proofs | ✅ |
 | ethereum | `src/protocol/ethereum.rs` | EVM chain abstraction, EIP-1559 | ✅ |
 | solana | `src/protocol/solana.rs` | Solana program integration | ✅ |
+| statechain | `src/protocol/statechain.rs` | Spark statechain protocol boundary (577 lines) | ✅ Structural |
 | sidl | `src/protocol/sidl.rs` | Sovereign Interface Definition Lang | ✅ |
 | credit | `src/protocol/credit.rs` | Credit facility management | ✅ |
 | fiat | `src/protocol/fiat.rs` | Fiat on/off ramp types | ✅ |
-| asset | `src/protocol/asset.rs` | Multi-asset registry (41+ chains) | ✅ |
+| asset | `src/protocol/asset.rs` | Multi-asset registry (42 chains incl. SPARK) | ✅ |
 
-### Cross-cutting Protocols (14 modules)
+### Cross-cutting Protocols (15 modules)
 
 | Module | Path | Description | Status |
 |--------|------|-------------|--------|
@@ -81,7 +82,7 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 | telemetry | `src/telemetry.rs` | Observability, metrics, tracing | ✅ |
 | wasm_bindings | `src/wasm_bindings.rs` | WASM sub-clients for web integration | ✅ |
 
-## Consumer Wiring (Session 47)
+## Consumer Wiring (Session 48)
 
 | Consumer | Integration Path | Status |
 |----------|-----------------|--------|
@@ -89,6 +90,27 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 | lib-conxian-core | Types referenced in `sdk_compat` module | ✅ Aligned |
 | conxian-nexus | Indirect via lib-conxian-core `core_types` re-exports | ✅ Aligned |
 | conxian-gateway | Contract bridge + Clarity calls | ✅ Bridge added |
+
+### Market Enhancement Integration (Session 48)
+
+Statechain (Spark) module is now a documented settlement rail in the market layer:
+
+| Market Doc | Statechain Role | Reference |
+|------------|----------------|-----------|
+| `SETTLEMENT_RAILS.md` §2 | VTXO lifecycle, fees, trust model | T2 Managed tier |
+| `trust_tier_pricing.md` | Rail routing by tier | Managed+ access |
+| `monitoring.md` | Via gateway adapter metrics | Prometheus endpoint |
+| `FUNDING_AND_ECONOMICS.md` §3.4 | VTXO fees in revenue model | Micro revenue stream |
+
+> Statechain struct validation complete (577 lines). Cryptography ops (FROST DKG, threshold signing)
+> remain behind `ProtocolUnsupported` gate pending audit. MARKET-010 closed with structural evidence.
+
+### TrustTier Enforcement (Session 48)
+Enclave attestation is the gating mechanism for Managed/Strict tier auto-execution:
+- **Managed**: Enclave attestation required for Statechain, sBTC, RGB, Babylon rails
+- **Strict**: TEE + ZK proof required for all rails, institutional SLA
+- **Expedient**: Light client verification only (Fedimint, Lightning, ALEX)
+- **ObserverOnly**: No verification needed (discovery only)
 
 ## Directory Map
 - `src/enclave/`: Hardware attestation and secure signing (TEE/StrongBox).
