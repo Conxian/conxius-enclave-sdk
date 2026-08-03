@@ -635,7 +635,7 @@ mod tests {
                 VUtxoDescriptor::new(
                     ArkVtxoId::new(format!("vutxo-{}", i)).unwrap(),
                     1000 * (i + 1) as u64,
-                    ArkDerivationIndex::new(i).unwrap(),
+                    ArkDerivationIndex::new(i),
                     format!("addr-{}", i),
                 )
                 .unwrap()
@@ -654,7 +654,7 @@ mod tests {
         let leaf = VUtxoDescriptor::new(
             ArkVtxoId::new("single-vutxo").unwrap(),
             5000,
-            ArkDerivationIndex::new(0).unwrap(),
+            ArkDerivationIndex::new(0),
             "single-addr",
         )
         .unwrap();

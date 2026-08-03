@@ -12,7 +12,7 @@
 use crate::{
     protocol::frost::{
         FrostCiphersuite, FrostEncodingVersion, FrostKeyPackage, FrostOpaqueEnvelope,
-        FrostParticipantId, FrostParticipantSet, FrostSignatureShare, FrostSigningSession,
+        FrostParticipantId, FrostParticipantSet, FrostSignatureShare,
         FrostThreshold,
     },
     protocol_unsupported, BoundaryValidationError, ConclaveError, ConclaveResult,

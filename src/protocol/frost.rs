@@ -696,7 +696,7 @@ impl FrostSigningContext {
 
         let participants_set = FrostParticipantSet::new(participants)
             .map_err(|e| ConclaveError::CryptoError(format!("FROST keygen set: {e:?}")))?;
-        let threshold = FrostThreshold::new(min_signers, total_signers)
+        let threshold = FrostThreshold::new(min_signers as u16, total_signers as u16)
             .map_err(|e| ConclaveError::CryptoError(format!("FROST keygen thresh: {e:?}")))?;
 
         Ok(FrostKeyPackage {
