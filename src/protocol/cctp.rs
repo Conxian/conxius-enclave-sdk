@@ -164,12 +164,13 @@ impl CctpManager {
             return Ok(false);
         }
 
-        let pubkey_bytes = hex::decode(
-            CCTP_ATTESTATION_PUBKEY.strip_prefix("04").ok_or_else(|| {
+        let pubkey_bytes =
+            hex::decode(CCTP_ATTESTATION_PUBKEY.strip_prefix("04").ok_or_else(|| {
                 ConclaveError::InvalidConfiguration("CCTP pubkey must be 0x04-prefixed".into())
-            })?,
-        )
-        .map_err(|_| ConclaveError::InvalidConfiguration("CCTP pubkey hex decode failed".into()))?;
+            })?)
+            .map_err(|_| {
+                ConclaveError::InvalidConfiguration("CCTP pubkey hex decode failed".into())
+            })?;
 
         // Reconstruct full uncompressed key (0x04 || x || y)
         let mut full_pubkey = vec![0x04];
@@ -184,13 +185,13 @@ impl CctpManager {
 
     /// Compute the expected message hash for a CCTP attestation.
     ///
-    /// The attestation message binds (sourceDomain, destinationDomain, nonce,
+    /// The attestation message binds (sourceDomain, destinationDomain, attestationNonce,
     /// burnToken, mintRecipient, amount). We use SHA-256 for the binding hash;
     /// production should use keccak256 matching Circle's on-chain verifier.
     fn compute_attestation_message_hash(
         source_domain: u32,
         destination_domain: u32,
-        nonce: u64,
+        attestation_nonce: u64,
         burn_token: &str,
         mint_recipient: &str,
         amount: u128,
@@ -198,14 +199,14 @@ impl CctpManager {
         use sha2::{Digest, Sha256};
 
         let mut hasher = Sha256::new();
-        hasher.update(&source_domain.to_be_bytes());
-        hasher.update(&destination_domain.to_be_bytes());
-        hasher.update(&nonce.to_be_bytes());
-        hasher.update(&amount.to_be_bytes());
+        hasher.update(source_domain.to_be_bytes());
+        hasher.update(destination_domain.to_be_bytes());
+        hasher.update(attestation_nonce.to_be_bytes());
+        hasher.update(amount.to_be_bytes());
         let burn_addr = burn_token.strip_prefix("0x").unwrap_or(burn_token);
-        hasher.update(&hex::decode(burn_addr).unwrap_or_default());
+        hasher.update(hex::decode(burn_addr).unwrap_or_default());
         let recipient = mint_recipient.strip_prefix("0x").unwrap_or(mint_recipient);
-        hasher.update(&hex::decode(recipient).unwrap_or_default());
+        hasher.update(hex::decode(recipient).unwrap_or_default());
         let result = hasher.finalize();
         let mut hash = [0u8; 32];
         hash.copy_from_slice(&result);
@@ -297,8 +298,11 @@ mod tests {
         assert_eq!(hash1, hash2);
         // Different nonce → different hash
         let hash3 = CctpManager::compute_attestation_message_hash(
-            0, 6, 43,
-            TEST_BURN_TOKEN, TEST_RECIPIENT,
+            0,
+            6,
+            43,
+            TEST_BURN_TOKEN,
+            TEST_RECIPIENT,
             1_000_000,
         );
         assert_ne!(hash1, hash3);
@@ -336,8 +340,8 @@ mod tests {
         // Valid-length but invalid DER
         let result = manager.verify_attestation_signature(
             &[1u8; 32],
-            &[0xff; 70],    // invalid DER encoding
-            &[0x04, 0x00],  // invalid pubkey
+            &[0xff; 70],   // invalid DER encoding
+            &[0x04, 0x00], // invalid pubkey
         );
         assert!(result.is_err()); // parse should fail
     }

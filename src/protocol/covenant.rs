@@ -116,9 +116,7 @@ impl CovenantManager {
     ///
     /// The returned script is intentionally minimal — the APO semantics are
     /// carried in the witness signature's sighash byte.
-    pub fn generate_apo_script(
-        internal_key: &XOnlyPublicKey,
-    ) -> ConclaveResult<CovenantScript> {
+    pub fn generate_apo_script(internal_key: &XOnlyPublicKey) -> ConclaveResult<CovenantScript> {
         let mut script = Vec::new();
 
         // Simple key-path spend. The APO semantics come from SIGHASH_ANYPREVOUT
@@ -140,9 +138,7 @@ impl CovenantManager {
     /// Returns the script bytes (without the Tapleaf prefix) suitable for
     /// inclusion in a `TapTree` script path. The caller controls how many
     /// covenant leaves are in the tree and which internal key they commit to.
-    pub fn build_tapscript_leaf(
-        covenant_script: &CovenantScript,
-    ) -> ConclaveResult<Vec<u8>> {
+    pub fn build_tapscript_leaf(covenant_script: &CovenantScript) -> ConclaveResult<Vec<u8>> {
         let raw = covenant_script.script_bytes()?;
         Ok(raw)
     }
@@ -237,7 +233,11 @@ mod tests {
         let key = dummy_key();
         let hash = [5u8; 32];
 
-        for pattern in &[CovenantPattern::Cat, CovenantPattern::Ctv, CovenantPattern::Apo] {
+        for pattern in &[
+            CovenantPattern::Cat,
+            CovenantPattern::Ctv,
+            CovenantPattern::Apo,
+        ] {
             let script = match pattern {
                 CovenantPattern::Cat => {
                     CovenantManager::generate_cat_vault_script(&key, hash).unwrap()
@@ -245,9 +245,7 @@ mod tests {
                 CovenantPattern::Ctv => {
                     CovenantManager::generate_ctv_vault_script(&key, hash).unwrap()
                 }
-                CovenantPattern::Apo => {
-                    CovenantManager::generate_apo_script(&key).unwrap()
-                }
+                CovenantPattern::Apo => CovenantManager::generate_apo_script(&key).unwrap(),
             };
 
             // Every pattern produces parseable script bytes

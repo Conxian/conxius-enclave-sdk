@@ -437,7 +437,10 @@ impl ArkManager {
                 let (tx_id_hex, _) = hash_node(&left_hash, &right_hash);
                 parent_level.push(VtxoTreeNode {
                     tx_id: ArkTransactionId::new(tx_id_hex).unwrap_or_else(|_| {
-                        ArkTransactionId::new("0000000000000000000000000000000000000000000000000000000000000000").unwrap()
+                        ArkTransactionId::new(
+                            "0000000000000000000000000000000000000000000000000000000000000000",
+                        )
+                        .unwrap()
                     }),
                     left: Some(Box::new(left.clone())),
                     right: Some(Box::new(right.clone())),
@@ -451,13 +454,16 @@ impl ArkManager {
             .iter()
             .map(|vutxo| {
                 let mut hasher = Sha256::new();
-                hasher.update(&vutxo.amount.to_be_bytes());
+                hasher.update(vutxo.amount.to_be_bytes());
                 hasher.update(vutxo.address.as_bytes());
                 hasher.update(vutxo.vutxo_id.as_str().as_bytes());
                 let leaf_hash: [u8; 32] = hasher.finalize().into();
                 VtxoTreeNode {
                     tx_id: ArkTransactionId::new(hex::encode(leaf_hash)).unwrap_or_else(|_| {
-                        ArkTransactionId::new("0000000000000000000000000000000000000000000000000000000000000000").unwrap()
+                        ArkTransactionId::new(
+                            "0000000000000000000000000000000000000000000000000000000000000000",
+                        )
+                        .unwrap()
                     }),
                     left: None,
                     right: None,
@@ -594,10 +600,8 @@ mod tests {
             manager.sign_vutxo([0; 32], 0),
             UnsupportedOperation::ForfeitSigning,
         );
-        assert_unsupported(
-            manager.construct_vtxo_tree(vec![descriptor()]),
-            UnsupportedOperation::VtxoTreeConstruction,
-        );
+        // VTXO tree construction is implemented (non-value-bearing structural op)
+        assert!(manager.construct_vtxo_tree(vec![descriptor()]).is_ok());
         assert_eq!(manager.backend(), ArkBackend::Unconfigured);
     }
 
@@ -629,7 +633,7 @@ mod tests {
                 VUtxoDescriptor::new(
                     ArkVtxoId::new(format!("vutxo-{}", i)).unwrap(),
                     1000 * (i + 1) as u64,
-                    ArkDerivationIndex::new(i).unwrap(),
+                    ArkDerivationIndex::new(i),
                     format!("addr-{}", i),
                 )
                 .unwrap()
@@ -648,7 +652,7 @@ mod tests {
         let leaf = VUtxoDescriptor::new(
             ArkVtxoId::new("single-vutxo").unwrap(),
             5000,
-            ArkDerivationIndex::new(0).unwrap(),
+            ArkDerivationIndex::new(0),
             "single-addr",
         )
         .unwrap();

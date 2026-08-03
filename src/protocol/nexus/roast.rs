@@ -12,12 +12,12 @@
 use crate::{
     protocol::frost::{
         FrostCiphersuite, FrostEncodingVersion, FrostKeyPackage, FrostOpaqueEnvelope,
-        FrostParticipantId, FrostParticipantSet, FrostSignatureShare, FrostSigningSession,
-        FrostThreshold,
+        FrostParticipantId, FrostParticipantSet, FrostSignatureShare,
     },
-    protocol_unsupported, BoundaryValidationError, ConclaveError, ConclaveResult,
-    UnsupportedOperation, UnsupportedProtocol,
+    BoundaryValidationError, ConclaveError, ConclaveResult,
 };
+#[cfg(not(feature = "frost-crypto"))]
+use crate::{protocol_unsupported, UnsupportedOperation, UnsupportedProtocol};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -117,14 +117,9 @@ impl Default for RoastExclusionList {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RoastRoundOutcome {
     /// All shares collected and aggregated successfully.
-    Aggregated {
-        signature_hex: String,
-    },
+    Aggregated { signature_hex: String },
     /// Round is incomplete — more shares needed.
-    Pending {
-        received: usize,
-        required: usize,
-    },
+    Pending { received: usize, required: usize },
     /// Round failed due to misbehaving signers.
     Failed {
         blamed: Vec<(FrostParticipantId, RoastBlameReason)>,
@@ -274,10 +269,7 @@ pub struct RoastSigningSession {
 
 impl RoastSigningSession {
     /// Submit a commitment from a signer for this round.
-    pub fn submit_commitment(
-        &mut self,
-        commitment: RoastCommitment,
-    ) -> ConclaveResult<()> {
+    pub fn submit_commitment(&mut self, commitment: RoastCommitment) -> ConclaveResult<()> {
         commitment.validate()?;
 
         if commitment.round_id != self.round_id {
@@ -296,9 +288,7 @@ impl RoastSigningSession {
             .iter()
             .any(|c| c.signer_id == commitment.signer_id)
         {
-            return Err(boundary_error(
-                BoundaryValidationError::DuplicateSubmission,
-            ));
+            return Err(boundary_error(BoundaryValidationError::DuplicateSubmission));
         }
 
         self.commitments.push(commitment);
@@ -316,10 +306,7 @@ impl RoastSigningSession {
     }
 
     /// Submit a signature share for this round.
-    pub fn submit_share(
-        &mut self,
-        share: FrostSignatureShare,
-    ) -> ConclaveResult<()> {
+    pub fn submit_share(&mut self, share: FrostSignatureShare) -> ConclaveResult<()> {
         share.validate()?;
 
         if !self.active_participants.contains(share.signer_id) {
@@ -328,14 +315,8 @@ impl RoastSigningSession {
             ));
         }
 
-        if self
-            .shares
-            .iter()
-            .any(|s| s.signer_id == share.signer_id)
-        {
-            return Err(boundary_error(
-                BoundaryValidationError::DuplicateSubmission,
-            ));
+        if self.shares.iter().any(|s| s.signer_id == share.signer_id) {
+            return Err(boundary_error(BoundaryValidationError::DuplicateSubmission));
         }
 
         self.shares.push(share);
@@ -367,15 +348,9 @@ impl RoastSigningSession {
     }
 
     /// Identify signers who have not submitted valid commitments.
-    pub fn identify_blamed(
-        &self,
-    ) -> Vec<(FrostParticipantId, RoastBlameReason)> {
+    pub fn identify_blamed(&self) -> Vec<(FrostParticipantId, RoastBlameReason)> {
         let mut blamed = Vec::new();
-        let committed: BTreeSet<_> = self
-            .commitments
-            .iter()
-            .map(|c| c.signer_id)
-            .collect();
+        let committed: BTreeSet<_> = self.commitments.iter().map(|c| c.signer_id).collect();
 
         for signer in self.active_participants.as_slice() {
             if !committed.contains(signer) {
@@ -397,10 +372,7 @@ impl RoastSigningSession {
 
     /// Assemble the signing package from collected commitments.
     #[cfg(feature = "frost-crypto")]
-    pub fn assemble_signing_package(
-        &mut self,
-        message: &[u8],
-    ) -> ConclaveResult<()> {
+    pub fn assemble_signing_package(&mut self, message: &[u8]) -> ConclaveResult<()> {
         if !self.has_enough_commitments() {
             return Err(ConclaveError::CryptoError(
                 "ROAST: insufficient commitments for signing package".into(),
@@ -412,7 +384,7 @@ impl RoastSigningSession {
         let mut h = Sha256::new();
         h.update(message);
         for c in &self.commitments {
-            h.update(&c.commitment.digest);
+            h.update(c.commitment.digest);
         }
         let digest: [u8; 32] = h.finalize().into();
         self.signing_package_digest = Some(digest);
@@ -420,10 +392,7 @@ impl RoastSigningSession {
     }
 
     #[cfg(not(feature = "frost-crypto"))]
-    pub fn assemble_signing_package(
-        &mut self,
-        _message: &[u8],
-    ) -> ConclaveResult<()> {
+    pub fn assemble_signing_package(&mut self, _message: &[u8]) -> ConclaveResult<()> {
         Err(protocol_unsupported(
             UnsupportedProtocol::Frost,
             UnsupportedOperation::ThresholdSigning,
@@ -442,12 +411,13 @@ impl RoastSigningSession {
 
         // Delegate to the FrostSigningContext for raw-crypto aggregation.
         // The context bridges envelope digests ↔ raw ZF FROST bytes.
-        let mut ctx = crate::protocol::frost::FrostSigningContext::new();
-        let sig = ctx.aggregate_signatures(&self.key_package, &self.shares[..self.key_package.threshold.min_signers as usize])?;
+        let ctx = crate::protocol::frost::FrostSigningContext::new();
+        let sig = ctx.aggregate_signatures(
+            &self.key_package,
+            &self.shares[..self.key_package.threshold.min_signers as usize],
+        )?;
 
-        let outcome = RoastRoundOutcome::Aggregated {
-            signature_hex: sig,
-        };
+        let outcome = RoastRoundOutcome::Aggregated { signature_hex: sig };
         self.round_outcome = Some(outcome.clone());
         Ok(outcome)
     }
@@ -493,8 +463,7 @@ mod tests {
     }
 
     fn make_key_package(n: u16, t: u16) -> FrostKeyPackage {
-        let participants: Vec<FrostParticipantId> =
-            (1..=n).map(make_participant).collect();
+        let participants: Vec<FrostParticipantId> = (1..=n).map(make_participant).collect();
         FrostKeyPackage {
             encoding_version: FrostEncodingVersion::current(),
             ciphersuite: FrostCiphersuite::Secp256k1Sha256,

@@ -139,11 +139,11 @@ impl DlcManager {
         hasher.update(tag);
         hasher.update(tag);
         hasher.update(event_id.as_bytes());
-        hasher.update(&outcome.to_be_bytes());
+        hasher.update(outcome.to_be_bytes());
         let msg_hash: [u8; 32] = hasher.finalize().into();
 
-        let sig = secp256k1::schnorr::Signature::from_byte_array(attestation_sig);
-        let pk = secp256k1::XOnlyPublicKey::from_byte_array(oracle_pubkey)
+        let sig = secp256k1::schnorr::Signature::from_byte_array(*attestation_sig);
+        let pk = secp256k1::XOnlyPublicKey::from_byte_array(*oracle_pubkey)
             .map_err(|e| ConclaveError::CryptoError(format!("DLC oracle key: {e:?}")))?;
 
         Ok(secp256k1::schnorr::verify(&sig, &msg_hash, &pk).is_ok())
@@ -166,10 +166,12 @@ impl DlcManager {
             ));
         }
 
-        // CET payout formula: local gets (outcome * total / max_outcome)
-        let local_payout = (oracle_outcome as u128)
-            .saturating_mul(total_collateral as u128)
-            .saturating_div(u64::MAX as u128) as u64;
+        // CET payout formula with rounding: local gets round(outcome * total / max_outcome)
+        let total = total_collateral as u128;
+        let outcome = oracle_outcome as u128;
+        let max = u64::MAX as u128;
+        let local_payout =
+            (outcome.saturating_mul(total).saturating_add(max / 2)).saturating_div(max) as u64;
         let remote_payout = total_collateral.saturating_sub(local_payout);
 
         // Serialize CET template: [local_payout: u64][remote_payout: u64][contract_id_hash: 32]
@@ -229,15 +231,14 @@ mod tests {
     fn oracle_attestation_invalid_sig_rejected() {
         let mgr = DlcManager::new();
         let result = mgr.verify_oracle_attestation(
-            &[2u8; 32],    // oracle pubkey
+            &[2u8; 32], // oracle pubkey
             "btc/usd-2026-08-03",
             45000,
-            &[0u8; 64],    // all-zero signature (invalid)
+            &[0u8; 64], // all-zero signature (invalid)
         );
         // Should not panic, returns false or error for empty sig
-        match result {
-            Ok(valid) => assert!(!valid),
-            Err(_) => {} // parse failure also acceptable
+        if let Ok(valid) = result {
+            assert!(!valid);
         }
     }
 
@@ -277,9 +278,7 @@ mod tests {
         assert_eq!(local_payout, 5000);
 
         // 100% outcome → 100% payout
-        let cet_100 = mgr
-            .build_cet_template(&contract, u64::MAX, 10000)
-            .unwrap();
+        let cet_100 = mgr.build_cet_template(&contract, u64::MAX, 10000).unwrap();
         let local_full = u64::from_be_bytes(cet_100[..8].try_into().unwrap());
         assert_eq!(local_full, 10000);
     }
