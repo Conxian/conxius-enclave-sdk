@@ -14,8 +14,7 @@ use crate::{
         FrostCiphersuite, FrostEncodingVersion, FrostKeyPackage, FrostOpaqueEnvelope,
         FrostParticipantId, FrostParticipantSet, FrostSignatureShare,
     },
-    protocol_unsupported, BoundaryValidationError, ConclaveError, ConclaveResult,
-    UnsupportedOperation, UnsupportedProtocol,
+    BoundaryValidationError, ConclaveError, ConclaveResult,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -383,7 +382,7 @@ impl RoastSigningSession {
         let mut h = Sha256::new();
         h.update(message);
         for c in &self.commitments {
-            h.update(&c.commitment.digest);
+            h.update(c.commitment.digest);
         }
         let digest: [u8; 32] = h.finalize().into();
         self.signing_package_digest = Some(digest);
@@ -410,7 +409,7 @@ impl RoastSigningSession {
 
         // Delegate to the FrostSigningContext for raw-crypto aggregation.
         // The context bridges envelope digests ↔ raw ZF FROST bytes.
-        let mut ctx = crate::protocol::frost::FrostSigningContext::new();
+        let ctx = crate::protocol::frost::FrostSigningContext::new();
         let sig = ctx.aggregate_signatures(
             &self.key_package,
             &self.shares[..self.key_package.threshold.min_signers as usize],

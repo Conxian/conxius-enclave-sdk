@@ -139,7 +139,7 @@ impl DlcManager {
         hasher.update(tag);
         hasher.update(tag);
         hasher.update(event_id.as_bytes());
-        hasher.update(&outcome.to_be_bytes());
+        hasher.update(outcome.to_be_bytes());
         let msg_hash: [u8; 32] = hasher.finalize().into();
 
         let sig = secp256k1::schnorr::Signature::from_byte_array(*attestation_sig);
@@ -237,9 +237,8 @@ mod tests {
             &[0u8; 64], // all-zero signature (invalid)
         );
         // Should not panic, returns false or error for empty sig
-        match result {
-            Ok(valid) => assert!(!valid),
-            Err(_) => {} // parse failure also acceptable
+        if let Ok(valid) = result {
+            assert!(!valid);
         }
     }
 

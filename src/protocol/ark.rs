@@ -454,7 +454,7 @@ impl ArkManager {
             .iter()
             .map(|vutxo| {
                 let mut hasher = Sha256::new();
-                hasher.update(&vutxo.amount.to_be_bytes());
+                hasher.update(vutxo.amount.to_be_bytes());
                 hasher.update(vutxo.address.as_bytes());
                 hasher.update(vutxo.vutxo_id.as_str().as_bytes());
                 let leaf_hash: [u8; 32] = hasher.finalize().into();

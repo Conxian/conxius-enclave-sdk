@@ -199,14 +199,14 @@ impl CctpManager {
         use sha2::{Digest, Sha256};
 
         let mut hasher = Sha256::new();
-        hasher.update(&source_domain.to_be_bytes());
-        hasher.update(&destination_domain.to_be_bytes());
-        hasher.update(&nonce.to_be_bytes());
-        hasher.update(&amount.to_be_bytes());
+        hasher.update(source_domain.to_be_bytes());
+        hasher.update(destination_domain.to_be_bytes());
+        hasher.update(nonce.to_be_bytes());
+        hasher.update(amount.to_be_bytes());
         let burn_addr = burn_token.strip_prefix("0x").unwrap_or(burn_token);
-        hasher.update(&hex::decode(burn_addr).unwrap_or_default());
+        hasher.update(hex::decode(burn_addr).unwrap_or_default());
         let recipient = mint_recipient.strip_prefix("0x").unwrap_or(mint_recipient);
-        hasher.update(&hex::decode(recipient).unwrap_or_default());
+        hasher.update(hex::decode(recipient).unwrap_or_default());
         let result = hasher.finalize();
         let mut hash = [0u8; 32];
         hash.copy_from_slice(&result);

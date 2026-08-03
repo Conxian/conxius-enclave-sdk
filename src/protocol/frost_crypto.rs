@@ -22,12 +22,12 @@ pub fn trusted_dealer_keygen(
     min_signers: u16,
     max_signers: u16,
 ) -> ConclaveResult<(Vec<Vec<u8>>, Vec<u8>)> {
-    let mut rng = OsRng;
+    let rng = OsRng;
     let (shares_map, pubkey) = frost::keys::generate_with_dealer(
         max_signers,
         min_signers,
         frost::keys::IdentifierList::Default,
-        &mut rng,
+        rng,
     )
     .map_err(|e| ConclaveError::CryptoError(format!("keygen: {e:?}")))?;
 
@@ -142,9 +142,9 @@ pub fn dkg_part1(
     max_signers: u16,
     min_signers: u16,
 ) -> ConclaveResult<(Vec<u8>, Vec<u8>)> {
-    let mut rng = OsRng;
+    let rng = OsRng;
     let id = id_from_bytes(id_bytes)?;
-    let (secret, package) = dkg::part1(id, max_signers, min_signers, &mut rng)
+    let (secret, package) = dkg::part1(id, max_signers, min_signers, rng)
         .map_err(|e| ConclaveError::CryptoError(format!("DKG p1: {e:?}")))?;
     Ok((
         secret
@@ -156,6 +156,7 @@ pub fn dkg_part1(
     ))
 }
 
+#[allow(clippy::type_complexity)]
 pub fn dkg_part2(
     secret_bytes: &[u8],
     r1_packages: &BTreeMap<Vec<u8>, Vec<u8>>,

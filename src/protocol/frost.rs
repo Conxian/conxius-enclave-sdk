@@ -729,11 +729,11 @@ impl FrostSigningContext {
         self.commitments_map
             .insert(nonce_digest, commitments.clone());
 
-        Ok(FrostOpaqueEnvelope::new(
+        FrostOpaqueEnvelope::new(
             FrostEnvelopeKind::Commitment,
             nonce_digest,
             commitments.len() as u32,
-        )?)
+        )
     }
 
     /// Build a signing package from a message and a set of commitment digests.
@@ -1034,6 +1034,7 @@ mod tests {
         );
     }
 
+    #[allow(dead_code)]
     fn assert_unsupported<T>(result: ConclaveResult<T>, operation: UnsupportedOperation) {
         match result {
             Err(ConclaveError::ProtocolUnsupported {
