@@ -684,7 +684,7 @@ impl FrostSigningContext {
         self.verifying_key = Some(vk);
 
         let mut participants = Vec::new();
-        for (id_bytes, share_bytes) in &shares {
+        for (_id_bytes, share_bytes) in &shares {
             let digest = compute_digest(share_bytes);
             self.key_shares.insert(digest, share_bytes.clone());
             // Map participant IDs 1-indexed by insertion order
@@ -1051,6 +1051,7 @@ mod tests {
         );
     }
 
+    #[allow(dead_code)]
     fn assert_unsupported<T>(result: ConclaveResult<T>, operation: UnsupportedOperation) {
         match result {
             Err(ConclaveError::ProtocolUnsupported {
