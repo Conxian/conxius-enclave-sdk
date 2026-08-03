@@ -1,22 +1,27 @@
 # Conclave SDK Pull Requests Index
 
 > Auto-generated from GitHub. Last sync: 2026-07-21T03:52:30Z
+> **Manual update:** 2026-08-03 (Session 53 sprint review)
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
 
 ## Summary
-- **Total PRs**: 197
-- **Open PRs**: 1
-- **Merged PRs**: 184
-- **Closed PRs**: 12
+- **Total PRs**: 220+
+- **Open PRs**: 1 (#220)
+- **Merged PRs**: 200+ (since last sync: #258-#279 plus earlier)
 
 ## Open PRs
 - [ ] [**#220**](https://github.com/Conxian/conxius-enclave-sdk/pull/220): fix(enclave): carry typed evidence through settlement authorization
   - Author: charliecreates[bot]
+  - Status: OPEN — may be superseded by enclave trust contracts (#247-#249)
 
+## Session 53 Sprint PRs (this session)
 
-## Recently Merged PRs
+- [**Sprint commit c4aff10**]: feat: ROAST coordinator (#213), BitVM2 Groth16 (#267), AGENTS.md update (#274), CI fix
+  - Files: `src/protocol/nexus/roast.rs` (new), `src/protocol/bitvm2.rs` (+230), `AGENTS.md`, `src/protocol/frost.rs` (fix)
+
+## Recently Merged PRs (since last sync)
 - [x] [**#219**](https://github.com/Conxian/conxius-enclave-sdk/pull/219): feat: add typed protocol boundary foundation
   - Author: charliecreates[bot] | Merged: 2026-07-21
 

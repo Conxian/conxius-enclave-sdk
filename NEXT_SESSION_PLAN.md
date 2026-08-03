@@ -2,8 +2,46 @@
 
 > **For**: OpenHands AI Agent  
 > **Context**: Continuing Conclave SDK v2.0.12 development  
-> **Priority Order**: P1 → P2 → P3
-> **Knowledge Base**: v0.4.2
+> **Priority Order**: Remaining P0 gates → P1 → P2
+> **Knowledge Base**: v0.5.0 (Session 53, Aug 2026)
+> **Last Session**: Session 53 — ROAST coordinator, BitVM2 Groth16, module catalog, CI fix
+
+## Session 53 Completed (2026-08-03)
+
+### ✅ #213 — ROAST Coordinator in Nexus
+- `src/protocol/nexus/roast.rs` (451 lines): RoastCoordinator, RoastSigningSession, RoastExclusionList, RoastRoundOutcome
+- Manages FROST signing sessions with malicious-signer robustness
+- 8 unit tests; structural validation without `frost-crypto`; delegates to FrostSigningContext when enabled
+
+### ✅ #267 — BitVM2 Groth16 Proof Verification (P0)
+- `src/protocol/bitvm2.rs` (+230 lines): BitVm2Groth16Proof (A/B/C BLS12-381), BitVm2Groth16VerificationKey, BitVm2Groth16PublicInputs, BitVm2Groth16Verifier
+- Verifier returns `VerificationUnavailable` without audited ZK pairing backend
+- 5 unit tests covering proof/VK/input validation
+
+### ✅ #274 — AGENTS.md Module Catalog Update
+- 47→50 modules: bip110 added to Blockchain (21→22), zkml added to Cross-cutting (15→16), roast added to Nexus (1→2)
+
+### 🔧 CI Fix — ConclaveError::Protocol → CryptoError
+- 26 instances across `frost.rs` (13) and `roast.rs` (3). Variant did not exist in enum.
+- Fixes `cargo test --all-features` compilation failure with `frost-crypto` enabled
+
+### Issue Cross-Reference Update
+- #196 (canonical Bitcoin/Ethereum): RESOLVED by #208, #276, #279
+- #198 (CCTP/AA/asset fail-closed): RESOLVED by #212, #277
+- #199 (toolchain/release repro): RESOLVED by #213 (release), pinned toolchain
+- #197 (threshold placeholders): MOSTLY RESOLVED — FROST/Ark/DLC/CCTP/Covenant real; Fedimint structural
+- #201 (telemetry): CODE COMPLETE (#210); runbooks still needed
+- #195 (hardware signing): IN PROGRESS — enclave contracts done; real provider verifier needed
+- #200 (WASM boundary): IN PROGRESS — #211 done; runtime evidence workflows exist
+
+### Remaining Gates
+1. Fedimint real crypto or documented deferral
+2. Groth16 ZK pairing backend for actual verification
+3. Real provider verifier (Android/Nitro hardware integration)
+4. Independent security review (#202)
+5. WASM runtime/platform evidence completion (#200)
+
+---
 
 ## 2026-07-26 durable replay deployment decision gate (#191 / #240)
 
