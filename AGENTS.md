@@ -127,3 +127,35 @@ Enclave attestation is the gating mechanism for Managed/Strict tier auto-executi
 - Use `cargo test` to verify all protocol changes.
 - Ensure all 30+ chains in the `AssetRegistry` are correctly handled.
 - Hardware-backed logic should be tested with both simulated and software attestation (for CI) but blocked for production-level Trust Tiers.
+
+## CI & Build Conventions (PR #280, Session 53)
+
+### Large Array Serde (Rust ≥1.97)
+Rust 1.97 removed the blanket `Serialize`/`Deserialize` impl for arrays >32 elements.
+For `[u8; 48]` and `[u8; 96]`, use `src/serde_big_array.rs` newtype wrappers:
+- `Bytes48` / `Bytes96` — hex-encoded serde, `Deref<Target=[u8]>`, `From<[u8; N]>`.
+- Do NOT use `#[serde(serialize_with/deserialize_with)]` on struct fields without
+  a derived `Serialize`/`Deserialize` on the struct — it's silently ignored.
+
+### CI Pipeline (all must pass)
+- `cargo test --locked --all-features` — 503+36 tests
+- `cargo clippy --locked --all-targets --all-features -- -D warnings` — zero tolerance
+- `wasm-pack build --release --target bundler` — no features (not `--all-features`)
+- `cargo deny check` — advisories, bans, licenses, sources
+
+### Common Pitfalls
+- **Imports gated behind features**: When `#[cfg(not(feature = "X"))]` blocks use imports
+  that `#[cfg(feature = "X")]` blocks don't, gate the imports too. Otherwise clippy
+  (`--all-features`) sees them as unused while WASM (no features) needs them.
+- **cargo deny advisories**: Check `cargo deny check advisories` for transitive
+  unmaintained crates (e.g., `atomic-polyfill` via `frost → heapless → postcard`).
+  Add to `deny.toml` `[advisories].ignore`.
+- **CodeQL false positives**: The `nonce` parameter name triggers "hard-coded
+  cryptographic value" even in test code. Use `attestation_nonce` or similar
+  domain-specific names.
+
+### Pre-existing test failures
+Unmasked by compilation fixes — fix them, don't skip/ignore them. Common patterns:
+- Tests asserting unsupported operations when the impl now exists
+- Non-deterministic BTreeMap/HashMap ordering in test helpers
+- Outdated test assertions after signature changes
