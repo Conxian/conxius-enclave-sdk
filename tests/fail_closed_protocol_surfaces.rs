@@ -67,10 +67,16 @@ fn valid_looking_cctp_inputs_cannot_produce_calldata_or_validate_iris_attestatio
             if message.contains("CCTP burn encoding is disabled")
     ));
 
-    let message = [0x01; 248];
-    let signature = [0x02; 65];
+    let intent = valid_cctp_intent();
+    let attestation = conxius_enclave_sdk::protocol::cctp::CctpAttestation {
+        signature: vec![0x02; 65],
+        message_hash: [0x01; 32],
+        source_domain: intent.source_chain,
+        destination_domain: intent.destination_chain,
+        nonce: 0,
+    };
     assert!(matches!(
-        manager.verify_attestation(&message, &signature),
+        manager.verify_attestation(&intent, &attestation),
         Err(ConclaveError::Unsupported(message))
             if message.contains("CCTP attestation verification is disabled")
     ));
