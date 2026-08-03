@@ -185,13 +185,13 @@ impl CctpManager {
 
     /// Compute the expected message hash for a CCTP attestation.
     ///
-    /// The attestation message binds (sourceDomain, destinationDomain, nonce,
+    /// The attestation message binds (sourceDomain, destinationDomain, attestationNonce,
     /// burnToken, mintRecipient, amount). We use SHA-256 for the binding hash;
     /// production should use keccak256 matching Circle's on-chain verifier.
     fn compute_attestation_message_hash(
         source_domain: u32,
         destination_domain: u32,
-        nonce: u64,
+        attestation_nonce: u64,
         burn_token: &str,
         mint_recipient: &str,
         amount: u128,
@@ -201,7 +201,7 @@ impl CctpManager {
         let mut hasher = Sha256::new();
         hasher.update(source_domain.to_be_bytes());
         hasher.update(destination_domain.to_be_bytes());
-        hasher.update(nonce.to_be_bytes());
+        hasher.update(attestation_nonce.to_be_bytes());
         hasher.update(amount.to_be_bytes());
         let burn_addr = burn_token.strip_prefix("0x").unwrap_or(burn_token);
         hasher.update(hex::decode(burn_addr).unwrap_or_default());
