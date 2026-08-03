@@ -437,7 +437,10 @@ impl ArkManager {
                 let (tx_id_hex, _) = hash_node(&left_hash, &right_hash);
                 parent_level.push(VtxoTreeNode {
                     tx_id: ArkTransactionId::new(tx_id_hex).unwrap_or_else(|_| {
-                        ArkTransactionId::new("0000000000000000000000000000000000000000000000000000000000000000").unwrap()
+                        ArkTransactionId::new(
+                            "0000000000000000000000000000000000000000000000000000000000000000",
+                        )
+                        .unwrap()
                     }),
                     left: Some(Box::new(left.clone())),
                     right: Some(Box::new(right.clone())),
@@ -457,7 +460,10 @@ impl ArkManager {
                 let leaf_hash: [u8; 32] = hasher.finalize().into();
                 VtxoTreeNode {
                     tx_id: ArkTransactionId::new(hex::encode(leaf_hash)).unwrap_or_else(|_| {
-                        ArkTransactionId::new("0000000000000000000000000000000000000000000000000000000000000000").unwrap()
+                        ArkTransactionId::new(
+                            "0000000000000000000000000000000000000000000000000000000000000000",
+                        )
+                        .unwrap()
                     }),
                     left: None,
                     right: None,

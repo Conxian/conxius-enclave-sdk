@@ -352,10 +352,22 @@ impl BitVm2ChallengeResponse {
 pub struct BitVm2Groth16Proof {
     pub encoding_version: BitVm2EncodingVersion,
     /// Compressed G₁ point (48 bytes).
+    #[serde(
+        serialize_with = "crate::serde_big_array::arr48::serialize",
+        deserialize_with = "crate::serde_big_array::arr48::deserialize"
+    )]
     pub a: [u8; 48],
     /// Compressed G₂ point (96 bytes).
+    #[serde(
+        serialize_with = "crate::serde_big_array::arr96::serialize",
+        deserialize_with = "crate::serde_big_array::arr96::deserialize"
+    )]
     pub b: [u8; 96],
     /// Compressed G₁ point (48 bytes).
+    #[serde(
+        serialize_with = "crate::serde_big_array::arr48::serialize",
+        deserialize_with = "crate::serde_big_array::arr48::deserialize"
+    )]
     pub c: [u8; 48],
 }
 
@@ -374,14 +386,34 @@ impl BitVm2Groth16Proof {
 pub struct BitVm2Groth16VerificationKey {
     pub encoding_version: BitVm2EncodingVersion,
     /// Compressed G₁ point — alpha (48 bytes).
+    #[serde(
+        serialize_with = "crate::serde_big_array::arr48::serialize",
+        deserialize_with = "crate::serde_big_array::arr48::deserialize"
+    )]
     pub alpha_g1: [u8; 48],
     /// Compressed G₂ point — beta (96 bytes).
+    #[serde(
+        serialize_with = "crate::serde_big_array::arr96::serialize",
+        deserialize_with = "crate::serde_big_array::arr96::deserialize"
+    )]
     pub beta_g2: [u8; 96],
     /// Compressed G₂ point — gamma (96 bytes).
+    #[serde(
+        serialize_with = "crate::serde_big_array::arr96::serialize",
+        deserialize_with = "crate::serde_big_array::arr96::deserialize"
+    )]
     pub gamma_g2: [u8; 96],
     /// Compressed G₂ point — delta (96 bytes).
+    #[serde(
+        serialize_with = "crate::serde_big_array::arr96::serialize",
+        deserialize_with = "crate::serde_big_array::arr96::deserialize"
+    )]
     pub delta_g2: [u8; 96],
     /// Compressed G₁ points — gamma_abc (variable length, each 48 bytes).
+    #[serde(
+        serialize_with = "crate::serde_big_array::arr48_vec::serialize",
+        deserialize_with = "crate::serde_big_array::arr48_vec::deserialize"
+    )]
     pub gamma_abc_g1: Vec<[u8; 48]>,
 }
 
@@ -853,7 +885,9 @@ mod tests {
             challenge_digest: [4; 32],
         };
 
-        let outcome = verifier.verify(&proof, &vk, &inputs).expect("verification completed");
+        let outcome = verifier
+            .verify(&proof, &vk, &inputs)
+            .expect("verification completed");
         assert_eq!(outcome, Groth16VerificationOutcome::VerificationUnavailable);
     }
 

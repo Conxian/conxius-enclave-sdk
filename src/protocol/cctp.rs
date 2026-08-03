@@ -164,12 +164,13 @@ impl CctpManager {
             return Ok(false);
         }
 
-        let pubkey_bytes = hex::decode(
-            CCTP_ATTESTATION_PUBKEY.strip_prefix("04").ok_or_else(|| {
+        let pubkey_bytes =
+            hex::decode(CCTP_ATTESTATION_PUBKEY.strip_prefix("04").ok_or_else(|| {
                 ConclaveError::InvalidConfiguration("CCTP pubkey must be 0x04-prefixed".into())
-            })?,
-        )
-        .map_err(|_| ConclaveError::InvalidConfiguration("CCTP pubkey hex decode failed".into()))?;
+            })?)
+            .map_err(|_| {
+                ConclaveError::InvalidConfiguration("CCTP pubkey hex decode failed".into())
+            })?;
 
         // Reconstruct full uncompressed key (0x04 || x || y)
         let mut full_pubkey = vec![0x04];
@@ -297,8 +298,11 @@ mod tests {
         assert_eq!(hash1, hash2);
         // Different nonce → different hash
         let hash3 = CctpManager::compute_attestation_message_hash(
-            0, 6, 43,
-            TEST_BURN_TOKEN, TEST_RECIPIENT,
+            0,
+            6,
+            43,
+            TEST_BURN_TOKEN,
+            TEST_RECIPIENT,
             1_000_000,
         );
         assert_ne!(hash1, hash3);
@@ -336,8 +340,8 @@ mod tests {
         // Valid-length but invalid DER
         let result = manager.verify_attestation_signature(
             &[1u8; 32],
-            &[0xff; 70],    // invalid DER encoding
-            &[0x04, 0x00],  // invalid pubkey
+            &[0xff; 70],   // invalid DER encoding
+            &[0x04, 0x00], // invalid pubkey
         );
         assert!(result.is_err()); // parse should fail
     }

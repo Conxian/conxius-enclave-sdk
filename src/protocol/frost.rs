@@ -13,7 +13,7 @@ use crate::{
     UnsupportedOperation, UnsupportedProtocol,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeSet, fmt};
+use std::{collections::BTreeSet, collections::HashMap, fmt};
 
 pub const FROST_ENCODING_VERSION: u16 = 1;
 pub const FROST_MAX_PARTICIPANTS: u16 = 255;
@@ -678,11 +678,10 @@ impl FrostSigningContext {
         min_signers: u32,
         total_signers: u32,
     ) -> ConclaveResult<FrostKeyPackage> {
-        let (shares, vk) =
-            crate::protocol::frost_crypto::trusted_dealer_keygen(
-                min_signers as u16,
-                total_signers as u16,
-            )?;
+        let (shares, vk) = crate::protocol::frost_crypto::trusted_dealer_keygen(
+            min_signers as u16,
+            total_signers as u16,
+        )?;
 
         let vk_digest = compute_digest(&vk);
         self.verifying_key = Some(vk);
@@ -756,12 +755,9 @@ impl FrostSigningContext {
         let commitments: Vec<Vec<u8>> = commitment_digests
             .iter()
             .map(|d| {
-                self.commitments_map
-                    .get(d)
-                    .cloned()
-                    .ok_or_else(|| {
-                        ConclaveError::CryptoError("FROST: unknown commitment digest".into())
-                    })
+                self.commitments_map.get(d).cloned().ok_or_else(|| {
+                    ConclaveError::CryptoError("FROST: unknown commitment digest".into())
+                })
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -863,12 +859,9 @@ impl FrostSigningContext {
         let share_list: Vec<(Vec<u8>, Vec<u8>)> = shares
             .iter()
             .map(|s| {
-                let raw = self
-                    .share_bytes
-                    .get(&s.share.digest)
-                    .ok_or_else(|| {
-                        ConclaveError::CryptoError("FROST: unknown share digest".into())
-                    })?;
+                let raw = self.share_bytes.get(&s.share.digest).ok_or_else(|| {
+                    ConclaveError::CryptoError("FROST: unknown share digest".into())
+                })?;
                 Ok((s.share.digest.to_vec(), raw.clone()))
             })
             .collect::<Result<Vec<_>, ConclaveError>>()?;
@@ -1087,20 +1080,23 @@ mod signing_context_tests {
         kp.validate().expect("valid key package");
 
         // 2. Each participant creates nonces
-        let nonce_1 = ctx.create_nonces(&kp.group_public_key.digest).expect("nonce 1");
+        let nonce_1 = ctx
+            .create_nonces(&kp.group_public_key.digest)
+            .expect("nonce 1");
         // For participants 2 and 3, get their key digests from the context
         // (In real usage, each participant would have their own context)
         // For this test, we use the same verifying key digest
-        let nonce_2 = ctx.create_nonces(&kp.group_public_key.digest).expect("nonce 2");
-        let nonce_3 = ctx.create_nonces(&kp.group_public_key.digest).expect("nonce 3");
+        let nonce_2 = ctx
+            .create_nonces(&kp.group_public_key.digest)
+            .expect("nonce 2");
+        let nonce_3 = ctx
+            .create_nonces(&kp.group_public_key.digest)
+            .expect("nonce 3");
 
         // 3. Build signing package with all commitments
         let msg = b"hello FROST threshold signing";
-        ctx.create_signing_package(
-            msg,
-            &[nonce_1.digest, nonce_2.digest, nonce_3.digest],
-        )
-        .expect("signing package");
+        ctx.create_signing_package(msg, &[nonce_1.digest, nonce_2.digest, nonce_3.digest])
+            .expect("signing package");
 
         // 4. Create signature shares (2-of-3 threshold)
         let share_1 = ctx

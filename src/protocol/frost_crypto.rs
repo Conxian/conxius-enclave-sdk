@@ -5,14 +5,11 @@
 //! It is gated behind the `frost-crypto` feature flag.
 use std::collections::BTreeMap;
 
+use frost::{keys::dkg, Identifier};
 use frost_secp256k1_tr as frost;
-use frost::{
-    keys::dkg, Identifier,
-};
 use rand_core06::OsRng;
 
 use crate::{ConclaveError, ConclaveResult};
-
 
 fn id_from_bytes(bytes: &[u8]) -> ConclaveResult<Identifier> {
     Identifier::deserialize(bytes)
@@ -34,13 +31,17 @@ pub fn trusted_dealer_keygen(
     )
     .map_err(|e| ConclaveError::CryptoError(format!("keygen: {e:?}")))?;
 
-    let vk = pubkey.verifying_key().serialize().map_err(|e| ConclaveError::CryptoError(format!("vk: {e:?}")))?;
+    let vk = pubkey
+        .verifying_key()
+        .serialize()
+        .map_err(|e| ConclaveError::CryptoError(format!("vk: {e:?}")))?;
     let shares: BTreeMap<Vec<u8>, Vec<u8>> = shares_map
         .into_iter()
         .map(|(id, share)| {
             Ok((
                 id.serialize().to_vec(),
-                share.serialize()
+                share
+                    .serialize()
                     .map_err(|e| ConclaveError::CryptoError(format!("share ser: {e:?}")))?,
             ))
         })
@@ -51,16 +52,18 @@ pub fn trusted_dealer_keygen(
 
 // ── Signing ─────────────────────────────────────────────────────────
 
-pub fn create_nonces_and_commitments(
-    key_pkg_bytes: &[u8],
-) -> ConclaveResult<(Vec<u8>, Vec<u8>)> {
+pub fn create_nonces_and_commitments(key_pkg_bytes: &[u8]) -> ConclaveResult<(Vec<u8>, Vec<u8>)> {
     let mut rng = OsRng;
     let kp = frost::keys::KeyPackage::deserialize(key_pkg_bytes)
         .map_err(|e| ConclaveError::CryptoError(format!("keypkg: {e:?}")))?;
     let (nonces, commitments) = frost::round1::commit(kp.signing_share(), &mut rng);
     Ok((
-        nonces.serialize().map_err(|e| ConclaveError::CryptoError(format!("nonce: {e:?}")))?,
-        commitments.serialize().map_err(|e| ConclaveError::CryptoError(format!("commit: {e:?}")))?,
+        nonces
+            .serialize()
+            .map_err(|e| ConclaveError::CryptoError(format!("nonce: {e:?}")))?,
+        commitments
+            .serialize()
+            .map_err(|e| ConclaveError::CryptoError(format!("commit: {e:?}")))?,
     ))
 }
 
@@ -102,7 +105,9 @@ pub fn aggregate(
         .map_err(|e| ConclaveError::CryptoError(format!("pkg: {e:?}")))?;
     let sig = frost::aggregate(&sigpkg, &shares, &pkg)
         .map_err(|e| ConclaveError::CryptoError(format!("aggregate: {e:?}")))?;
-    let sig_bytes = sig.serialize().map_err(|e| ConclaveError::CryptoError(format!("agg: {e:?}")))?;
+    let sig_bytes = sig
+        .serialize()
+        .map_err(|e| ConclaveError::CryptoError(format!("agg: {e:?}")))?;
     Ok(hex::encode(sig_bytes))
 }
 
@@ -118,8 +123,12 @@ pub fn dkg_part1(
     let (secret, package) = dkg::part1(id, max_signers, min_signers, &mut rng)
         .map_err(|e| ConclaveError::CryptoError(format!("DKG p1: {e:?}")))?;
     Ok((
-        secret.serialize().map_err(|e| ConclaveError::CryptoError(format!("DKG s1: {e:?}")))?,
-        package.serialize().map_err(|e| ConclaveError::CryptoError(format!("DKG pkg: {e:?}")))?,
+        secret
+            .serialize()
+            .map_err(|e| ConclaveError::CryptoError(format!("DKG s1: {e:?}")))?,
+        package
+            .serialize()
+            .map_err(|e| ConclaveError::CryptoError(format!("DKG pkg: {e:?}")))?,
     ))
 }
 
@@ -143,11 +152,14 @@ pub fn dkg_part2(
     for (id, pkg) in r2_pkgs {
         out.insert(
             id.serialize().to_vec(),
-            pkg.serialize().map_err(|e| ConclaveError::CryptoError(format!("DKG r2p: {e:?}")))?,
+            pkg.serialize()
+                .map_err(|e| ConclaveError::CryptoError(format!("DKG r2p: {e:?}")))?,
         );
     }
     Ok((
-        r2_secret.serialize().map_err(|e| ConclaveError::CryptoError(format!("DKG r2s: {e:?}")))?,
+        r2_secret
+            .serialize()
+            .map_err(|e| ConclaveError::CryptoError(format!("DKG r2s: {e:?}")))?,
         out,
     ))
 }
@@ -178,8 +190,12 @@ pub fn dkg_part3(
     let (key_pkg, pubkey_pkg) = dkg::part3(&r2_secret, &r1, &r2)
         .map_err(|e| ConclaveError::CryptoError(format!("DKG p3: {e:?}")))?;
     Ok((
-        key_pkg.serialize().map_err(|e| ConclaveError::CryptoError(format!("DKG key: {e:?}")))?,
-        pubkey_pkg.serialize().map_err(|e| ConclaveError::CryptoError(format!("DKG pk: {e:?}")))?,
+        key_pkg
+            .serialize()
+            .map_err(|e| ConclaveError::CryptoError(format!("DKG key: {e:?}")))?,
+        pubkey_pkg
+            .serialize()
+            .map_err(|e| ConclaveError::CryptoError(format!("DKG pk: {e:?}")))?,
     ))
 }
 
@@ -248,7 +264,9 @@ mod tests {
             }
             let mut my_r2: BTreeMap<Vec<u8>, Vec<u8>> = BTreeMap::new();
             for (sender_id, r2_out) in &all_r2 {
-                if sender_id == my_id { continue; }
+                if sender_id == my_id {
+                    continue;
+                }
                 if let Some(p) = r2_out.get(my_id) {
                     my_r2.insert(sender_id.clone(), p.clone());
                 }
