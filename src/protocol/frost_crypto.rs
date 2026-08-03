@@ -173,6 +173,139 @@ fn identifier_from_bytes(bytes: &[u8]) -> ConclaveResult<Identifier<E>> {
     })
 }
 
+// ── DKG (Distributed Key Generation) ────────────────────────────────
+//
+// ZF FROST v3.0.0 includes a full Pedersen DKG implementation
+// (frost-core/src/keys/dkg.rs). These wrappers expose the 3-part
+// protocol: each participant runs part1, broadcasts the package,
+// collects all round-1 packages, runs part2, sends encrypted shares
+// to each peer, collects all round-2 packages, then runs part3 to
+// compute the final KeyPackage + PublicKeyPackage.
+
+use frost::keys::dkg;
+use std::collections::BTreeMap as StdBTreeMap;
+
+/// DKG Part 1: Generate secret polynomial + public commitment.
+///
+/// Returns `(secret_package_bytes, package_bytes)` where:
+/// - `secret_package_bytes` — serialized [`dkg::round1::SecretPackage`] (keep private)
+/// - `package_bytes` — serialized [`dkg::round1::Package`] (broadcast to all peers)
+pub fn dkg_part1(
+    participant_id_bytes: &[u8],
+    max_signers: u16,
+    min_signers: u16,
+) -> ConclaveResult<(Vec<u8>, Vec<u8>)> {
+    let mut rng = OsRng;
+    let id = identifier_from_bytes(participant_id_bytes)?;
+
+    let (secret_package, package) =
+        dkg::part1::<E, _>(id, max_signers, min_signers, &mut rng)
+            .map_err(|e| ConclaveError::CryptoError(format!("FROST DKG part1: {e:?}")))?;
+
+    let secret_bytes = secret_package
+        .serialize()
+        .map_err(|e| ConclaveError::CryptoError(format!("DKG secret ser: {e:?}")))?;
+
+    let package_bytes = package
+        .serialize()
+        .map_err(|e| ConclaveError::CryptoError(format!("DKG package ser: {e:?}")))?;
+
+    Ok((secret_bytes, package_bytes))
+}
+
+/// DKG Part 2: Verify all round-1 packages, produce encrypted shares for peers.
+///
+/// Takes:
+/// - `secret_package_bytes` — serialized secret package from part1
+/// - `round1_packages` — map of participant_id_bytes → package_bytes from all peers
+///
+/// Returns:
+/// - `secret_package_bytes` — updated secret state for part3
+/// - Map of participant_id_bytes → package_bytes to send to each peer
+pub fn dkg_part2(
+    secret_package_bytes: &[u8],
+    round1_packages: &StdBTreeMap<Vec<u8>, Vec<u8>>,
+) -> ConclaveResult<(Vec<u8>, StdBTreeMap<Vec<u8>, Vec<u8>>)> {
+    let secret_package = dkg::round1::SecretPackage::<E>::deserialize(secret_package_bytes)
+        .map_err(|e| ConclaveError::CryptoError(format!("DKG part2 secret deser: {e:?}")))?;
+
+    let mut r1_packages: BTreeMap<Identifier<E>, dkg::round1::Package<E>> = BTreeMap::new();
+    for (id_bytes, pkg_bytes) in round1_packages {
+        let id = identifier_from_bytes(id_bytes)?;
+        let pkg = dkg::round1::Package::<E>::deserialize(pkg_bytes)
+            .map_err(|e| ConclaveError::CryptoError(format!("DKG part2 pkg deser: {e:?}")))?;
+        r1_packages.insert(id, pkg);
+    }
+
+    let (round2_secret, round2_packages) =
+        dkg::part2::<E>(secret_package, &r1_packages)
+            .map_err(|e| ConclaveError::CryptoError(format!("FROST DKG part2: {e:?}")))?;
+
+    let secret_bytes = round2_secret
+        .serialize()
+        .map_err(|e| ConclaveError::CryptoError(format!("DKG r2 secret ser: {e:?}")))?;
+
+    let mut outgoing: StdBTreeMap<Vec<u8>, Vec<u8>> = StdBTreeMap::new();
+    for (id, pkg) in round2_packages {
+        let id_bytes: u16 = id.try_into().unwrap_or(0);
+        let pkg_bytes = pkg
+            .serialize()
+            .map_err(|e| ConclaveError::CryptoError(format!("DKG r2 pkg ser: {e:?}")))?;
+        outgoing.insert(id_bytes.to_be_bytes().to_vec(), pkg_bytes);
+    }
+
+    Ok((secret_bytes, outgoing))
+}
+
+/// DKG Part 3: Verify received shares, compute final KeyPackage + PublicKeyPackage.
+///
+/// Takes:
+/// - `round2_secret_bytes` — serialized secret package from part2
+/// - `round1_packages` — all round-1 packages (same map as part2)
+/// - `round2_packages` — map of sender_id_bytes → package_bytes received from peers
+///
+/// Returns:
+/// - `key_package_bytes` — serialized [`KeyPackage`] for this participant
+/// - `pubkey_package_bytes` — serialized [`PublicKeyPackage`] (shared with all)
+pub fn dkg_part3(
+    round2_secret_bytes: &[u8],
+    round1_packages: &StdBTreeMap<Vec<u8>, Vec<u8>>,
+    round2_packages: &StdBTreeMap<Vec<u8>, Vec<u8>>,
+) -> ConclaveResult<(Vec<u8>, Vec<u8>)> {
+    let round2_secret = dkg::round2::SecretPackage::<E>::deserialize(round2_secret_bytes)
+        .map_err(|e| ConclaveError::CryptoError(format!("DKG part3 secret deser: {e:?}")))?;
+
+    let mut r1_packages: BTreeMap<Identifier<E>, dkg::round1::Package<E>> = BTreeMap::new();
+    for (id_bytes, pkg_bytes) in round1_packages {
+        let id = identifier_from_bytes(id_bytes)?;
+        let pkg = dkg::round1::Package::<E>::deserialize(pkg_bytes)
+            .map_err(|e| ConclaveError::CryptoError(format!("DKG part3 r1 deser: {e:?}")))?;
+        r1_packages.insert(id, pkg);
+    }
+
+    let mut r2_packages: BTreeMap<Identifier<E>, dkg::round2::Package<E>> = BTreeMap::new();
+    for (id_bytes, pkg_bytes) in round2_packages {
+        let id = identifier_from_bytes(id_bytes)?;
+        let pkg = dkg::round2::Package::<E>::deserialize(pkg_bytes)
+            .map_err(|e| ConclaveError::CryptoError(format!("DKG part3 r2 deser: {e:?}")))?;
+        r2_packages.insert(id, pkg);
+    }
+
+    let (key_package, pubkey_package) =
+        dkg::part3::<E>(&round2_secret, &r1_packages, &r2_packages)
+            .map_err(|e| ConclaveError::CryptoError(format!("FROST DKG part3: {e:?}")))?;
+
+    let key_bytes = key_package
+        .serialize()
+        .map_err(|e| ConclaveError::CryptoError(format!("DKG keypkg ser: {e:?}")))?;
+
+    let pubkey_bytes = pubkey_package
+        .serialize()
+        .map_err(|e| ConclaveError::CryptoError(format!("DKG pubkey ser: {e:?}")))?;
+
+    Ok((key_bytes, pubkey_bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -195,6 +328,75 @@ mod tests {
         let (nonces, commitments) = result.unwrap();
         assert!(!nonces.is_empty());
         assert!(!commitments.is_empty());
+    }
+
+    #[test]
+    fn test_dkg_3_of_5_full_ceremony() {
+        let n: u16 = 5;
+        let t: u16 = 3;
+
+        // Each participant runs part1
+        let mut r1_secrets: StdBTreeMap<Vec<u8>, Vec<u8>> = StdBTreeMap::new();
+        let mut all_r1_packages: StdBTreeMap<Vec<u8>, Vec<u8>> = StdBTreeMap::new();
+
+        for i in 1..=n {
+            let id = i.to_be_bytes().to_vec();
+            let (secret, package) = dkg_part1(&id, n, t).unwrap();
+            r1_secrets.insert(id.clone(), secret);
+            all_r1_packages.insert(id, package);
+        }
+
+        // Each participant runs part2 (needs n-1 packages, excluding self)
+        let mut r2_secrets: StdBTreeMap<Vec<u8>, Vec<u8>> = StdBTreeMap::new();
+        let mut all_r2_out: StdBTreeMap<Vec<u8>, StdBTreeMap<Vec<u8>, Vec<u8>>> = StdBTreeMap::new();
+
+        for i in 1..=n {
+            let my_id = i.to_be_bytes().to_vec();
+            let secret = r1_secrets.get(&my_id).unwrap();
+
+            // Exclude self from r1 packages
+            let mut peer_r1: StdBTreeMap<Vec<u8>, Vec<u8>> = StdBTreeMap::new();
+            for (id, pkg) in &all_r1_packages {
+                if *id != my_id {
+                    peer_r1.insert(id.clone(), pkg.clone());
+                }
+            }
+
+            let (r2_secret, r2_out) = dkg_part2(secret, &peer_r1).unwrap();
+            r2_secrets.insert(my_id, r2_secret);
+            all_r2_out.insert(my_id, r2_out);
+        }
+
+        // Each participant runs part3
+        for i in 1..=n {
+            let my_id = i.to_be_bytes().to_vec();
+            let r2_secret = r2_secrets.get(&my_id).unwrap();
+
+            // Exclude self from r1 packages
+            let mut peer_r1: StdBTreeMap<Vec<u8>, Vec<u8>> = StdBTreeMap::new();
+            for (id, pkg) in &all_r1_packages {
+                if *id != my_id {
+                    peer_r1.insert(id.clone(), pkg.clone());
+                }
+            }
+
+            // Collect round2 packages sent TO this participant from each peer
+            let mut my_r2_packages: StdBTreeMap<Vec<u8>, Vec<u8>> = StdBTreeMap::new();
+            for (sender_id, r2_out) in &all_r2_out {
+                if *sender_id == my_id {
+                    continue;
+                }
+                if let Some(pkg) = r2_out.get(&my_id) {
+                    my_r2_packages.insert(sender_id.clone(), pkg.clone());
+                }
+            }
+
+            let result = dkg_part3(r2_secret, &peer_r1, &my_r2_packages);
+            assert!(result.is_ok(), "DKG part3 failed for participant {i}");
+            let (key_pkg, pubkey_pkg) = result.unwrap();
+            assert!(!key_pkg.is_empty());
+            assert!(!pubkey_pkg.is_empty());
+        }
     }
 }
 
