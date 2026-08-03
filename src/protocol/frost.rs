@@ -693,15 +693,15 @@ impl FrostSigningContext {
             self.key_shares.insert(digest, share_bytes.clone());
             // Map participant IDs 1-indexed by insertion order
             let pid = FrostParticipantId::new((participants.len() + 1) as u16)
-                .map_err(|e| ConclaveError::Protocol(format!("FROST keygen pid: {e:?}")))?;
+                .map_err(|e| ConclaveError::CryptoError(format!("FROST keygen pid: {e:?}")))?;
             self.participant_ids.insert(pid, digest);
             participants.push(pid);
         }
 
         let participants_set = FrostParticipantSet::new(participants)
-            .map_err(|e| ConclaveError::Protocol(format!("FROST keygen set: {e:?}")))?;
+            .map_err(|e| ConclaveError::CryptoError(format!("FROST keygen set: {e:?}")))?;
         let threshold = FrostThreshold::new(min_signers, total_signers)
-            .map_err(|e| ConclaveError::Protocol(format!("FROST keygen thresh: {e:?}")))?;
+            .map_err(|e| ConclaveError::CryptoError(format!("FROST keygen thresh: {e:?}")))?;
 
         Ok(FrostKeyPackage {
             encoding_version: FrostEncodingVersion::current(),
@@ -727,7 +727,7 @@ impl FrostSigningContext {
         let key_pkg_bytes = self
             .key_shares
             .get(key_package_digest)
-            .ok_or_else(|| ConclaveError::Protocol("FROST: unknown key digest".into()))?;
+            .ok_or_else(|| ConclaveError::CryptoError("FROST: unknown key digest".into()))?;
 
         let (nonces, commitments) =
             crate::protocol::frost_crypto::create_nonces_and_commitments(key_pkg_bytes)?;
@@ -760,7 +760,7 @@ impl FrostSigningContext {
                     .get(d)
                     .cloned()
                     .ok_or_else(|| {
-                        ConclaveError::Protocol("FROST: unknown commitment digest".into())
+                        ConclaveError::CryptoError("FROST: unknown commitment digest".into())
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -779,7 +779,7 @@ impl FrostSigningContext {
         // (participant ID → first commitment's digest as nonce ref)
         for (i, digest) in commitment_digests.iter().enumerate() {
             let pid = FrostParticipantId::new((i + 1) as u16)
-                .map_err(|e| ConclaveError::Protocol(format!("FROST sigpkg pid: {e:?}")))?;
+                .map_err(|e| ConclaveError::CryptoError(format!("FROST sigpkg pid: {e:?}")))?;
             self.participant_ids.insert(pid, *digest);
         }
 
@@ -799,15 +799,15 @@ impl FrostSigningContext {
         let key_pkg_bytes = self
             .key_shares
             .get(key_digest)
-            .ok_or_else(|| ConclaveError::Protocol("FROST: unknown key digest".into()))?;
+            .ok_or_else(|| ConclaveError::CryptoError("FROST: unknown key digest".into()))?;
         let nonces_bytes = self
             .nonces_map
             .get(nonce_digest)
-            .ok_or_else(|| ConclaveError::Protocol("FROST: unknown nonce digest".into()))?;
+            .ok_or_else(|| ConclaveError::CryptoError("FROST: unknown nonce digest".into()))?;
         let sigpkg_bytes = self
             .signing_package
             .as_ref()
-            .ok_or_else(|| ConclaveError::Protocol("FROST: no signing package".into()))?;
+            .ok_or_else(|| ConclaveError::CryptoError("FROST: no signing package".into()))?;
 
         let share_raw = crate::protocol::frost_crypto::create_signature_share(
             key_pkg_bytes,
@@ -830,7 +830,7 @@ impl FrostSigningContext {
         Ok(FrostSignatureShare {
             encoding_version: FrostEncodingVersion::current(),
             session_id: FrostSessionId::new([0u8; 16])
-                .map_err(|e| ConclaveError::Protocol(format!("FROST sid: {e:?}")))?,
+                .map_err(|e| ConclaveError::CryptoError(format!("FROST sid: {e:?}")))?,
             signer_id,
             share: FrostOpaqueEnvelope::new(
                 FrostEnvelopeKind::SignatureShare,
@@ -853,12 +853,12 @@ impl FrostSigningContext {
         let vk_bytes = self
             .verifying_key
             .as_ref()
-            .ok_or_else(|| ConclaveError::Protocol("FROST: no verifying key".into()))?;
+            .ok_or_else(|| ConclaveError::CryptoError("FROST: no verifying key".into()))?;
 
         let sigpkg_bytes = self
             .signing_package
             .as_ref()
-            .ok_or_else(|| ConclaveError::Protocol("FROST: no signing package".into()))?;
+            .ok_or_else(|| ConclaveError::CryptoError("FROST: no signing package".into()))?;
 
         let share_list: Vec<(Vec<u8>, Vec<u8>)> = shares
             .iter()
@@ -867,7 +867,7 @@ impl FrostSigningContext {
                     .share_bytes
                     .get(&s.share.digest)
                     .ok_or_else(|| {
-                        ConclaveError::Protocol("FROST: unknown share digest".into())
+                        ConclaveError::CryptoError("FROST: unknown share digest".into())
                     })?;
                 Ok((s.share.digest.to_vec(), raw.clone()))
             })

@@ -9,9 +9,9 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 - **No-Panic**: Avoid `panic!`, `unwrap()`, and `expect()` in production paths. Use `ConclaveResult` for error handling.
 - **Zeroization**: Sensitive data must be zeroed out when no longer needed.
 
-## Protocol Module Catalog (Session 53 — Aug 2026) — 47 Modules
+## Protocol Module Catalog (Session 53 — Aug 2026) — 50 Modules
 
-### Blockchain Protocols (21 modules)
+### Blockchain Protocols (22 modules)
 
 | Module | Path | Description | Status |
 |--------|------|-------------|--------|
@@ -36,8 +36,9 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 | credit | `src/protocol/credit.rs` | Credit facility management | ✅ |
 | fiat | `src/protocol/fiat.rs` | Fiat on/off ramp types | ✅ |
 | asset | `src/protocol/asset.rs` | Multi-asset registry (42 chains incl. SPARK) | ✅ |
+| bip110 | `src/protocol/bip110.rs` | BIP-110 reduced data temporary softfork validation | ✅ |
 
-### Cross-cutting Protocols (15 modules)
+### Cross-cutting Protocols (16 modules)
 
 | Module | Path | Description | Status |
 |--------|------|-------------|--------|
@@ -56,6 +57,7 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 | job_card | `src/protocol/job_card.rs` | CJCS integration, SLA enforcement | ✅ |
 | business | `src/protocol/business.rs` | Business logic orchestration | ✅ |
 | opportunity | `src/protocol/opportunity.rs` | Yield opportunity discovery | ✅ |
+| zkml | `src/protocol/zkml.rs` | ZKML proof generation and verification (SNARK/STARK) | ✅ |
 
 ### Rails (6 modules)
 
@@ -68,11 +70,12 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 | ntt | `src/protocol/rails/ntt.rs` | Native token transfer rail | ✅ |
 | x402 | `src/protocol/rails/x402.rs` | HTTP payment protocol rail | ✅ |
 
-### Nexus Integration
+### Nexus Integration (2 modules)
 
 | Module | Path | Description | Status |
 |--------|------|-------------|--------|
 | fedimint | `src/protocol/nexus/fedimint.rs` | Fedimint consensus integration | ✅ |
+| roast | `src/protocol/nexus/roast.rs` | ROAST threshold signing coordinator | ✅ |
 
 ### SDK Infrastructure (4 modules)
 
