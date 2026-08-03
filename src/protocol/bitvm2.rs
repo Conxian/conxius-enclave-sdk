@@ -12,7 +12,7 @@ use crate::{
     UnsupportedOperation, UnsupportedProtocol,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 
 pub const BITVM2_ENCODING_VERSION: u16 = 1;
 
@@ -343,32 +343,138 @@ impl BitVm2ChallengeResponse {
 // boundary. Without an audited ZK backend, all verification returns
 // ProtocolUnsupported.
 
+// Serde helper wrappers for large byte arrays (serde only supports arrays up to [u8; 32]).
+struct Bytes48([u8; 48]);
+struct Bytes96([u8; 96]);
+
+impl Serialize for Bytes48 {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_bytes(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for Bytes48 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = Bytes48;
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("48 bytes")
+            }
+            fn visit_bytes<E: serde::de::Error>(self, v: &[u8]) -> Result<Self::Value, E> {
+                if v.len() != 48 {
+                    return Err(E::invalid_length(v.len(), &self));
+                }
+                let mut arr = [0u8; 48];
+                arr.copy_from_slice(v);
+                Ok(Bytes48(arr))
+            }
+        }
+        d.deserialize_bytes(Visitor)
+    }
+}
+
+impl Serialize for Bytes96 {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_bytes(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for Bytes96 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = Bytes96;
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("96 bytes")
+            }
+            fn visit_bytes<E: serde::de::Error>(self, v: &[u8]) -> Result<Self::Value, E> {
+                if v.len() != 96 {
+                    return Err(E::invalid_length(v.len(), &self));
+                }
+                let mut arr = [0u8; 96];
+                arr.copy_from_slice(v);
+                Ok(Bytes96(arr))
+            }
+        }
+        d.deserialize_bytes(Visitor)
+    }
+}
+
 /// Groth16 proof — three group elements (A ∈ G₁，B ∈ G₂, C ∈ G₁).
 ///
 /// Each element is stored as a compressed byte representation:
 /// - G₁ elements (A, C): 48 bytes each (compressed BLS12-381)
 /// - G₂ element (B): 96 bytes (compressed BLS12-381)
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BitVm2Groth16Proof {
     pub encoding_version: BitVm2EncodingVersion,
     /// Compressed G₁ point (48 bytes).
-    #[serde(
-        serialize_with = "crate::serde_big_array::arr48::serialize",
-        deserialize_with = "crate::serde_big_array::arr48::deserialize"
-    )]
     pub a: [u8; 48],
     /// Compressed G₂ point (96 bytes).
-    #[serde(
-        serialize_with = "crate::serde_big_array::arr96::serialize",
-        deserialize_with = "crate::serde_big_array::arr96::deserialize"
-    )]
     pub b: [u8; 96],
     /// Compressed G₁ point (48 bytes).
-    #[serde(
-        serialize_with = "crate::serde_big_array::arr48::serialize",
-        deserialize_with = "crate::serde_big_array::arr48::deserialize"
-    )]
     pub c: [u8; 48],
+}
+
+impl Serialize for BitVm2Groth16Proof {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut state = s.serialize_struct("BitVm2Groth16Proof", 4)?;
+        state.serialize_field("encoding_version", &self.encoding_version)?;
+        state.serialize_field("a", &Bytes48(self.a))?;
+        state.serialize_field("b", &Bytes96(self.b))?;
+        state.serialize_field("c", &Bytes48(self.c))?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for BitVm2Groth16Proof {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = BitVm2Groth16Proof;
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("BitVm2Groth16Proof")
+            }
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<Self::Value, A::Error> {
+                use serde::de::Error;
+                let mut encoding_version = None;
+                let mut a = None;
+                let mut b = None;
+                let mut c = None;
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "encoding_version" => encoding_version = Some(map.next_value()?),
+                        "a" => a = Some(map.next_value::<Bytes48>()?.0),
+                        "b" => b = Some(map.next_value::<Bytes96>()?.0),
+                        "c" => c = Some(map.next_value::<Bytes48>()?.0),
+                        _ => {
+                            return Err(Error::unknown_field(
+                                &key,
+                                &["encoding_version", "a", "b", "c"],
+                            ))
+                        }
+                    }
+                }
+                Ok(BitVm2Groth16Proof {
+                    encoding_version: encoding_version
+                        .ok_or_else(|| Error::missing_field("encoding_version"))?,
+                    a: a.ok_or_else(|| Error::missing_field("a"))?,
+                    b: b.ok_or_else(|| Error::missing_field("b"))?,
+                    c: c.ok_or_else(|| Error::missing_field("c"))?,
+                })
+            }
+        }
+        d.deserialize_struct(
+            "BitVm2Groth16Proof",
+            &["encoding_version", "a", "b", "c"],
+            Visitor,
+        )
+    }
 }
 
 impl BitVm2Groth16Proof {
@@ -382,39 +488,109 @@ impl BitVm2Groth16Proof {
 }
 
 /// Groth16 verification key (on-chain reference).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BitVm2Groth16VerificationKey {
     pub encoding_version: BitVm2EncodingVersion,
     /// Compressed G₁ point — alpha (48 bytes).
-    #[serde(
-        serialize_with = "crate::serde_big_array::arr48::serialize",
-        deserialize_with = "crate::serde_big_array::arr48::deserialize"
-    )]
     pub alpha_g1: [u8; 48],
     /// Compressed G₂ point — beta (96 bytes).
-    #[serde(
-        serialize_with = "crate::serde_big_array::arr96::serialize",
-        deserialize_with = "crate::serde_big_array::arr96::deserialize"
-    )]
     pub beta_g2: [u8; 96],
     /// Compressed G₂ point — gamma (96 bytes).
-    #[serde(
-        serialize_with = "crate::serde_big_array::arr96::serialize",
-        deserialize_with = "crate::serde_big_array::arr96::deserialize"
-    )]
     pub gamma_g2: [u8; 96],
     /// Compressed G₂ point — delta (96 bytes).
-    #[serde(
-        serialize_with = "crate::serde_big_array::arr96::serialize",
-        deserialize_with = "crate::serde_big_array::arr96::deserialize"
-    )]
     pub delta_g2: [u8; 96],
     /// Compressed G₁ points — gamma_abc (variable length, each 48 bytes).
-    #[serde(
-        serialize_with = "crate::serde_big_array::arr48_vec::serialize",
-        deserialize_with = "crate::serde_big_array::arr48_vec::deserialize"
-    )]
     pub gamma_abc_g1: Vec<[u8; 48]>,
+}
+
+impl Serialize for BitVm2Groth16VerificationKey {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut state = s.serialize_struct("BitVm2Groth16VerificationKey", 6)?;
+        state.serialize_field("encoding_version", &self.encoding_version)?;
+        state.serialize_field("alpha_g1", &Bytes48(self.alpha_g1))?;
+        state.serialize_field("beta_g2", &Bytes96(self.beta_g2))?;
+        state.serialize_field("gamma_g2", &Bytes96(self.gamma_g2))?;
+        state.serialize_field("delta_g2", &Bytes96(self.delta_g2))?;
+        let gamma_abc: Vec<Bytes48> = self.gamma_abc_g1.iter().map(|a| Bytes48(*a)).collect();
+        state.serialize_field("gamma_abc_g1", &gamma_abc)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for BitVm2Groth16VerificationKey {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = BitVm2Groth16VerificationKey;
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("BitVm2Groth16VerificationKey")
+            }
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<Self::Value, A::Error> {
+                use serde::de::Error;
+                let mut encoding_version = None;
+                let mut alpha_g1 = None;
+                let mut beta_g2 = None;
+                let mut gamma_g2 = None;
+                let mut delta_g2 = None;
+                let mut gamma_abc_g1: Option<Vec<[u8; 48]>> = None;
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "encoding_version" => encoding_version = Some(map.next_value()?),
+                        "alpha_g1" => alpha_g1 = Some(map.next_value::<Bytes48>()?.0),
+                        "beta_g2" => beta_g2 = Some(map.next_value::<Bytes96>()?.0),
+                        "gamma_g2" => gamma_g2 = Some(map.next_value::<Bytes96>()?.0),
+                        "delta_g2" => delta_g2 = Some(map.next_value::<Bytes96>()?.0),
+                        "gamma_abc_g1" => {
+                            gamma_abc_g1 = Some(
+                                map.next_value::<Vec<Bytes48>>()?
+                                    .into_iter()
+                                    .map(|b| b.0)
+                                    .collect(),
+                            )
+                        }
+                        _ => {
+                            return Err(Error::unknown_field(
+                                &key,
+                                &[
+                                    "encoding_version",
+                                    "alpha_g1",
+                                    "beta_g2",
+                                    "gamma_g2",
+                                    "delta_g2",
+                                    "gamma_abc_g1",
+                                ],
+                            ))
+                        }
+                    }
+                }
+                Ok(BitVm2Groth16VerificationKey {
+                    encoding_version: encoding_version
+                        .ok_or_else(|| Error::missing_field("encoding_version"))?,
+                    alpha_g1: alpha_g1.ok_or_else(|| Error::missing_field("alpha_g1"))?,
+                    beta_g2: beta_g2.ok_or_else(|| Error::missing_field("beta_g2"))?,
+                    gamma_g2: gamma_g2.ok_or_else(|| Error::missing_field("gamma_g2"))?,
+                    delta_g2: delta_g2.ok_or_else(|| Error::missing_field("delta_g2"))?,
+                    gamma_abc_g1: gamma_abc_g1.unwrap_or_default(),
+                })
+            }
+        }
+        d.deserialize_struct(
+            "BitVm2Groth16VerificationKey",
+            &[
+                "encoding_version",
+                "alpha_g1",
+                "beta_g2",
+                "gamma_g2",
+                "delta_g2",
+                "gamma_abc_g1",
+            ],
+            Visitor,
+        )
+    }
 }
 
 impl BitVm2Groth16VerificationKey {

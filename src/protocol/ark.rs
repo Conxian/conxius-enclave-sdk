@@ -600,6 +600,8 @@ mod tests {
             manager.sign_vutxo([0; 32], 0),
             UnsupportedOperation::ForfeitSigning,
         );
+        // VTXO tree construction is implemented (non-value-bearing structural op)
+        assert!(manager.construct_vtxo_tree(vec![descriptor()]).is_ok());
         assert_eq!(manager.backend(), ArkBackend::Unconfigured);
     }
 

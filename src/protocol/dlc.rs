@@ -166,12 +166,12 @@ impl DlcManager {
             ));
         }
 
-        // CET payout formula: local gets (outcome * total / max_outcome)
-        // Add max/2 before division for nearest-integer rounding.
-        let local_payout = ((oracle_outcome as u128)
-            .saturating_mul(total_collateral as u128)
-            .saturating_add(u64::MAX as u128 / 2))
-            .saturating_div(u64::MAX as u128) as u64;
+        // CET payout formula with rounding: local gets round(outcome * total / max_outcome)
+        let total = total_collateral as u128;
+        let outcome = oracle_outcome as u128;
+        let max = u64::MAX as u128;
+        let local_payout =
+            (outcome.saturating_mul(total).saturating_add(max / 2)).saturating_div(max) as u64;
         let remote_payout = total_collateral.saturating_sub(local_payout);
 
         // Serialize CET template: [local_payout: u64][remote_payout: u64][contract_id_hash: 32]

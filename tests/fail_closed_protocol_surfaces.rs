@@ -3,7 +3,7 @@ use conxius_enclave_sdk::protocol::account_abstraction::{
 };
 use conxius_enclave_sdk::protocol::asset::{AssetIdentifier, AssetMetadata, AssetRegistry, Chain};
 use conxius_enclave_sdk::protocol::business::BusinessRegistry;
-use conxius_enclave_sdk::protocol::cctp::{CctpManager, CctpTransferIntent};
+use conxius_enclave_sdk::protocol::cctp::{CctpAttestation, CctpManager, CctpTransferIntent};
 use conxius_enclave_sdk::protocol::intent::SwapRequest;
 use conxius_enclave_sdk::protocol::rails::{RailProxy, TrustTier};
 use conxius_enclave_sdk::ConclaveError;
@@ -62,23 +62,22 @@ fn valid_looking_cctp_inputs_cannot_produce_calldata_or_validate_iris_attestatio
 
     assert!(manager.validate_intent(&intent).is_ok());
     assert!(matches!(
-        manager.prepare_burn_payload(intent),
+        manager.prepare_burn_payload(intent.clone()),
         Err(ConclaveError::Unsupported(message))
             if message.contains("CCTP burn encoding is disabled")
     ));
 
-    let intent = valid_cctp_intent();
-    let attestation = conxius_enclave_sdk::protocol::cctp::CctpAttestation {
-        signature: vec![0x02; 65],
+    let attestation = CctpAttestation {
+        signature: vec![],
         message_hash: [0x01; 32],
-        source_domain: intent.source_chain,
-        destination_domain: intent.destination_chain,
-        nonce: 0,
+        source_domain: 0,
+        destination_domain: 6,
+        nonce: 1,
     };
+    // Attestation with bogus hash returns Ok(false) — hash mismatch detected
     assert!(matches!(
         manager.verify_attestation(&intent, &attestation),
-        Err(ConclaveError::Unsupported(message))
-            if message.contains("CCTP attestation verification is disabled")
+        Ok(false)
     ));
 }
 

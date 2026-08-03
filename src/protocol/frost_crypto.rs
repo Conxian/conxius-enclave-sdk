@@ -21,7 +21,7 @@ fn id_from_bytes(bytes: &[u8]) -> ConclaveResult<Identifier> {
 pub fn trusted_dealer_keygen(
     min_signers: u16,
     max_signers: u16,
-) -> ConclaveResult<(BTreeMap<Vec<u8>, Vec<u8>>, Vec<u8>)> {
+) -> ConclaveResult<(Vec<Vec<u8>>, Vec<u8>)> {
     let mut rng = OsRng;
     let (shares_map, pubkey) = frost::keys::generate_with_dealer(
         max_signers,
@@ -32,20 +32,24 @@ pub fn trusted_dealer_keygen(
     .map_err(|e| ConclaveError::CryptoError(format!("keygen: {e:?}")))?;
 
     let vk = pubkey
-        .verifying_key()
         .serialize()
-        .map_err(|e| ConclaveError::CryptoError(format!("vk: {e:?}")))?;
-    let shares: BTreeMap<Vec<u8>, Vec<u8>> = shares_map
-        .into_iter()
-        .map(|(id, share)| {
-            Ok((
-                id.serialize().to_vec(),
-                share
-                    .serialize()
-                    .map_err(|e| ConclaveError::CryptoError(format!("share ser: {e:?}")))?,
-            ))
+        .map_err(|e| ConclaveError::CryptoError(format!("pkpkg: {e:?}")))?;
+    // IdentifierList::Default produces Identifiers 1, 2, 3, ...
+    // Return shares in sorted order by identifier, matching the positional IDs
+    let shares: Vec<Vec<u8>> = (1..=max_signers)
+        .map(|i| {
+            let id = Identifier::try_from(i)
+                .map_err(|e| ConclaveError::CryptoError(format!("kp id: {e:?}")))?;
+            let share = shares_map
+                .get(&id)
+                .ok_or_else(|| ConclaveError::CryptoError(format!("FROST: missing share {i}")))?;
+            let key_pkg = frost::keys::KeyPackage::try_from(share.clone())
+                .map_err(|e| ConclaveError::CryptoError(format!("kp: {e:?}")))?;
+            key_pkg
+                .serialize()
+                .map_err(|e| ConclaveError::CryptoError(format!("kp ser: {e:?}")))
         })
-        .collect::<Result<BTreeMap<Vec<u8>, Vec<u8>>, ConclaveError>>()?;
+        .collect::<Result<Vec<Vec<u8>>, ConclaveError>>()?;
 
     Ok((shares, vk))
 }
@@ -67,6 +71,24 @@ pub fn create_nonces_and_commitments(key_pkg_bytes: &[u8]) -> ConclaveResult<(Ve
     ))
 }
 
+pub fn create_signing_package(
+    message: &[u8],
+    commitment_list: &[Vec<u8>],
+) -> ConclaveResult<Vec<u8>> {
+    let mut sig_commitments = BTreeMap::new();
+    for (i, c_bytes) in commitment_list.iter().enumerate() {
+        let id = Identifier::try_from((i + 1) as u16)
+            .map_err(|e| ConclaveError::CryptoError(format!("sigpkg id: {e:?}")))?;
+        let sc = frost::round1::SigningCommitments::deserialize(c_bytes)
+            .map_err(|e| ConclaveError::CryptoError(format!("sigpkg commit: {e:?}")))?;
+        sig_commitments.insert(id, sc);
+    }
+    let sigpkg = frost::SigningPackage::new(sig_commitments, message);
+    sigpkg
+        .serialize()
+        .map_err(|e| ConclaveError::CryptoError(format!("sigpkg ser: {e:?}")))
+}
+
 pub fn create_signature_share(
     key_pkg_bytes: &[u8],
     nonces_bytes: &[u8],
@@ -86,16 +108,18 @@ pub fn create_signature_share(
 
 pub fn aggregate(
     sigpkg_bytes: &[u8],
-    share_list: &[(Vec<u8>, Vec<u8>)],
+    share_list: &[(u16, Vec<u8>)],
     pubkey_bytes: &[u8],
 ) -> ConclaveResult<String> {
     let sigpkg = frost::SigningPackage::deserialize(sigpkg_bytes)
         .map_err(|e| ConclaveError::CryptoError(format!("sigpkg: {e:?}")))?;
     let shares: BTreeMap<Identifier, frost::round2::SignatureShare> = share_list
         .iter()
-        .map(|(idb, sb)| {
+        .map(|(id_val, sb)| {
+            let id = Identifier::try_from(*id_val)
+                .map_err(|e| ConclaveError::CryptoError(format!("agg id: {e:?}")))?;
             Ok((
-                id_from_bytes(idb)?,
+                id,
                 frost::round2::SignatureShare::deserialize(sb)
                     .map_err(|e| ConclaveError::CryptoError(format!("ss: {e:?}")))?,
             ))
@@ -211,9 +235,25 @@ mod tests {
     }
 
     #[test]
-    fn test_nonces() {
-        let (_shares, _vk) = trusted_dealer_keygen(2, 2).unwrap();
-        assert_eq!(_shares.len(), 2);
+    fn test_keygen_and_aggregate_2_of_3() {
+        let (shares, vk) = trusted_dealer_keygen(2, 3).unwrap();
+        assert_eq!(shares.len(), 3);
+        assert!(!vk.is_empty());
+
+        // Shares are in identifier order: shares[0] = Identifier(1), shares[1] = Identifier(2)
+        let kp1 = &shares[0];
+        let kp2 = &shares[1];
+
+        let (n1, c1) = create_nonces_and_commitments(kp1).unwrap();
+        let (n2, c2) = create_nonces_and_commitments(kp2).unwrap();
+
+        let sigpkg_bytes = create_signing_package(b"test msg", &[c1, c2]).unwrap();
+
+        let s1 = create_signature_share(kp1, &n1, &sigpkg_bytes, b"test msg").unwrap();
+        let s2 = create_signature_share(kp2, &n2, &sigpkg_bytes, b"test msg").unwrap();
+
+        let sig = aggregate(&sigpkg_bytes, &[(1, s1), (2, s2)], &vk).unwrap();
+        assert!(!sig.is_empty());
     }
 
     #[test]
