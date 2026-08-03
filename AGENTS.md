@@ -9,9 +9,9 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 - **No-Panic**: Avoid `panic!`, `unwrap()`, and `expect()` in production paths. Use `ConclaveResult` for error handling.
 - **Zeroization**: Sensitive data must be zeroed out when no longer needed.
 
-## Protocol Module Catalog (Session 48 — Aug 2026) — 46 Modules
+## Protocol Module Catalog (Session 53 — Aug 2026) — 47 Modules
 
-### Blockchain Protocols (20 modules)
+### Blockchain Protocols (21 modules)
 
 | Module | Path | Description | Status |
 |--------|------|-------------|--------|
@@ -20,7 +20,8 @@ The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native
 | bitvm | `src/protocol/bitvm.rs` | BitVM proof primitive types | ✅ |
 | bitvm2 | `src/protocol/bitvm2.rs` | BitVM2 protocol boundary (roles, commitments, challenges) | ✅ |
 | dlc | `src/protocol/dlc.rs` | Discreet Log Contracts | ✅ |
-| frost | `src/protocol/frost.rs` | FROST DKG, threshold signing | ✅ |
+| frost | `src/protocol/frost.rs` | FROST DKG, threshold signing, envelope types | ✅ |
+| frost_crypto | `src/protocol/frost_crypto.rs` | **ZF FROST v3.0.0 real crypto backend** (DKG, signing, aggregation) | ✅ (Session 53) |
 | lightning | `src/protocol/lightning.rs` | BOLT 12, BIP-353, LNURL | ✅ |
 | musig2 | `src/protocol/musig2.rs` | MuSig2 multisig, nonce aggregation | ✅ |
 | stacks | `src/protocol/stacks.rs` | Stacks Nakamoto, Clarity types | ✅ |
@@ -102,8 +103,7 @@ Statechain (Spark) module is now a documented settlement rail in the market laye
 | `monitoring.md` | Via gateway adapter metrics | Prometheus endpoint |
 | `FUNDING_AND_ECONOMICS.md` §3.4 | VTXO fees in revenue model | Micro revenue stream |
 
-> Statechain struct validation complete (577 lines). Cryptography ops (FROST DKG, threshold signing)
-> remain behind `ProtocolUnsupported` gate pending audit. MARKET-010 closed with structural evidence.
+> Statechain struct validation complete (577 lines). Cryptography ops now backed by real ZF FROST v3.0.0 DKG + threshold signing (Session 53, PR #264 merged). MARKET-010 closed with structural evidence.
 
 ### TrustTier Enforcement (Session 48)
 Enclave attestation is the gating mechanism for Managed/Strict tier auto-execution:
