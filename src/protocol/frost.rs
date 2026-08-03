@@ -476,69 +476,15 @@ impl FrostManager {
     ) -> ConclaveResult<FrostKeyPackage> {
         #[cfg(feature = "frost-crypto")]
         {
-            let (shares_map, verifying_key) =
-                super::frost_crypto::trusted_dealer_keygen(
-                    min_signers as u16,
-                    total_signers as u16,
-                )?;
-
-            use sha2::{Digest, Sha256};
-
-            let share_packages: Vec<FrostEncryptedShare> = shares_map
-                .into_iter()
-                .enumerate()
-                .map(|(i, (id_bytes, share_bytes))| {
-                    let raw_id = u16::from_be_bytes([
-                        *id_bytes.first().unwrap_or(&0),
-                        *id_bytes.get(1).unwrap_or(&0),
-                    ]);
-                    // Boundary types use opaque envelopes (digest only).
-                    // Raw share bytes are stored in the execution context,
-                    // not in the boundary type.
-                    let digest: [u8; 32] = Sha256::digest(&share_bytes).into();
-                    let envelope = FrostOpaqueEnvelope::new(
-                        FrostEnvelopeKind::EncryptedShare,
-                        digest,
-                        share_bytes.len() as u32,
-                    )
-                    .ok();
-                    FrostEncryptedShare {
-                        receiver_id: FrostParticipantId::new(raw_id).ok()
-                            .unwrap_or_else(|| FrostParticipantId::new(1).unwrap()),
-                        encrypted_share: envelope.unwrap_or_else(|| {
-                            FrostOpaqueEnvelope::new(
-                                FrostEnvelopeKind::EncryptedShare,
-                                digest,
-                                share_bytes.len() as u32,
-                            )
-                            .unwrap_or_else(|_| {
-                                FrostOpaqueEnvelope::new(
-                                    FrostEnvelopeKind::EncryptedShare,
-                                    [0u8; 32],
-                                    1,
-                                )
-                                .unwrap()
-                            })
-                        }),
-                    }
-                })
-                .collect();
-
-            let participant_ids: Vec<FrostParticipantId> = share_packages
-                .iter()
-                .map(|s| s.receiver_id)
-                .collect();
-
-            Ok(FrostKeyPackage {
-                threshold: FrostThreshold::new(
-                    min_signers as u16,
-                    total_signers as u16,
-                )?,
-                participants: FrostParticipantSet::new(participant_ids)?,
-                verifying_key,
-                share_packages,
-                label: identifier.to_string(),
-            })
+            let _ = (min_signers, total_signers, identifier);
+            // FrostManager is a structural boundary layer. For real crypto,
+            // use frost_crypto::trusted_dealer_keygen() directly (see musig2
+            // pattern in musig2.rs). The boundary types use opaque envelopes
+            // (digest only) and cannot carry raw cryptographic material.
+            Err(protocol_unsupported(
+                UnsupportedProtocol::Frost,
+                UnsupportedOperation::KeyPackageGeneration,
+            ))
         }
         #[cfg(not(feature = "frost-crypto"))]
         {
@@ -656,20 +602,9 @@ impl FrostManager {
     ) -> ConclaveResult<String> {
         #[cfg(feature = "frost-crypto")]
         {
-            use std::collections::BTreeMap;
-
-            let mut share_map: BTreeMap<Vec<u8>, Vec<u8>> = BTreeMap::new();
-            let mut commitment_map: BTreeMap<Vec<u8>, Vec<u8>> = BTreeMap::new();
-
-            for s in &shares {
-                let id_bytes = s.signer_id.get().to_be_bytes().to_vec();
-                // The share is an opaque envelope carrying digest + len,
-                // not the raw share bytes. For now, we return unsupported
-                // until the bridge between opaque envelopes and raw ZF FROST
-                // bytes is defined in the execution context.
-                let _ = (id_bytes, share_map, commitment_map);
-            }
-
+            let _ = (package, shares, message);
+            // Aggregate requires raw bytes. Call frost_crypto::aggregate()
+            // directly with deserialized share/commitment bytes.
             Err(protocol_unsupported(
                 UnsupportedProtocol::Frost,
                 UnsupportedOperation::ThresholdSigning,
