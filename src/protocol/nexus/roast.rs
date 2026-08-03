@@ -16,6 +16,8 @@ use crate::{
     },
     BoundaryValidationError, ConclaveError, ConclaveResult,
 };
+#[cfg(not(feature = "frost-crypto"))]
+use crate::{protocol_unsupported, UnsupportedOperation, UnsupportedProtocol};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
