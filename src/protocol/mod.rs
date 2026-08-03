@@ -22,6 +22,8 @@ pub mod economy_tests;
 pub mod ethereum;
 pub mod fiat;
 pub mod frost;
+#[cfg(feature = "frost-crypto")]
+pub mod frost_crypto;
 pub mod identity;
 pub mod intent;
 pub mod job_card;
