@@ -482,25 +482,51 @@ impl FrostManager {
                     total_signers as u16,
                 )?;
 
+            use sha2::{Digest, Sha256};
+
             let share_packages: Vec<FrostEncryptedShare> = shares_map
                 .into_iter()
                 .enumerate()
                 .map(|(i, (id_bytes, share_bytes))| {
-                    let raw_id = u16::from_be_bytes(
-                        [id_bytes.get(0).copied().unwrap_or(0),
-                         id_bytes.get(1).copied().unwrap_or(0)]
-                    );
+                    let raw_id = u16::from_be_bytes([
+                        *id_bytes.first().unwrap_or(&0),
+                        *id_bytes.get(1).unwrap_or(&0),
+                    ]);
+                    // Boundary types use opaque envelopes (digest only).
+                    // Raw share bytes are stored in the execution context,
+                    // not in the boundary type.
+                    let digest: [u8; 32] = Sha256::digest(&share_bytes).into();
+                    let envelope = FrostOpaqueEnvelope::new(
+                        FrostEnvelopeKind::EncryptedShare,
+                        digest,
+                        share_bytes.len() as u32,
+                    )
+                    .ok();
                     FrostEncryptedShare {
-                        participant_id: FrostParticipantId::new(raw_id).ok(),
-                        encrypted_share: share_bytes,
-                        verifying_commitment: Some(verifying_key.clone()),
+                        receiver_id: FrostParticipantId::new(raw_id).ok()
+                            .unwrap_or_else(|| FrostParticipantId::new(1).unwrap()),
+                        encrypted_share: envelope.unwrap_or_else(|| {
+                            FrostOpaqueEnvelope::new(
+                                FrostEnvelopeKind::EncryptedShare,
+                                digest,
+                                share_bytes.len() as u32,
+                            )
+                            .unwrap_or_else(|_| {
+                                FrostOpaqueEnvelope::new(
+                                    FrostEnvelopeKind::EncryptedShare,
+                                    [0u8; 32],
+                                    1,
+                                )
+                                .unwrap()
+                            })
+                        }),
                     }
                 })
                 .collect();
 
             let participant_ids: Vec<FrostParticipantId> = share_packages
                 .iter()
-                .filter_map(|s| s.participant_id)
+                .map(|s| s.receiver_id)
                 .collect();
 
             Ok(FrostKeyPackage {
