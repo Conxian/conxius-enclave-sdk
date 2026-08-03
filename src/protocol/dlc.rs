@@ -167,8 +167,10 @@ impl DlcManager {
         }
 
         // CET payout formula: local gets (outcome * total / max_outcome)
-        let local_payout = (oracle_outcome as u128)
+        // Add max/2 before division for nearest-integer rounding.
+        let local_payout = ((oracle_outcome as u128)
             .saturating_mul(total_collateral as u128)
+            .saturating_add(u64::MAX as u128 / 2))
             .saturating_div(u64::MAX as u128) as u64;
         let remote_payout = total_collateral.saturating_sub(local_payout);
 

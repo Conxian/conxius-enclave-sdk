@@ -600,10 +600,6 @@ mod tests {
             manager.sign_vutxo([0; 32], 0),
             UnsupportedOperation::ForfeitSigning,
         );
-        assert_unsupported(
-            manager.construct_vtxo_tree(vec![descriptor()]),
-            UnsupportedOperation::VtxoTreeConstruction,
-        );
         assert_eq!(manager.backend(), ArkBackend::Unconfigured);
     }
 

@@ -664,6 +664,11 @@ impl FrostSigningContext {
         Self::default()
     }
 
+    /// Retrieve the key share digest for a participant.
+    pub fn participant_digest(&self, id: FrostParticipantId) -> Option<&[u8; 32]> {
+        self.participant_ids.get(&id)
+    }
+
     /// Generate a FROST key package using the ZF FROST trusted dealer.
     ///
     /// Returns a [`FrostKeyPackage`] whose `group_public_key` envelope
@@ -1077,31 +1082,26 @@ mod signing_context_tests {
         let kp = ctx.generate_key_package(2, 3).expect("keygen");
         kp.validate().expect("valid key package");
 
-        // 2. Each participant creates nonces
-        let nonce_1 = ctx
-            .create_nonces(&kp.group_public_key.digest)
-            .expect("nonce 1");
-        // For participants 2 and 3, get their key digests from the context
-        // (In real usage, each participant would have their own context)
-        // For this test, we use the same verifying key digest
-        let nonce_2 = ctx
-            .create_nonces(&kp.group_public_key.digest)
-            .expect("nonce 2");
-        let nonce_3 = ctx
-            .create_nonces(&kp.group_public_key.digest)
-            .expect("nonce 3");
+        // 2. Each participant creates nonces (lookup by share digest, not pubkey)
+        let pids = kp.participants.as_slice();
+        let d1 = *ctx.participant_digest(pids[0]).expect("participant 1 digest");
+        let d2 = *ctx.participant_digest(pids[1]).expect("participant 2 digest");
+        let d3 = *ctx.participant_digest(pids[2]).expect("participant 3 digest");
+        let nonce_1 = ctx.create_nonces(&d1).expect("nonce 1");
+        let nonce_2 = ctx.create_nonces(&d2).expect("nonce 2");
+        let nonce_3 = ctx.create_nonces(&d3).expect("nonce 3");
 
         // 3. Build signing package with all commitments
         let msg = b"hello FROST threshold signing";
         ctx.create_signing_package(msg, &[nonce_1.digest, nonce_2.digest, nonce_3.digest])
             .expect("signing package");
 
-        // 4. Create signature shares (2-of-3 threshold)
+        // 4. Create signature shares (2-of-3 threshold, lookup by share digest)
         let share_1 = ctx
-            .create_signature_share(&kp.group_public_key.digest, &nonce_1.digest, msg)
+            .create_signature_share(&d1, &nonce_1.digest, msg)
             .expect("share 1");
         let share_2 = ctx
-            .create_signature_share(&kp.group_public_key.digest, &nonce_2.digest, msg)
+            .create_signature_share(&d2, &nonce_2.digest, msg)
             .expect("share 2");
 
         // 5. Aggregate into Schnorr signature
