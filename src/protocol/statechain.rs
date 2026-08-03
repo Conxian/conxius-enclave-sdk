@@ -564,6 +564,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "frost-crypto"))]
     fn session_initiate_dkg_is_gated() {
         let leaf = Leaf::new(dummy_leaf_id(), 100_000, dummy_pubkey(), 0).unwrap();
         let tree = VutxoTree::new(

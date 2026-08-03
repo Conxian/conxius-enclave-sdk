@@ -742,6 +742,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "frost-crypto"))]
     fn all_value_bearing_operations_remain_exactly_unsupported() {
         let manager = FrostManager;
         let participant = FrostParticipantId::new(1).expect("valid participant");
