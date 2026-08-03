@@ -629,9 +629,6 @@ impl FrostManager {
 // envelope types → real crypto without exposing raw bytes in the public
 // API surface.
 
-#[cfg(feature = "frost-crypto")]
-use std::collections::HashMap;
-
 /// Execution context that bridges structural FROST types to real ZF FROST
 /// v3.0.0 crypto. Stores raw cryptographic material keyed by the SHA-256
 /// digests exposed in [`FrostOpaqueEnvelope`] fields.
