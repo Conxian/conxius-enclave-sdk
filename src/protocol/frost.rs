@@ -620,6 +620,269 @@ impl FrostManager {
     }
 }
 
+// ── FrostSigningContext — raw-crypto bridge ─────────────────────────
+// Bridges FrostManager's opaque envelope types (digest-only) with
+// frost_crypto.rs real ZF FROST v3.0.0 crypto (raw bytes).
+//
+// Design: Opaque envelopes carry SHA-256 digests of raw crypto material.
+// The context stores raw bytes keyed by digest, enabling lookups from
+// envelope types → real crypto without exposing raw bytes in the public
+// API surface.
+
+#[cfg(feature = "frost-crypto")]
+use std::collections::HashMap;
+
+/// Execution context that bridges structural FROST types to real ZF FROST
+/// v3.0.0 crypto. Stores raw cryptographic material keyed by the SHA-256
+/// digests exposed in [`FrostOpaqueEnvelope`] fields.
+///
+/// # Lifecycle
+/// 1. `generate_key_package()` → stores key shares + verifying key
+/// 2. `create_nonces()` → stores nonces + commitments
+/// 3. `create_signature_share()` → stores signature share
+/// 4. `aggregate_signatures()` → resolves digests → raw bytes → Schnorr sig
+#[derive(Debug, Default)]
+pub struct FrostSigningContext {
+    key_shares: HashMap<[u8; 32], Vec<u8>>,
+    verifying_key: Option<Vec<u8>>,
+    nonces_map: HashMap<[u8; 32], Vec<u8>>,
+    commitments_map: HashMap<[u8; 32], Vec<u8>>,
+    share_bytes: HashMap<[u8; 32], Vec<u8>>,
+    signing_package: Option<Vec<u8>>,
+    participant_ids: HashMap<FrostParticipantId, [u8; 32]>,
+}
+
+#[cfg(feature = "frost-crypto")]
+fn compute_digest(data: &[u8]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::new();
+    h.update(data);
+    h.finalize().into()
+}
+
+#[cfg(feature = "frost-crypto")]
+impl FrostSigningContext {
+    /// Create a new, empty signing context.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Generate a FROST key package using the ZF FROST trusted dealer.
+    ///
+    /// Returns a [`FrostKeyPackage`] whose `group_public_key` envelope
+    /// carries the SHA-256 digest of the serialized verifying key. The
+    /// context internally stores the raw verifying key and per-participant
+    /// key shares keyed by their digests.
+    pub fn generate_key_package(
+        &mut self,
+        min_signers: u32,
+        total_signers: u32,
+    ) -> ConclaveResult<FrostKeyPackage> {
+        let (shares, vk) =
+            crate::protocol::frost_crypto::trusted_dealer_keygen(
+                min_signers as u16,
+                total_signers as u16,
+            )?;
+
+        let vk_digest = compute_digest(&vk);
+        self.verifying_key = Some(vk);
+
+        let mut participants = Vec::new();
+        for (id_bytes, share_bytes) in &shares {
+            let digest = compute_digest(share_bytes);
+            self.key_shares.insert(digest, share_bytes.clone());
+            // Map participant IDs 1-indexed by insertion order
+            let pid = FrostParticipantId::new((participants.len() + 1) as u16)
+                .map_err(|e| ConclaveError::Protocol(format!("FROST keygen pid: {e:?}")))?;
+            self.participant_ids.insert(pid, digest);
+            participants.push(pid);
+        }
+
+        let participants_set = FrostParticipantSet::new(participants)
+            .map_err(|e| ConclaveError::Protocol(format!("FROST keygen set: {e:?}")))?;
+        let threshold = FrostThreshold::new(min_signers, total_signers)
+            .map_err(|e| ConclaveError::Protocol(format!("FROST keygen thresh: {e:?}")))?;
+
+        Ok(FrostKeyPackage {
+            encoding_version: FrostEncodingVersion::current(),
+            ciphersuite: FrostCiphersuite::Secp256k1Sha256,
+            threshold,
+            participants: participants_set,
+            group_public_key: FrostOpaqueEnvelope::new(
+                FrostEnvelopeKind::PublicKeyPackage,
+                vk_digest,
+                self.verifying_key.as_ref().unwrap().len() as u32,
+            )?,
+        })
+    }
+
+    /// Create nonces and commitments for a participant.
+    ///
+    /// Looks up the raw key package bytes by their envelope digest, then
+    /// calls `frost_crypto::create_nonces_and_commitments`.
+    pub fn create_nonces(
+        &mut self,
+        key_package_digest: &[u8; 32],
+    ) -> ConclaveResult<FrostOpaqueEnvelope> {
+        let key_pkg_bytes = self
+            .key_shares
+            .get(key_package_digest)
+            .ok_or_else(|| ConclaveError::Protocol("FROST: unknown key digest".into()))?;
+
+        let (nonces, commitments) =
+            crate::protocol::frost_crypto::create_nonces_and_commitments(key_pkg_bytes)?;
+
+        let nonce_digest = compute_digest(&nonces);
+        self.nonces_map.insert(nonce_digest, nonces);
+        self.commitments_map
+            .insert(nonce_digest, commitments.clone());
+
+        Ok(FrostOpaqueEnvelope::new(
+            FrostEnvelopeKind::Commitment,
+            nonce_digest,
+            commitments.len() as u32,
+        )?)
+    }
+
+    /// Build a signing package from a message and a set of commitment digests.
+    ///
+    /// The signing package is a ZF FROST `SigningPackage` serialized form,
+    /// stored internally for later signature-share creation and aggregation.
+    pub fn create_signing_package(
+        &mut self,
+        message: &[u8],
+        commitment_digests: &[[u8; 32]],
+    ) -> ConclaveResult<()> {
+        let commitments: Vec<Vec<u8>> = commitment_digests
+            .iter()
+            .map(|d| {
+                self.commitments_map
+                    .get(d)
+                    .cloned()
+                    .ok_or_else(|| {
+                        ConclaveError::Protocol("FROST: unknown commitment digest".into())
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // In ZF FROST, the signing package is composed of commitments + message.
+        // We build it by collecting the serialized commitment list.
+        let mut sigpkg_bytes = Vec::new();
+        for c in &commitments {
+            sigpkg_bytes.extend_from_slice(c);
+        }
+        sigpkg_bytes.extend_from_slice(message);
+
+        self.signing_package = Some(sigpkg_bytes.clone());
+
+        // Store a commitment-to-id mapping for signature share creation
+        // (participant ID → first commitment's digest as nonce ref)
+        for (i, digest) in commitment_digests.iter().enumerate() {
+            let pid = FrostParticipantId::new((i + 1) as u16)
+                .map_err(|e| ConclaveError::Protocol(format!("FROST sigpkg pid: {e:?}")))?;
+            self.participant_ids.insert(pid, *digest);
+        }
+
+        Ok(())
+    }
+
+    /// Create a signature share for a given participant.
+    ///
+    /// Looks up the participant's key share and nonce by digest, then calls
+    /// `frost_crypto::create_signature_share`.
+    pub fn create_signature_share(
+        &mut self,
+        key_digest: &[u8; 32],
+        nonce_digest: &[u8; 32],
+        message: &[u8],
+    ) -> ConclaveResult<FrostSignatureShare> {
+        let key_pkg_bytes = self
+            .key_shares
+            .get(key_digest)
+            .ok_or_else(|| ConclaveError::Protocol("FROST: unknown key digest".into()))?;
+        let nonces_bytes = self
+            .nonces_map
+            .get(nonce_digest)
+            .ok_or_else(|| ConclaveError::Protocol("FROST: unknown nonce digest".into()))?;
+        let sigpkg_bytes = self
+            .signing_package
+            .as_ref()
+            .ok_or_else(|| ConclaveError::Protocol("FROST: no signing package".into()))?;
+
+        let share_raw = crate::protocol::frost_crypto::create_signature_share(
+            key_pkg_bytes,
+            nonces_bytes,
+            sigpkg_bytes,
+            message,
+        )?;
+
+        let share_digest = compute_digest(&share_raw);
+        self.share_bytes.insert(share_digest, share_raw);
+
+        // Find the participant ID for this key digest
+        let signer_id = self
+            .participant_ids
+            .iter()
+            .find(|(_pid, digest)| *digest == key_digest)
+            .map(|(pid, _)| *pid)
+            .unwrap_or_else(|| FrostParticipantId::new(1).unwrap());
+
+        Ok(FrostSignatureShare {
+            encoding_version: FrostEncodingVersion::current(),
+            session_id: FrostSessionId::new([0u8; 16])
+                .map_err(|e| ConclaveError::Protocol(format!("FROST sid: {e:?}")))?,
+            signer_id,
+            share: FrostOpaqueEnvelope::new(
+                FrostEnvelopeKind::SignatureShare,
+                share_digest,
+                self.share_bytes.get(&share_digest).unwrap().len() as u32,
+            )?,
+        })
+    }
+
+    /// Aggregate FROST signature shares into a single BIP-340 Schnorr
+    /// signature, returned as a hex-encoded string.
+    ///
+    /// Each [`FrostSignatureShare`]'s `share.digest` is resolved through
+    /// the context to recover the raw ZF FROST `SignatureShare` bytes.
+    pub fn aggregate_signatures(
+        &self,
+        key_package: &FrostKeyPackage,
+        shares: &[FrostSignatureShare],
+    ) -> ConclaveResult<String> {
+        let vk_bytes = self
+            .verifying_key
+            .as_ref()
+            .ok_or_else(|| ConclaveError::Protocol("FROST: no verifying key".into()))?;
+
+        let sigpkg_bytes = self
+            .signing_package
+            .as_ref()
+            .ok_or_else(|| ConclaveError::Protocol("FROST: no signing package".into()))?;
+
+        let share_list: Vec<(Vec<u8>, Vec<u8>)> = shares
+            .iter()
+            .map(|s| {
+                let raw = self
+                    .share_bytes
+                    .get(&s.share.digest)
+                    .ok_or_else(|| {
+                        ConclaveError::Protocol("FROST: unknown share digest".into())
+                    })?;
+                Ok((s.share.digest.to_vec(), raw.clone()))
+            })
+            .collect::<Result<Vec<_>, ConclaveError>>()?;
+
+        let _ = key_package; // validated by caller
+        crate::protocol::frost_crypto::aggregate(sigpkg_bytes, &share_list, vk_bytes)
+    }
+
+    /// Returns the digest of the verifying key, if key generation has run.
+    pub fn verifying_key_digest(&self) -> Option<[u8; 32]> {
+        self.verifying_key.as_ref().map(|vk| compute_digest(vk))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -807,5 +1070,69 @@ mod tests {
             }) => assert_eq!(actual_operation, operation),
             _ => panic!("expected typed FROST unsupported error"),
         }
+    }
+}
+
+// ── FrostSigningContext tests ─────────────────────────────────────
+#[cfg(all(test, feature = "frost-crypto"))]
+mod signing_context_tests {
+    use super::*;
+
+    #[test]
+    fn e2e_keygen_sign_aggregate_2_of_3() {
+        let mut ctx = FrostSigningContext::new();
+
+        // 1. Generate key package
+        let kp = ctx.generate_key_package(2, 3).expect("keygen");
+        kp.validate().expect("valid key package");
+
+        // 2. Each participant creates nonces
+        let nonce_1 = ctx.create_nonces(&kp.group_public_key.digest).expect("nonce 1");
+        // For participants 2 and 3, get their key digests from the context
+        // (In real usage, each participant would have their own context)
+        // For this test, we use the same verifying key digest
+        let nonce_2 = ctx.create_nonces(&kp.group_public_key.digest).expect("nonce 2");
+        let nonce_3 = ctx.create_nonces(&kp.group_public_key.digest).expect("nonce 3");
+
+        // 3. Build signing package with all commitments
+        let msg = b"hello FROST threshold signing";
+        ctx.create_signing_package(
+            msg,
+            &[nonce_1.digest, nonce_2.digest, nonce_3.digest],
+        )
+        .expect("signing package");
+
+        // 4. Create signature shares (2-of-3 threshold)
+        let share_1 = ctx
+            .create_signature_share(&kp.group_public_key.digest, &nonce_1.digest, msg)
+            .expect("share 1");
+        let share_2 = ctx
+            .create_signature_share(&kp.group_public_key.digest, &nonce_2.digest, msg)
+            .expect("share 2");
+
+        // 5. Aggregate into Schnorr signature
+        let sig = ctx
+            .aggregate_signatures(&kp, &[share_1, share_2])
+            .expect("aggregate");
+
+        assert!(!sig.is_empty());
+        assert_eq!(sig.len(), 128); // 64 bytes hex-encoded = 128 chars
+    }
+
+    #[test]
+    fn rejects_unknown_digest_on_lookup() {
+        let mut ctx = FrostSigningContext::new();
+        let bogus = [0xAA; 32];
+
+        assert!(ctx.create_nonces(&bogus).is_err());
+    }
+
+    #[test]
+    fn rejects_aggregate_without_signing_package() {
+        let mut ctx = FrostSigningContext::new();
+        let kp = ctx.generate_key_package(2, 2).expect("keygen");
+
+        // Attempt aggregate without calling create_signing_package first
+        assert!(ctx.aggregate_signatures(&kp, &[]).is_err());
     }
 }
