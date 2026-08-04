@@ -1,7 +1,8 @@
 use crate::enclave::{
-    proofs::{ProofVerifier, ProofVerifierStatus, ProofEnvelope, ProofVerificationContext, VerifiedProofReceipt, ProofKind,
-           proof_verifier_unavailable},
-    nitro::{NitroAttestationPolicy, NitroPcrPolicy, NitroError},
+    proofs::{ProofVerifier, ProofVerifierStatus, ProofEnvelope, ProofVerificationContext, VerifiedProofReceipt, ProofKind},
+    nitro::{NitroAttestationDocument, NitroAttestationPolicy, NitroPcrPolicy, NitroError,
+           NitroReleaseBinding},
+    verifiers::nitro_trust::AwsNitroTrustBoundary,
 };
 use crate::{ConclaveResult, ConclaveError};
 use sha2::{Sha256, Digest};
@@ -9,32 +10,26 @@ use sha2::{Sha256, Digest};
 /// Production AWS Nitro attestation verifier.
 ///
 /// Plugs into the `ProofVerifierRegistry` for TEE proof kinds.
+/// Uses the production `AwsNitroTrustBoundary` for certificate chain
+/// validation against the AWS Nitro Root CA.
 ///
 /// # Verification flow
 /// 1. Extract evidence from `ProofEnvelope.evidence`
 /// 2. Parse as CBOR/COSE attestation document
-/// 3. Verify root CA fingerprint (defense-in-depth)
-/// 4. Validate PCRs against policy
+/// 3. Construct release binding from verification context
+/// 4. Call `verify_offline()` — COSE signature + PCRs + freshness + trust chain
 /// 5. Build `VerifiedProofReceipt`
-///
-/// # Status
-/// Parsing and PCR validation are real. Full certificate chain + COSE
-/// signature verification requires a production `NitroCertificateTrustBoundary`
-/// connected to the AWS Nitro PKI root — currently `#[cfg(test)]` only.
-/// Until that boundary is production-enabled, the verifier reports
-/// `Available` (structural path exists) with defense-in-depth on the
-/// root CA fingerprint, but waits for the trust boundary to enforce
-/// full cryptographic chain validation.
 pub struct AwsNitroVerifier {
-    #[allow(dead_code)]
     policy: NitroAttestationPolicy,
+    trust_boundary: AwsNitroTrustBoundary,
     root_ca_der: Vec<u8>,
     verifier_id: String,
+    #[allow(dead_code)]
+    max_age_ms: u64,
 }
 
 impl AwsNitroVerifier {
-    pub const ROOT_CA_FINGERPRINT: &str = "641a0321a3e244efe456463195d606317ed7cdcc3c1756e09893f3c68f79bb5b";
-
+    pub const ROOT_CA_FINGERPRINT: &str = AwsNitroTrustBoundary::ROOT_CA_FINGERPRINT;
     pub const PCR_BYTES: usize = 48;
 
     pub fn new(expected_pcrs: Vec<(u8, [u8; Self::PCR_BYTES])>) -> Result<Self, NitroError> {
@@ -42,8 +37,10 @@ impl AwsNitroVerifier {
         let policy = NitroAttestationPolicy::new(pcr_policy);
         Ok(Self {
             policy,
+            trust_boundary: AwsNitroTrustBoundary::new(),
             root_ca_der: Self::embedded_root_ca(),
             verifier_id: "conxian.trust.aws.nitro.v1".into(),
+            max_age_ms: 300_000,
         })
     }
 
@@ -74,19 +71,50 @@ impl ProofVerifier for AwsNitroVerifier {
     }
 
     fn status(&self) -> ProofVerifierStatus {
-        // Unavailable until NitroCertificateTrustBoundary is production-enabled.
-        // The parser, PCR validation, and COSE verification are all real and
-        // tested — only the trust boundary connecting to AWS PKI is missing.
-        // See: src/enclave/nitro.rs — all trust boundaries are #[cfg(test)].
-        ProofVerifierStatus::Unavailable
+        ProofVerifierStatus::Available
     }
 
     fn verify(
         &self,
-        _envelope: &ProofEnvelope,
-        _context: &ProofVerificationContext,
+        envelope: &ProofEnvelope,
+        context: &ProofVerificationContext,
     ) -> ConclaveResult<VerifiedProofReceipt> {
-        Err(proof_verifier_unavailable())
+        let doc = NitroAttestationDocument::parse(&envelope.evidence)
+            .map_err(|e| ConclaveError::Attestation(
+                format!("Failed to parse Nitro attestation document: {e:?}")
+            ))?;
+
+        self.verify_root_ca_fingerprint()?;
+
+        let now_ms = context.now_secs * 1000;
+        let max_age_ms = context.max_age_secs * 1000;
+
+        let release_binding = NitroReleaseBinding::new(
+            context.operation_digest,
+            context.purpose.clone(),
+            [0u8; 32], // kms_key_identifier_hash — no KMS key binding
+            1,          // policy_version
+            Sha256::digest(b"aws-nitro-v1").into(),
+            now_ms + max_age_ms,
+            Sha256::digest(&context.nonce).into(),
+        )
+        .map_err(|e| ConclaveError::Attestation(
+            format!("Failed to construct release binding: {e:?}")
+        ))?;
+
+        doc.verify_offline(
+            &self.policy,
+            &self.trust_boundary,
+            now_ms,
+            &context.nonce,
+            context.operation_digest,
+            &release_binding,
+        )
+        .map_err(|e| ConclaveError::Attestation(
+            format!("Nitro attestation rejected: {e:?}")
+        ))?;
+
+        VerifiedProofReceipt::from_verified_envelope(envelope, context)
     }
 }
 
@@ -98,7 +126,7 @@ mod tests {
     fn nitro_verifier_constructs() {
         let pcr0_val = [0xABu8; 48];
         let v = AwsNitroVerifier::new(vec![(0u8, pcr0_val)]).expect("verifier constructs");
-        assert_eq!(v.status(), ProofVerifierStatus::Unavailable);
+        assert_eq!(v.status(), ProofVerifierStatus::Available);
         assert_eq!(v.kind(), ProofKind::Tee);
         assert_eq!(v.verifier_id(), "conxian.trust.aws.nitro.v1");
     }

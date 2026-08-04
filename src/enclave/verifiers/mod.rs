@@ -6,6 +6,7 @@
 //! - [`webauthn_verifier`] — WebAuthn/FIDO2 endpoints (P2: mobile/desktop)
 //! - [`oidc_verifier`] — OIDC token verification (P1: enterprise auth)
 
+pub mod nitro_trust;
 pub mod nitro_verifier;
 pub mod oidc_verifier;
 pub mod pkcs11_verifier;
