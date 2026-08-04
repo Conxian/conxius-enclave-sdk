@@ -207,8 +207,34 @@ the Nitro CBOR/COSE parser (offline, structural, no AWS PKI root).
 - `src/enclave/proofs.rs` — Proof composition + `ProofVerifierRegistry`
 - `src/enclave/trust.rs` — Trust bundle infrastructure + provider constants
 - `src/enclave/nitro.rs` — AWS Nitro parser (only partial implementation)
+- `src/enclave/verifiers/` — Phase 3 production verifier backends (see below)
 - `docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md` — Provider capability matrix
 - `docs/architecture/TRUST_REPLAY_FOUNDATION.md` — Trust replay design
+
+### Phase 3 — Attestation Verifier Framework (Session 54)
+
+Four verifier backends built per the 3-tier user architecture blueprint:
+
+| Tier | Verifier | File | Status |
+|------|----------|------|--------|
+| Cloud TEE/HSM | `AwsNitroVerifier` | `src/enclave/verifiers/nitro_verifier.rs` | Structural. Root CA embedded (AWS Nitro Root G1, SHA-256 pinned). PCR parsing + COSE verify real. **Blocked**: all `NitroCertificateTrustBoundary` impls are `#[cfg(test)]`. |
+| On-Premise | `Pkcs11Verifier` | `src/enclave/verifiers/pkcs11_verifier.rs` | Structural API (slot enum, key discovery, sign/verify). **Blocked**: `cryptoki` crate not in Cargo.toml. |
+| Endpoint | `WebauthnVerifier` | `src/enclave/verifiers/webauthn_verifier.rs` | Structural API (packed/tpm/android-key/apple attestation). Hardware tier classification. **Blocked**: `webauthn-rs` crate not in Cargo.toml. |
+| Cross-cutting | `OidcVerifier` | `src/enclave/verifiers/oidc_verifier.rs` | Claim validation (iss/aud/exp/nonce) working. Nonce binding. **Blocked**: `jsonwebtoken` crate not in Cargo.toml. |
+
+**Proof system changes:**
+- `ProofVerifierStatus::Available` added (was `Unavailable`-only + `TestOnly`)
+- `VerifiedProofReceipt::from_verified_envelope` made public (external verifiers)
+- `proof_verifier_unavailable()` made `pub(crate)`
+- `ConclaveError::Attestation(String)` added
+
+**Next steps (Priority order):**
+1. `NitroCertificateTrustBoundary` production impl — unblock `AwsNitroVerifier`
+2. Add `cryptoki` crate → wire PKCS#11 HSM signing
+3. Add `jsonwebtoken` crate → wire OIDC token verification  
+4. Add `webauthn-rs` crate → wire FIDO2 attestation verification
+5. FROST ceremony attestation gating
+6. TrustedFreshnessClock (enclave-attested timestamp)
 
 ### Phase 1 module map
 ```
