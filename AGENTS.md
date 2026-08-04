@@ -220,7 +220,7 @@ Four verifier backends built per the 3-tier user architecture blueprint:
 | Cloud TEE/HSM | `AwsNitroVerifier` | `src/enclave/verifiers/nitro_verifier.rs` | ✅ Available. `AwsNitroTrustBoundary` (production), X.509 chain validation, Root CA pinned. |
 | On-Premise | `Pkcs11Verifier` | `src/enclave/verifiers/pkcs11_verifier.rs` | Structural API (slot enum, key discovery, sign/verify). **Blocked**: `cryptoki` crate not in Cargo.toml. |
 | Endpoint | `WebauthnVerifier` | `src/enclave/verifiers/webauthn_verifier.rs` | Structural API (packed/tpm/android-key/apple attestation). Hardware tier classification. **Blocked**: `webauthn-rs` crate not in Cargo.toml. |
-| Cross-cutting | `OidcVerifier` | `src/enclave/verifiers/oidc_verifier.rs` | Claim validation (iss/aud/exp/nonce) working. Nonce binding. **Blocked**: `jsonwebtoken` crate not in Cargo.toml. |
+| Cross-cutting | `OidcVerifier` | `src/enclave/verifiers/oidc_verifier.rs` | ✅ Available. `jsonwebtoken` v9 wired. JWT signature verification (RSA/EC), JWK kid matching, claim validation (iss/aud/exp/nonce) all working. |
 
 **Proof system changes:**
 - `ProofVerifierStatus::Available` added (was `Unavailable`-only + `TestOnly`)
@@ -231,7 +231,7 @@ Four verifier backends built per the 3-tier user architecture blueprint:
 **Next steps (Priority order):**
 1. ~~`NitroCertificateTrustBoundary` production impl — unblock `AwsNitroVerifier`~~ ✅ Done (Session 55)
 2. Add `cryptoki` crate → wire PKCS#11 HSM signing
-3. Add `jsonwebtoken` crate → wire OIDC token verification  
+3. ~~Add `jsonwebtoken` crate → wire OIDC token verification~~ ✅ Done (Session 55 P1)
 4. Add `webauthn-rs` crate → wire FIDO2 attestation verification
 5. FROST ceremony attestation gating
 6. TrustedFreshnessClock (enclave-attested timestamp)

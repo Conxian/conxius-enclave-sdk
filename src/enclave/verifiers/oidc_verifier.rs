@@ -19,6 +19,30 @@
 use crate::{ConclaveResult, ConclaveError};
 use std::collections::HashMap;
 
+use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
+use sha2::{Sha256, Digest};
+
+/// JWK (JSON Web Key) for OIDC signature verification.
+#[derive(Debug, Clone)]
+pub struct Jwk {
+    /// Key ID
+    pub kid: Option<String>,
+    /// Key type: "RSA" or "EC"
+    pub kty: String,
+    /// Algorithm: "RS256", "ES256", etc.
+    pub alg: Option<String>,
+    /// RSA modulus (base64url)
+    pub n: String,
+    /// RSA exponent (base64url)
+    pub e: String,
+    /// EC x coordinate (base64url)
+    pub x: Option<String>,
+    /// EC y coordinate (base64url)
+    pub y: Option<String>,
+    /// EC curve: "P-256", "P-384", "P-521"
+    pub crv: Option<String>,
+}
+
 /// OIDC token claims.
 #[derive(Debug, Clone)]
 pub struct OidcClaims {
@@ -93,22 +117,112 @@ impl OidcVerifier {
     /// Parse an OIDC JWT without verifying the signature (header + claims only).
     ///
     /// Use `verify_token` for full verification including signature.
-    pub fn decode_token_header(&self, _token: &str) -> ConclaveResult<(String, String)> {
-        Err(ConclaveError::Unsupported(
-            "OIDC verify: add `jsonwebtoken` or `jwt` crate".into(),
-        ))
+    pub fn decode_token_header(&self, token: &str) -> ConclaveResult<(String, String)> {
+        let header = decode_header(token)
+            .map_err(|e| ConclaveError::Attestation(
+                format!("OIDC: failed to decode token header: {e}")
+            ))?;
+        let kid = header.kid.unwrap_or_default();
+        let alg = format!("{:?}", header.alg);
+        Ok((kid, alg))
     }
 
     /// Fully verify an OIDC JWT:
     /// 1. Decode JWT header → extract algorithm and key ID
-    /// 2. Fetch JWKS from provider if not cached
-    /// 3. Verify JWT signature against JWK
+    /// 2. Match key ID against provided JWK set
+    /// 3. Verify JWT signature against the matched key
     /// 4. Validate claims: iss, aud, exp, iat, nonce
     /// 5. Check token is not expired (with clock skew)
-    pub fn verify_token(&self, _token: &str, _expected_nonce: Option<&str>) -> ConclaveResult<OidcVerificationResult> {
-        Err(ConclaveError::Unsupported(
-            "OIDC verify: add `jsonwebtoken` crate".into(),
-        ))
+    pub fn verify_token(
+        &self,
+        token: &str,
+        jwks: &[Jwk],
+        expected_nonce: Option<&str>,
+    ) -> ConclaveResult<OidcVerificationResult> {
+        let header = decode_header(token)
+            .map_err(|e| ConclaveError::Attestation(
+                format!("OIDC: failed to decode token header: {e}")
+            ))?;
+
+        // Use algorithm from token header
+        let mut validation = Validation::new(header.alg);
+        validation.set_issuer(&[&self.config.expected_issuer]);
+        validation.set_audience(&[&self.config.expected_audience]);
+        validation.required_spec_claims.remove("aud");
+        validation.leeway = self.config.max_clock_skew_secs;
+
+        // Find the matching key by kid
+        let kid = header.kid.unwrap_or_default();
+        let jwk = jwks.iter()
+            .find(|k| k.kid.as_deref() == Some(&kid) || kid.is_empty())
+            .ok_or_else(|| ConclaveError::Attestation(format!(
+                "OIDC: no JWK found for kid '{}'", kid
+            )))?;
+
+        let decoding_key = match jwk.kty.as_str() {
+            "RSA" => DecodingKey::from_rsa_components(&jwk.n, &jwk.e),
+            "EC" => {
+                let x = jwk.x.as_deref().unwrap_or("");
+                let y = jwk.y.as_deref().unwrap_or("");
+                DecodingKey::from_ec_components(x, y)
+            }
+            other => return Err(ConclaveError::Attestation(format!(
+                "OIDC: unsupported key type '{}'", other
+            ))),
+        }.map_err(|e| ConclaveError::Attestation(
+            format!("OIDC: invalid JWK: {e}")
+        ))?;
+
+        let token_data = decode::<serde_json::Value>(
+            token,
+            &decoding_key,
+            &validation,
+        ).map_err(|e| ConclaveError::Attestation(
+            format!("OIDC: token verification failed: {e}")
+        ))?;
+
+        // Extract claims
+        let claims_raw = token_data.claims;
+        let issuer = claims_raw.get("iss").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let subject = claims_raw.get("sub").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let audience = claims_raw.get("aud")
+            .map(|v| match v {
+                serde_json::Value::String(s) => vec![s.clone()],
+                serde_json::Value::Array(arr) => arr.iter()
+                    .filter_map(|a| a.as_str().map(String::from))
+                    .collect(),
+                _ => vec![format!("{v}")],
+            })
+            .unwrap_or_default();
+        let expiration = claims_raw.get("exp").and_then(|v| v.as_u64()).unwrap_or(0);
+        let issued_at = claims_raw.get("iat").and_then(|v| v.as_u64()).unwrap_or(0);
+        let nonce = claims_raw.get("nonce").and_then(|v| v.as_str()).map(String::from);
+        let mut extra = HashMap::new();
+        for (k, v) in claims_raw.as_object().into_iter().flat_map(|o| o.iter()) {
+            if let Some(s) = v.as_str() {
+                extra.insert(k.clone(), s.to_string());
+            }
+        }
+
+        let claims = OidcClaims {
+            issuer,
+            subject,
+            audience,
+            expiration,
+            issued_at,
+            nonce,
+            extra,
+        };
+
+        // Validate claims (issuer, audience, expiry, nonce)
+        self.validate_claims(&claims, expected_nonce)?;
+
+        let token_hash: [u8; 32] = Sha256::digest(token.as_bytes()).into();
+        Ok(OidcVerificationResult {
+            claims,
+            token_hash,
+            provider: self.config.expected_issuer.clone(),
+        })
     }
 
     /// Validate OIDC claims without signature verification.
@@ -168,7 +282,6 @@ impl OidcVerifier {
             .unwrap_or_default()
             .as_secs()
             .to_le_bytes());
-        use sha2::{Sha256, Digest};
         let digest = Sha256::digest(&hash_input);
         hex::encode(&digest[..16])
     }
