@@ -26,11 +26,11 @@ This document provides a comprehensive overview of the repository status, includ
 | **Repository** | Conxian/conxius-enclave-sdk |
 | **Default Branch** | main |
 | **Language** | Rust |
-| **Latest visible release/tag** | v2.0.11 (as of 2026-07-20); v2.0.12 pending — P0 cleared (Session 55), release proceeds after P1 |
+| **Latest visible release/tag** | v2.0.11 (as of 2026-07-20); v2.0.12 pending — P0 + P1 OIDC cleared (Session 55) |
 | **Cargo package metadata** | 2.0.12 (not release evidence by itself) |
 | **Production Status** | Beta / conditional; value-bearing enablement blocked by CON-1506 gates |
 | **Test Coverage** | Historical source count; not an independent release gate |
-| **Last Updated** | 2026-08-03 (Session 55 P0) |
+| **Last Updated** | 2026-08-03 (Session 55 P1) |
 
 ## Production-enablement backlog map
 

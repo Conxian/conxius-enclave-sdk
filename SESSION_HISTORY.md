@@ -686,6 +686,14 @@ Comprehensive repository review, hardware attestation testing implementation, an
 - Trust boundary gap: CLOSED (was the P0 attestation blocker)
 - Next: P1 (cryptoki + jsonwebtoken crate integration), P2 (webauthn-rs crate)
 
+### P1 — OIDC Verifier Wired (2026-08-03)
+- **jsonwebtoken v9 crate added** (use_pem feature, minimal deps)
+- `OidcVerifier::verify_token()` now ACTIVE: JWT decode + header parsing + JWK kid matching + RSA/EC signature verification + claim validation
+- `OidcVerifier::decode_token_header()` now ACTIVE: extracts kid + algorithm from JWT header
+- JWK struct with RSA (n, e) and EC (x, y, crv) support
+- 5 OIDC tests pass (claim validation, nonce binding, expired token rejection)
+- cryptoki v0.10 added as optional dep (PKCS#11 groundwork)
+
 ---
 
 ## Open Items Carried Forward

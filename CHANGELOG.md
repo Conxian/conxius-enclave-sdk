@@ -16,6 +16,8 @@
 - `ProofVerifierStatus::Available` variant
 - `ConclaveError::Attestation(String)` variant
 - 14 verifier tests
+- OIDC JWT verification: `jsonwebtoken` v9 wired, RSA/EC signature verification, JWK kid matching
+- `Jwk` struct for OIDC JWK representation (RSA + EC)
 
 ### Changed
 - `AwsNitroVerifier::status()` now returns `Available` (was `Unavailable`)
@@ -31,6 +33,8 @@
 - `VerifiedProofReceipt::from_verified_envelope()` made public (external verifier support)
 - `proof_verifier_unavailable()` made `pub(crate)`
 - bip110 module ungated in `src/protocol/mod.rs`
+- `OidcVerifier::verify_token()` now performs real JWT signature verification (was `Unsupported` stub)
+- `OidcVerifier::decode_token_header()` now extracts real header fields (was `Unsupported` stub)
 
 ### Fixed
 - Clippy: dead_code on `FrostSigningContext` (frost.rs), DkgRound2Output type alias (threshold.rs), Bip110Validator import gated behind bip110_compliant feature
