@@ -140,7 +140,3 @@ pub mod arr48_vec {
         d.deserialize_seq(Arr48VecVisitor)
     }
 }
-
-mod _private {
-    // Prevent unused import warnings for Arr48
-}
