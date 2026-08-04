@@ -9,6 +9,9 @@
 use crate::ConclaveResult;
 use std::collections::BTreeMap;
 
+/// DKG round-2 output: (round2_secret_bytes, round2_packages).
+type DkgRound2Output = (Vec<u8>, BTreeMap<Vec<u8>, Vec<u8>>);
+
 // ---------------------------------------------------------------------------
 // Trait
 // ---------------------------------------------------------------------------
@@ -28,7 +31,7 @@ pub trait ThresholdSigner {
         &self,
         secret_bytes: &[u8],
         round1_packages: &BTreeMap<Vec<u8>, Vec<u8>>,
-    ) -> ConclaveResult<(Vec<u8>, BTreeMap<Vec<u8>, Vec<u8>>)>;
+    ) -> ConclaveResult<DkgRound2Output>;
 
     /// Run DKG round 3: finalize key generation.
     fn dkg_round3(
@@ -109,7 +112,7 @@ impl ThresholdSigner for FrostThresholdSigner {
         &self,
         secret_bytes: &[u8],
         round1_packages: &BTreeMap<Vec<u8>, Vec<u8>>,
-    ) -> ConclaveResult<(Vec<u8>, BTreeMap<Vec<u8>, Vec<u8>>)> {
+    ) -> ConclaveResult<DkgRound2Output> {
         #[cfg(feature = "frost-crypto")]
         {
             crate::protocol::frost_crypto::dkg_part2(secret_bytes, round1_packages)

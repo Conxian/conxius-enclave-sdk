@@ -635,6 +635,7 @@ impl FrostManager {
 /// 3. `create_signature_share()` → stores signature share
 /// 4. `aggregate_signatures()` → resolves digests → raw bytes → Schnorr sig
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 pub struct FrostSigningContext {
     key_shares: HashMap<[u8; 32], Vec<u8>>,
     verifying_key: Option<Vec<u8>>,
