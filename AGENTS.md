@@ -160,10 +160,53 @@ Unmasked by compilation fixes — fix them, don't skip/ignore them. Common patte
 - Non-deterministic BTreeMap/HashMap ordering in test helpers
 - Outdated test assertions after signature changes
 
-## Phase 1 — UCS & Multi-Chain Signing (Init 2026-08-03)
+## Phase 1 — UCS & Multi-Chain Signing ✅ Complete (Aug 2026)
 
 Phase 1 delivers the Universal Chain Signer trait and related protocol infrastructure.
-See `docs/PHASE1_ISSUES_ROADMAP.md` for the full 11-issue breakdown.
+All 11 SDK issues (SDK-001 through SDK-011) implemented and tested.
+See `docs/PHASE1_ISSUES_ROADMAP.md` for the full breakdown.
+
+### Quality
+- **571 tests pass** (525 lib + 46 integration/doc), 0 failures
+- **2 pre-existing clippy warnings** only (Frost dead_code, complex type)
+- **Feature gates**: `frost-crypto`, `bip110_compliant` — all fail-closed
+
+### Phase 1 module map
+```
+src/signing/
+├── ucs.rs              SDK-001: UniversalChainSigner trait (6 chain families)
+├── threshold.rs        SDK-002: FROST DKG + FrostThresholdSigner
+├── musig2_signing.rs   SDK-003: MuSig2Signer pipeline
+├── bip322_signing.rs   SDK-004: Bip322AttestationSigner
+├── bip110_signing.rs   SDK-007: Bip110Enforcer
+├── taproot.rs          SDK-008: BIP-341/342 utilities
+├── wasm_runtime.rs     Phase 2: WASM signing surface
+├── statechain_signing.rs Phase 2: Spark statechain vUTXO signing
+└── bitvm2_signing.rs   Phase 2: BitVM2 challenge/response signing
+
+src/protocol/
+├── babylon.rs          SDK-005: BabylonDelegationManager (Phase 2 harden)
+└── rgb.rs              SDK-006: RgbTransitionBuilder (Phase 2 harden)
+```
+
+## Phase 2 — Protocol Integration Hardening (Init 2026-08-03)
+
+Phase 2 moves Babylon, RGB, Statechain, and BitVM2 beyond quarantine boundaries
+with real UCS-backed signing paths and WASM consumer surface.
+
+### Completed (Phase 2)
+- ✅ `BabylonDelegationManager`: create_delegation, activate, unbond with UCS signing
+- ✅ `RgbTransitionBuilder`: build_transition with Bitcoin anchor + UCS signing
+- ✅ `WasmSigningRuntime`: JSON API for all 6 chain families
+- ✅ `StatechainSigner`: vUTXO transfer + backup signing through UCS
+- ✅ `BitVm2Signer`: challenge + response signing through UCS
+
+### Pending (Phase 2+)
+- FROST ceremony with real enclave attestation
+- DLC oracle signing integration
+- Lightning BOLT12 offer signing
+- Covenant (OP_CAT) recursive covenant signing
+- ZKML proof verification signing
 
 ### Branch Promotion Topology
 ```
@@ -192,12 +235,3 @@ SDK-001 (UCS Trait)
               └→ SDK-010 (Compatibility Matrix)
                   └→ SDK-011 (Dependency Alignment)
 ```
-
-### New module paths (to create in Phase 1)
-| Issue | Module |
-|-------|--------|
-| SDK-001 | `src/signing/ucs.rs` |
-| SDK-002 | `src/signing/threshold.rs` |
-| SDK-005 | `src/protocol/babylon.rs` |
-| SDK-006 | `src/protocol/rgb.rs` |
-| SDK-009 | `tests/harness/` |
