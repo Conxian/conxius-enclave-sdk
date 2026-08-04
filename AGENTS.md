@@ -173,6 +173,43 @@ See `docs/PHASE1_ISSUES_ROADMAP.md` for the full breakdown.
 - **Feature gates**: `frost-crypto`, `bip110_compliant` — all fail-closed
 - **Dependabot**: playwright bumped to 1.55.1 (CVE-2025-59288 resolved)
 
+### Attestation Infrastructure (Session 54 Audit)
+
+**Status: 25,288 LOC scaffolding. Zero verifier backends.**
+
+All 8 attestation providers (AWS Nitro, Intel DCAP, AMD SEV-SNP, ARM CCA,
+Android KeyMint, Apple Secure Enclave, FIDO2, TPM) are modeled with enums,
+proof composition, and trust infrastructure — but every one returns
+`ProviderVerifierStatus::Unavailable`. The only partial implementation is
+the Nitro CBOR/COSE parser (offline, structural, no AWS PKI root).
+
+**What's wired and working:**
+- TrustTier enforcement (T1–T4) gating settlement dispatch ✅
+- `AttestationPolicy::production()` rejecting Software/TEE ✅
+- Signer key binding (`SignerKeyBindingEvidence`) ✅
+- Proof composition (`ProofBundle`/`ProofEnvelope`/`VerifiedProofSet`) ✅
+- Replay protection (in-memory + durable) ✅
+- Freshness bounds (`MAX_ATTESTATION_AGE_SECS=300`) ✅
+
+**What's needed (priority order):**
+
+| Priority | Verifier | Reason |
+|----------|----------|--------|
+| P0 | AWS Nitro | Primary deployment target. Parser exists. Needs: AWS PKI root, COSE Sign1 verification, CAB forum PCR references. |
+| P1 | TrustedFreshnessClock | Enclave-attested timestamp source. Current system clock is spoofable. |
+| P1 | Platform attestation (DCAP or SEV-SNP) | On-prem/managed deployments. Modeled, zero implementation. |
+| P2 | Android KeyMint | Mobile signing surface. StrongBox sim exists. Needs Google root chain. |
+| P2 | FROST ceremony attestation gating | Required for threshold signing. Full requirements in `docs/salvage/FROST_TREASURY_INTEGRATION.md`. |
+| P3 | Apple Secure Enclave, FIDO2, TPM, ARM CCA | Additional providers. All modeled, zero implementation. |
+
+**Key files:**
+- `src/enclave/attestation.rs` — Core attestation types + `DeviceIntegrityReport`
+- `src/enclave/proofs.rs` — Proof composition + `ProofVerifierRegistry`
+- `src/enclave/trust.rs` — Trust bundle infrastructure + provider constants
+- `src/enclave/nitro.rs` — AWS Nitro parser (only partial implementation)
+- `docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md` — Provider capability matrix
+- `docs/architecture/TRUST_REPLAY_FOUNDATION.md` — Trust replay design
+
 ### Phase 1 module map
 ```
 src/signing/
