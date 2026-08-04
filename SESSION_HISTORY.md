@@ -608,6 +608,67 @@ Comprehensive repository review, hardware attestation testing implementation, an
 
 ---
 
+## Session 53 — ZF FROST v3.0 Crypto Backend + PR #264 (2026-07-25)
+
+### Completed
+- **PR #264 merged**: `frost_crypto` module upgraded to ZF FROST v3.0.0 (real DKG, threshold signing, aggregation)
+- wire: `frost_crypto` → `src/protocol/frost_crypto.rs` — real crypto backend replacing structural boundary
+- DKG round 1+2, threshold signing, signature aggregation all backed by `frost-core` v3.0.0
+- FROST ceremony types, envelope types, verification keys all wired
+- 50 protocol modules in catalog (22 blockchain, 16 cross-cutting, 6 rails, 2 nexus, 4 infrastructure)
+- MARKET-010 closed with structural evidence
+- Statechain (Spark) module validated: 577 lines, documented in SETTLEMENT_RAILS.md, trust_tier_pricing.md, monitoring.md, FUNDING_AND_ECONOMICS.md
+
+### State
+- Tests: 571 pass (525 lib + 46 integration/doc)
+- Clippy: 2 pre-existing warnings (Frost dead_code, complex type)
+- Feature gates: frost-crypto, bip110_compliant — fail-closed
+
+---
+
+## Session 54 — Full Remediation + Attestation Audit + 3-Tier Verifier Framework (2026-08-03)
+
+### Completed — Pre-existing Issue Remediation
+- Clippy: 0 warnings (both feature modes). Fixed: dead_code on FrostSigningContext, DkgRound2Output type alias, Bip110Validator import behind feature gate
+- Feature-gate: bip110 module ungated in protocol/mod.rs (no internal feature gates)
+- cargo-deny: Removed 4 stale advisory ignores, removed unmatched 0BSD license. Clean: 2 active ignores, licenses ok
+- Dependabot: CVE-2025-59288 (playwright 1.54.2→1.55.1 in tests/wasm/package.json)
+- Tests: 544 pass (bip110 tests now always included), 0 failures
+
+### Completed — Attestation Infrastructure Audit
+- Audited all 25,288 LOC across 13 enclave files
+- Found: Nitro CBOR/COSE parser, P-384 ECDSA verification, PCR validation, Ed25519 verify are REAL (p384, ed25519-dalek, sha2 crates)
+- Found: All 8 trust boundaries #[cfg(test)] only. All 6 proof verifier IDs contain "unavailable". TrustAuthenticator/TrustVerifier traits have zero production impls
+- Found: verify_provider_evidence() always returns false in production (ProviderVerifier::Unavailable)
+- Found: ProofVerifierRegistry::production() populates only UnavailableProofVerifier entries
+
+### Completed — 3-Tier Attestation Verifier Framework
+- **AwsNitroVerifier** (P0): Embedded AWS Nitro Root G1 (DER, SHA-256 pinned). PCR policy. Implements ProofVerifier. Status: Unavailable — blocked on NitroCertificateTrustBoundary production impl
+- **Pkcs11Verifier** (P1): Universal PKCS#11 HSM/TPM abstraction. Slot enumeration, key discovery, sign/verify, hardware-backed detection. Blocked on cryptoki crate integration
+- **WebauthnVerifier** (P2): FIDO2/WebAuthn attestation (packed, tpm, android-key, apple). Hardware tier classification (StrongBox/TEE/Software). Blocked on webauthn-rs crate integration
+- **OidcVerifier** (P1): JWT claim validation (iss/aud/exp/nonce) working. Nonce binding for enterprise IdPs (Okta, Azure AD, Google, AWS IAM). Blocked on jsonwebtoken crate integration
+
+### Proof System Changes
+- ProofVerifierStatus::Available added (was Unavailable-only + TestOnly)
+- VerifiedProofReceipt::from_verified_envelope made public
+- proof_verifier_unavailable() made pub(crate)
+- ConclaveError::Attestation(String) added
+
+### State
+- Tests: 558 pass, 0 failures
+- Clippy: 0 warnings (both feature modes)
+- cargo-deny: clean (advisories, bans, licenses, sources)
+- cargo check: clean
+- 14 verifier tests pass
+- Branch: main @ aa5630e, staged @ 8f94327 (synced)
+
+### KB Updates
+- AGENTS.md: Full attestation infrastructure section + Phase 3 verifier table + next steps
+- DEBT_INVENTORY.md: Attestation debt status updated
+- TRACKING.md: v2.0.12 status, issue #195 progress
+
+---
+
 ## Open Items Carried Forward
 
 | ID | Priority | Item | Next Action |
