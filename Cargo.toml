@@ -16,6 +16,10 @@ default = []
 development-simulators = []
 mock-cloud-enclave = ["development-simulators"]
 bip110_compliant = []
+# PKCS#11 HSM/TPM integration via rust-cryptoki.
+# Gate value-bearing PKCS#11 operations. Without this feature,
+# Pkcs11Verifier methods return ProtocolUnsupported.
+cryptoki = ["dep:cryptoki"]
 # FROST threshold signing backed by ZF FROST (frost-secp256k1-tr v3.0.0).
 # Gates value-bearing FROST operations. Without this feature, FROST
 # boundary types validate structurally but return ProtocolUnsupported
@@ -62,6 +66,8 @@ wasm-bindgen = "0.2.125"
 wasm-bindgen-futures = "0.4.71"
 web-sys = "0.3.102"
 base64 = "0.23.0"
+jsonwebtoken = { version = "9", default-features = false, features = ["use_pem"] }
+cryptoki = { version = "0.10", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ciborium = { version = "0.2.2", default-features = false, features = ["std"] }

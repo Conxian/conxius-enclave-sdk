@@ -26,11 +26,11 @@ This document provides a comprehensive overview of the repository status, includ
 | **Repository** | Conxian/conxius-enclave-sdk |
 | **Default Branch** | main |
 | **Language** | Rust |
-| **Latest visible release/tag** | v2.0.11 (as of 2026-07-20) |
+| **Latest visible release/tag** | v2.0.11 (as of 2026-07-20); v2.0.12 pending — P0 + P1 OIDC cleared (Session 55) |
 | **Cargo package metadata** | 2.0.12 (not release evidence by itself) |
 | **Production Status** | Beta / conditional; value-bearing enablement blocked by CON-1506 gates |
 | **Test Coverage** | Historical source count; not an independent release gate |
-| **Last Updated** | 2026-07-20 |
+| **Last Updated** | 2026-08-03 (Session 55 P1) |
 
 ## Production-enablement backlog map
 
@@ -46,6 +46,12 @@ The current implementation and acceptance backlog already exists as GitHub issue
 | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200) | WASM secret boundary and runtime/platform evidence |
 | [#201](https://github.com/Conxian/conxius-enclave-sdk/issues/201) | Telemetry privacy, monitoring, and public-safe runbooks |
 | [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) | Independent security review and exact release acceptance |
+
+### Issue #195 (HW Attestation) — Session 54 Status
+
+- **Phase 3 verifier framework**: Built and in place.
+- **Verifier backends**: 4 backends created.
+- **P0 gate CLEARED**: `AwsNitroTrustBoundary` production impl (Session 55). P1 crate integrations remain.
 
 Closed issues #145, #154, #172, #173, #174, and #180 remain historical context. Their closure or documentation does not prove current production support, and the capability evidence record must not cite them as a substitute for the open gates above.
 

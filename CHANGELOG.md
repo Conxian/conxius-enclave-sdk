@@ -6,11 +6,22 @@
 - **Breaking:** `ArkManager::with_backend` now returns `ConclaveResult<Self>` instead of `Self`; callers must handle the result. `ArkBackend::ProviderOwned` remains rejected with typed `ProtocolUnsupported`, and production/provider support remains unavailable pending issue #195. `ArkBackend::Unconfigured` remains the safe disabled variant and succeeds.
 
 ### Added
+- `AwsNitroTrustBoundary` — first production `NitroCertificateTrustBoundary` implementation
+- `ProofVerifierRegistry::register()` — deployment-level verifier injection
+- X.509 certificate chain validation against AWS Nitro Root CA G1
 - Added `bip110_compliant` feature flag for BIP-110 Reduced Data Temporary Softfork compliance
 - Added BIP-110 validator module with limits: 256-byte pushdata, 83-byte OP_RETURN, 34-byte ScriptPubKey
 - Added message chunking utilities for BIP-322 under BIP-110 rules
+- 3-tier attestation verifier framework (`src/enclave/verifiers/`): AwsNitroVerifier, Pkcs11Verifier, WebauthnVerifier, OidcVerifier
+- `ProofVerifierStatus::Available` variant
+- `ConclaveError::Attestation(String)` variant
+- 14 verifier tests
+- OIDC JWT verification: `jsonwebtoken` v9 wired, RSA/EC signature verification, JWK kid matching
+- `Jwk` struct for OIDC JWK representation (RSA + EC)
 
 ### Changed
+- `AwsNitroVerifier::status()` now returns `Available` (was `Unavailable`)
+- `AwsNitroVerifier::verify()` calls `verify_offline()` with production trust boundary
 - Removed the WASM `derive_vutxo_key` private-key export and added provider-backed public-key/signing capability names.
 - Made unsupported WASM runtimes, providers, BitVM2 construction, and secret-bearing Fedimint flows fail closed with typed error codes.
 - Made the public WASM and BitVM2 constructors consistently fail closed instead of returning inert unavailable-enclave wrappers.
@@ -19,6 +30,16 @@
 - Added the [WASM runtime/provider support matrix](docs/architecture/WASM_SUPPORT_MATRIX.md) and [key-boundary migration note](docs/migrations/wasm-key-boundary.md).
 - Added canonical Bitcoin/Taproot and Ethereum verification/derivation behavior for issue #196, including public typed BIP-322 outcomes and `ConclaveError::Bip322`; malformed and unsupported inputs now fail closed within the documented conditional support boundary.
 - Tightened BIP-322 compatibility parsing to recognize only exact `smp`, `ful`, and `pof` tags; other inputs remain subject to strict unprefixed Simple decoding.
+- `VerifiedProofReceipt::from_verified_envelope()` made public (external verifier support)
+- `proof_verifier_unavailable()` made `pub(crate)`
+- bip110 module ungated in `src/protocol/mod.rs`
+- `OidcVerifier::verify_token()` now performs real JWT signature verification (was `Unsupported` stub)
+- `OidcVerifier::decode_token_header()` now extracts real header fields (was `Unsupported` stub)
+
+### Fixed
+- Clippy: dead_code on `FrostSigningContext` (frost.rs), DkgRound2Output type alias (threshold.rs), Bip110Validator import gated behind bip110_compliant feature
+- cargo-deny: removed 4 stale advisory ignores, removed unmatched 0BSD license
+- Dependabot #6: playwright 1.54.2 → 1.55.1 (CVE-2025-59288, HIGH)
 
 ### Documentation
 

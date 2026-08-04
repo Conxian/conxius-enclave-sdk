@@ -3,7 +3,7 @@ pub mod account_abstraction;
 pub mod ark;
 pub mod asset;
 pub mod asset_tests;
-#[cfg(feature = "bip110_compliant")]
+pub mod babylon;
 pub mod bip110;
 pub mod bip322;
 pub mod bitcoin;
@@ -33,6 +33,7 @@ pub mod musig2;
 pub mod nexus;
 pub mod opportunity;
 pub mod rails;
+pub mod rgb;
 pub mod settlement;
 pub mod settlement_service;
 pub mod sidl;
