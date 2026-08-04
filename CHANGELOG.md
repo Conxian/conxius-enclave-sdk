@@ -6,6 +6,9 @@
 - **Breaking:** `ArkManager::with_backend` now returns `ConclaveResult<Self>` instead of `Self`; callers must handle the result. `ArkBackend::ProviderOwned` remains rejected with typed `ProtocolUnsupported`, and production/provider support remains unavailable pending issue #195. `ArkBackend::Unconfigured` remains the safe disabled variant and succeeds.
 
 ### Added
+- `AwsNitroTrustBoundary` — first production `NitroCertificateTrustBoundary` implementation
+- `ProofVerifierRegistry::register()` — deployment-level verifier injection
+- X.509 certificate chain validation against AWS Nitro Root CA G1
 - Added `bip110_compliant` feature flag for BIP-110 Reduced Data Temporary Softfork compliance
 - Added BIP-110 validator module with limits: 256-byte pushdata, 83-byte OP_RETURN, 34-byte ScriptPubKey
 - Added message chunking utilities for BIP-322 under BIP-110 rules
@@ -15,6 +18,8 @@
 - 14 verifier tests
 
 ### Changed
+- `AwsNitroVerifier::status()` now returns `Available` (was `Unavailable`)
+- `AwsNitroVerifier::verify()` calls `verify_offline()` with production trust boundary
 - Removed the WASM `derive_vutxo_key` private-key export and added provider-backed public-key/signing capability names.
 - Made unsupported WASM runtimes, providers, BitVM2 construction, and secret-bearing Fedimint flows fail closed with typed error codes.
 - Made the public WASM and BitVM2 constructors consistently fail closed instead of returning inert unavailable-enclave wrappers.

@@ -26,11 +26,11 @@ This document provides a comprehensive overview of the repository status, includ
 | **Repository** | Conxian/conxius-enclave-sdk |
 | **Default Branch** | main |
 | **Language** | Rust |
-| **Latest visible release/tag** | v2.0.11 (as of 2026-07-20); v2.0.12 pending release with Session 54 changes |
+| **Latest visible release/tag** | v2.0.11 (as of 2026-07-20); v2.0.12 pending — P0 cleared (Session 55), release proceeds after P1 |
 | **Cargo package metadata** | 2.0.12 (not release evidence by itself) |
 | **Production Status** | Beta / conditional; value-bearing enablement blocked by CON-1506 gates |
 | **Test Coverage** | Historical source count; not an independent release gate |
-| **Last Updated** | 2026-08-03 (Session 54) |
+| **Last Updated** | 2026-08-03 (Session 55 P0) |
 
 ## Production-enablement backlog map
 
@@ -51,7 +51,7 @@ The current implementation and acceptance backlog already exists as GitHub issue
 
 - **Phase 3 verifier framework**: Built and in place.
 - **Verifier backends**: 4 backends created.
-- **Blocked on**: Production `NitroCertificateTrustBoundary` + crate integrations.
+- **P0 gate CLEARED**: `AwsNitroTrustBoundary` production impl (Session 55). P1 crate integrations remain.
 
 Closed issues #145, #154, #172, #173, #174, and #180 remain historical context. Their closure or documentation does not prove current production support, and the capability evidence record must not cite them as a substitute for the open gates above.
 

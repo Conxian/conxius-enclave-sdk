@@ -669,6 +669,25 @@ Comprehensive repository review, hardware attestation testing implementation, an
 
 ---
 
+## Session 55 — P0: Nitro Trust Boundary Unblocked (2026-08-03)
+
+### Completed
+- **AwsNitroTrustBoundary** (`src/enclave/verifiers/nitro_trust.rs`): First production NitroCertificateTrustBoundary impl (was zero across all 4 types)
+- X.509 certificate chain validation against embedded AWS Nitro Root CA G1 (DER, SHA-256 pinned)
+- Chain linkage verification: issuer→subject tracing through CA bundle to root
+- AwsNitroVerifier updated: uses production trust boundary, status→Available, verify() calls verify_offline() with real chain validation
+- NitroReleaseBinding constructed from ProofVerificationContext
+- ProofVerifierRegistry::register() added for deployment-level verifier injection
+- 4 tests (construct, fingerprint self-consistency, custom root, default)
+- 18 verifier tests pass, 0 clippy, 0 cargo check warnings
+
+### State
+- AwsNitroVerifier: Available (was Unavailable)
+- Trust boundary gap: CLOSED (was the P0 attestation blocker)
+- Next: P1 (cryptoki + jsonwebtoken crate integration), P2 (webauthn-rs crate)
+
+---
+
 ## Open Items Carried Forward
 
 | ID | Priority | Item | Next Action |
