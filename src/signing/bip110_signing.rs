@@ -8,9 +8,8 @@
 //! See `docs/PHASE1_ISSUES_ROADMAP.md` for acceptance criteria.
 
 use crate::ConclaveResult;
-
 #[cfg(feature = "bip110_compliant")]
-use crate::protocol::bip110::{Bip110Limits, Bip110Validator};
+use crate::protocol::bip110::Bip110Validator;
 
 /// BIP-110 enforcement wrapper for the signing pipeline.
 pub struct Bip110Enforcer {

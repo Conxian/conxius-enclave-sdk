@@ -167,9 +167,11 @@ All 11 SDK issues (SDK-001 through SDK-011) implemented and tested.
 See `docs/PHASE1_ISSUES_ROADMAP.md` for the full breakdown.
 
 ### Quality
-- **571 tests pass** (525 lib + 46 integration/doc), 0 failures
-- **2 pre-existing clippy warnings** only (Frost dead_code, complex type)
+- **544 tests pass** (all suites), 0 failures
+- **0 clippy warnings** (Session 54 remediation — all pre-existing issues resolved)
+- **cargo-deny**: advisories ok, bans ok, licenses ok, sources ok
 - **Feature gates**: `frost-crypto`, `bip110_compliant` — all fail-closed
+- **Dependabot**: playwright bumped to 1.55.1 (CVE-2025-59288 resolved)
 
 ### Phase 1 module map
 ```
@@ -235,3 +237,17 @@ SDK-001 (UCS Trait)
               └→ SDK-010 (Compatibility Matrix)
                   └→ SDK-011 (Dependency Alignment)
 ```
+
+### Session 54 — Pre-existing Issue Remediation (2026-08-03)
+
+| Issue | Location | Resolution |
+|-------|----------|------------|
+| `clippy::dead_code` | `src/protocol/frost.rs:639` | `#[allow(dead_code)]` on `FrostSigningContext` (fields used when `frost-crypto` enabled) |
+| `clippy::type_complexity` | `src/signing/threshold.rs:31` | Extracted `DkgRound2Output` type alias |
+| `clippy::unused_import` | `src/signing/bip110_signing.rs:13` | Gated `Bip110Validator` import behind `#[cfg(feature = "bip110_compliant")]` |
+| Feature-gate mismatch | `src/protocol/mod.rs:7-8` | Reverted `#[cfg(feature = "bip110_compliant")]` on `pub mod bip110` (module has no internal feature gates) |
+| Dependabot CVE-2025-59288 | `tests/wasm/package.json` | `playwright` 1.54.2 → 1.55.1 (HIGH, CVE-2025-59288) |
+| Stale advisory ignores | `deny.toml` | Removed 4 stale `RUSTSEC-2026-*` entries + unmatched `0BSD` license |
+| `cargo-deny` warnings | `deny.toml` | Clean: 2 active ignores (RUSTSEC-2023-0089 atomic-polyfill, RUSTSEC-2024-0436), licenses ok |
+
+**Post-remediation**: 544 tests, 0 clippy warnings, cargo-deny clean, Dependabot clean.

@@ -4,7 +4,6 @@ pub mod ark;
 pub mod asset;
 pub mod asset_tests;
 pub mod babylon;
-#[cfg(feature = "bip110_compliant")]
 pub mod bip110;
 pub mod bip322;
 pub mod bitcoin;
