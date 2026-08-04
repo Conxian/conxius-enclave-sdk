@@ -1080,6 +1080,14 @@ impl ProofVerifierRegistry {
         self.verifiers.len()
     }
 
+    /// Register a verifier for the given kind + id key.
+    /// Allows deployments to override the default unavailable entries
+    /// with real provider verifiers (e.g. AwsNitroVerifier for TEE proofs).
+    pub fn register(&mut self, verifier: Arc<dyn ProofVerifier>) {
+        let key = (verifier.kind(), verifier.verifier_id().to_string());
+        self.verifiers.insert(key, verifier);
+    }
+
     /// Verifies every supplied proof independently, applies the explicit
     /// required/unlisted policy, and atomically consumes all proof replay keys
     /// only after the complete bundle passes.
