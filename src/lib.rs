@@ -2,6 +2,7 @@ pub mod config;
 pub mod enclave;
 pub mod protocol;
 pub mod serde_big_array;
+pub mod signing;
 pub mod state;
 pub mod telemetry;
 pub mod wasm_support;
@@ -112,6 +113,8 @@ pub enum BoundaryValidationError {
 pub enum ConclaveError {
     #[error("Hardware Enclave Error: {0}")]
     EnclaveFailure(String),
+    #[error("Attestation verification failed: {0}")]
+    Attestation(String),
     #[error("Cryptographic operation failed: {0}")]
     CryptoError(String),
     #[error("Invalid Payload provided")]

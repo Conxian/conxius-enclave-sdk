@@ -6,6 +6,31 @@
 > **Knowledge Base**: v0.5.0 (Session 53, Aug 2026)
 > **Last Session**: Session 53 — ROAST coordinator, BitVM2 Groth16, module catalog, CI fix
 
+---
+
+## Session 55 — Planned (2026-08-05)
+
+### P0: Unblock AwsNitroVerifier
+- Implement production `NitroCertificateTrustBoundary` connected to AWS Nitro PKI
+- Wire into `ProofVerifierRegistry::production()`
+- Integration test: parse real attestation doc → verify chain → verify COSE → validate PCRs → produce VerifiedProofReceipt
+
+### P1: Wire PKCS#11 + OIDC
+- Add `cryptoki` crate to Cargo.toml → wire Pkcs11Verifier sign/verify
+- Add `jsonwebtoken` crate → wire OidcVerifier JWT verification
+- Integration tests for both
+
+### P2: Wire WebAuthn + FROST
+- Add `webauthn-rs` crate → wire WebauthnVerifier attestation verification
+- FROST ceremony attestation gating (per docs/salvage/FROST_TREASURY_INTEGRATION.md)
+
+### Housekeeping
+- Execute v2.0.12 release (tag, workflow, crates.io)
+- Verify Dependabot #6 auto-closes on re-scan
+- Close out Session 54 open items
+
+---
+
 ## Session 53 Completed (2026-08-03)
 
 ### ✅ #213 — ROAST Coordinator in Nexus
