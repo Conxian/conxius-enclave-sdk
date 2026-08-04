@@ -87,7 +87,7 @@ fn proof_verification_failed() -> ConclaveError {
     ConclaveError::EnclaveFailure("independent proof verification failed".to_string())
 }
 
-fn proof_verifier_unavailable() -> ConclaveError {
+pub(crate) fn proof_verifier_unavailable() -> ConclaveError {
     ConclaveError::Unsupported("independent proof verifier is unavailable".to_string())
 }
 
@@ -931,6 +931,7 @@ pub fn deserialize_proof_bundle_json(input: &[u8]) -> ConclaveResult<ProofBundle
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProofVerifierStatus {
     Unavailable,
+    Available,
     #[cfg(test)]
     TestOnly,
 }
@@ -1467,7 +1468,7 @@ impl VerifiedProofReceipt {
     }
 
     #[allow(dead_code)]
-    fn from_verified_envelope(
+    pub fn from_verified_envelope(
         envelope: &ProofEnvelope,
         context: &ProofVerificationContext,
     ) -> ConclaveResult<Self> {
