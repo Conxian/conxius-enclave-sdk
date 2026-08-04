@@ -2,6 +2,7 @@ pub mod config;
 pub mod enclave;
 pub mod protocol;
 pub mod serde_big_array;
+pub mod signing;
 pub mod state;
 pub mod telemetry;
 pub mod wasm_support;
