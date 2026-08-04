@@ -12,6 +12,7 @@ pub mod proofs;
 pub mod replay_guard;
 pub mod trust;
 pub mod trust_contracts;
+pub mod verifiers;
 
 pub use proofs::{
     authorize_settlement_with_durable_store, authorize_value_bearing_with_durable_store,
