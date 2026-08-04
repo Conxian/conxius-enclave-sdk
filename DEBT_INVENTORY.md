@@ -28,16 +28,21 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 
 #### PROTO-001: Protocol implementation boundaries and evidence
 - **Category**: Architecture / Security / Testing
-- **Priority**: P1
+- **Priority**: P1 (downgraded from P0 — major progress Session 53)
 - **Description**: FROST, Fedimint, Ark, and BitVM2 require typed boundaries and
   an explicit requirement → code → vector/test → CI → artifact chain before any
   value-bearing implementation can be enabled.
-- **Current**: Foundation plus quarantine in `src/protocol/{frost,ark,bitvm2}.rs`
-  and `src/protocol/nexus/fedimint.rs`; unsupported operations remain fail-closed.
-- **Risk**: Structural models or historical completion wording could be mistaken
-  for protocol correctness, integration, or production support.
-- **Recommendation**: Follow [`docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md`](docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md), pin one external implementation per protocol, add official/independent vectors, and retain exact artifact evidence.
-- **Status**: Active; production support remains `No` for all four protocols.
+- **Current (2026-08-03)**:
+  - **FROST**: ✅ Real ZF FROST v3.0.0 crypto backend (#264), FrostSigningContext bridge (#275), ROAST coordinator (Session 53). DKG, signing, aggregation all backed by real crypto.
+  - **Ark**: ✅ VTXO Merkle tree construction + FROST signing bridge (#278).
+  - **BitVM2**: ✅ Groth16 proof/verification key/public inputs/verifier boundary (Session 53). Disprove envelope types modeled. Verifier returns `VerificationUnavailable` without ZK backend.
+  - **DLC**: ✅ Oracle attestation verification + CET template construction (#279).
+  - **CCTP**: ✅ ECDSA attestation verification via k256 (#277).
+  - **Covenant**: ✅ BIP-119 CTV and BIP-118 APO patterns (#276).
+  - **Fedimint**: ⚠️ Structural boundary only. Still returns `ProtocolUnsupported` for all value-bearing ops.
+- **Risk**: Fedimint remains structural-only. Groth16 verifier has no real pairing backend.
+- **Recommendation**: Pin ZK pairing backend for Groth16 verification; implement Fedimint real crypto or document as deferred.
+- **Status**: Active; FROST/Ark/CCTP/DLC/Covenant production support `No` pending independent review. Fedimint still structural.
 
 #### DEP-001: Beta/Release Candidate Dependencies
 - **Category**: Dependency

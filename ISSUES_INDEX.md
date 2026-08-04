@@ -1,52 +1,53 @@
 # Conclave SDK Issues Index
 
 > Auto-generated from GitHub. Last sync: 2026-07-21T03:52:30Z
+> **Manual update:** 2026-08-03 (Session 53 sprint review)
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
 
 ## Summary
 - **Total Issues**: 23
-- **Open Issues**: 9
+- **Open Issues**: 6
 - **Closed Issues**: 14
+- **Resolved in Code (pending GitHub update)**: 3 (#196, #198, #199)
 
-## Open Issues
+## Open Issues (verified against code 2026-08-03)
+
 - [ ] [**#202**](https://github.com/Conxian/conxius-enclave-sdk/issues/202): [P0] Complete independent security review and release acceptance evidence
   - Labels: documentation, release, provenance, quality, priority-critical
-  - Assigned: unassigned
+  - Status: **BLOCKED** — depends on #195, #200, #197 resolution + external reviewer
 
 - [ ] [**#201**](https://github.com/Conxian/conxius-enclave-sdk/issues/201): [P1] Define telemetry privacy, monitoring, and public-safe operational runbooks
   - Labels: documentation, P1, quality, privacy
-  - Assigned: unassigned
+  - Status: **CODE COMPLETE** — telemetry hardened in #210; runbooks still needed
 
 - [ ] [**#200**](https://github.com/Conxian/conxius-enclave-sdk/issues/200): [P1] Harden the WASM secret boundary and add runtime/platform evidence
   - Labels: enhancement, P1, wasm, architecture
-  - Assigned: unassigned
-
-- [ ] [**#199**](https://github.com/Conxian/conxius-enclave-sdk/issues/199): [P1] Make toolchain, dependencies, and release evidence reproducible and single-path
-  - Labels: dependencies, release, P1, sbom, provenance, ci-cd
-  - Assigned: unassigned
-
-- [ ] [**#198**](https://github.com/Conxian/conxius-enclave-sdk/issues/198): [P0] Make CCTP, account abstraction, and asset metadata fail closed
-  - Labels: enhancement, cryptography, priority-critical
-  - Assigned: unassigned
+  - Status: **IN PROGRESS** — #211 closed key/provider boundary; runtime evidence workflows exist (wasm-runtime.yml, wasm-runtime-evidence.yml)
 
 - [ ] [**#197**](https://github.com/Conxian/conxius-enclave-sdk/issues/197): [P0] Replace or quarantine threshold and settlement protocol placeholders
   - Labels: enhancement, ark, bitvm2, fedimint, cryptography, frost-dkg, priority-critical
-  - Assigned: unassigned
-
-- [ ] [**#196**](https://github.com/Conxian/conxius-enclave-sdk/issues/196): [P0] Implement canonical Bitcoin and Ethereum verification and derivation
-  - Labels: enhancement, bitcoin, cryptography, priority-critical
-  - Assigned: unassigned
+  - Status: **MOSTLY RESOLVED** — FROST real crypto (#264), FrostSigningContext (#275), ROAST coordinator (Session 53), Ark VTXO (#278), DLC (#279), CCTP (#277), Covenant (#276), BitVM2 Groth16 (Session 53). Fedimint remains structural-only.
 
 - [ ] [**#195**](https://github.com/Conxian/conxius-enclave-sdk/issues/195): [P0] Enforce hardware-backed signing and mandatory attestation for value-bearing operations
   - Labels: enhancement, cryptography, priority-critical
-  - Assigned: unassigned
+  - Status: **IN PROGRESS** — enclave trust contracts (#249), Nitro (#248), Android (#243), replay (#247), proof policy (#244). Real provider verifier still needed.
 
 - [ ] [**#194**](https://github.com/Conxian/conxius-enclave-sdk/issues/194): Architecture: align SDK policy types with Core control-model contracts
   - Labels: enhancement, architecture
-  - Assigned: unassigned
+  - Status: **OPEN** — control_model_adapter exists but full alignment pending
 
+## Resolved in Code (close on GitHub)
+
+- [x] [**#199**](https://github.com/Conxian/conxius-enclave-sdk/issues/199): [P1] Make toolchain, dependencies, and release evidence reproducible
+  - **Resolved by**: PR #213 (release), rust-toolchain.toml, CI workflows pinned, `--locked` everywhere
+
+- [x] [**#198**](https://github.com/Conxian/conxius-enclave-sdk/issues/198): [P0] Make CCTP, account abstraction, and asset metadata fail closed
+  - **Resolved by**: PR #212 (fail-closed adapters), PR #277 (ECDSA attestation for CCTP)
+
+- [x] [**#196**](https://github.com/Conxian/conxius-enclave-sdk/issues/196): [P0] Implement canonical Bitcoin and Ethereum verification and derivation
+  - **Resolved by**: PR #208 (canonical Bitcoin/Ethereum validation), PR #276 (BIP-119/BIP-118), PR #279 (DLC oracle attestation)
 
 ## Closed Issues
 - [x] [**#191**](https://github.com/Conxian/conxius-enclave-sdk/issues/191): production enablement

@@ -349,6 +349,38 @@ impl ArkManager {
         ))
     }
 
+    /// Sign a VTXO using FROST threshold signing.
+    ///
+    /// When the `frost-crypto` feature is enabled, this delegates to the
+    /// `FrostSigningContext` for threshold signing of Ark round transactions.
+    /// Each VTXO is signed by a threshold of ASP participants.
+    #[cfg(feature = "frost-crypto")]
+    pub fn sign_vutxo_with_context(
+        &self,
+        ctx: &crate::protocol::frost::FrostSigningContext,
+        key_package: &crate::protocol::frost::FrostKeyPackage,
+        shares: &[crate::protocol::frost::FrostSignatureShare],
+    ) -> ConclaveResult<String> {
+        ctx.aggregate_signatures(key_package, shares)
+    }
+
+    /// Sign a VTXO spend transaction.
+    ///
+    /// Without `frost-crypto`, signing is quarantined until the provider
+    /// attestation chain is complete.
+    #[cfg(not(feature = "frost-crypto"))]
+    pub fn sign_vutxo_with_context(
+        &self,
+        _ctx: &crate::protocol::frost::FrostSigningContext,
+        _key_package: &crate::protocol::frost::FrostKeyPackage,
+        _shares: &[crate::protocol::frost::FrostSignatureShare],
+    ) -> ConclaveResult<String> {
+        Err(protocol_unsupported(
+            UnsupportedProtocol::Ark,
+            UnsupportedOperation::ForfeitSigning,
+        ))
+    }
+
     pub fn sign_vutxo(&self, _tx_hash: [u8; 32], _index: u32) -> ConclaveResult<String> {
         Err(protocol_unsupported(
             UnsupportedProtocol::Ark,
@@ -368,14 +400,79 @@ impl ArkManager {
         ))
     }
 
+    /// Construct a VTXO Merkle tree from leaf descriptors.
+    ///
+    /// Builds a binary Merkle tree over the VTXO leaf hashes. Each leaf is
+    /// hashed with SHA-256, then paired and hashed up to the root.
     pub fn construct_vtxo_tree(
         &self,
-        _leaves: Vec<VUtxoDescriptor>,
+        leaves: Vec<VUtxoDescriptor>,
     ) -> ConclaveResult<VtxoTreeNode> {
-        Err(protocol_unsupported(
-            UnsupportedProtocol::Ark,
-            UnsupportedOperation::VtxoTreeConstruction,
-        ))
+        if leaves.is_empty() {
+            return Err(ConclaveError::InvalidConfiguration(
+                "VTXO tree requires at least one leaf".into(),
+            ));
+        }
+
+        use sha2::{Digest, Sha256};
+
+        fn hash_node(left: &[u8], right: &[u8]) -> (String, [u8; 32]) {
+            let mut hasher = Sha256::new();
+            hasher.update(left);
+            hasher.update(right);
+            let hash: [u8; 32] = hasher.finalize().into();
+            (hex::encode(hash), hash)
+        }
+
+        fn build_level(nodes: Vec<VtxoTreeNode>) -> VtxoTreeNode {
+            if nodes.len() == 1 {
+                return nodes.into_iter().next().unwrap();
+            }
+            let mut parent_level = Vec::new();
+            for chunk in nodes.chunks(2) {
+                let left = &chunk[0];
+                let right = chunk.get(1).unwrap_or(left);
+                let left_hash = hex::decode(left.tx_id.as_str()).unwrap_or_default();
+                let right_hash = hex::decode(right.tx_id.as_str()).unwrap_or_default();
+                let (tx_id_hex, _) = hash_node(&left_hash, &right_hash);
+                parent_level.push(VtxoTreeNode {
+                    tx_id: ArkTransactionId::new(tx_id_hex).unwrap_or_else(|_| {
+                        ArkTransactionId::new(
+                            "0000000000000000000000000000000000000000000000000000000000000000",
+                        )
+                        .unwrap()
+                    }),
+                    left: Some(Box::new(left.clone())),
+                    right: Some(Box::new(right.clone())),
+                    is_leaf: false,
+                });
+            }
+            build_level(parent_level)
+        }
+
+        let leaf_nodes: Vec<VtxoTreeNode> = leaves
+            .iter()
+            .map(|vutxo| {
+                let mut hasher = Sha256::new();
+                hasher.update(vutxo.amount.to_be_bytes());
+                hasher.update(vutxo.address.as_bytes());
+                hasher.update(vutxo.vutxo_id.as_str().as_bytes());
+                let leaf_hash: [u8; 32] = hasher.finalize().into();
+                VtxoTreeNode {
+                    tx_id: ArkTransactionId::new(hex::encode(leaf_hash)).unwrap_or_else(|_| {
+                        ArkTransactionId::new(
+                            "0000000000000000000000000000000000000000000000000000000000000000",
+                        )
+                        .unwrap()
+                    }),
+                    left: None,
+                    right: None,
+                    is_leaf: true,
+                }
+            })
+            .collect();
+
+        Ok(build_level(leaf_nodes))
     }
 
     pub fn sign_forfeit_transaction(
@@ -503,10 +600,8 @@ mod tests {
             manager.sign_vutxo([0; 32], 0),
             UnsupportedOperation::ForfeitSigning,
         );
-        assert_unsupported(
-            manager.construct_vtxo_tree(vec![descriptor()]),
-            UnsupportedOperation::VtxoTreeConstruction,
-        );
+        // VTXO tree construction is implemented (non-value-bearing structural op)
+        assert!(manager.construct_vtxo_tree(vec![descriptor()]).is_ok());
         assert_eq!(manager.backend(), ArkBackend::Unconfigured);
     }
 
@@ -529,5 +624,45 @@ mod tests {
             }) => assert_eq!(actual_operation, operation),
             _ => panic!("expected typed Ark unsupported error"),
         }
+    }
+
+    #[test]
+    fn vtxo_tree_power_of_two() {
+        let leaves: Vec<VUtxoDescriptor> = (0..4)
+            .map(|i| {
+                VUtxoDescriptor::new(
+                    ArkVtxoId::new(format!("vutxo-{}", i)).unwrap(),
+                    1000 * (i + 1) as u64,
+                    ArkDerivationIndex::new(i),
+                    format!("addr-{}", i),
+                )
+                .unwrap()
+            })
+            .collect();
+
+        let tree = manager().construct_vtxo_tree(leaves).unwrap();
+        assert!(!tree.is_leaf);
+        assert!(tree.left.is_some());
+        assert!(tree.right.is_some());
+        assert_eq!(tree.tx_id.as_str().len(), 64); // hex hash
+    }
+
+    #[test]
+    fn vtxo_tree_single_leaf() {
+        let leaf = VUtxoDescriptor::new(
+            ArkVtxoId::new("single-vutxo").unwrap(),
+            5000,
+            ArkDerivationIndex::new(0),
+            "single-addr",
+        )
+        .unwrap();
+
+        let tree = manager().construct_vtxo_tree(vec![leaf]).unwrap();
+        assert!(tree.is_leaf);
+    }
+
+    #[test]
+    fn vtxo_tree_empty_rejected() {
+        assert!(manager().construct_vtxo_tree(vec![]).is_err());
     }
 }

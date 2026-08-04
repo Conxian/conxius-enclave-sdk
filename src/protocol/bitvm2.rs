@@ -12,7 +12,7 @@ use crate::{
     UnsupportedOperation, UnsupportedProtocol,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 
 pub const BITVM2_ENCODING_VERSION: u16 = 1;
 
@@ -332,6 +332,340 @@ impl BitVm2ChallengeResponse {
     }
 }
 
+// ── Groth16 Proof Verification (P0) ──────────────────────────────────
+//
+// BitVM2 uses Groth16 succinct non-interactive zero-knowledge proofs for
+// the disprove protocol. The operator constructs a Groth16 proof that a
+// committed state transition is invalid; the verifier checks the proof
+// against the on-chain verification key.
+//
+// This module models the proof envelope, verification key, and verifier
+// boundary. Without an audited ZK backend, all verification returns
+// ProtocolUnsupported.
+
+// Serde helper wrappers for large byte arrays (serde only supports arrays up to [u8; 32]).
+struct Bytes48([u8; 48]);
+struct Bytes96([u8; 96]);
+
+impl Serialize for Bytes48 {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_bytes(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for Bytes48 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = Bytes48;
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("48 bytes")
+            }
+            fn visit_bytes<E: serde::de::Error>(self, v: &[u8]) -> Result<Self::Value, E> {
+                if v.len() != 48 {
+                    return Err(E::invalid_length(v.len(), &self));
+                }
+                let mut arr = [0u8; 48];
+                arr.copy_from_slice(v);
+                Ok(Bytes48(arr))
+            }
+        }
+        d.deserialize_bytes(Visitor)
+    }
+}
+
+impl Serialize for Bytes96 {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_bytes(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for Bytes96 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = Bytes96;
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("96 bytes")
+            }
+            fn visit_bytes<E: serde::de::Error>(self, v: &[u8]) -> Result<Self::Value, E> {
+                if v.len() != 96 {
+                    return Err(E::invalid_length(v.len(), &self));
+                }
+                let mut arr = [0u8; 96];
+                arr.copy_from_slice(v);
+                Ok(Bytes96(arr))
+            }
+        }
+        d.deserialize_bytes(Visitor)
+    }
+}
+
+/// Groth16 proof — three group elements (A ∈ G₁，B ∈ G₂, C ∈ G₁).
+///
+/// Each element is stored as a compressed byte representation:
+/// - G₁ elements (A, C): 48 bytes each (compressed BLS12-381)
+/// - G₂ element (B): 96 bytes (compressed BLS12-381)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BitVm2Groth16Proof {
+    pub encoding_version: BitVm2EncodingVersion,
+    /// Compressed G₁ point (48 bytes).
+    pub a: [u8; 48],
+    /// Compressed G₂ point (96 bytes).
+    pub b: [u8; 96],
+    /// Compressed G₁ point (48 bytes).
+    pub c: [u8; 48],
+}
+
+impl Serialize for BitVm2Groth16Proof {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut state = s.serialize_struct("BitVm2Groth16Proof", 4)?;
+        state.serialize_field("encoding_version", &self.encoding_version)?;
+        state.serialize_field("a", &Bytes48(self.a))?;
+        state.serialize_field("b", &Bytes96(self.b))?;
+        state.serialize_field("c", &Bytes48(self.c))?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for BitVm2Groth16Proof {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = BitVm2Groth16Proof;
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("BitVm2Groth16Proof")
+            }
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<Self::Value, A::Error> {
+                use serde::de::Error;
+                let mut encoding_version = None;
+                let mut a = None;
+                let mut b = None;
+                let mut c = None;
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "encoding_version" => encoding_version = Some(map.next_value()?),
+                        "a" => a = Some(map.next_value::<Bytes48>()?.0),
+                        "b" => b = Some(map.next_value::<Bytes96>()?.0),
+                        "c" => c = Some(map.next_value::<Bytes48>()?.0),
+                        _ => {
+                            return Err(Error::unknown_field(
+                                &key,
+                                &["encoding_version", "a", "b", "c"],
+                            ))
+                        }
+                    }
+                }
+                Ok(BitVm2Groth16Proof {
+                    encoding_version: encoding_version
+                        .ok_or_else(|| Error::missing_field("encoding_version"))?,
+                    a: a.ok_or_else(|| Error::missing_field("a"))?,
+                    b: b.ok_or_else(|| Error::missing_field("b"))?,
+                    c: c.ok_or_else(|| Error::missing_field("c"))?,
+                })
+            }
+        }
+        d.deserialize_struct(
+            "BitVm2Groth16Proof",
+            &["encoding_version", "a", "b", "c"],
+            Visitor,
+        )
+    }
+}
+
+impl BitVm2Groth16Proof {
+    pub fn validate(&self) -> ConclaveResult<()> {
+        self.encoding_version.validate()?;
+        if self.a == [0; 48] || self.b == [0; 96] || self.c == [0; 48] {
+            return Err(boundary_error(BoundaryValidationError::InvalidEnvelope));
+        }
+        Ok(())
+    }
+}
+
+/// Groth16 verification key (on-chain reference).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BitVm2Groth16VerificationKey {
+    pub encoding_version: BitVm2EncodingVersion,
+    /// Compressed G₁ point — alpha (48 bytes).
+    pub alpha_g1: [u8; 48],
+    /// Compressed G₂ point — beta (96 bytes).
+    pub beta_g2: [u8; 96],
+    /// Compressed G₂ point — gamma (96 bytes).
+    pub gamma_g2: [u8; 96],
+    /// Compressed G₂ point — delta (96 bytes).
+    pub delta_g2: [u8; 96],
+    /// Compressed G₁ points — gamma_abc (variable length, each 48 bytes).
+    pub gamma_abc_g1: Vec<[u8; 48]>,
+}
+
+impl Serialize for BitVm2Groth16VerificationKey {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut state = s.serialize_struct("BitVm2Groth16VerificationKey", 6)?;
+        state.serialize_field("encoding_version", &self.encoding_version)?;
+        state.serialize_field("alpha_g1", &Bytes48(self.alpha_g1))?;
+        state.serialize_field("beta_g2", &Bytes96(self.beta_g2))?;
+        state.serialize_field("gamma_g2", &Bytes96(self.gamma_g2))?;
+        state.serialize_field("delta_g2", &Bytes96(self.delta_g2))?;
+        let gamma_abc: Vec<Bytes48> = self.gamma_abc_g1.iter().map(|a| Bytes48(*a)).collect();
+        state.serialize_field("gamma_abc_g1", &gamma_abc)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for BitVm2Groth16VerificationKey {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = BitVm2Groth16VerificationKey;
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("BitVm2Groth16VerificationKey")
+            }
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<Self::Value, A::Error> {
+                use serde::de::Error;
+                let mut encoding_version = None;
+                let mut alpha_g1 = None;
+                let mut beta_g2 = None;
+                let mut gamma_g2 = None;
+                let mut delta_g2 = None;
+                let mut gamma_abc_g1: Option<Vec<[u8; 48]>> = None;
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "encoding_version" => encoding_version = Some(map.next_value()?),
+                        "alpha_g1" => alpha_g1 = Some(map.next_value::<Bytes48>()?.0),
+                        "beta_g2" => beta_g2 = Some(map.next_value::<Bytes96>()?.0),
+                        "gamma_g2" => gamma_g2 = Some(map.next_value::<Bytes96>()?.0),
+                        "delta_g2" => delta_g2 = Some(map.next_value::<Bytes96>()?.0),
+                        "gamma_abc_g1" => {
+                            gamma_abc_g1 = Some(
+                                map.next_value::<Vec<Bytes48>>()?
+                                    .into_iter()
+                                    .map(|b| b.0)
+                                    .collect(),
+                            )
+                        }
+                        _ => {
+                            return Err(Error::unknown_field(
+                                &key,
+                                &[
+                                    "encoding_version",
+                                    "alpha_g1",
+                                    "beta_g2",
+                                    "gamma_g2",
+                                    "delta_g2",
+                                    "gamma_abc_g1",
+                                ],
+                            ))
+                        }
+                    }
+                }
+                Ok(BitVm2Groth16VerificationKey {
+                    encoding_version: encoding_version
+                        .ok_or_else(|| Error::missing_field("encoding_version"))?,
+                    alpha_g1: alpha_g1.ok_or_else(|| Error::missing_field("alpha_g1"))?,
+                    beta_g2: beta_g2.ok_or_else(|| Error::missing_field("beta_g2"))?,
+                    gamma_g2: gamma_g2.ok_or_else(|| Error::missing_field("gamma_g2"))?,
+                    delta_g2: delta_g2.ok_or_else(|| Error::missing_field("delta_g2"))?,
+                    gamma_abc_g1: gamma_abc_g1.unwrap_or_default(),
+                })
+            }
+        }
+        d.deserialize_struct(
+            "BitVm2Groth16VerificationKey",
+            &[
+                "encoding_version",
+                "alpha_g1",
+                "beta_g2",
+                "gamma_g2",
+                "delta_g2",
+                "gamma_abc_g1",
+            ],
+            Visitor,
+        )
+    }
+}
+
+impl BitVm2Groth16VerificationKey {
+    pub fn validate(&self) -> ConclaveResult<()> {
+        self.encoding_version.validate()?;
+        if self.alpha_g1 == [0; 48]
+            || self.beta_g2 == [0; 96]
+            || self.gamma_g2 == [0; 96]
+            || self.delta_g2 == [0; 96]
+        {
+            return Err(boundary_error(BoundaryValidationError::InvalidEnvelope));
+        }
+        Ok(())
+    }
+}
+
+/// Groth16 public inputs to the BitVM2 disprove statement.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BitVm2Groth16PublicInputs {
+    pub instance_id: BitVm2InstanceId,
+    pub commitment_id: BitVm2CommitmentId,
+    pub state_root_hash: [u8; 32],
+    pub challenge_digest: [u8; 32],
+}
+
+impl BitVm2Groth16PublicInputs {
+    pub fn validate(&self) -> ConclaveResult<()> {
+        self.instance_id.validate()?;
+        self.commitment_id.validate()?;
+        if self.state_root_hash == [0; 32] || self.challenge_digest == [0; 32] {
+            return Err(boundary_error(BoundaryValidationError::InvalidObservation));
+        }
+        Ok(())
+    }
+}
+
+/// Outcome of Groth16 proof verification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Groth16VerificationOutcome {
+    Valid,
+    Invalid,
+    VerificationUnavailable,
+}
+
+/// Groth16 verifier boundary.
+///
+/// Accepts a proof, verification key, and public inputs. Actual ZK proof
+/// verification requires an audited pairing backend; without one, all
+/// verification returns `VerificationUnavailable`.
+#[derive(Debug, Clone, Default)]
+pub struct BitVm2Groth16Verifier {
+    _private: (),
+}
+
+impl BitVm2Groth16Verifier {
+    pub fn new() -> Self {
+        Self { _private: () }
+    }
+
+    /// Verify a Groth16 proof against a verification key and public inputs.
+    ///
+    /// Without an audited ZK backend, always returns
+    /// `Groth16VerificationOutcome::VerificationUnavailable`.
+    pub fn verify(
+        &self,
+        _proof: &BitVm2Groth16Proof,
+        _vk: &BitVm2Groth16VerificationKey,
+        _inputs: &BitVm2Groth16PublicInputs,
+    ) -> ConclaveResult<Groth16VerificationOutcome> {
+        Ok(Groth16VerificationOutcome::VerificationUnavailable)
+    }
+}
+
+// ── Monitor and Orchestrator ─────────────────────────────────────────
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BitVm2Monitor {
     ledger: BitVm2ObservationLedger,
@@ -641,5 +975,111 @@ mod tests {
             }) => assert_eq!(actual_operation, operation),
             _ => panic!("expected typed BitVM2 unsupported error"),
         }
+    }
+
+    // ── Groth16 tests ────────────────────────────────────────────────
+
+    #[test]
+    fn groth16_proof_rejects_zero_bytes() {
+        let proof = BitVm2Groth16Proof {
+            encoding_version: BitVm2EncodingVersion::current(),
+            a: [0; 48],
+            b: [1; 96],
+            c: [2; 48],
+        };
+        assert!(matches!(
+            proof.validate(),
+            Err(ConclaveError::BoundaryValidation(
+                BoundaryValidationError::InvalidEnvelope
+            ))
+        ));
+    }
+
+    #[test]
+    fn groth16_proof_accepts_valid_elements() {
+        let proof = BitVm2Groth16Proof {
+            encoding_version: BitVm2EncodingVersion::current(),
+            a: [1; 48],
+            b: [2; 96],
+            c: [3; 48],
+        };
+        assert!(proof.validate().is_ok());
+    }
+
+    #[test]
+    fn groth16_vk_rejects_zero_key_elements() {
+        let vk = BitVm2Groth16VerificationKey {
+            encoding_version: BitVm2EncodingVersion::current(),
+            alpha_g1: [0; 48],
+            beta_g2: [2; 96],
+            gamma_g2: [3; 96],
+            delta_g2: [4; 96],
+            gamma_abc_g1: vec![],
+        };
+        assert!(matches!(
+            vk.validate(),
+            Err(ConclaveError::BoundaryValidation(
+                BoundaryValidationError::InvalidEnvelope
+            ))
+        ));
+    }
+
+    #[test]
+    fn groth16_vk_accepts_valid_keys() {
+        let vk = BitVm2Groth16VerificationKey {
+            encoding_version: BitVm2EncodingVersion::current(),
+            alpha_g1: [1; 48],
+            beta_g2: [2; 96],
+            gamma_g2: [3; 96],
+            delta_g2: [4; 96],
+            gamma_abc_g1: vec![[5; 48], [6; 48]],
+        };
+        assert!(vk.validate().is_ok());
+    }
+
+    #[test]
+    fn groth16_verifier_returns_unavailable() {
+        let verifier = BitVm2Groth16Verifier::new();
+        let proof = BitVm2Groth16Proof {
+            encoding_version: BitVm2EncodingVersion::current(),
+            a: [1; 48],
+            b: [2; 96],
+            c: [3; 48],
+        };
+        let vk = BitVm2Groth16VerificationKey {
+            encoding_version: BitVm2EncodingVersion::current(),
+            alpha_g1: [1; 48],
+            beta_g2: [2; 96],
+            gamma_g2: [3; 96],
+            delta_g2: [4; 96],
+            gamma_abc_g1: vec![],
+        };
+        let inputs = BitVm2Groth16PublicInputs {
+            instance_id: BitVm2InstanceId::new([1; 16]).expect("valid instance"),
+            commitment_id: BitVm2CommitmentId::new([2; 16]).expect("valid commitment"),
+            state_root_hash: [3; 32],
+            challenge_digest: [4; 32],
+        };
+
+        let outcome = verifier
+            .verify(&proof, &vk, &inputs)
+            .expect("verification completed");
+        assert_eq!(outcome, Groth16VerificationOutcome::VerificationUnavailable);
+    }
+
+    #[test]
+    fn groth16_public_inputs_rejects_zero_digests() {
+        let inputs = BitVm2Groth16PublicInputs {
+            instance_id: BitVm2InstanceId::new([1; 16]).expect("valid instance"),
+            commitment_id: BitVm2CommitmentId::new([2; 16]).expect("valid commitment"),
+            state_root_hash: [0; 32],
+            challenge_digest: [4; 32],
+        };
+        assert!(matches!(
+            inputs.validate(),
+            Err(ConclaveError::BoundaryValidation(
+                BoundaryValidationError::InvalidObservation
+            ))
+        ));
     }
 }

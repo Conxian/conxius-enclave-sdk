@@ -2,7 +2,7 @@
 name = "conxius-enclave-sdk"
 version = "2.0.12"
 license = "MIT"
-rust-version = "1.94.1"
+rust-version = "1.97.1"
 edition = "2021"
 description = "Hardware-backed security primitives for the broader Conxian ecosystem. Provides high-integrity root of trust for security-sensitive wallet, signing, attestation, and policy flows."
 documentation = "https://docs.rs/conxius-enclave-sdk"
@@ -16,6 +16,11 @@ default = []
 development-simulators = []
 mock-cloud-enclave = ["development-simulators"]
 bip110_compliant = []
+# FROST threshold signing backed by ZF FROST (frost-secp256k1-tr v3.0.0).
+# Gates value-bearing FROST operations. Without this feature, FROST
+# boundary types validate structurally but return ProtocolUnsupported
+# for all cryptographic execution paths.
+frost-crypto = ["frost-secp256k1-tr", "rand_core06"]
 
 [dependencies]
 x509-cert = "0.3.0"
@@ -34,6 +39,9 @@ js-sys = "0.3.102"
 k256 = "0.14.0"
 ed25519-dalek = "3.0.0"
 musig2 = "0.4.1"
+frost-secp256k1-tr = { git = "https://github.com/ZcashFoundation/frost", tag = "frost-secp256k1-tr/v3.0.0", optional = true }
+# ZF FROST v3.0.0 uses rand_core 0.6. Provide a compatible RNG source.
+rand_core06 = { package = "rand_core", version = "0.6", features = ["getrandom"], optional = true }
 pbkdf2 = "0.13.0"
 quick-xml = "0.41.0"
 rand = "0.10.0"
