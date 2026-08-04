@@ -79,6 +79,31 @@ All links below were accessed on 2026-07-22.
 - Arm: [PSA Attestation API 1.0.2](https://developer.arm.com/-/media/Files/pdf/PlatformSecurityArchitecture/Implement/IHI0085-PSA_Attestation_API-1.0.2.pdf)
   and [RFC 9783](https://www.rfc-editor.org/rfc/rfc9783.html).
 
+## Session 54 Follow-up (2026-08-03)
+
+### Progress Since PR #237 Merge
+
+**Verification audit** (full code-level audit of all 25,288 enclave LOC):
+- ✅ Nitro CBOR/COSE parser: REAL (p384 crate, P-384 ECDSA)
+- ✅ Nitro PCR validation: REAL (PCR index mapping, value comparison)
+- ✅ Ed25519 attestation signature verification: REAL (ed25519-dalek)
+- ❌ All 8 provider trust boundaries: `#[cfg(test)]` only
+- ❌ All 6 proof verifier IDs: contain "unavailable" in string names
+- ❌ `TrustAuthenticator`/`TrustVerifier` traits: zero production impls
+
+**3-Tier verifier framework built** (`src/enclave/verifiers/`):
+- `AwsNitroVerifier` — AWS Nitro Root G1 embedded, SHA-256 pinned, `ProofVerifier` trait impl
+- `Pkcs11Verifier` — Universal PKCS#11 HSM/TPM abstraction
+- `WebauthnVerifier` — FIDO2 attestation (packed/tpm/android-key/apple)
+- `OidcVerifier` — Enterprise OIDC JWT verification
+
+**Proof system extensions:**
+- `ProofVerifierStatus::Available` added
+- `VerifiedProofReceipt::from_verified_envelope()` public
+- `ConclaveError::Attestation(String)` added
+
+**Next gate:** Production `NitroCertificateTrustBoundary` implementation (P0).
+
 ## Unsupported gaps and follow-up gates
 
 The repository still needs, per provider and exact deployment scope:

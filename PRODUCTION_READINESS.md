@@ -1,7 +1,7 @@
 # Production Enablement Checklist
 
 > This is a gated checklist, not a production-readiness claim.
-> Status: Beta / conditional | Last Updated: 2026-07-26
+> Status: Beta / conditional | Last Updated: 2026-08-03
 
 The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), [machine-readable evidence](./docs/architecture/capability-evidence.json), [trust/replay foundation](./docs/architecture/TRUST_REPLAY_FOUNDATION.md), [public operations runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md), [release recovery runbook](./docs/operations/RELEASE_RECOVERY_RUNBOOK.md), and [protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.11`; `Cargo.toml` declaring `2.0.12` does not establish a supported release.
 
@@ -54,6 +54,11 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 - [x] Code quality hardening complete (issue #146)
 - [ ] Hardware-backed attestation integration and vendor evidence (P0)
 - [ ] Replay protection verified on every value-bearing path (P0/P1)
+- [ ] P0: Deployment monitoring (Prometheus/Grafana dashboards, alerting rules)
+- [ ] P0: On-call assignment and escalation policy
+- [ ] P0: Rollback drill (staged → production rollback tested)
+- [ ] P0: Exact-release evidence (SBOM, provenance, checksum publication)
+- [ ] P0: Service retention policy (log retention, key backup retention)
 - [x] Provider-neutral trust, secret-free replay, durable-replay, and release-evidence contract foundations plus focused fail-closed tests are recorded in [TRUST_REPLAY_FOUNDATION.md](./docs/architecture/TRUST_REPLAY_FOUNDATION.md) and [TRUST_REPLAY_RELEASE_CONTRACTS.md](./docs/architecture/TRUST_REPLAY_RELEASE_CONTRACTS.md); provider authentication, durable deployment, authority, promotion, and value-bearing support decisions remain open ([CON-1543](https://linear.app/conxian-labs/issue/CON-1543/p0-operationalize-attestation-roots-collateral-revocation-and), [#240](https://github.com/Conxian/conxius-enclave-sdk/issues/240))
 - [x] Typed error surface exists (`ConclaveResult`); production fail-closed behavior remains gated
 - [x] Typed value-bearing settlement containment enforces settlement purpose/domain/context, canonical six-proof authorization, process-local replay, and raw-dispatch rejection; Opportunity preflight is validation-only, the no-proof path rejects before provider key lookup, the explicit proof path stops at the unavailable production verifier, and all built-in adapter dispatch remains disabled pending a versioned wire contract and gateway compatibility evidence; this remains containment rather than provider or production evidence
@@ -151,7 +156,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 
 | ID | Priority | Status | Blocking Release |
 |----|----------|--------|------------------|
-| CON-1506 / P0 | P0 | Open — production claim and value-bearing paths blocked | Yes |
+| CON-1506 / P0 | P0 | In Progress (Session 54: Phase 3 verifier framework built. 4 backends: Nitro, PKCS#11, WebAuthn, OIDC. Blocked on production NitroCertificateTrustBoundary + crate integrations. 14 tests, 0 clippy.) | Yes |
 | CON-1506 / P1 | P1 | Open — supply chain, release, matrix, privacy, and operations evidence; implementation tracking is #199–#201 | Yes |
 | TEST-001 | P2 | Planned — broader hardware/runtime evidence | Yes for affected capability |
 | DEP-002 | P2 | Planned — unmaintained crate review | Conditional |
@@ -212,4 +217,4 @@ git push origin vX.Y.Z
 ---
 
 *Checklist maintained by: SDK Team*
-*Last reviewed: 2026-07-22*
+*Last reviewed: 2026-08-03*
