@@ -159,3 +159,45 @@ Unmasked by compilation fixes — fix them, don't skip/ignore them. Common patte
 - Tests asserting unsupported operations when the impl now exists
 - Non-deterministic BTreeMap/HashMap ordering in test helpers
 - Outdated test assertions after signature changes
+
+## Phase 1 — UCS & Multi-Chain Signing (Init 2026-08-03)
+
+Phase 1 delivers the Universal Chain Signer trait and related protocol infrastructure.
+See `docs/PHASE1_ISSUES_ROADMAP.md` for the full 11-issue breakdown.
+
+### Branch Promotion Topology
+```
+Dependabot PRs → staged (integration) → main (production)
+```
+- `staged` is the Dependabot target branch (`target-branch` in `.github/dependabot.yml`).
+- `main` is always production-ready, never receives direct commits.
+- Forward-merge `main` into `staged` after any production release to keep them aligned.
+
+### Key SDK boundaries (foundation + quarantine)
+All value-bearing protocol operations (FROST, Fedimint, Ark, BitVM2) remain fail-closed
+with `ConclaveError::ProtocolUnsupported`. The SDK provides typed identifiers,
+structural validation, and quarantine boundaries. See `docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md`.
+
+### Phase 1 dependency graph
+```
+SDK-001 (UCS Trait)
+  ├→ SDK-002 (FROST DKG)
+  ├→ SDK-003 (MuSig2)
+  ├→ SDK-004 (BIP-322 Attestation)
+  ├→ SDK-005 (Babylon Staking)
+  ├→ SDK-006 (RGB Transitions)
+  └→ SDK-007 (BIP-110)
+      └→ SDK-008 (Taproot Utils)
+          └→ SDK-009 (Test Harness)
+              └→ SDK-010 (Compatibility Matrix)
+                  └→ SDK-011 (Dependency Alignment)
+```
+
+### New module paths (to create in Phase 1)
+| Issue | Module |
+|-------|--------|
+| SDK-001 | `src/signing/ucs.rs` |
+| SDK-002 | `src/signing/threshold.rs` |
+| SDK-005 | `src/protocol/babylon.rs` |
+| SDK-006 | `src/protocol/rgb.rs` |
+| SDK-009 | `tests/harness/` |
