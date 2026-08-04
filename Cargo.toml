@@ -16,6 +16,10 @@ default = []
 development-simulators = []
 mock-cloud-enclave = ["development-simulators"]
 bip110_compliant = []
+# PKCS#11 HSM/TPM integration via rust-cryptoki.
+# Gate value-bearing PKCS#11 operations. Without this feature,
+# Pkcs11Verifier methods return ProtocolUnsupported.
+cryptoki = ["dep:cryptoki"]
 # FROST threshold signing backed by ZF FROST (frost-secp256k1-tr v3.0.0).
 # Gates value-bearing FROST operations. Without this feature, FROST
 # boundary types validate structurally but return ProtocolUnsupported
