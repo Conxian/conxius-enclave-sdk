@@ -19,7 +19,9 @@ pub struct StatechainSigner<'a, S: UniversalChainSigner> {
 }
 
 impl<'a, S: UniversalChainSigner> StatechainSigner<'a, S> {
-    pub fn new(signer: &'a S) -> Self { Self { signer } }
+    pub fn new(signer: &'a S) -> Self {
+        Self { signer }
+    }
 
     /// Sign a statechain transfer commitment.
     pub fn sign_transfer(
@@ -33,7 +35,8 @@ impl<'a, S: UniversalChainSigner> StatechainSigner<'a, S> {
         // The operator set is validated structurally but signing currently
         // goes through single-key Taproot (operator threshold via FROST
         // is a Phase 3 concern).
-        self.signer.sign_bitcoin_taproot(vutxo_commitment, derivation_path, key_id, None)
+        self.signer
+            .sign_bitcoin_taproot(vutxo_commitment, derivation_path, key_id, None)
     }
 
     /// Sign a statechain backup transaction.
@@ -43,7 +46,8 @@ impl<'a, S: UniversalChainSigner> StatechainSigner<'a, S> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        self.signer.sign_bitcoin_taproot(backup_tx_hash, derivation_path, key_id, None)
+        self.signer
+            .sign_bitcoin_taproot(backup_tx_hash, derivation_path, key_id, None)
     }
 }
 

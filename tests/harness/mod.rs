@@ -7,9 +7,7 @@
 //! # SDK-009
 //! See `docs/PHASE1_ISSUES_ROADMAP.md` for acceptance criteria.
 
-use conxius_enclave_sdk::enclave::{
-    EnclaveManager, SignRequest, SignResponse,
-};
+use conxius_enclave_sdk::enclave::{EnclaveManager, SignRequest, SignResponse};
 use conxius_enclave_sdk::signing::ucs::{EnclaveUniversalSigner, UniversalChainSigner};
 use conxius_enclave_sdk::ConclaveError;
 use conxius_enclave_sdk::ConclaveResult;
@@ -29,7 +27,8 @@ pub struct HarnessEnclave {
 impl HarnessEnclave {
     pub fn new() -> Self {
         Self {
-            public_key_hex: "02deadbeefcafebabedeadbeefcafebabedeadbeefcafebabedeadbeefcafebabe".into(),
+            public_key_hex: "02deadbeefcafebabedeadbeefcafebabedeadbeefcafebabedeadbeefcafebabe"
+                .into(),
         }
     }
 
@@ -136,8 +135,7 @@ mod tests {
 
     #[test]
     fn assert_unsupported_accepts_unsupported_error() {
-        let result: ConclaveResult<String> =
-            Err(ConclaveError::Unsupported("test".into()));
+        let result: ConclaveResult<String> = Err(ConclaveError::Unsupported("test".into()));
         assert_unsupported(result);
     }
 

@@ -16,7 +16,9 @@ pub struct ZkmlSigner<'a, S: UniversalChainSigner> {
 }
 
 impl<'a, S: UniversalChainSigner> ZkmlSigner<'a, S> {
-    pub fn new(signer: &'a S) -> Self { Self { signer } }
+    pub fn new(signer: &'a S) -> Self {
+        Self { signer }
+    }
 
     /// Sign a ZKML proof commitment for on-chain verification.
     ///
@@ -28,7 +30,8 @@ impl<'a, S: UniversalChainSigner> ZkmlSigner<'a, S> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        self.signer.sign_bitcoin_taproot(proof_hash, derivation_path, key_id, None)
+        self.signer
+            .sign_bitcoin_taproot(proof_hash, derivation_path, key_id, None)
     }
 
     /// Sign a ZKML model registration.
@@ -41,7 +44,8 @@ impl<'a, S: UniversalChainSigner> ZkmlSigner<'a, S> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        self.signer.sign_bitcoin_taproot(model_commitment, derivation_path, key_id, None)
+        self.signer
+            .sign_bitcoin_taproot(model_commitment, derivation_path, key_id, None)
     }
 
     /// Sign an Ethereum-bound ZKML verification result.
@@ -54,7 +58,8 @@ impl<'a, S: UniversalChainSigner> ZkmlSigner<'a, S> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        self.signer.sign_ethereum(verification_digest, derivation_path, key_id)
+        self.signer
+            .sign_ethereum(verification_digest, derivation_path, key_id)
     }
 }
 

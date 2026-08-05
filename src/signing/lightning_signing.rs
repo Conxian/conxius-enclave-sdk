@@ -12,7 +12,9 @@ pub struct LightningSigner<'a, S: UniversalChainSigner> {
 }
 
 impl<'a, S: UniversalChainSigner> LightningSigner<'a, S> {
-    pub fn new(signer: &'a S) -> Self { Self { signer } }
+    pub fn new(signer: &'a S) -> Self {
+        Self { signer }
+    }
 
     /// Sign a BOLT 12 offer.
     ///
@@ -24,7 +26,8 @@ impl<'a, S: UniversalChainSigner> LightningSigner<'a, S> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        self.signer.sign_bitcoin_taproot(offer_digest, derivation_path, key_id, None)
+        self.signer
+            .sign_bitcoin_taproot(offer_digest, derivation_path, key_id, None)
     }
 
     /// Sign a BIP-353 Human Readable Name resolution.
@@ -36,7 +39,8 @@ impl<'a, S: UniversalChainSigner> LightningSigner<'a, S> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        self.signer.sign_bitcoin_taproot(name_hash, derivation_path, key_id, None)
+        self.signer
+            .sign_bitcoin_taproot(name_hash, derivation_path, key_id, None)
     }
 
     /// Sign an LNURL-auth challenge.
@@ -50,7 +54,8 @@ impl<'a, S: UniversalChainSigner> LightningSigner<'a, S> {
         key_id: &str,
     ) -> ConclaveResult<String> {
         // LNURL-auth uses legacy ECDSA (not Taproot)
-        self.signer.sign_bitcoin_ecdsa(challenge, derivation_path, key_id)
+        self.signer
+            .sign_bitcoin_ecdsa(challenge, derivation_path, key_id)
     }
 
     /// Sign a Lightning commitment transaction.
@@ -60,7 +65,8 @@ impl<'a, S: UniversalChainSigner> LightningSigner<'a, S> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        self.signer.sign_bitcoin_taproot(commitment_sighash, derivation_path, key_id, None)
+        self.signer
+            .sign_bitcoin_taproot(commitment_sighash, derivation_path, key_id, None)
     }
 }
 

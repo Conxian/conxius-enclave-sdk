@@ -57,15 +57,17 @@ impl WasmSigningRuntime {
         enclave: &dyn crate::enclave::EnclaveManager,
         request_json: &str,
     ) -> ConclaveResult<String> {
-        let req: WasmSignRequest = serde_json::from_str(request_json)
-            .map_err(|e| crate::ConclaveError::Unsupported(format!("wasm: invalid request: {}", e)))?;
+        let req: WasmSignRequest = serde_json::from_str(request_json).map_err(|e| {
+            crate::ConclaveError::Unsupported(format!("wasm: invalid request: {}", e))
+        })?;
 
         let ucs = EnclaveUniversalSigner::new(enclave);
         let message: [u8; 32] = Self::decode_hex_32(&req.message_hex)?;
 
         let signature_hex = match req.chain.as_str() {
             "bitcoin:taproot" => {
-                let merkle_root = req.merkle_root_hex
+                let merkle_root = req
+                    .merkle_root_hex
                     .map(|h| Self::decode_hex_32(&h))
                     .transpose()?;
                 ucs.sign_bitcoin_taproot(message, &req.derivation_path, &req.key_id, merkle_root)?
@@ -73,22 +75,15 @@ impl WasmSigningRuntime {
             "bitcoin:ecdsa" => {
                 ucs.sign_bitcoin_ecdsa(message, &req.derivation_path, &req.key_id)?
             }
-            "ethereum" => {
-                ucs.sign_ethereum(message, &req.derivation_path, &req.key_id)?
-            }
-            "solana" => {
-                ucs.sign_solana(message, &req.derivation_path, &req.key_id)?
-            }
-            "stacks" => {
-                ucs.sign_stacks(message, &req.derivation_path, &req.key_id)?
-            }
-            "babylon" => {
-                ucs.sign_babylon(message, &req.derivation_path, &req.key_id)?
-            }
+            "ethereum" => ucs.sign_ethereum(message, &req.derivation_path, &req.key_id)?,
+            "solana" => ucs.sign_solana(message, &req.derivation_path, &req.key_id)?,
+            "stacks" => ucs.sign_stacks(message, &req.derivation_path, &req.key_id)?,
+            "babylon" => ucs.sign_babylon(message, &req.derivation_path, &req.key_id)?,
             other => {
-                return Err(crate::ConclaveError::Unsupported(
-                    format!("wasm: unknown chain: {}", other),
-                ));
+                return Err(crate::ConclaveError::Unsupported(format!(
+                    "wasm: unknown chain: {}",
+                    other
+                )));
             }
         };
 
@@ -105,8 +100,9 @@ impl WasmSigningRuntime {
         enclave: &dyn crate::enclave::EnclaveManager,
         request_json: &str,
     ) -> ConclaveResult<String> {
-        let req: WasmPublicKeyRequest = serde_json::from_str(request_json)
-            .map_err(|e| crate::ConclaveError::Unsupported(format!("wasm: invalid request: {}", e)))?;
+        let req: WasmPublicKeyRequest = serde_json::from_str(request_json).map_err(|e| {
+            crate::ConclaveError::Unsupported(format!("wasm: invalid request: {}", e))
+        })?;
 
         let public_key_hex = enclave.get_public_key(&req.derivation_path)?;
         let resp = WasmPublicKeyResponse {
@@ -121,9 +117,10 @@ impl WasmSigningRuntime {
         let bytes = hex::decode(hex_str)
             .map_err(|e| crate::ConclaveError::Unsupported(format!("wasm: invalid hex: {}", e)))?;
         if bytes.len() != 32 {
-            return Err(crate::ConclaveError::Unsupported(
-                format!("wasm: expected 32 bytes, got {}", bytes.len()),
-            ));
+            return Err(crate::ConclaveError::Unsupported(format!(
+                "wasm: expected 32 bytes, got {}",
+                bytes.len()
+            )));
         }
         let mut arr = [0u8; 32];
         arr.copy_from_slice(&bytes);
