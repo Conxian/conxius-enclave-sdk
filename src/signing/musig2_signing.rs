@@ -76,7 +76,7 @@ mod tests {
     fn musig2_signer_constructs() {
         let signer = MuSig2Signer::new();
         let _ = signer;
-        let _ = MuSig2Signer::default();
+        let _ = MuSig2Signer;
     }
 
     #[test]

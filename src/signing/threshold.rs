@@ -236,7 +236,7 @@ mod tests {
 
     #[test]
     fn frost_signer_default_constructs() {
-        let signer = FrostThresholdSigner::default();
+        let signer = FrostThresholdSigner;
         let _ = signer.dkg_round1(b"test", 3, 2);
     }
 

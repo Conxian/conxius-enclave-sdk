@@ -80,7 +80,7 @@ impl NitroCertificateTrustBoundary for AwsNitroTrustBoundary {
         // Collect and validate the CA bundle chain
         let ca_certs: Vec<Certificate> = document
             .ca_bundle_root_first()
-            .map(|der| Certificate::from_der(der))
+            .map(Certificate::from_der)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| NitroError::InvalidCaBundle)?;
 

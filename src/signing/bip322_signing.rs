@@ -89,9 +89,8 @@ mod tests {
             "invalid",
         );
         // May be Ok(false) or Err depending on network validation
-        match result {
-            Ok(valid) => assert!(!valid),
-            Err(_) => {} // also acceptable
+        if let Ok(valid) = result {
+            assert!(!valid);
         }
     }
 }
