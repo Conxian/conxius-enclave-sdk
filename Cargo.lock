@@ -1732,7 +1732,7 @@ dependencies = [
 
 [[package]]
 name = "conxius-enclave-sdk"
-version = "2.0.15"
+version = "2.0.14"
 dependencies = [
  "aes",
  "aes-gcm",
