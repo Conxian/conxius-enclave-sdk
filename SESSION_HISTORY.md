@@ -6,7 +6,7 @@
 - Core adapter (lib-conxian-core) SDK dep aligned from =2.0.11 to git tag v2.0.14
 - All 28 core adapter tests pass against v2.0.14
 - Updated all KB artifacts (NEXT_SESSION_PLAN, SESSION_HISTORY, AGENTS.md, DEBT_INVENTORY, PRODUCTION_READINESS, TRACKING)
-- Next session plan: Session 56 focuses on live Nitro deployment evidence
+- Next session plan: Session 58 focuses on live Nitro deployment evidence, distributed replay design, and core adapter integration
 
 ### Verification
 - `cargo check` clean (SDK + core adapter)

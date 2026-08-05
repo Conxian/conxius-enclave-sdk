@@ -1,25 +1,28 @@
 # Conclave SDK Branches Index
 
-> Auto-generated from GitHub. Last sync: 2026-07-13 05:28:59
-
-## Local Branches
-* master
+> Auto-generated from GitHub. Last sync: 2026-08-05 (Session 57)
 
 ## Remote Branches
-  origin/chore/strict-cicd-baseline-hardening
-  origin/fix/pr-821-ci-blockers-enclave
-  origin/jules/v0.2.8-universal-settlement-hardening-17006512469984467756
-  origin/main
+  origin/main — Production branch (PR #287 merged)
+  origin/staged — Dependabot integration branch
+  origin/chore/bump-2.0.15-session-57 — Session 57 clippy/lint fixes (merged → main)
+  origin/promote/staged-to-main-session-57 — staged → main promotion PR #288
 
 ## Active Feature Branches
 
 | Branch | Description | Status |
 |--------|-------------|--------|
-| origin/main | Main development branch | ACTIVE |
-| origin/chore/strict-cicd-baseline-hardening | CI/CD hardening work | OPEN |
-| origin/fix/pr-821-ci-blockers-enclave | CI blockers fix | OPEN |
-| origin/jules/v0.2.8-universal-settlement-hardening-* | Settlement hardening | OPEN |
+| origin/main | Production branch | ACTIVE |
+| origin/staged | Dependabot integration | ACTIVE |
+| origin/chore/bump-2.0.15-session-57 | Session 57 fixes | MERGED |
+| origin/promote/staged-to-main-session-57 | CI bump rollup | PR #288 OPEN |
+
+## Branch Promotion Topology
+```
+Dependabot PRs → staged (integration) → main (production)
+```
 
 ## Branch Protection
 - **main**: Requires PR reviews, status checks, up-to-date before merge
+- **staged**: Dependabot target branch for automated dependency bumps
 

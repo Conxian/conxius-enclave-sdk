@@ -127,7 +127,7 @@ cargo publish --locked --dry-run
 .github/scripts/verify-registry-artifact.sh X.Y.Z <crate> <checksum> <output-json>
 ```
 
-The current repository metadata declares `2.0.12`, while the latest visible release/tag evidence remains `v2.0.11`. PR #213 and this follow-up improve repository controls only; they do not create a tag, publish a package, establish live `2.0.12` registry evidence, close issue #199, or satisfy the independent release-acceptance gate in issue #202.
+The current repository metadata declares `2.0.15`, with the latest visible release/tag evidence at `v2.0.14`. Release controls and SBOM infrastructure are in place via `release-strict.yml`; issue #199 (tagged release with SBOM + provenance) remains open pending live Nitro deployment evidence.
 
 ## Mainnet Readiness and Security
 

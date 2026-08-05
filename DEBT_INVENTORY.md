@@ -56,12 +56,11 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Recommendation**: Pin to stable versions as they become available; monitor upstream releases
 - **Tracking**: Monitor RustSec advisories for these crates
 
-#### DOC-001: No Published Releases
+#### DOC-001: No Published Releases ✅ RESOLVED (2026-07-14)
 - **Category**: Documentation
 - **Priority**: P1
 - **Description**: README states "no published GitHub releases" but CHANGELOG documents releases
-- **Impact**: Confusing for new developers, misalignment between documentation and reality
-- **Recommendation**: Publish v2.0.7 as first release, update README status
+- **Resolution**: v2.0.14 now tagged; Cargo.toml at 2.0.15. Active release process.
 - **Related Issue**: #154
 
 #### SEC-002: Real Provider Verifier and Signer Integration
@@ -170,9 +169,9 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 | DOC-001 | 2026-07-08 | v2.0.7 release | ✅ Resolved | 2026-07-14 |
 | DEP-002 | 2026-07-08 | Q3 2026 | Planned | 2026-07-14 |
 | TEST-001 | 2026-07-08 | Hardware/provider evidence | Reclassified — simulation/unit evidence only; #195 open | 2026-07-20 |
-| SEC-002 | 2026-07-21 | Real provider verifier/signer | In Progress — Phase 3 verifier framework built (4 backends, 14 tests); blocked on NitroCertificateTrustBoundary (P0), cryptoki (P1), jsonwebtoken (P1), webauthn-rs (P2) | 2026-08-04 |
-| SEC-003 | 2026-07-21 | Distributed replay authorization | In Progress — Phase 3 verifier framework built (4 backends, 14 tests); distributed replay design planned for Session 56 | 2026-08-04 |
-| SEC-004 | 2026-07-21 | Provider-specific proof verification | In Progress — Phase 3 verifier framework built (4 backends, 14 tests); blocked on NitroCertificateTrustBoundary (P0), cryptoki (P1), jsonwebtoken (P1), webauthn-rs (P2) | 2026-08-04 |
+| SEC-002 | 2026-07-21 | Real provider verifier/signer | In Progress — 4 backends wired (Nitro, PKCS#11, WebAuthn, OIDC); blocked on live Nitro deployment evidence (P0), core adapter integration (P0) | 2026-08-05 |
+| SEC-003 | 2026-07-21 | Distributed replay authorization | In Progress — design planned for Session 58; backend selection pending (DynamoDB vs PostgreSQL) | 2026-08-05 |
+| SEC-004 | 2026-07-21 | Provider-specific proof verification | In Progress — 4 backends wired; blocked on live Nitro deployment evidence (P0), independent review (#202) | 2026-08-05 |
 | EVID-001 | 2026-07-21 | Provider/runtime/artifact evidence | In Progress — Phase 3 verifier framework built (4 backends, 14 tests); real provider/runtime evidence still open; #199/#200/#202 open | 2026-08-04 |
 | SEC-001 | 2026-07-12 | Structural FROST validation | ✅ Resolved (structural validation only; production cryptography open) | 2026-07-20 |
 | DOC-003 | 2026-07-08 | CHANGELOG [Unreleased] | ✅ Resolved | 2026-07-14 |

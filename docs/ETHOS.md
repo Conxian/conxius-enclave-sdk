@@ -9,7 +9,7 @@
 4. **The Sovereign Bridge**: Our transition path from "Legacy Rails" (Visa/Mastercard) to "Sovereign Rails" (Bitcoin/L2). We bridge traditional liquidity into hardware-secure zones with zero metadata leak.
 
 ## Strategic Alignment
-As of May 2026, Conxian has pivoted to an **SDK-first GTM strategy**.
+As of August 2026, Conxian has pivoted to an **SDK-first GTM strategy**.
 
 - **Primary Goal**: Empower developers to build secure, native Bitcoin applications using the Conclave SDK.
 - **Industrial Intent (x402)**: Expanding into autonomous B2B payments by bridging ERP systems (SAP, Oracle) directly to Bitcoin settlement.
