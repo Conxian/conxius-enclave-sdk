@@ -683,10 +683,7 @@ impl FrostSigningContext {
     ///
     /// The report must already have been validated against the active
     /// [`AttestationPolicy`] before being passed here.
-    pub fn set_attestation(
-        &mut self,
-        report: crate::enclave::attestation::DeviceIntegrityReport,
-    ) {
+    pub fn set_attestation(&mut self, report: crate::enclave::attestation::DeviceIntegrityReport) {
         self.last_attestation = Some(report);
     }
 
