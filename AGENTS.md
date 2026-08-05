@@ -218,7 +218,7 @@ Four verifier backends built per the 3-tier user architecture blueprint:
 | Tier | Verifier | File | Status |
 |------|----------|------|--------|
 | Cloud TEE/HSM | `AwsNitroVerifier` | `src/enclave/verifiers/nitro_verifier.rs` | ✅ Available. `AwsNitroTrustBoundary` (production), X.509 chain validation, Root CA pinned. |
-| On-Premise | `Pkcs11Verifier` | `src/enclave/verifiers/pkcs11_verifier.rs` | Structural API (slot enum, key discovery, sign/verify). **Blocked**: `cryptoki` crate not in Cargo.toml. |
+| On-Premise | `Pkcs11Verifier` | `src/enclave/verifiers/pkcs11_verifier.rs` | ✅ Available. `cryptoki` v0.10 wired behind feature flag. Full PKCS#11 API: enumerate_slots, discover_keys, sign, verify, get_public_key, is_hardware_backed. Mechanism mapping: ECDSA, EdDSA, RSA. |
 | Endpoint | `WebauthnVerifier` | `src/enclave/verifiers/webauthn_verifier.rs` | Structural API (packed/tpm/android-key/apple attestation). Hardware tier classification. **Blocked**: `webauthn-rs` crate not in Cargo.toml. |
 | Cross-cutting | `OidcVerifier` | `src/enclave/verifiers/oidc_verifier.rs` | ✅ Available. `jsonwebtoken` v9 wired. JWT signature verification (RSA/EC), JWK kid matching, claim validation (iss/aud/exp/nonce) all working. |
 

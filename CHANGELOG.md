@@ -18,6 +18,8 @@
 - 14 verifier tests
 - OIDC JWT verification: `jsonwebtoken` v9 wired, RSA/EC signature verification, JWK kid matching
 - `Jwk` struct for OIDC JWK representation (RSA + EC)
+- PKCS#11 HSM/TPM integration: `cryptoki` v0.10 wired behind feature flag, full PKCS#11 API surface
+- `secrecy` v0.8 for PKCS#11 PIN management
 
 ### Changed
 - `AwsNitroVerifier::status()` now returns `Available` (was `Unavailable`)
