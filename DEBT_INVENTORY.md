@@ -88,7 +88,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Risk**: Research specifications or typed taxonomy could be mistaken for an authenticated TLS/WebAuthn/FIDO/TPM/mobile/TEE provider claim.
 - **Session 57 Progress (2026-08-05)**: Phase 3 verifier framework built with 4 backends (Nitro, PKCS#11, WebAuthn, OIDC). All verifiers implement the `ProofVerifier` trait. 14 verifier tests pass. Verifier framework complete (Session 55-57). Blocked on: live Nitro deployment evidence (P0), core adapter integration (P0), distributed replay (P1).
 - **Recommendation**: Select one provider scope at a time, implement its authenticated verifier and exact policy namespace, add official vectors and provider-backed negative tests, then attach CI, independent-review, provenance, and release-artifact evidence.
-- **Tracking**: [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#199](https://github.com/Conxian/conxius-enclave-sdk/issues/199), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202)
+- **Tracking**: [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202)
 
 #### EVID-001: Provider, Runtime, and Artifact Evidence
 - **Category**: Testing
@@ -97,7 +97,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Risk**: A green local or CI build could be misread as hardware, runtime, deployment, or release evidence.
 - **Session 57 Progress (2026-08-05)**: Phase 3 verifier framework built with 4 backends (Nitro, PKCS#11, WebAuthn, OIDC). All verifiers implement the `ProofVerifier` trait. 14 verifier tests pass. Verifier framework complete (Session 55-57). Blocked on: live Nitro deployment evidence (P0), core adapter integration (P0), distributed replay (P1).
 - **Recommendation**: Attach exact provider/runtime test results, reviewed artifact digests, provenance/SBOM, independent findings, and a scoped support decision before promotion.
-- **Tracking**: [#199](https://github.com/Conxian/conxius-enclave-sdk/issues/199), [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202)
+- **Tracking**: [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202)
 
 ### P2 - High
 
@@ -172,12 +172,13 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 | SEC-002 | 2026-07-21 | Real provider verifier/signer | In Progress — 4 backends wired (Nitro, PKCS#11, WebAuthn, OIDC); blocked on live Nitro deployment evidence (P0), core adapter integration (P0) | 2026-08-05 |
 | SEC-003 | 2026-07-21 | Distributed replay authorization | In Progress — design planned for Session 58; backend selection pending (DynamoDB vs PostgreSQL) | 2026-08-05 |
 | SEC-004 | 2026-07-21 | Provider-specific proof verification | In Progress — 4 backends wired; blocked on live Nitro deployment evidence (P0), independent review (#202) | 2026-08-05 |
-| EVID-001 | 2026-07-21 | Provider/runtime/artifact evidence | In Progress — Phase 3 verifier framework built (4 backends, 14 tests); real provider/runtime evidence still open; #199/#200/#202 open | 2026-08-04 |
+| EVID-001 | 2026-07-21 | Provider/runtime/artifact evidence | In Progress — Phase 3 verifier framework built (4 backends, 14 tests); real provider/runtime evidence still open; #200/#202 open | 2026-08-05 |
 | SEC-001 | 2026-07-12 | Structural FROST validation | ✅ Resolved (structural validation only; production cryptography open) | 2026-07-20 |
 | DOC-003 | 2026-07-08 | CHANGELOG [Unreleased] | ✅ Resolved | 2026-07-14 |
 | ARCH-001 | 2026-07-14 | Runtime/platform/secret boundary | Reclassified — API inventory only; #200 open | 2026-07-20 |
 | DOC-002 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
 | CI-001 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
+| PROTO-001 | 2026-07-08 | FROST/BitVM2/DLC/CCTP/Covenant hardened; Fedimint real crypto | In Progress — 6/7 sub-items resolved; Fedimint still structural-only | 2026-08-05 |
 | BIP-110 | 2026-07-15 | v2.0.13 | ✅ Resolved | 2026-07-15 |
 
 ## Resolved Debt

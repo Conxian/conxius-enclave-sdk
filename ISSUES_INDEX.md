@@ -9,8 +9,8 @@
 ## Summary
 - **Total Issues**: 23
 - **Open Issues**: 6
-- **Closed Issues**: 14
-- **Resolved in Code (pending GitHub update)**: 3 (#196, #198, #199)
+- **Closed Issues**: 17
+- **Resolved in Code (GitHub closed Session 57)**: 3 (#196, #198, #199)
 
 ## Open Issues (verified against code 2026-08-05)
 

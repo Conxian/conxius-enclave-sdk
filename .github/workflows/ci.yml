@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, staged ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, staged ]
+  workflow_dispatch:
 
 # NO SKIP: Do not cancel in-progress CI runs
 concurrency:

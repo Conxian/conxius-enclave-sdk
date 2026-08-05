@@ -2,9 +2,9 @@ name: Security
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, staged ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, staged ]
   schedule:
     - cron: "31 2 * * 1"
   workflow_dispatch:

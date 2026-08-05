@@ -36,16 +36,16 @@ This document provides a comprehensive overview of the repository status, includ
 
 The current implementation and acceptance backlog already exists as GitHub issues [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) through [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202). This map is a navigation aid only; it does not create, reopen, or duplicate issues.
 
-| GitHub issue | Evidence gate |
-| --- | --- |
-| [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) | Hardware-backed signing and mandatory attestation |
-| [#196](https://github.com/Conxian/conxius-enclave-sdk/issues/196) | Canonical Bitcoin and Ethereum verification/derivation |
-| [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197) | Threshold and settlement placeholder quarantine |
-| [#198](https://github.com/Conxian/conxius-enclave-sdk/issues/198) | CCTP, account abstraction, and asset metadata fail-closed behavior |
-| [#199](https://github.com/Conxian/conxius-enclave-sdk/issues/199) | Reproducible toolchain, dependencies, release, SBOM, and provenance evidence |
-| [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200) | WASM secret boundary and runtime/platform evidence |
-| [#201](https://github.com/Conxian/conxius-enclave-sdk/issues/201) | Telemetry privacy, monitoring, and public-safe runbooks |
-| [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) | Independent security review and exact release acceptance |
+| GitHub issue | Evidence gate | Status |
+| --- | --- | --- |
+| [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) | Hardware-backed signing and mandatory attestation | In Progress |
+| [#196](https://github.com/Conxian/conxius-enclave-sdk/issues/196) | Canonical Bitcoin and Ethereum verification/derivation | ✅ Resolved (#255, #277, Session 57) |
+| [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197) | Threshold and settlement placeholder quarantine | In Progress (Fedimint structural-only) |
+| [#198](https://github.com/Conxian/conxius-enclave-sdk/issues/198) | CCTP, account abstraction, and asset metadata fail-closed behavior | ✅ Resolved (#212, #277, Session 57) |
+| [#199](https://github.com/Conxian/conxius-enclave-sdk/issues/199) | Reproducible toolchain, dependencies, release, SBOM, and provenance evidence | ✅ Resolved (tag v2.0.14, SBOM workflow, Session 57) |
+| [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200) | WASM secret boundary and runtime/platform evidence | In Progress |
+| [#201](https://github.com/Conxian/conxius-enclave-sdk/issues/201) | Telemetry privacy, monitoring, and public-safe runbooks | In Progress |
+| [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) | Independent security review and exact release acceptance | In Progress |
 
 ### Issue #195 (HW Attestation) — Session 54 Status
 

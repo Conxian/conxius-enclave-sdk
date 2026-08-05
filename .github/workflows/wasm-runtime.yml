@@ -1,10 +1,10 @@
-name: WASM Runtime Evidence
+name: Generated WASM Runtime Lanes
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, staged ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, staged ]
   workflow_dispatch:
 
 concurrency:
