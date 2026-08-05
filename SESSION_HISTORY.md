@@ -1,6 +1,23 @@
+## Session 57 (2026-08-05) — Version alignment & cross-repo sync
+
+### Changes
+- Bumped Cargo.toml version 2.0.12 → 2.0.15
+- Converted [Unreleased] CHANGELOG → [2.0.15]
+- Core adapter (lib-conxian-core) SDK dep aligned from =2.0.11 to git tag v2.0.14
+- All 28 core adapter tests pass against v2.0.14
+- Updated all KB artifacts (NEXT_SESSION_PLAN, SESSION_HISTORY, AGENTS.md, DEBT_INVENTORY, PRODUCTION_READINESS, TRACKING)
+- Next session plan: Session 56 focuses on live Nitro deployment evidence
+
+### Verification
+- `cargo check` clean (SDK + core adapter)
+- `cargo test` 229 total passing (all workspaces)
+- 4 verifier backends operational (Nitro, PKCS#11, OIDC, WebAuthn)
+
+---
+
 # Session History
 
-> **Last Updated**: 2026-07-22 | **Agent Version**: v0.4.2
+> **Last Updated**: 2026-08-05 | **Agent Version**: v0.6.0
 
 This document tracks what was accomplished in previous sessions so future agents can continue the work seamlessly.
 

@@ -1,7 +1,7 @@
 # Conclave SDK Issues Index
 
 > Auto-generated from GitHub. Last sync: 2026-07-21T03:52:30Z
-> **Manual update:** 2026-08-03 (Session 53 sprint review)
+> **Manual update:** 2026-08-05 (Session 53 sprint review)
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
@@ -12,7 +12,7 @@
 - **Closed Issues**: 14
 - **Resolved in Code (pending GitHub update)**: 3 (#196, #198, #199)
 
-## Open Issues (verified against code 2026-08-03)
+## Open Issues (verified against code 2026-08-05)
 
 - [ ] [**#202**](https://github.com/Conxian/conxius-enclave-sdk/issues/202): [P0] Complete independent security review and release acceptance evidence
   - Labels: documentation, release, provenance, quality, priority-critical

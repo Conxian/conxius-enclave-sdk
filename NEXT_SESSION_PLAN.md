@@ -1,68 +1,95 @@
 # Next Session Plan
 
 > **For**: OpenHands AI Agent  
-> **Context**: Continuing Conclave SDK v2.0.12 development  
+> **Context**: Continuing Conclave SDK v2.0.15 development  
 > **Priority Order**: Remaining P0 gates → P1 → P2
-> **Knowledge Base**: v0.5.0 (Session 53, Aug 2026)
-> **Last Session**: Session 53 — ROAST coordinator, BitVM2 Groth16, module catalog, CI fix
+> **Knowledge Base**: v0.6.0 (Session 55-57, Aug 2026)
+> **Last Session**: Session 57 — FROST attestation gating, version bump to 2.0.15
 
 ---
 
-## Session 55 — Planned (2026-08-05)
+## Session 56 — Planned (2026-08-05)
 
-### P0: Unblock AwsNitroVerifier
-- Implement production `NitroCertificateTrustBoundary` connected to AWS Nitro PKI
-- Wire into `ProofVerifierRegistry::production()`
-- Integration test: parse real attestation doc → verify chain → verify COSE → validate PCRs → produce VerifiedProofReceipt
+### P0: Live Nitro Enclave Deployment Evidence
+- Deploy SDK enclave binary to AWS Nitro instance (via lib-conxian-core Nitro CI)
+- Run `AwsNitroVerifier.verify()` against real attestation document
+- Capture: attestation doc → X.509 chain → COSE → PCR validation → `VerifiedProofReceipt`
+- Store as CI artifact with SHA-256 digest
 
-### P1: Wire PKCS#11 + OIDC
-- Add `cryptoki` crate to Cargo.toml → wire Pkcs11Verifier sign/verify
-- Add `jsonwebtoken` crate → wire OidcVerifier JWT verification
-- Integration tests for both
+### P0: Core Adapter ↔ SDK v2.0.14+ Integration
+- The core adapter now pins SDK v2.0.14 (git tag), up from =2.0.11
+- Wire adapter's `CoreEnclaveAdapter` to use `ProofVerifierRegistry::production()`
+- Test: adapter → `AwsNitroVerifier` → real attestation → verified receipt
+- Compatibility: 28 adapter tests pass with v2.0.14 (verified 2026-08-05)
 
-### P2: Wire WebAuthn + FROST
-- Add `webauthn-rs` crate → wire WebauthnVerifier attestation verification
-- FROST ceremony attestation gating (per docs/salvage/FROST_TREASURY_INTEGRATION.md)
+### P1: Distributed Replay Design
+- Select backend: DynamoDB (preferred for Nitro co-location) or PostgreSQL
+- Design `ReplayStore` trait with conditional-write primitive
+- Binding-key schema, trusted-clock source, TTL boundary
+- Document in `docs/architecture/DURABLE_REPLAY_CONFORMANCE.md`
+
+### P1: CARGO_REGISTRY_TOKEN + Tagged Release
+- Configure `$CARGO_REGISTRY_TOKEN` in GitHub `release` environment
+- Tag v2.0.15, run `release-strict.yml`
+- Verify: crates.io publication, GH release, SBOM, provenance
+
+### P2: Full Workspace `cargo test --all-features`
+- Run frost-crypto, cryptoki, webauthn feature gates together
+- Fix any compilation errors from feature interaction
+- Verify all verifier tests pass with real backends
+
+### P2: Fedimint + Groth16 Deferral Decision
+- Fedimint: Document as deferred (no audited Fedimint crypto impl available)
+- Groth16: Document as deferred (no audited BLS12-381 ZK pairing backend for WASM)
 
 ### Housekeeping
-- Execute v2.0.12 release (tag, workflow, crates.io)
-- Verify Dependabot #6 auto-closes on re-scan
-- Close out Session 54 open items
+- Bump Cargo.toml to 2.0.15 (done: 2026-08-05)
+- Update all KB artifacts (NEXT_SESSION_PLAN, SESSION_HISTORY, AGENTS.md, DEBT_INVENTORY, PRODUCTION_READINESS, TRACKING)
+- Core adapter SDK dep aligned to v2.0.14 (done: 2026-08-05)
 
 ---
 
-## Session 53 Completed (2026-08-03)
+## Session 55-57 Completed (2026-08-03 → 2026-08-05)
 
-### ✅ #213 — ROAST Coordinator in Nexus
-- `src/protocol/nexus/roast.rs` (451 lines): RoastCoordinator, RoastSigningSession, RoastExclusionList, RoastRoundOutcome
-- Manages FROST signing sessions with malicious-signer robustness
-- 8 unit tests; structural validation without `frost-crypto`; delegates to FrostSigningContext when enabled
+### ✅ P0: AwsNitroVerifier Unblocked (Session 55)
+- `NitroCertificateTrustBoundary` connected to AWS Nitro PKI (`a6772fc`)
+- Wired into `ProofVerifierRegistry::production()`
+- X.509 chain validation against Nitro Root CA G1
 
-### ✅ #267 — BitVM2 Groth16 Proof Verification (P0)
-- `src/protocol/bitvm2.rs` (+230 lines): BitVm2Groth16Proof (A/B/C BLS12-381), BitVm2Groth16VerificationKey, BitVm2Groth16PublicInputs, BitVm2Groth16Verifier
-- Verifier returns `VerificationUnavailable` without audited ZK pairing backend
-- 5 unit tests covering proof/VK/input validation
+### ✅ P1: PKCS#11 + OIDC Verifiers Wired (Session 55-56)
+- `cryptoki` v0.10 feature flag → Pkcs11Verifier sign/verify (`c460bd0`)
+- `jsonwebtoken` v10 → OidcVerifier JWT verification, JWK kid matching (`5850619`)
+- `secrecy` v0.8 for PKCS#11 PIN management
 
-### ✅ #274 — AGENTS.md Module Catalog Update
-- 47→50 modules: bip110 added to Blockchain (21→22), zkml added to Cross-cutting (15→16), roast added to Nexus (1→2)
+### ✅ P2: WebAuthn + FROST Attestation Gating (Session 55-57)
+- `webauthn-rs` v0.5 feature flag → WebauthnVerifier attestation (`cc98177`)
+- FROST DKG/signing gated behind enclave attestation policy (`1a2199c`)
 
-### 🔧 CI Fix — ConclaveError::Protocol → CryptoError
-- 26 instances across `frost.rs` (13) and `roast.rs` (3). Variant did not exist in enum.
-- Fixes `cargo test --all-features` compilation failure with `frost-crypto` enabled
+### ✅ CVE Patches
+- Dependabot #6: playwright 1.54.2 → 1.55.1 (CVE-2025-59288)
+- Dependabot #7: jsonwebtoken 9 → 10 (CVE-2026-25537)
 
-### Issue Cross-Reference Update
-- #196 (canonical Bitcoin/Ethereum): RESOLVED by #208, #276, #279
-- #198 (CCTP/AA/asset fail-closed): RESOLVED by #212, #277
-- #199 (toolchain/release repro): RESOLVED by #213 (release), pinned toolchain
-- #197 (threshold placeholders): MOSTLY RESOLVED — FROST/Ark/DLC/CCTP/Covenant real; Fedimint structural
-- #201 (telemetry): CODE COMPLETE (#210); runbooks still needed
-- #195 (hardware signing): IN PROGRESS — enclave contracts done; real provider verifier needed
-- #200 (WASM boundary): IN PROGRESS — #211 done; runtime evidence workflows exist
+### ✅ Clippy + cargo-deny Clean
+- 0 clippy warnings in both feature modes
+- 4 stale advisory ignores removed from deny.toml
 
-### Remaining Gates
+### Remaining Production Gates
+1. Live Nitro deployment evidence (P0 — Session 56)
+2. Distributed replay authorization (P1 — Session 56 design)
+3. Core adapter ↔ SDK v2.0.14 verifier integration (P0 — Session 56)
+4. Fedimint real crypto or documented deferral (P2)
+5. Groth16 ZK pairing backend or documented deferral (P2)
+6. Independent security review (#202)
+7. WASM runtime/platform evidence (#200)
+8. Tagged release with SBOM + provenance (#199)
+
+---
+
+## Remaining Gates (from Session 53)
+
 1. Fedimint real crypto or documented deferral
 2. Groth16 ZK pairing backend for actual verification
-3. Real provider verifier (Android/Nitro hardware integration)
+3. Real provider verifier (Android/Nitro hardware integration) ← P0 Session 56
 4. Independent security review (#202)
 5. WASM runtime/platform evidence completion (#200)
 
@@ -83,8 +110,8 @@ replica topology, conditional-write/transaction primitive, complete binding-key
 schema, trusted-clock source, exclusive-retention enforcement, timeout and
 uncertain-commit mapping, and backup/failover ownership.
 
-The evidence gate is one reviewed requirement -> adapter code -> real-adapter
-conformance test -> crash/restart/failover/restore test -> exact CI run -> exact
+The evidence gate is one reviewed requirement → adapter code → real-adapter
+conformance test → crash/restart/failover/restore test → exact CI run → exact
 artifact/provenance chain. It must include single-key and overlapping-batch
 contention, before/after-commit faults, retained high-water rollback state, TTL
 boundary behavior independent of asynchronous deletion, and independent
