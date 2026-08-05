@@ -68,6 +68,7 @@ web-sys = "0.3.102"
 base64 = "0.23.0"
 jsonwebtoken = { version = "9", default-features = false, features = ["use_pem"] }
 cryptoki = { version = "0.10", optional = true }
+secrecy = "0.8"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ciborium = { version = "0.2.2", default-features = false, features = ["std"] }

@@ -694,6 +694,18 @@ Comprehensive repository review, hardware attestation testing implementation, an
 - 5 OIDC tests pass (claim validation, nonce binding, expired token rejection)
 - cryptoki v0.10 added as optional dep (PKCS#11 groundwork)
 
+### P1 — PKCS#11 Verifier Wired (2026-08-03)
+- **cryptoki v0.10 wired** behind `cryptoki` feature flag (fail-closed without it)
+- `Pkcs11Verifier::enumerate_slots()` → C_GetSlotList / C_GetSlotInfo / C_GetTokenInfo
+- `Pkcs11Verifier::discover_keys()` → find_objects with Attribute::Class(PRIVATE_KEY) + key type classification
+- `Pkcs11Verifier::sign()` → C_Sign with mechanism mapping (ECDSA, ECDSA_SHA256, EdDSA Pure, RSA_PKCS, SHA256_RSA_PKCS)
+- `Pkcs11Verifier::verify()` → C_Verify with fail-closed: cryptoki Pkcs11 error → false
+- `Pkcs11Verifier::get_public_key()` → EC point extraction
+- `Pkcs11Verifier::is_hardware_backed()` → hardware version detection
+- `OnceLock<Result<Pkcs11, String>>` for process-safe singleton initialization
+- `secrecy v0.8` added for AuthPin
+- 3 PKCS#11 tests (2 cfg-guarded, 1 always-on), 608/606 tests pass
+
 ---
 
 ## Open Items Carried Forward

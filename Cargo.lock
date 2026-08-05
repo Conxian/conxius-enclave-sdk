@@ -1716,6 +1716,7 @@ dependencies = [
  "rand_core 0.6.4",
  "reqwest",
  "secp256k1 0.32.0-beta.2",
+ "secrecy",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
