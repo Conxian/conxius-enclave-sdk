@@ -20,6 +20,10 @@ bip110_compliant = []
 # Gate value-bearing PKCS#11 operations. Without this feature,
 # Pkcs11Verifier methods return ProtocolUnsupported.
 cryptoki = ["dep:cryptoki"]
+# WebAuthn/FIDO2 attestation via webauthn-rs.
+# Gate value-bearing WebAuthn operations. Without this feature,
+# WebauthnVerifier methods return ProtocolUnsupported for attestation.
+webauthn = ["dep:webauthn-rs"]
 # FROST threshold signing backed by ZF FROST (frost-secp256k1-tr v3.0.0).
 # Gates value-bearing FROST operations. Without this feature, FROST
 # boundary types validate structurally but return ProtocolUnsupported
@@ -68,6 +72,7 @@ web-sys = "0.3.102"
 base64 = "0.23.0"
 jsonwebtoken = { version = "9", default-features = false, features = ["use_pem"] }
 cryptoki = { version = "0.10", optional = true }
+webauthn-rs = { version = "0.5", optional = true }
 secrecy = "0.8"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
