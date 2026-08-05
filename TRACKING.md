@@ -26,8 +26,8 @@ This document provides a comprehensive overview of the repository status, includ
 | **Repository** | Conxian/conxius-enclave-sdk |
 | **Default Branch** | main |
 | **Language** | Rust |
-| **Latest visible release/tag** | v2.0.11 (as of 2026-07-20); v2.0.12 release: P0 + P1 OIDC + P1 PKCS#11 cleared |
-| **Cargo package metadata** | 2.0.12 (not release evidence by itself) |
+| **Latest visible release/tag** | v2.0.14 (git tag); Cargo.toml 2.0.15 (2026-08-05) |
+| **Cargo package metadata** | 2.0.15 (not release evidence by itself) |
 | **Production Status** | Beta / conditional; value-bearing enablement blocked by CON-1506 gates |
 | **Test Coverage** | Historical source count; not an independent release gate |
 | **Last Updated** | 2026-08-03 (Session 55-56 P1 PKCS#11) |

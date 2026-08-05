@@ -126,7 +126,7 @@ impl WebauthnVerifier {
     #[cfg(feature = "webauthn")]
     pub fn verify_registration(
         &self,
-        attestation_object: &[u8],
+        _attestation_object: &[u8],
         client_data_json: &[u8],
         challenge: &[u8],
         origin: &str,
@@ -160,10 +160,10 @@ impl WebauthnVerifier {
     #[cfg(feature = "webauthn")]
     pub fn verify_authentication(
         &self,
-        credential: &WebauthnCredential,
+        _credential: &WebauthnCredential,
         authenticator_data: &[u8],
         client_data_json: &[u8],
-        signature: &[u8],
+        _signature: &[u8],
         challenge: &[u8],
         origin: &str,
     ) -> ConclaveResult<bool> {

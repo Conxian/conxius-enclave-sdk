@@ -683,10 +683,7 @@ impl FrostSigningContext {
     ///
     /// The report must already have been validated against the active
     /// [`AttestationPolicy`] before being passed here.
-    pub fn set_attestation(
-        &mut self,
-        report: crate::enclave::attestation::DeviceIntegrityReport,
-    ) {
+    pub fn set_attestation(&mut self, report: crate::enclave::attestation::DeviceIntegrityReport) {
         self.last_attestation = Some(report);
     }
 
@@ -710,20 +707,7 @@ impl FrostSigningContext {
                 }
                 Some(report) => {
                     // Verify the report timestamp is within policy bounds
-                    let now = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs();
-                    if report.timestamp > now + policy.max_future_skew_secs {
-                        return Err(ConclaveError::CryptoError(
-                            "attestation report timestamp is in the future".into(),
-                        ));
-                    }
-                    if now > report.timestamp + policy.max_age_secs {
-                        return Err(ConclaveError::CryptoError(
-                            "attestation report has expired".into(),
-                        ));
-                    }
+                    policy.verify_freshness(report.timestamp)?;
                 }
             }
         }

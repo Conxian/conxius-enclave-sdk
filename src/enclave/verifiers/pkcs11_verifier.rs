@@ -109,18 +109,18 @@ impl Pkcs11Verifier {
         let ctx = self.init_ctx()?;
         let slot = ctx
             .get_all_slots()
-            .map_err(|e| to_conclave_err(e))?
+            .map_err(to_conclave_err)?
             .into_iter()
             .find(|s| s.id() == slot_id)
             .ok_or_else(|| {
                 ConclaveError::Attestation(format!("PKCS#11 slot {slot_id} not found"))
             })?;
-        let session = ctx.open_rw_session(slot).map_err(|e| to_conclave_err(e))?;
+        let session = ctx.open_rw_session(slot).map_err(to_conclave_err)?;
         if let Some(ref pin) = self.config.pin {
             let auth = secrecy::SecretString::new(pin.clone());
             session
                 .login(UserType::User, Some(&auth))
-                .map_err(|e| to_conclave_err(e))?;
+                .map_err(to_conclave_err)?;
         }
         Ok(session)
     }
@@ -129,11 +129,11 @@ impl Pkcs11Verifier {
     #[cfg(feature = "cryptoki")]
     pub fn enumerate_slots(&self) -> ConclaveResult<Vec<Pkcs11Slot>> {
         let ctx = self.init_ctx()?;
-        let slots = ctx.get_all_slots().map_err(|e| to_conclave_err(e))?;
+        let slots = ctx.get_all_slots().map_err(to_conclave_err)?;
         let mut result = Vec::new();
         for slot in slots {
-            let info = ctx.get_slot_info(slot).map_err(|e| to_conclave_err(e))?;
-            let token = ctx.get_token_info(slot).map_err(|e| to_conclave_err(e))?;
+            let info = ctx.get_slot_info(slot).map_err(to_conclave_err)?;
+            let token = ctx.get_token_info(slot).map_err(to_conclave_err)?;
             result.push(Pkcs11Slot {
                 slot_id: slot.id(),
                 label: info.slot_description().trim_end().into(),
@@ -160,7 +160,7 @@ impl Pkcs11Verifier {
                 Attribute::Class(ObjectClass::PRIVATE_KEY),
                 Attribute::Sign(true),
             ])
-            .map_err(|e| to_conclave_err(e))?;
+            .map_err(to_conclave_err)?;
         let mut result = Vec::new();
         for h in &handles {
             let attrs = session
@@ -172,8 +172,8 @@ impl Pkcs11Verifier {
                         AttributeType::KeyType,
                     ],
                 )
-                .map_err(|e| to_conclave_err(e))?;
-            let key_id = match attrs.get(0) {
+                .map_err(to_conclave_err)?;
+            let key_id = match attrs.first() {
                 Some(Attribute::Id(bytes)) => bytes.clone(),
                 _ => Vec::new(),
             };
@@ -215,9 +215,7 @@ impl Pkcs11Verifier {
         let session = self.open_session(slot_id)?;
         let handle = self.find_key_by_id(&session, key_id)?;
         let mech = self.map_mechanism(mechanism)?;
-        session
-            .sign(&mech, handle, digest)
-            .map_err(|e| to_conclave_err(e))
+        session.sign(&mech, handle, digest).map_err(to_conclave_err)
     }
 
     #[cfg(not(feature = "cryptoki"))]
@@ -277,13 +275,13 @@ impl Pkcs11Verifier {
                 Attribute::Class(ObjectClass::PUBLIC_KEY),
                 Attribute::Id(key_id.to_vec()),
             ])
-            .map_err(|e| to_conclave_err(e))?;
+            .map_err(to_conclave_err)?;
         let pub_handle = pub_handles
             .first()
             .ok_or_else(|| ConclaveError::Attestation("PKCS#11: no matching public key".into()))?;
         let attrs = session
             .get_attributes(*pub_handle, &[AttributeType::EcPoint])
-            .map_err(|e| to_conclave_err(e))?;
+            .map_err(to_conclave_err)?;
         match attrs.first() {
             Some(Attribute::EcPoint(point)) => Ok(point.clone()),
             _ => Ok(Vec::new()),
@@ -303,13 +301,13 @@ impl Pkcs11Verifier {
         let ctx = self.init_ctx()?;
         let slot = ctx
             .get_all_slots()
-            .map_err(|e| to_conclave_err(e))?
+            .map_err(to_conclave_err)?
             .into_iter()
             .find(|s| s.id() == slot_id)
             .ok_or_else(|| {
                 ConclaveError::Attestation(format!("PKCS#11 slot {slot_id} not found"))
             })?;
-        let info = ctx.get_slot_info(slot).map_err(|e| to_conclave_err(e))?;
+        let info = ctx.get_slot_info(slot).map_err(to_conclave_err)?;
         // Hardware slots have non-zero hardware version
         let hw = info.hardware_version();
         Ok(hw.major() > 0 || hw.minor() > 0)
@@ -332,7 +330,7 @@ impl Pkcs11Verifier {
                 Attribute::Class(ObjectClass::PRIVATE_KEY),
                 Attribute::Id(key_id.to_vec()),
             ])
-            .map_err(|e| to_conclave_err(e))?;
+            .map_err(to_conclave_err)?;
         handles.into_iter().next().ok_or_else(|| {
             ConclaveError::Attestation(format!(
                 "PKCS#11: no key found for id {}",

@@ -8,7 +8,7 @@
 //! See `docs/PHASE1_ISSUES_ROADMAP.md` for acceptance criteria.
 
 use conxius_enclave_sdk::enclave::{EnclaveManager, SignRequest, SignResponse};
-use conxius_enclave_sdk::signing::ucs::{EnclaveUniversalSigner, UniversalChainSigner};
+use conxius_enclave_sdk::signing::ucs::EnclaveUniversalSigner;
 use conxius_enclave_sdk::ConclaveError;
 use conxius_enclave_sdk::ConclaveResult;
 
@@ -77,6 +77,7 @@ pub fn assert_unsupported(result: ConclaveResult<String>) {
 
 /// Assert that a signing operation succeeds and returns a non-empty hex
 /// signature.
+#[allow(dead_code)]
 pub fn assert_signature_ok(result: ConclaveResult<String>) -> String {
     match result {
         Ok(_sig) if !_sig.is_empty() => _sig,
@@ -105,6 +106,7 @@ pub mod digests {
     pub const DIGEST_B: [u8; 32] = [0xBB; 32];
     pub const DIGEST_C: [u8; 32] = [0xCC; 32];
     pub const DIGEST_D: [u8; 32] = [0xDD; 32];
+    #[allow(dead_code)]
     pub const DIGEST_E: [u8; 32] = [0xEE; 32];
     pub const DIGEST_F: [u8; 32] = [0xFF; 32];
 }

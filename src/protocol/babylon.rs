@@ -146,6 +146,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn deprecated_sign_returns_unsupported() {
         let result = sign_babylon_delegation([0x00; 32], "m/44'/0'/0'/0/0", "k");
         assert!(matches!(result, Err(ConclaveError::Unsupported(_))));

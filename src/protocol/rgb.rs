@@ -160,6 +160,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn deprecated_sign_returns_unsupported() {
         let result = sign_rgb_transition([0x00; 32], "m/86'/0'/0'/0/0", "k");
         assert!(matches!(result, Err(ConclaveError::Unsupported(_))));
