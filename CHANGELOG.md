@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fixed
+- Workflows: `master` → `staged` in all 11 push/PR triggers (staged had zero CI coverage)
+- Workflows: duplicate `WASM Runtime Evidence` name → `Generated WASM Runtime Lanes`
+- Workflows: added `workflow_dispatch` to ci, codeql, coverage, dependency-review, hygiene
+- KB: full issue reconciliation — closed #196, #198, #199; triaged 8 open issues
+- KB: ISSUES_INDEX rebuilt with all 8 open + 22 closed issues
+- KB: TRACKING backlog map refreshed with #267, #271, #272; resolved section added
+- KB: DEBT_INVENTORY stale #199 refs removed, PROTO-001 in burn-down
+- Audit report: `.audit_report_session57.md` — 440-line full-scope workflow/issue/debt audit
+
 ## [2.0.15] - 2026-08-05
 
 ### Added
