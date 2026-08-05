@@ -34,26 +34,21 @@ This document provides a comprehensive overview of the repository status, includ
 
 ## Production-enablement backlog map
 
-The current implementation and acceptance backlog already exists as GitHub issues [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) through [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202). This map is a navigation aid only; it does not create, reopen, or duplicate issues.
+The current implementation and acceptance backlog spans GitHub issues across multiple priority levels. This map is a navigation aid only; it does not create, reopen, or duplicate issues.
 
-| GitHub issue | Evidence gate | Status |
-| --- | --- | --- |
-| [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) | Hardware-backed signing and mandatory attestation | In Progress |
-| [#196](https://github.com/Conxian/conxius-enclave-sdk/issues/196) | Canonical Bitcoin and Ethereum verification/derivation | ✅ Resolved (#255, #277, Session 57) |
-| [#197](https://github.com/Conxian/conxius-enclave-sdk/issues/197) | Threshold and settlement placeholder quarantine | In Progress (Fedimint structural-only) |
-| [#198](https://github.com/Conxian/conxius-enclave-sdk/issues/198) | CCTP, account abstraction, and asset metadata fail-closed behavior | ✅ Resolved (#212, #277, Session 57) |
-| [#199](https://github.com/Conxian/conxius-enclave-sdk/issues/199) | Reproducible toolchain, dependencies, release, SBOM, and provenance evidence | ✅ Resolved (tag v2.0.14, SBOM workflow, Session 57) |
-| [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200) | WASM secret boundary and runtime/platform evidence | In Progress |
-| [#201](https://github.com/Conxian/conxius-enclave-sdk/issues/201) | Telemetry privacy, monitoring, and public-safe runbooks | In Progress |
-| [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) | Independent security review and exact release acceptance | In Progress |
+| GitHub issue | Evidence gate | Priority | Status |
+| --- | --- | --- | --- |
+| [#267](https://github.com/Conxian/conxius-enclave-sdk/issues/267) | BitVM2 Groth16 SNARK verification | P0 | Open |
+| [#242](https://github.com/Conxian/conxius-enclave-sdk/issues/242) | AWS Nitro attestation + KMS boundary | P0 | Blocked |
+| [#241](https://github.com/Conxian/conxius-enclave-sdk/issues/241) | Android KeyMint/StrongBox + Play Integrity | P0 | Blocked |
+| [#240](https://github.com/Conxian/conxius-enclave-sdk/issues/240) | Attestation roots, collateral, revocation, distributed replay | P0 | In Progress |
+| [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) | Independent security review and release acceptance | P0 | Blocked |
+| [#271](https://github.com/Conxian/conxius-enclave-sdk/issues/271) | Lightning LDK payment execution | P1 | Open |
+| [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200) | WASM secret boundary and runtime/platform evidence | P1 | In Progress |
+| [#272](https://github.com/Conxian/conxius-enclave-sdk/issues/272) | BitVM SNARK proof validation | P2 | Open |
 
-### Issue #195 (HW Attestation) — Session 54 Status
-
-- **Phase 3 verifier framework**: Built and in place.
-- **Verifier backends**: 4 backends created.
-- **P0 gate CLEARED**: `AwsNitroTrustBoundary` production impl (Session 55). P1 crate integrations remain.
-
-Closed issues #145, #154, #172, #173, #174, and #180 remain historical context. Their closure or documentation does not prove current production support, and the capability evidence record must not cite them as a substitute for the open gates above.
+### Resolved (Session 57)
+**#196** (Bitcoin/Ethereum verification), **#198** (CCTP fail-closed), **#199** (reproducible toolchain), **#201** (telemetry, #210), **#197** (threshold settlement, mostly resolved except Fedimint), **#195** (hardware attestation, Phase 3 verifiers built)
 
 ## Related Repositories
 
