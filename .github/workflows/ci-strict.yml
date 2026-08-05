@@ -64,7 +64,7 @@ jobs:
           targets: wasm32-unknown-unknown
           toolchain: 1.97.1
       - name: Install wasm-pack
-        uses: taiki-e/install-action@065d6a08a14e61e89fb0a4c10eecdbdef39c7d8e
+        uses: taiki-e/install-action@1beb33eee6d086258184383af9a538940be190ed
         with:
           tool: wasm-pack@0.15.0
       - name: Build WASM
@@ -126,11 +126,11 @@ jobs:
         with:
           toolchain: 1.97.1
       - name: Install cargo-audit
-        uses: taiki-e/install-action@065d6a08a14e61e89fb0a4c10eecdbdef39c7d8e
+        uses: taiki-e/install-action@1beb33eee6d086258184383af9a538940be190ed
         with:
           tool: cargo-audit@0.22.2
       - name: Install cargo-deny
-        uses: taiki-e/install-action@065d6a08a14e61e89fb0a4c10eecdbdef39c7d8e
+        uses: taiki-e/install-action@1beb33eee6d086258184383af9a538940be190ed
         with:
           tool: cargo-deny@0.20.2
       - name: Run cargo audit
