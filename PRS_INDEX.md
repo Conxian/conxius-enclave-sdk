@@ -1,7 +1,7 @@
 # Conclave SDK Pull Requests Index
 
-> Auto-generated from GitHub. Last sync: 2026-07-21T03:52:30Z
-> **Manual update:** 2026-08-03 (Session 53 sprint review)
+> Auto-generated from GitHub. Last sync: 2026-08-05 (Session 57)
+> **Manual update:** 2026-08-05 (Session 57 housekeeping)
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
@@ -12,9 +12,18 @@
 - **Merged PRs**: 200+ (since last sync: #258-#279 plus earlier)
 
 ## Open PRs
+- [ ] [**#288**](https://github.com/Conxian/conxius-enclave-sdk/pull/288): chore: promote staged → main (Session 57 — Dependabot bump rollup)
+  - Author: botshelomokoka | Created: 2026-08-05
+  - Status: OPEN — Dependabot CI action bumps (taiki-e v2.85.6, CodeQL v4.37.4)
+
 - [ ] [**#220**](https://github.com/Conxian/conxius-enclave-sdk/pull/220): fix(enclave): carry typed evidence through settlement authorization
   - Author: charliecreates[bot]
   - Status: OPEN — may be superseded by enclave trust contracts (#247-#249)
+
+## Recently Merged PRs (Session 57)
+- [x] [**#287**](https://github.com/Conxian/conxius-enclave-sdk/pull/287): fix: resolve clippy warnings for Rust 1.97.0 compliance (Session 57)
+  - Author: botshelomokoka | Merged: 2026-08-05
+  - Files: 9 source files, webauthn_verifier, wasm-runtime.yml, dependabot.yml
 
 ## Session 53 Sprint PRs (this session)
 

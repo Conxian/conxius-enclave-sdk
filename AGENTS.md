@@ -1,4 +1,4 @@
-# Conclave SDK: Agent Directives (v0.3.1 — Session 57, Aug 2026)
+# Conclave SDK: Agent Directives (v0.6.0 — Session 57, Aug 2026)
 
 ## Core Ethos
 The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native Bitcoin applications. We prioritize hardware-backed security (TEE, StrongBox), non-custodial orchestration, and universal asset support.

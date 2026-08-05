@@ -614,7 +614,7 @@ workspace/
 |-------|---------|--------|---------|
 | bitcoin | 0.33.0-beta | Awaiting stable | [crates.io](https://crates.io/crates/bitcoin) |
 | secp256k1 | 0.32.0-beta.2 | Awaiting stable | [crates.io](https://crates.io/crates/secp256k1) |
-| k256 | 0.14.0-rc.9 | Awaiting stable | [crates.io](https://crates.io/crates/k256) |
+| k256 | 0.14.0 | Stable | [crates.io](https://crates.io/crates/k256) |
 
 ### DEP-001 Tracking
 - Awaiting stable versions to update
@@ -702,14 +702,14 @@ BIP-110 is a temporary softfork that moves Bitcoin policy limits into consensus 
 ## Action Items from Research
 
 ### Immediate (v2.1.0)
-- [ ] Implement bip110_compliant feature flag (Issue #179)
+- [x] Implement bip110_compliant feature flag (Issue #179) — DONE (2026-07-15)
 - [ ] Document Fedimint threshold BLS upgrade path
 - [ ] Add BitVM2 forfeit transaction documentation
 
 ### Short-term (v2.2.0)
 - [ ] Implement BitVM2 challenge orchestration (G-002)
 - [ ] Evaluate ezkl integration for zkml.rs
-- [ ] Monitor secp256k1/k256 stable releases
+- [x] Monitor secp256k1/k256 stable releases — k256 0.14.0 stable
 
 ### Medium-term (v2.3.0+)
 - [ ] Add STARK verification support

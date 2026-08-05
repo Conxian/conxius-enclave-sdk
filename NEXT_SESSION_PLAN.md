@@ -8,7 +8,7 @@
 
 ---
 
-## Session 56 — Planned (2026-08-05)
+## Session 58 — Planned (2026-08-06)
 
 ### P0: Live Nitro Enclave Deployment Evidence
 - Deploy SDK enclave binary to AWS Nitro instance (via lib-conxian-core Nitro CI)
@@ -74,9 +74,9 @@
 - 4 stale advisory ignores removed from deny.toml
 
 ### Remaining Production Gates
-1. Live Nitro deployment evidence (P0 — Session 56)
-2. Distributed replay authorization (P1 — Session 56 design)
-3. Core adapter ↔ SDK v2.0.14 verifier integration (P0 — Session 56)
+1. Live Nitro deployment evidence (P0 — Session 58)
+2. Distributed replay authorization (P1 — Session 58 design)
+3. Core adapter ↔ SDK v2.0.14 verifier integration (P0 — Session 58)
 4. Fedimint real crypto or documented deferral (P2)
 5. Groth16 ZK pairing backend or documented deferral (P2)
 6. Independent security review (#202)
