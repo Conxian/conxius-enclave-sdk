@@ -215,9 +215,7 @@ impl Pkcs11Verifier {
         let session = self.open_session(slot_id)?;
         let handle = self.find_key_by_id(&session, key_id)?;
         let mech = self.map_mechanism(mechanism)?;
-        session
-            .sign(&mech, handle, digest)
-            .map_err(to_conclave_err)
+        session.sign(&mech, handle, digest).map_err(to_conclave_err)
     }
 
     #[cfg(not(feature = "cryptoki"))]
