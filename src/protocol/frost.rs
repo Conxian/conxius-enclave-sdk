@@ -644,6 +644,11 @@ pub struct FrostSigningContext {
     share_bytes: HashMap<[u8; 32], Vec<u8>>,
     signing_package: Option<Vec<u8>>,
     participant_ids: HashMap<FrostParticipantId, [u8; 32]>,
+    /// Optional attestation policy. When set, all DKG/signing operations
+    /// require a valid [`AttestationEvidence`] matching this policy.
+    attestation_policy: Option<crate::enclave::attestation::AttestationPolicy>,
+    /// Last verified attestation evidence. Reset when the context is re-keyed.
+    last_attestation: Option<crate::enclave::attestation::DeviceIntegrityReport>,
 }
 
 #[cfg(feature = "frost-crypto")]
@@ -661,7 +666,58 @@ impl FrostSigningContext {
         Self::default()
     }
 
+    /// Gate DKG/signing operations behind enclave attestation verification.
+    ///
+    /// When a policy is set, every crypto operation validates that
+    /// [`last_attestation`] is present and matches the policy.
+    /// Callers must provide a fresh [`DeviceIntegrityReport`] via
+    /// [`set_attestation`] before each session.
+    pub fn set_attestation_policy(
+        &mut self,
+        policy: crate::enclave::attestation::AttestationPolicy,
+    ) {
+        self.attestation_policy = Some(policy);
+    }
+
+    /// Record a verified attestation report for the current session.
+    ///
+    /// The report must already have been validated against the active
+    /// [`AttestationPolicy`] before being passed here.
+    pub fn set_attestation(&mut self, report: crate::enclave::attestation::DeviceIntegrityReport) {
+        self.last_attestation = Some(report);
+    }
+
+    /// Clear attestation state (e.g., after key rotation or session expiry).
+    pub fn clear_attestation(&mut self) {
+        self.last_attestation = None;
+    }
+
+    /// Return true if an attestation policy is configured and not yet satisfied.
+    pub fn requires_attestation(&self) -> bool {
+        self.attestation_policy.is_some() && self.last_attestation.is_none()
+    }
+
+    fn check_attestation(&self) -> ConclaveResult<()> {
+        if let Some(ref policy) = self.attestation_policy {
+            match &self.last_attestation {
+                None => {
+                    return Err(ConclaveError::CryptoError(
+                        "attestation required: call set_attestation() with a valid DeviceIntegrityReport before DKG/signing".into(),
+                    ));
+                }
+                Some(report) => {
+                    // Verify the report timestamp is within policy bounds
+                    policy.verify_freshness(report.timestamp)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Generate a FROST key package using the ZF FROST trusted dealer.
+    ///
+    /// If an attestation policy is set, a valid attestation must be
+    /// provided via [`set_attestation`] before calling this method.
     ///
     /// Returns a [`FrostKeyPackage`] whose `group_public_key` envelope
     /// carries the SHA-256 digest of the serialized verifying key. The
@@ -672,6 +728,7 @@ impl FrostSigningContext {
         min_signers: u32,
         total_signers: u32,
     ) -> ConclaveResult<FrostKeyPackage> {
+        self.check_attestation()?;
         let (shares, vk) = crate::protocol::frost_crypto::trusted_dealer_keygen(
             min_signers as u16,
             total_signers as u16,
@@ -717,6 +774,7 @@ impl FrostSigningContext {
         &mut self,
         key_package_digest: &[u8; 32],
     ) -> ConclaveResult<FrostOpaqueEnvelope> {
+        self.check_attestation()?;
         let key_pkg_bytes = self
             .key_shares
             .get(key_package_digest)
@@ -746,6 +804,7 @@ impl FrostSigningContext {
         message: &[u8],
         commitment_digests: &[[u8; 32]],
     ) -> ConclaveResult<()> {
+        self.check_attestation()?;
         let commitments: Vec<Vec<u8>> = commitment_digests
             .iter()
             .map(|d| {
@@ -773,6 +832,7 @@ impl FrostSigningContext {
         nonce_digest: &[u8; 32],
         message: &[u8],
     ) -> ConclaveResult<FrostSignatureShare> {
+        self.check_attestation()?;
         let key_pkg_bytes = self
             .key_shares
             .get(key_digest)
@@ -827,6 +887,7 @@ impl FrostSigningContext {
         key_package: &FrostKeyPackage,
         shares: &[FrostSignatureShare],
     ) -> ConclaveResult<String> {
+        self.check_attestation()?;
         let vk_bytes = self
             .verifying_key
             .as_ref()

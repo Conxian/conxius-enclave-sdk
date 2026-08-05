@@ -16,7 +16,9 @@ pub struct BitVm2Signer<'a, S: UniversalChainSigner> {
 }
 
 impl<'a, S: UniversalChainSigner> BitVm2Signer<'a, S> {
-    pub fn new(signer: &'a S) -> Self { Self { signer } }
+    pub fn new(signer: &'a S) -> Self {
+        Self { signer }
+    }
 
     /// Sign a BitVM2 challenge transaction.
     ///
@@ -34,7 +36,8 @@ impl<'a, S: UniversalChainSigner> BitVm2Signer<'a, S> {
     ) -> ConclaveResult<String> {
         let _ = (instance_id, commitment_id);
         let merkle_root = Some(tapleaf_hash);
-        self.signer.sign_bitcoin_taproot(sighash, derivation_path, key_id, merkle_root)
+        self.signer
+            .sign_bitcoin_taproot(sighash, derivation_path, key_id, merkle_root)
     }
 
     /// Sign a BitVM2 response (disprove) transaction.
@@ -48,7 +51,8 @@ impl<'a, S: UniversalChainSigner> BitVm2Signer<'a, S> {
     ) -> ConclaveResult<String> {
         let _ = instance_id;
         let merkle_root = Some(tapleaf_hash);
-        self.signer.sign_bitcoin_taproot(sighash, derivation_path, key_id, merkle_root)
+        self.signer
+            .sign_bitcoin_taproot(sighash, derivation_path, key_id, merkle_root)
     }
 }
 

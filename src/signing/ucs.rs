@@ -104,19 +104,13 @@ struct SignContext<'a> {
     taproot_tweak: Option<Vec<u8>>,
 }
 
-fn sign_with_context(
-    enclave: &dyn EnclaveManager,
-    ctx: SignContext<'_>,
-) -> ConclaveResult<String> {
+fn sign_with_context(enclave: &dyn EnclaveManager, ctx: SignContext<'_>) -> ConclaveResult<String> {
     let context_bytes = ctx.message_digest.to_vec();
-    let operation_context =
-        OperationContext::new(ctx.domain, ctx.purpose, context_bytes)?;
-    let trust_requirement =
-        TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?;
+    let operation_context = OperationContext::new(ctx.domain, ctx.purpose, context_bytes)?;
+    let trust_requirement = TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?;
 
     let public_key = algorithm_placeholder_public_key(ctx.algorithm);
-    let key_binding =
-        SignerKeyBinding::new(ctx.key_id, ctx.derivation_path, public_key)?;
+    let key_binding = SignerKeyBinding::new(ctx.key_id, ctx.derivation_path, public_key)?;
 
     let request = ValueBearingSignRequest::new(
         operation_context,
@@ -151,15 +145,18 @@ impl UniversalChainSigner for EnclaveUniversalSigner<'_> {
         key_id: &str,
         merkle_root: Option<[u8; 32]>,
     ) -> ConclaveResult<String> {
-        sign_with_context(self.enclave, SignContext {
-            domain: "conxian/bitcoin/taproot",
-            purpose: ValueBearingPurpose::Transaction,
-            algorithm: SigningAlgorithm::SchnorrSecp256k1,
-            message_digest: sighash,
-            derivation_path,
-            key_id,
-            taproot_tweak: merkle_root.map(|mr| mr.to_vec()),
-        })
+        sign_with_context(
+            self.enclave,
+            SignContext {
+                domain: "conxian/bitcoin/taproot",
+                purpose: ValueBearingPurpose::Transaction,
+                algorithm: SigningAlgorithm::SchnorrSecp256k1,
+                message_digest: sighash,
+                derivation_path,
+                key_id,
+                taproot_tweak: merkle_root.map(|mr| mr.to_vec()),
+            },
+        )
     }
 
     fn sign_bitcoin_ecdsa(
@@ -168,15 +165,18 @@ impl UniversalChainSigner for EnclaveUniversalSigner<'_> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        sign_with_context(self.enclave, SignContext {
-            domain: "conxian/bitcoin/ecdsa",
-            purpose: ValueBearingPurpose::Transaction,
-            algorithm: SigningAlgorithm::EcdsaSecp256k1,
-            message_digest: message_hash,
-            derivation_path,
-            key_id,
-            taproot_tweak: None,
-        })
+        sign_with_context(
+            self.enclave,
+            SignContext {
+                domain: "conxian/bitcoin/ecdsa",
+                purpose: ValueBearingPurpose::Transaction,
+                algorithm: SigningAlgorithm::EcdsaSecp256k1,
+                message_digest: message_hash,
+                derivation_path,
+                key_id,
+                taproot_tweak: None,
+            },
+        )
     }
 
     fn sign_ethereum(
@@ -185,15 +185,18 @@ impl UniversalChainSigner for EnclaveUniversalSigner<'_> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        sign_with_context(self.enclave, SignContext {
-            domain: "conxian/ethereum/transaction",
-            purpose: ValueBearingPurpose::Transaction,
-            algorithm: SigningAlgorithm::EcdsaSecp256k1,
-            message_digest: transaction_digest,
-            derivation_path,
-            key_id,
-            taproot_tweak: None,
-        })
+        sign_with_context(
+            self.enclave,
+            SignContext {
+                domain: "conxian/ethereum/transaction",
+                purpose: ValueBearingPurpose::Transaction,
+                algorithm: SigningAlgorithm::EcdsaSecp256k1,
+                message_digest: transaction_digest,
+                derivation_path,
+                key_id,
+                taproot_tweak: None,
+            },
+        )
     }
 
     fn sign_solana(
@@ -202,15 +205,18 @@ impl UniversalChainSigner for EnclaveUniversalSigner<'_> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        sign_with_context(self.enclave, SignContext {
-            domain: "conxian/solana/transaction",
-            purpose: ValueBearingPurpose::Transaction,
-            algorithm: SigningAlgorithm::Ed25519,
-            message_digest: message_hash,
-            derivation_path,
-            key_id,
-            taproot_tweak: None,
-        })
+        sign_with_context(
+            self.enclave,
+            SignContext {
+                domain: "conxian/solana/transaction",
+                purpose: ValueBearingPurpose::Transaction,
+                algorithm: SigningAlgorithm::Ed25519,
+                message_digest: message_hash,
+                derivation_path,
+                key_id,
+                taproot_tweak: None,
+            },
+        )
     }
 
     fn sign_stacks(
@@ -219,15 +225,18 @@ impl UniversalChainSigner for EnclaveUniversalSigner<'_> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        sign_with_context(self.enclave, SignContext {
-            domain: "conxian/stacks/transaction",
-            purpose: ValueBearingPurpose::Transaction,
-            algorithm: SigningAlgorithm::EcdsaSecp256k1,
-            message_digest: message_hash,
-            derivation_path,
-            key_id,
-            taproot_tweak: None,
-        })
+        sign_with_context(
+            self.enclave,
+            SignContext {
+                domain: "conxian/stacks/transaction",
+                purpose: ValueBearingPurpose::Transaction,
+                algorithm: SigningAlgorithm::EcdsaSecp256k1,
+                message_digest: message_hash,
+                derivation_path,
+                key_id,
+                taproot_tweak: None,
+            },
+        )
     }
 
     fn sign_babylon(
@@ -236,15 +245,18 @@ impl UniversalChainSigner for EnclaveUniversalSigner<'_> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        sign_with_context(self.enclave, SignContext {
-            domain: "conxian/babylon/delegation",
-            purpose: ValueBearingPurpose::Authorization,
-            algorithm: SigningAlgorithm::SchnorrSecp256k1,
-            message_digest: delegation_hash,
-            derivation_path,
-            key_id,
-            taproot_tweak: None,
-        })
+        sign_with_context(
+            self.enclave,
+            SignContext {
+                domain: "conxian/babylon/delegation",
+                purpose: ValueBearingPurpose::Authorization,
+                algorithm: SigningAlgorithm::SchnorrSecp256k1,
+                message_digest: delegation_hash,
+                derivation_path,
+                key_id,
+                taproot_tweak: None,
+            },
+        )
     }
 }
 
@@ -255,8 +267,10 @@ impl UniversalChainSigner for EnclaveUniversalSigner<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::enclave::{EnclaveManager, SignRequest, SignResponse, SignerCapability,
-        ValueBearingSignRequest, ValueBearingSignResponse};
+    use crate::enclave::{
+        EnclaveManager, SignRequest, SignResponse, SignerCapability, ValueBearingSignRequest,
+        ValueBearingSignResponse,
+    };
     use crate::ConclaveError;
 
     struct TestEnclave;
@@ -320,14 +334,10 @@ mod tests {
             ucs.sign_bitcoin_taproot([0xAB; 32], "m/86'/0'/0'/0/0", "key-1", None);
         let _: ConclaveResult<String> =
             ucs.sign_bitcoin_ecdsa([0xCD; 32], "m/44'/0'/0'/0/0", "key-2");
-        let _: ConclaveResult<String> =
-            ucs.sign_ethereum([0xEF; 32], "m/44'/60'/0'/0/0", "key-3");
-        let _: ConclaveResult<String> =
-            ucs.sign_solana([0x01; 32], "m/44'/501'/0'/0'", "key-4");
-        let _: ConclaveResult<String> =
-            ucs.sign_stacks([0x02; 32], "m/44'/5757'/0'/0/0", "key-5");
-        let _: ConclaveResult<String> =
-            ucs.sign_babylon([0xBA; 32], "m/44'/0'/0'/0/0", "key-6");
+        let _: ConclaveResult<String> = ucs.sign_ethereum([0xEF; 32], "m/44'/60'/0'/0/0", "key-3");
+        let _: ConclaveResult<String> = ucs.sign_solana([0x01; 32], "m/44'/501'/0'/0'", "key-4");
+        let _: ConclaveResult<String> = ucs.sign_stacks([0x02; 32], "m/44'/5757'/0'/0/0", "key-5");
+        let _: ConclaveResult<String> = ucs.sign_babylon([0xBA; 32], "m/44'/0'/0'/0/0", "key-6");
     }
 
     #[test]

@@ -11,19 +11,32 @@ use crate::{ConclaveError, ConclaveResult};
 pub struct BabylonDelegationId([u8; 32]);
 
 impl BabylonDelegationId {
-    pub fn from_bytes(bytes: [u8; 32]) -> Self { Self(bytes) }
-    pub fn as_bytes(&self) -> &[u8; 32] { &self.0 }
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EotsId([u8; 32]);
 
 impl EotsId {
-    pub fn from_bytes(bytes: [u8; 32]) -> Self { Self(bytes) }
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DelegationState { Created, Committed, Active, Unbonding, Withdrawn, Slashed }
+pub enum DelegationState {
+    Created,
+    Committed,
+    Active,
+    Unbonding,
+    Withdrawn,
+    Slashed,
+}
 
 #[derive(Debug, Clone)]
 pub struct BabylonDelegationParams {
@@ -45,7 +58,9 @@ pub struct BabylonDelegationManager<'a, S: UniversalChainSigner> {
 }
 
 impl<'a, S: UniversalChainSigner> BabylonDelegationManager<'a, S> {
-    pub fn new(signer: &'a S) -> Self { Self { signer } }
+    pub fn new(signer: &'a S) -> Self {
+        Self { signer }
+    }
 
     pub fn create_delegation(
         &self,
@@ -54,7 +69,9 @@ impl<'a, S: UniversalChainSigner> BabylonDelegationManager<'a, S> {
         key_id: &str,
     ) -> ConclaveResult<BabylonDelegation> {
         let delegation_hash = Self::compute_delegation_hash(&params);
-        let signature_hex = self.signer.sign_babylon(delegation_hash, derivation_path, key_id)?;
+        let signature_hex = self
+            .signer
+            .sign_babylon(delegation_hash, derivation_path, key_id)?;
         Ok(BabylonDelegation {
             id: BabylonDelegationId::from_bytes(delegation_hash),
             params,
@@ -64,8 +81,12 @@ impl<'a, S: UniversalChainSigner> BabylonDelegationManager<'a, S> {
     }
 
     pub fn activate(&self, delegation: &mut BabylonDelegation) -> ConclaveResult<()> {
-        if delegation.state != DelegationState::Created && delegation.state != DelegationState::Committed {
-            return Err(ConclaveError::Unsupported("delegation cannot be activated from current state".to_string()));
+        if delegation.state != DelegationState::Created
+            && delegation.state != DelegationState::Committed
+        {
+            return Err(ConclaveError::Unsupported(
+                "delegation cannot be activated from current state".to_string(),
+            ));
         }
         delegation.state = DelegationState::Active;
         Ok(())
@@ -73,7 +94,9 @@ impl<'a, S: UniversalChainSigner> BabylonDelegationManager<'a, S> {
 
     pub fn unbond(&self, delegation: &mut BabylonDelegation) -> ConclaveResult<()> {
         if delegation.state != DelegationState::Active {
-            return Err(ConclaveError::Unsupported("delegation must be active to unbond".to_string()));
+            return Err(ConclaveError::Unsupported(
+                "delegation must be active to unbond".to_string(),
+            ));
         }
         delegation.state = DelegationState::Unbonding;
         Ok(())
@@ -94,9 +117,13 @@ impl<'a, S: UniversalChainSigner> BabylonDelegationManager<'a, S> {
 
 #[deprecated(since = "2.0.13", note = "use BabylonDelegationManager instead")]
 pub fn sign_babylon_delegation(
-    _delegation_hash: [u8; 32], _derivation_path: &str, _key_id: &str,
+    _delegation_hash: [u8; 32],
+    _derivation_path: &str,
+    _key_id: &str,
 ) -> ConclaveResult<String> {
-    Err(ConclaveError::Unsupported("babylon: delegation signing requires BabylonDelegationManager (Phase 2)".to_string()))
+    Err(ConclaveError::Unsupported(
+        "babylon: delegation signing requires BabylonDelegationManager (Phase 2)".to_string(),
+    ))
 }
 
 #[cfg(test)]
@@ -113,10 +140,13 @@ mod tests {
     fn delegation_state_transitions() {
         use DelegationState::*;
         let states = [Created, Committed, Active, Unbonding, Withdrawn, Slashed];
-        for pair in states.windows(2) { assert_ne!(pair[0], pair[1]); }
+        for pair in states.windows(2) {
+            assert_ne!(pair[0], pair[1]);
+        }
     }
 
     #[test]
+    #[allow(deprecated)]
     fn deprecated_sign_returns_unsupported() {
         let result = sign_babylon_delegation([0x00; 32], "m/44'/0'/0'/0/0", "k");
         assert!(matches!(result, Err(ConclaveError::Unsupported(_))));

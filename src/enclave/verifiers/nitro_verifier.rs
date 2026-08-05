@@ -1,11 +1,16 @@
 use crate::enclave::{
-    proofs::{ProofVerifier, ProofVerifierStatus, ProofEnvelope, ProofVerificationContext, VerifiedProofReceipt, ProofKind},
-    nitro::{NitroAttestationDocument, NitroAttestationPolicy, NitroPcrPolicy, NitroError,
-           NitroReleaseBinding},
+    nitro::{
+        NitroAttestationDocument, NitroAttestationPolicy, NitroError, NitroPcrPolicy,
+        NitroReleaseBinding,
+    },
+    proofs::{
+        ProofEnvelope, ProofKind, ProofVerificationContext, ProofVerifier, ProofVerifierStatus,
+        VerifiedProofReceipt,
+    },
     verifiers::nitro_trust::AwsNitroTrustBoundary,
 };
-use crate::{ConclaveResult, ConclaveError};
-use sha2::{Sha256, Digest};
+use crate::{ConclaveError, ConclaveResult};
+use sha2::{Digest, Sha256};
 
 /// Production AWS Nitro attestation verifier.
 ///
@@ -50,7 +55,8 @@ impl AwsNitroVerifier {
         if fp != Self::ROOT_CA_FINGERPRINT {
             return Err(ConclaveError::Attestation(format!(
                 "Root CA fingerprint mismatch: expected {}, got {}",
-                Self::ROOT_CA_FINGERPRINT, fp
+                Self::ROOT_CA_FINGERPRINT,
+                fp
             )));
         }
         Ok(())
@@ -79,10 +85,9 @@ impl ProofVerifier for AwsNitroVerifier {
         envelope: &ProofEnvelope,
         context: &ProofVerificationContext,
     ) -> ConclaveResult<VerifiedProofReceipt> {
-        let doc = NitroAttestationDocument::parse(&envelope.evidence)
-            .map_err(|e| ConclaveError::Attestation(
-                format!("Failed to parse Nitro attestation document: {e:?}")
-            ))?;
+        let doc = NitroAttestationDocument::parse(&envelope.evidence).map_err(|e| {
+            ConclaveError::Attestation(format!("Failed to parse Nitro attestation document: {e:?}"))
+        })?;
 
         self.verify_root_ca_fingerprint()?;
 
@@ -93,14 +98,14 @@ impl ProofVerifier for AwsNitroVerifier {
             context.operation_digest,
             context.purpose.clone(),
             [0u8; 32], // kms_key_identifier_hash — no KMS key binding
-            1,          // policy_version
+            1,         // policy_version
             Sha256::digest(b"aws-nitro-v1").into(),
             now_ms + max_age_ms,
             Sha256::digest(&context.nonce).into(),
         )
-        .map_err(|e| ConclaveError::Attestation(
-            format!("Failed to construct release binding: {e:?}")
-        ))?;
+        .map_err(|e| {
+            ConclaveError::Attestation(format!("Failed to construct release binding: {e:?}"))
+        })?;
 
         doc.verify_offline(
             &self.policy,
@@ -110,9 +115,7 @@ impl ProofVerifier for AwsNitroVerifier {
             context.operation_digest,
             &release_binding,
         )
-        .map_err(|e| ConclaveError::Attestation(
-            format!("Nitro attestation rejected: {e:?}")
-        ))?;
+        .map_err(|e| ConclaveError::Attestation(format!("Nitro attestation rejected: {e:?}")))?;
 
         VerifiedProofReceipt::from_verified_envelope(envelope, context)
     }
@@ -135,9 +138,6 @@ mod tests {
     fn root_ca_fingerprint_matches() {
         let ca = AwsNitroVerifier::embedded_root_ca();
         let hash = Sha256::digest(&ca);
-        assert_eq!(
-            hex::encode(hash),
-            AwsNitroVerifier::ROOT_CA_FINGERPRINT
-        );
+        assert_eq!(hex::encode(hash), AwsNitroVerifier::ROOT_CA_FINGERPRINT);
     }
 }

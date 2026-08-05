@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.0.15] - 2026-08-05
+
 ### Breaking
 - **Breaking:** `ArkManager::with_backend` now returns `ConclaveResult<Self>` instead of `Self`; callers must handle the result. `ArkBackend::ProviderOwned` remains rejected with typed `ProtocolUnsupported`, and production/provider support remains unavailable pending issue #195. `ArkBackend::Unconfigured` remains the safe disabled variant and succeeds.
 

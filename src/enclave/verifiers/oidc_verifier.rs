@@ -16,11 +16,11 @@
 //! - RFC 7519 (JWT): https://datatracker.ietf.org/doc/html/rfc7519
 //! - AWS Nitro Enclaves OIDC: https://docs.aws.amazon.com/enclaves/latest/user/nitro-enclave-ref.html
 
-use crate::{ConclaveResult, ConclaveError};
+use crate::{ConclaveError, ConclaveResult};
 use std::collections::HashMap;
 
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 /// JWK (JSON Web Key) for OIDC signature verification.
 #[derive(Debug, Clone)]
@@ -118,10 +118,9 @@ impl OidcVerifier {
     ///
     /// Use `verify_token` for full verification including signature.
     pub fn decode_token_header(&self, token: &str) -> ConclaveResult<(String, String)> {
-        let header = decode_header(token)
-            .map_err(|e| ConclaveError::Attestation(
-                format!("OIDC: failed to decode token header: {e}")
-            ))?;
+        let header = decode_header(token).map_err(|e| {
+            ConclaveError::Attestation(format!("OIDC: failed to decode token header: {e}"))
+        })?;
         let kid = header.kid.unwrap_or_default();
         let alg = format!("{:?}", header.alg);
         Ok((kid, alg))
@@ -139,10 +138,9 @@ impl OidcVerifier {
         jwks: &[Jwk],
         expected_nonce: Option<&str>,
     ) -> ConclaveResult<OidcVerificationResult> {
-        let header = decode_header(token)
-            .map_err(|e| ConclaveError::Attestation(
-                format!("OIDC: failed to decode token header: {e}")
-            ))?;
+        let header = decode_header(token).map_err(|e| {
+            ConclaveError::Attestation(format!("OIDC: failed to decode token header: {e}"))
+        })?;
 
         // Use algorithm from token header
         let mut validation = Validation::new(header.alg);
@@ -153,11 +151,12 @@ impl OidcVerifier {
 
         // Find the matching key by kid
         let kid = header.kid.unwrap_or_default();
-        let jwk = jwks.iter()
+        let jwk = jwks
+            .iter()
             .find(|k| k.kid.as_deref() == Some(&kid) || kid.is_empty())
-            .ok_or_else(|| ConclaveError::Attestation(format!(
-                "OIDC: no JWK found for kid '{}'", kid
-            )))?;
+            .ok_or_else(|| {
+                ConclaveError::Attestation(format!("OIDC: no JWK found for kid '{}'", kid))
+            })?;
 
         let decoding_key = match jwk.kty.as_str() {
             "RSA" => DecodingKey::from_rsa_components(&jwk.n, &jwk.e),
@@ -166,29 +165,38 @@ impl OidcVerifier {
                 let y = jwk.y.as_deref().unwrap_or("");
                 DecodingKey::from_ec_components(x, y)
             }
-            other => return Err(ConclaveError::Attestation(format!(
-                "OIDC: unsupported key type '{}'", other
-            ))),
-        }.map_err(|e| ConclaveError::Attestation(
-            format!("OIDC: invalid JWK: {e}")
-        ))?;
+            other => {
+                return Err(ConclaveError::Attestation(format!(
+                    "OIDC: unsupported key type '{}'",
+                    other
+                )))
+            }
+        }
+        .map_err(|e| ConclaveError::Attestation(format!("OIDC: invalid JWK: {e}")))?;
 
-        let token_data = decode::<serde_json::Value>(
-            token,
-            &decoding_key,
-            &validation,
-        ).map_err(|e| ConclaveError::Attestation(
-            format!("OIDC: token verification failed: {e}")
-        ))?;
+        let token_data =
+            decode::<serde_json::Value>(token, &decoding_key, &validation).map_err(|e| {
+                ConclaveError::Attestation(format!("OIDC: token verification failed: {e}"))
+            })?;
 
         // Extract claims
         let claims_raw = token_data.claims;
-        let issuer = claims_raw.get("iss").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let subject = claims_raw.get("sub").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let audience = claims_raw.get("aud")
+        let issuer = claims_raw
+            .get("iss")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let subject = claims_raw
+            .get("sub")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let audience = claims_raw
+            .get("aud")
             .map(|v| match v {
                 serde_json::Value::String(s) => vec![s.clone()],
-                serde_json::Value::Array(arr) => arr.iter()
+                serde_json::Value::Array(arr) => arr
+                    .iter()
                     .filter_map(|a| a.as_str().map(String::from))
                     .collect(),
                 _ => vec![format!("{v}")],
@@ -196,7 +204,10 @@ impl OidcVerifier {
             .unwrap_or_default();
         let expiration = claims_raw.get("exp").and_then(|v| v.as_u64()).unwrap_or(0);
         let issued_at = claims_raw.get("iat").and_then(|v| v.as_u64()).unwrap_or(0);
-        let nonce = claims_raw.get("nonce").and_then(|v| v.as_str()).map(String::from);
+        let nonce = claims_raw
+            .get("nonce")
+            .and_then(|v| v.as_str())
+            .map(String::from);
         let mut extra = HashMap::new();
         for (k, v) in claims_raw.as_object().into_iter().flat_map(|o| o.iter()) {
             if let Some(s) = v.as_str() {
@@ -228,7 +239,11 @@ impl OidcVerifier {
     /// Validate OIDC claims without signature verification.
     ///
     /// Checks issuer, audience, expiration, and optional nonce.
-    pub fn validate_claims(&self, claims: &OidcClaims, _expected_nonce: Option<&str>) -> ConclaveResult<()> {
+    pub fn validate_claims(
+        &self,
+        claims: &OidcClaims,
+        _expected_nonce: Option<&str>,
+    ) -> ConclaveResult<()> {
         // Check issuer
         if claims.issuer != self.config.expected_issuer {
             return Err(crate::ConclaveError::Attestation(format!(
@@ -252,12 +267,16 @@ impl OidcVerifier {
             .as_secs();
 
         if now > claims.expiration + self.config.max_clock_skew_secs {
-            return Err(crate::ConclaveError::Attestation("OIDC token expired".into()));
+            return Err(crate::ConclaveError::Attestation(
+                "OIDC token expired".into(),
+            ));
         }
 
         // Check not-before (issued_at with clock skew)
         if claims.issued_at > now + self.config.max_clock_skew_secs {
-            return Err(crate::ConclaveError::Attestation("OIDC token from the future".into()));
+            return Err(crate::ConclaveError::Attestation(
+                "OIDC token from the future".into(),
+            ));
         }
 
         Ok(())
@@ -277,11 +296,13 @@ impl OidcVerifier {
     pub fn bind_nonce(&self, request_id: &[u8; 32]) -> String {
         let mut hash_input = Vec::with_capacity(32 + 8);
         hash_input.extend_from_slice(request_id);
-        hash_input.extend_from_slice(&std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-            .to_le_bytes());
+        hash_input.extend_from_slice(
+            &std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+                .to_le_bytes(),
+        );
         let digest = Sha256::digest(&hash_input);
         hex::encode(&digest[..16])
     }

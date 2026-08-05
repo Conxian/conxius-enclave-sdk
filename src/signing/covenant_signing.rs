@@ -17,7 +17,9 @@ pub struct CovenantSigner<'a, S: UniversalChainSigner> {
 }
 
 impl<'a, S: UniversalChainSigner> CovenantSigner<'a, S> {
-    pub fn new(signer: &'a S) -> Self { Self { signer } }
+    pub fn new(signer: &'a S) -> Self {
+        Self { signer }
+    }
 
     /// Sign a covenant transition (spend from covenanted UTXO).
     ///
@@ -32,7 +34,10 @@ impl<'a, S: UniversalChainSigner> CovenantSigner<'a, S> {
         tapleaf_hash: [u8; 32],
     ) -> ConclaveResult<String> {
         self.signer.sign_bitcoin_taproot(
-            covenant_sighash, derivation_path, key_id, Some(tapleaf_hash),
+            covenant_sighash,
+            derivation_path,
+            key_id,
+            Some(tapleaf_hash),
         )
     }
 
@@ -46,7 +51,8 @@ impl<'a, S: UniversalChainSigner> CovenantSigner<'a, S> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        self.signer.sign_bitcoin_taproot(template_hash, derivation_path, key_id, None)
+        self.signer
+            .sign_bitcoin_taproot(template_hash, derivation_path, key_id, None)
     }
 
     /// Sign a vault emergency unbonding transaction.
@@ -59,7 +65,8 @@ impl<'a, S: UniversalChainSigner> CovenantSigner<'a, S> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        self.signer.sign_bitcoin_ecdsa(unbond_sighash, derivation_path, key_id)
+        self.signer
+            .sign_bitcoin_ecdsa(unbond_sighash, derivation_path, key_id)
     }
 }
 

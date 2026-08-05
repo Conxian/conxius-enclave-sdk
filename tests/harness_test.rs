@@ -35,10 +35,8 @@ fn harness_digests_are_distinct() {
 #[test]
 fn harness_enclave_returns_public_key() {
     let enclave = harness::HarnessEnclave::new();
-    let pk = conxius_enclave_sdk::enclave::EnclaveManager::get_public_key(
-        &enclave,
-        "m/86'/0'/0'/0/0",
-    );
+    let pk =
+        conxius_enclave_sdk::enclave::EnclaveManager::get_public_key(&enclave, "m/86'/0'/0'/0/0");
     assert!(pk.is_ok());
     assert_eq!(pk.unwrap(), enclave.public_key_hex);
 }

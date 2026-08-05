@@ -652,6 +652,29 @@ impl AttestationPolicy {
             }
         }
     }
+
+    /// Verify that a given Unix-epoch timestamp (typically from a device
+    /// integrity report) falls within the policy's freshness window.
+    ///
+    /// Returns `Ok(())` when `report_timestamp_secs` is within the allowed
+    /// age and future-skew bounds, or a `CryptoError` otherwise.
+    pub fn verify_freshness(&self, report_timestamp_secs: u64) -> ConclaveResult<()> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        if report_timestamp_secs > now + self.max_future_skew_secs {
+            return Err(ConclaveError::CryptoError(
+                "attestation report timestamp is in the future".into(),
+            ));
+        }
+        if now > report_timestamp_secs + self.max_age_secs {
+            return Err(ConclaveError::CryptoError(
+                "attestation report has expired".into(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

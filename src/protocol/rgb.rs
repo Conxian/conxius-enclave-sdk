@@ -11,16 +11,24 @@ use crate::{ConclaveError, ConclaveResult};
 pub struct RgbContractId([u8; 32]);
 
 impl RgbContractId {
-    pub fn from_bytes(bytes: [u8; 32]) -> Self { Self(bytes) }
-    pub fn as_bytes(&self) -> &[u8; 32] { &self.0 }
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RgbTransitionId([u8; 32]);
 
 impl RgbTransitionId {
-    pub fn from_bytes(bytes: [u8; 32]) -> Self { Self(bytes) }
-    pub fn as_bytes(&self) -> &[u8; 32] { &self.0 }
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
 }
 
 /// Anchors an RGB state transition to a Bitcoin UTXO.
@@ -33,7 +41,10 @@ pub struct RgbSeal {
 /// RGB schema version.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RgbSchema {
-    Rgb20, Rgb21, Rgb25, Custom(String),
+    Rgb20,
+    Rgb21,
+    Rgb25,
+    Custom(String),
 }
 
 /// A fully-formed RGB state transition with Bitcoin anchoring.
@@ -56,7 +67,9 @@ pub struct RgbTransitionBuilder<'a, S: UniversalChainSigner> {
 }
 
 impl<'a, S: UniversalChainSigner> RgbTransitionBuilder<'a, S> {
-    pub fn new(signer: &'a S) -> Self { Self { signer } }
+    pub fn new(signer: &'a S) -> Self {
+        Self { signer }
+    }
 
     /// Build and sign an RGB state transition.
     pub fn build_transition(
@@ -68,9 +81,9 @@ impl<'a, S: UniversalChainSigner> RgbTransitionBuilder<'a, S> {
         key_id: &str,
     ) -> ConclaveResult<RgbTransition> {
         let transition_hash = Self::compute_transition_hash(&contract_id, &schema, &seal);
-        let signature_hex = self.signer.sign_bitcoin_taproot(
-            transition_hash, derivation_path, key_id, None,
-        )?;
+        let signature_hex =
+            self.signer
+                .sign_bitcoin_taproot(transition_hash, derivation_path, key_id, None)?;
         Ok(RgbTransition {
             contract_id,
             transition_id: RgbTransitionId::from_bytes(transition_hash),
@@ -106,9 +119,13 @@ impl<'a, S: UniversalChainSigner> RgbTransitionBuilder<'a, S> {
 
 #[deprecated(since = "2.0.13", note = "use RgbTransitionBuilder instead")]
 pub fn sign_rgb_transition(
-    _transition_hash: [u8; 32], _derivation_path: &str, _key_id: &str,
+    _transition_hash: [u8; 32],
+    _derivation_path: &str,
+    _key_id: &str,
 ) -> ConclaveResult<String> {
-    Err(ConclaveError::Unsupported("rgb: transition signing requires RgbTransitionBuilder (Phase 2)".to_string()))
+    Err(ConclaveError::Unsupported(
+        "rgb: transition signing requires RgbTransitionBuilder (Phase 2)".to_string(),
+    ))
 }
 
 #[cfg(test)]
@@ -123,20 +140,27 @@ mod tests {
 
     #[test]
     fn seal_construction() {
-        let seal = RgbSeal { txid: [0xAB; 32], vout: 3 };
+        let seal = RgbSeal {
+            txid: [0xAB; 32],
+            vout: 3,
+        };
         assert_eq!(seal.vout, 3);
     }
 
     #[test]
     fn transition_hash_is_deterministic() {
         let cid = RgbContractId::from_bytes([0x01; 32]);
-        let seal = RgbSeal { txid: [0x02; 32], vout: 0 };
+        let seal = RgbSeal {
+            txid: [0x02; 32],
+            vout: 0,
+        };
         let h1 = RgbTransitionBuilder::<crate::signing::ucs::EnclaveUniversalSigner>::compute_transition_hash(&cid, &RgbSchema::Rgb20, &seal);
         let h2 = RgbTransitionBuilder::<crate::signing::ucs::EnclaveUniversalSigner>::compute_transition_hash(&cid, &RgbSchema::Rgb20, &seal);
         assert_eq!(h1, h2);
     }
 
     #[test]
+    #[allow(deprecated)]
     fn deprecated_sign_returns_unsupported() {
         let result = sign_rgb_transition([0x00; 32], "m/86'/0'/0'/0/0", "k");
         assert!(matches!(result, Err(ConclaveError::Unsupported(_))));

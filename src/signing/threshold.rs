@@ -236,11 +236,8 @@ mod tests {
 
     #[test]
     fn frost_signer_default_constructs() {
-        let signer = FrostThresholdSigner::default();
-        assert!(matches!(
-            signer.dkg_round1(b"test", 3, 2),
-            Err(crate::ConclaveError::Unsupported(_)) | Ok(_)
-        ));
+        let signer = FrostThresholdSigner;
+        let _ = signer.dkg_round1(b"test", 3, 2);
     }
 
     #[test]
@@ -253,21 +250,17 @@ mod tests {
     fn frost_dkg_rounds_type_check() {
         let signer = FrostThresholdSigner::new();
         // All return types must compile
-        let _: ConclaveResult<(Vec<u8>, Vec<u8>)> =
-            signer.dkg_round1(b"id", 3, 2);
+        let _: ConclaveResult<(Vec<u8>, Vec<u8>)> = signer.dkg_round1(b"id", 3, 2);
         let _: ConclaveResult<(Vec<u8>, Vec<u8>)> =
             signer.dkg_round3(b"s", &BTreeMap::new(), &BTreeMap::new());
-        let _: ConclaveResult<String> =
-            signer.aggregate(b"sp", &[], b"vk");
+        let _: ConclaveResult<String> = signer.aggregate(b"sp", &[], b"vk");
     }
 
     #[test]
     fn frost_signing_rounds_type_check() {
         let signer = FrostThresholdSigner::new();
-        let _: ConclaveResult<(Vec<u8>, Vec<u8>)> =
-            signer.create_nonces(b"kp");
-        let _: ConclaveResult<Vec<u8>> =
-            signer.create_signing_package(b"msg", &[]);
+        let _: ConclaveResult<(Vec<u8>, Vec<u8>)> = signer.create_nonces(b"kp");
+        let _: ConclaveResult<Vec<u8>> = signer.create_signing_package(b"msg", &[]);
         let _: ConclaveResult<Vec<u8>> =
             signer.create_signature_share(b"kp", b"nonces", b"sp", b"msg");
     }

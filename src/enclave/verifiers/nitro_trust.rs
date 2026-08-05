@@ -12,12 +12,11 @@
 //! 5. Return `NitroTrustDecision::Verified` or error
 
 use crate::enclave::nitro::{
-    NitroCertificateTrustBoundary, NitroAttestationDocument,
-    NitroTrustDecision, NitroError,
+    NitroAttestationDocument, NitroCertificateTrustBoundary, NitroError, NitroTrustDecision,
 };
-use x509_cert::Certificate;
 use der::Decode;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
+use x509_cert::Certificate;
 
 /// Production AWS Nitro certificate trust boundary.
 ///
@@ -71,8 +70,8 @@ impl NitroCertificateTrustBoundary for AwsNitroTrustBoundary {
         self.verify_root_fingerprint()?;
 
         // Parse the root CA certificate
-        let root = Certificate::from_der(&self.root_ca_der)
-            .map_err(|_| NitroError::InvalidCaBundle)?;
+        let root =
+            Certificate::from_der(&self.root_ca_der).map_err(|_| NitroError::InvalidCaBundle)?;
 
         // Parse the attestation document's signing certificate (leaf)
         let _leaf = Certificate::from_der(document.certificate_der())
@@ -81,7 +80,7 @@ impl NitroCertificateTrustBoundary for AwsNitroTrustBoundary {
         // Collect and validate the CA bundle chain
         let ca_certs: Vec<Certificate> = document
             .ca_bundle_root_first()
-            .map(|der| Certificate::from_der(der))
+            .map(Certificate::from_der)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| NitroError::InvalidCaBundle)?;
 
@@ -130,7 +129,10 @@ mod tests {
     fn root_ca_fingerprint_self_consistent() {
         let tb = AwsNitroTrustBoundary::new();
         let hash = Sha256::digest(&tb.root_ca_der);
-        assert_eq!(hex::encode(hash), AwsNitroTrustBoundary::ROOT_CA_FINGERPRINT);
+        assert_eq!(
+            hex::encode(hash),
+            AwsNitroTrustBoundary::ROOT_CA_FINGERPRINT
+        );
     }
 
     #[test]

@@ -18,9 +18,9 @@
 //! - FIDO2 Attestation: https://fidoalliance.org/specs/
 //! - webauthn-rs crate: https://docs.rs/webauthn-rs/
 
-use crate::{ConclaveResult, ConclaveError};
+use crate::{ConclaveError, ConclaveResult};
 #[cfg(feature = "webauthn")]
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 /// WebAuthn client data (parsed from clientDataJSON).
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -95,22 +95,27 @@ impl WebauthnVerifier {
         origin: &str,
         expected_type: &str,
     ) -> ConclaveResult<ClientData> {
-        let cd: ClientData = serde_json::from_slice(client_data_json)
-            .map_err(|e| ConclaveError::Attestation(format!("WebAuthn: invalid clientDataJSON: {e}")))?;
+        let cd: ClientData = serde_json::from_slice(client_data_json).map_err(|e| {
+            ConclaveError::Attestation(format!("WebAuthn: invalid clientDataJSON: {e}"))
+        })?;
 
         if cd.typ != expected_type {
             return Err(ConclaveError::Attestation(format!(
-                "WebAuthn: expected type '{expected_type}', got '{}'", cd.typ
+                "WebAuthn: expected type '{expected_type}', got '{}'",
+                cd.typ
             )));
         }
 
         if cd.challenge != challenge_b64 {
-            return Err(ConclaveError::Attestation("WebAuthn: challenge mismatch".into()));
+            return Err(ConclaveError::Attestation(
+                "WebAuthn: challenge mismatch".into(),
+            ));
         }
 
         if cd.origin != origin {
             return Err(ConclaveError::Attestation(format!(
-                "WebAuthn: origin mismatch: expected '{origin}', got '{}'", cd.origin
+                "WebAuthn: origin mismatch: expected '{origin}', got '{}'",
+                cd.origin
             )));
         }
 
@@ -121,13 +126,14 @@ impl WebauthnVerifier {
     #[cfg(feature = "webauthn")]
     pub fn verify_registration(
         &self,
-        attestation_object: &[u8],
+        _attestation_object: &[u8],
         client_data_json: &[u8],
         challenge: &[u8],
         origin: &str,
     ) -> ConclaveResult<WebauthnCredential> {
         let challenge_b64 = base64_url(challenge);
-        let _cd = self.validate_client_data(client_data_json, &challenge_b64, origin, "webauthn.create")?;
+        let _cd =
+            self.validate_client_data(client_data_json, &challenge_b64, origin, "webauthn.create")?;
 
         Err(ConclaveError::Unsupported(
             "WebAuthn attestation: full webauthn-rs verification pending".into(),
@@ -143,7 +149,8 @@ impl WebauthnVerifier {
         origin: &str,
     ) -> ConclaveResult<WebauthnCredential> {
         let challenge_b64 = base64_url(challenge);
-        let _cd = self.validate_client_data(client_data_json, &challenge_b64, origin, "webauthn.create")?;
+        let _cd =
+            self.validate_client_data(client_data_json, &challenge_b64, origin, "webauthn.create")?;
         Err(ConclaveError::Unsupported(
             "WebAuthn verify: enable `webauthn` feature for attestation verification".into(),
         ))
@@ -153,15 +160,16 @@ impl WebauthnVerifier {
     #[cfg(feature = "webauthn")]
     pub fn verify_authentication(
         &self,
-        credential: &WebauthnCredential,
+        _credential: &WebauthnCredential,
         authenticator_data: &[u8],
         client_data_json: &[u8],
-        signature: &[u8],
+        _signature: &[u8],
         challenge: &[u8],
         origin: &str,
     ) -> ConclaveResult<bool> {
         let challenge_b64 = base64_url(challenge);
-        let _cd = self.validate_client_data(client_data_json, &challenge_b64, origin, "webauthn.get")?;
+        let _cd =
+            self.validate_client_data(client_data_json, &challenge_b64, origin, "webauthn.get")?;
 
         let client_data_hash: [u8; 32] = Sha256::digest(client_data_json).into();
         let mut signed_data = Vec::with_capacity(authenticator_data.len() + 32);
@@ -184,7 +192,8 @@ impl WebauthnVerifier {
         origin: &str,
     ) -> ConclaveResult<bool> {
         let challenge_b64 = base64_url(challenge);
-        let _cd = self.validate_client_data(client_data_json, &challenge_b64, origin, "webauthn.get")?;
+        let _cd =
+            self.validate_client_data(client_data_json, &challenge_b64, origin, "webauthn.get")?;
         Err(ConclaveError::Unsupported(
             "WebAuthn verify: enable `webauthn` feature".into(),
         ))
@@ -212,7 +221,11 @@ impl WebauthnVerifier {
             AttestationFormat::Apple | AttestationFormat::AndroidKey => "StrongBox",
             AttestationFormat::Tpm => "TEE",
             AttestationFormat::Packed => {
-                if credential.attestation_trusted { "TEE" } else { "Software" }
+                if credential.attestation_trusted {
+                    "TEE"
+                } else {
+                    "Software"
+                }
             }
             AttestationFormat::None_ | AttestationFormat::AndroidSafetyNet => "Software",
         }
@@ -310,7 +323,12 @@ mod tests {
         };
         let v = WebauthnVerifier::new(config);
         let cd = r#"{"type":"webauthn.get","challenge":"AAAA","origin":"https://test.local"}"#;
-        let result = v.validate_client_data(cd.as_bytes(), "AAAA", "https://test.local", "webauthn.create");
+        let result = v.validate_client_data(
+            cd.as_bytes(),
+            "AAAA",
+            "https://test.local",
+            "webauthn.create",
+        );
         assert!(result.is_err());
     }
 
@@ -325,7 +343,12 @@ mod tests {
         };
         let v = WebauthnVerifier::new(config);
         let cd = r#"{"type":"webauthn.create","challenge":"AAAA","origin":"https://test.local"}"#;
-        let result = v.validate_client_data(cd.as_bytes(), "AAAA", "https://test.local", "webauthn.create");
+        let result = v.validate_client_data(
+            cd.as_bytes(),
+            "AAAA",
+            "https://test.local",
+            "webauthn.create",
+        );
         assert!(result.is_ok());
     }
 }

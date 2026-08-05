@@ -28,7 +28,9 @@ pub fn taproot_output_key(
 ) -> XOnlyPublicKey {
     let tweak_bytes = compute_taproot_tweak(internal_key, merkle_root);
     let tweak = Scalar::from_be_bytes(tweak_bytes).expect("tweak is a valid scalar");
-    internal_key.add_tweak(&tweak).expect("taproot output key derivation")
+    internal_key
+        .add_tweak(&tweak)
+        .expect("taproot output key derivation")
 }
 
 /// Compute a tapleaf hash from a script.
@@ -90,8 +92,9 @@ mod tests {
     fn compute_taproot_tweak_default_merkle_root() {
         // Valid x-only public key (already on curve, even y)
         let key = XOnlyPublicKey::from_str(
-            "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
-        ).unwrap();
+            "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        )
+        .unwrap();
         let tweak = compute_taproot_tweak(&key, None);
         assert_eq!(tweak.len(), 32);
     }
@@ -99,8 +102,9 @@ mod tests {
     #[test]
     fn taproot_output_key_no_script_path() {
         let key = XOnlyPublicKey::from_str(
-            "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
-        ).unwrap();
+            "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        )
+        .unwrap();
         let output_key = taproot_output_key(&key, None);
         // Output key should differ from internal key after tweaking
         assert_ne!(output_key, key);

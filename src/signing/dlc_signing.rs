@@ -15,7 +15,9 @@ pub struct DlcSigner<'a, S: UniversalChainSigner> {
 }
 
 impl<'a, S: UniversalChainSigner> DlcSigner<'a, S> {
-    pub fn new(signer: &'a S) -> Self { Self { signer } }
+    pub fn new(signer: &'a S) -> Self {
+        Self { signer }
+    }
 
     /// Sign a DLC oracle attestation (Schnorr).
     ///
@@ -29,7 +31,8 @@ impl<'a, S: UniversalChainSigner> DlcSigner<'a, S> {
         key_id: &str,
     ) -> ConclaveResult<String> {
         let message = Self::oracle_message_hash(event_id, outcome);
-        self.signer.sign_bitcoin_taproot(message, derivation_path, key_id, None)
+        self.signer
+            .sign_bitcoin_taproot(message, derivation_path, key_id, None)
     }
 
     /// Sign a Contract Execution Transaction (CET).
@@ -43,7 +46,8 @@ impl<'a, S: UniversalChainSigner> DlcSigner<'a, S> {
         key_id: &str,
         tapleaf_hash: [u8; 32],
     ) -> ConclaveResult<String> {
-        self.signer.sign_bitcoin_taproot(cet_sighash, derivation_path, key_id, Some(tapleaf_hash))
+        self.signer
+            .sign_bitcoin_taproot(cet_sighash, derivation_path, key_id, Some(tapleaf_hash))
     }
 
     /// Sign a refund transaction (timelock path).
@@ -53,7 +57,8 @@ impl<'a, S: UniversalChainSigner> DlcSigner<'a, S> {
         derivation_path: &str,
         key_id: &str,
     ) -> ConclaveResult<String> {
-        self.signer.sign_bitcoin_taproot(refund_sighash, derivation_path, key_id, None)
+        self.signer
+            .sign_bitcoin_taproot(refund_sighash, derivation_path, key_id, None)
     }
 
     fn oracle_message_hash(event_id: [u8; 32], outcome: u64) -> [u8; 32] {
@@ -79,15 +84,23 @@ mod tests {
 
     #[test]
     fn oracle_hash_is_deterministic() {
-        let h1 = DlcSigner::<crate::signing::ucs::EnclaveUniversalSigner>::oracle_message_hash([0xAB; 32], 42);
-        let h2 = DlcSigner::<crate::signing::ucs::EnclaveUniversalSigner>::oracle_message_hash([0xAB; 32], 42);
+        let h1 = DlcSigner::<crate::signing::ucs::EnclaveUniversalSigner>::oracle_message_hash(
+            [0xAB; 32], 42,
+        );
+        let h2 = DlcSigner::<crate::signing::ucs::EnclaveUniversalSigner>::oracle_message_hash(
+            [0xAB; 32], 42,
+        );
         assert_eq!(h1, h2);
     }
 
     #[test]
     fn oracle_hash_differs_by_outcome() {
-        let h1 = DlcSigner::<crate::signing::ucs::EnclaveUniversalSigner>::oracle_message_hash([0xAB; 32], 0);
-        let h2 = DlcSigner::<crate::signing::ucs::EnclaveUniversalSigner>::oracle_message_hash([0xAB; 32], 1);
+        let h1 = DlcSigner::<crate::signing::ucs::EnclaveUniversalSigner>::oracle_message_hash(
+            [0xAB; 32], 0,
+        );
+        let h2 = DlcSigner::<crate::signing::ucs::EnclaveUniversalSigner>::oracle_message_hash(
+            [0xAB; 32], 1,
+        );
         assert_ne!(h1, h2);
     }
 }

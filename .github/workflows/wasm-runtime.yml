@@ -21,7 +21,7 @@ env:
   WASM_EXPECTED_NODE_VERSION: 22.23.1
   WASM_EXPECTED_NPM_VERSION: 11.18.0
   WASM_EXPECTED_RUST_VERSION: 1.97.1
-  WASM_EXPECTED_PLAYWRIGHT_VERSION: 1.54.2
+  WASM_EXPECTED_PLAYWRIGHT_VERSION: 1.55.1
   WASM_STRICT_TOOLCHAIN: "1"
   WASM_EXPECTED_TESTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
   WASM_PR_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || '' }}
