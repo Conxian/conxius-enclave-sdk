@@ -4,6 +4,56 @@
 
 ## [2.0.15] - 2026-08-05
 
+### Added
+- FROST DKG/signing gated behind enclave attestation policy (#286)
+- 4 verifier backends wired: Nitro, PKCS#11 (cryptoki), WebAuthn (webauthn-rs), OIDC (jsonwebtoken v10)
+
+### Changed
+- Cargo.toml bumped to 2.0.15
+- Core adapter SDK dep aligned from =2.0.11 to git tag v2.0.14
+- AGENTS.md v0.3.1 → v0.6.0 (Session 57 alignment)
+
+### Fixed
+- Clippy warnings resolved for Rust 1.97.0 (0 warnings, both feature modes)
+- cargo fmt applied across full workspace
+- WebAuthn unused parameter warnings (--all-features)
+- WASM Playwright version: 1.54.2 → 1.55.1 (CVE-2025-59288)
+- dependabot.yml: removed broken `target-branch: "dev"` from staged
+
+## [2.0.14] - 2026-08-05
+
+### Fixed
+- cargo fmt applied across workspace
+- MPL-2.0 license allow added to deny.toml
+
+## [2.0.13] - 2026-07-28
+
+### Added
+- Phase 3 attestation verifier framework: AwsNitroVerifier, Pkcs11Verifier, OidcVerifier, WebauthnVerifier
+- NitroCertificateTrustBoundary production implementation
+- Phase 2 signing: DLC, Lightning/BOLT12, Covenant/OP_CAT, ZKML
+- Phase 2 protocol hardening: Babylon, RGB, WASM runtime, Statechain, BitVM2
+- FROST threshold signing via ZF FROST v3.0.0 (frost-crypto feature, #264)
+- FrostSigningContext bridge (#275)
+- CCTP ECDSA attestation verification via k256 (#277)
+- Ark VTXO Merkle tree + FROST signing bridge (#278)
+- DLC oracle attestation + CET template construction (#279)
+- Covenant BIP-119 CTV + BIP-118 APO patterns (#276)
+- ROAST threshold signing coordinator
+- BitVM2 Groth16 proof boundary
+- Serde big-array support (Bytes48/Bytes96 for Rust ≥1.97)
+
+### Changed
+- Protocol module catalog: 39 → 50 modules
+- CI build conventions documented in AGENTS.md
+
+### Fixed
+- jsonwebtoken 9 → 10 (Dependabot #7, CVE-2026-25537)
+- Session 54 clippy/deny remediation: 0 warnings, 4 stale advisory ignores removed
+- 3 pre-existing test failures resolved
+- Cargo deny: atomic-polyfill advisory ignored
+- CodeQL false positive (nonce param rename)
+
 ### Breaking
 - **Breaking:** `ArkManager::with_backend` now returns `ConclaveResult<Self>` instead of `Self`; callers must handle the result. `ArkBackend::ProviderOwned` remains rejected with typed `ProtocolUnsupported`, and production/provider support remains unavailable pending issue #195. `ArkBackend::Unconfigured` remains the safe disabled variant and succeeds.
 

@@ -12,7 +12,7 @@ The Conclave SDK (`conxius-enclave-sdk`) is the canonical high-integrity integra
 - **Support Channel**:
   - Technical issues and feature requests should be tracked via [GitHub Issues](https://github.com/Conxian/conxius-enclave-sdk/issues).
   - Security vulnerabilities MUST be reported to `security@conxian-labs.com` as per [SECURITY.md](SECURITY.md).
-- **Service Level**: The SDK is currently in **Beta** (`0.x`). Support is provided on a best-effort basis by the core engineering team.
+- **Service Level**: The SDK is currently in **Beta** (`2.x`). Support is provided on a best-effort basis by the core engineering team.
 
 ## Release Discipline
 
