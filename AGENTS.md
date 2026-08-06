@@ -1,7 +1,12 @@
-# Conclave SDK: Agent Directives (v0.6.0 — Session 57, Aug 2026)
+# Conxius Enclave SDK: Agent Directives (v0.6.0 — Session 57, Aug 2026)
+
+> **Note:** The internal Rust types `ConclaveResult` and `ConclaveError` are legacy names
+> that predate the brand alignment. Renaming them would be a breaking change across all
+> 70+ protocol modules and downstream consumers. External references must use the brand
+> name **Conxius Enclave SDK**.
 
 ## Core Ethos
-The Conclave SDK is the definitive **Sovereign Rails** infrastructure for native Bitcoin applications. We prioritize hardware-backed security (TEE, StrongBox), non-custodial orchestration, and universal asset support.
+The Conxius Enclave SDK is the definitive **Sovereign Rails** infrastructure for native Bitcoin applications. We prioritize hardware-backed security (TEE, StrongBox), non-custodial orchestration, and universal asset support.
 
 ## Coding Standards
 - **SDK-First**: Prioritize modularity and clear boundaries between enclave, protocol, and bindings.
