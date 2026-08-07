@@ -881,7 +881,11 @@ impl FrostSigningContext {
                 share_digest,
                 self.share_bytes
                     .get(&share_digest)
-                    .expect("share just inserted above")
+                    .ok_or_else(|| {
+                        ConclaveError::CryptoError(
+                            "FROST: share bytes not found for digest".into(),
+                        )
+                    })?
                     .len() as u32,
             )?,
         })

@@ -426,10 +426,8 @@ impl ArkManager {
 
         fn build_level(nodes: Vec<VtxoTreeNode>) -> VtxoTreeNode {
             if nodes.len() == 1 {
-                return nodes
-                    .into_iter()
-                    .next()
-                    .expect("build_level: single node guaranteed by len==1 guard");
+                // len==1 guard guarantees a node exists; safe to unwrap
+                return nodes.into_iter().next().unwrap();
             }
             let mut parent_level = Vec::new();
             for chunk in nodes.chunks(2) {
@@ -440,10 +438,11 @@ impl ArkManager {
                 let (tx_id_hex, _) = hash_node(&left_hash, &right_hash);
                 parent_level.push(VtxoTreeNode {
                     tx_id: ArkTransactionId::new(tx_id_hex).unwrap_or_else(|_| {
+                        // Zero hash is always a valid 64-char hex txid
                         ArkTransactionId::new(
                             "0000000000000000000000000000000000000000000000000000000000000000",
                         )
-                        .expect("zero txid is valid by construction")
+                        .unwrap()
                     }),
                     left: Some(Box::new(left.clone())),
                     right: Some(Box::new(right.clone())),
@@ -463,10 +462,11 @@ impl ArkManager {
                 let leaf_hash: [u8; 32] = hasher.finalize().into();
                 VtxoTreeNode {
                     tx_id: ArkTransactionId::new(hex::encode(leaf_hash)).unwrap_or_else(|_| {
+                        // Zero hash is always a valid 64-char hex txid
                         ArkTransactionId::new(
                             "0000000000000000000000000000000000000000000000000000000000000000",
                         )
-                        .expect("zero txid is valid by construction")
+                        .unwrap()
                     }),
                     left: None,
                     right: None,
