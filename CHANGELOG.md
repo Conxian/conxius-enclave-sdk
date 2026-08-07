@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- Corrected attestation documentation: default production proof routes remain unavailable; Nitro certificate checks are structural/linkage/root-pin checks rather than complete X.509 path validation; WebAuthn verification remains incomplete.
 - Workflows: `master` → `staged` in all 11 push/PR triggers (staged had zero CI coverage)
 - Workflows: duplicate `WASM Runtime Evidence` name → `Generated WASM Runtime Lanes`
 - Workflows: added `workflow_dispatch` to ci, codeql, coverage, dependency-review, hygiene
@@ -16,7 +17,7 @@
 
 ### Added
 - FROST DKG/signing gated behind enclave attestation policy (#286)
-- 4 verifier backends wired: Nitro, PKCS#11 (cryptoki), WebAuthn (webauthn-rs), OIDC (jsonwebtoken v10)
+- Verifier API backends added for Nitro, PKCS#11 (cryptoki), WebAuthn (webauthn-rs), and OIDC (jsonwebtoken v10). Default production registry routes remain fail-closed/unavailable; WebAuthn verification remains stubbed.
 
 ### Changed
 - Cargo.toml bumped to 2.0.15 (Session 57), then reverted to 2.0.14 for release alignment
@@ -38,9 +39,11 @@
 
 ## [2.0.13] - 2026-07-28
 
+> Correction (2026-08-07): historical “production” and “X.509 chain validation” wording below described structural certificate-linkage/root-pin checks, not cryptographically complete certificate-path validation. The default production registry remains unavailable, Nitro additionally requires configured PCR/workload and release/KMS bindings, and WebAuthn verification remains incomplete.
+
 ### Added
 - Phase 3 attestation verifier framework: AwsNitroVerifier, Pkcs11Verifier, OidcVerifier, WebauthnVerifier
-- NitroCertificateTrustBoundary production implementation
+- NitroCertificateTrustBoundary structural implementation
 - Phase 2 signing: DLC, Lightning/BOLT12, Covenant/OP_CAT, ZKML
 - Phase 2 protocol hardening: Babylon, RGB, WASM runtime, Statechain, BitVM2
 - FROST threshold signing via ZF FROST v3.0.0 (frost-crypto feature, #264)
@@ -68,24 +71,24 @@
 - **Breaking:** `ArkManager::with_backend` now returns `ConclaveResult<Self>` instead of `Self`; callers must handle the result. `ArkBackend::ProviderOwned` remains rejected with typed `ProtocolUnsupported`, and production/provider support remains unavailable pending issue #195. `ArkBackend::Unconfigured` remains the safe disabled variant and succeeds.
 
 ### Added
-- `AwsNitroTrustBoundary` — first production `NitroCertificateTrustBoundary` implementation
+- `AwsNitroTrustBoundary` — structural `NitroCertificateTrustBoundary` implementation
 - `ProofVerifierRegistry::register()` — deployment-level verifier injection
-- X.509 certificate chain validation against AWS Nitro Root CA G1
+- Certificate-linkage checks and AWS Nitro Root CA G1 pinning
 - Added `bip110_compliant` feature flag for BIP-110 Reduced Data Temporary Softfork compliance
 - Added BIP-110 validator module with limits: 256-byte pushdata, 83-byte OP_RETURN, 34-byte ScriptPubKey
 - Added message chunking utilities for BIP-322 under BIP-110 rules
 - 3-tier attestation verifier framework (`src/enclave/verifiers/`): AwsNitroVerifier, Pkcs11Verifier, WebauthnVerifier, OidcVerifier
 - `ProofVerifierStatus::Available` variant
 - `ConclaveError::Attestation(String)` variant
-- 14 verifier tests
+- Scoped verifier tests were added; use the exact command/result for the target head rather than this historical count
 - OIDC JWT verification: `jsonwebtoken` v9 wired, RSA/EC signature verification, JWK kid matching
 - `Jwk` struct for OIDC JWK representation (RSA + EC)
 - PKCS#11 HSM/TPM integration: `cryptoki` v0.10 wired behind feature flag, full PKCS#11 API surface
 - `secrecy` v0.8 for PKCS#11 PIN management
 
 ### Changed
-- `AwsNitroVerifier::status()` now returns `Available` (was `Unavailable`)
-- `AwsNitroVerifier::verify()` calls `verify_offline()` with production trust boundary
+- `AwsNitroVerifier::status()` reports `Available` only when explicitly constructed and registered with deployment policy; default production routes remain unavailable
+- `AwsNitroVerifier::verify()` calls `verify_offline()` with structural certificate-linkage/root-pin checks; complete path validation and deployment bindings remain required
 - Removed the WASM `derive_vutxo_key` private-key export and added provider-backed public-key/signing capability names.
 - Made unsupported WASM runtimes, providers, BitVM2 construction, and secret-bearing Fedimint flows fail closed with typed error codes.
 - Made the public WASM and BitVM2 constructors consistently fail closed instead of returning inert unavailable-enclave wrappers.

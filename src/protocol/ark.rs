@@ -424,27 +424,31 @@ impl ArkManager {
             (hex::encode(hash), hash)
         }
 
-        fn build_level(nodes: Vec<VtxoTreeNode>) -> VtxoTreeNode {
+        fn build_level(nodes: Vec<VtxoTreeNode>) -> ConclaveResult<VtxoTreeNode> {
             if nodes.len() == 1 {
-                return nodes
-                    .into_iter()
-                    .next()
-                    .expect("build_level: single node guaranteed by len==1 guard");
+                return nodes.into_iter().next().ok_or_else(|| {
+                    ConclaveError::InvalidConfiguration(
+                        "VTXO tree level unexpectedly contained no nodes".into(),
+                    )
+                });
             }
             let mut parent_level = Vec::new();
             for chunk in nodes.chunks(2) {
-                let left = &chunk[0];
+                let left = chunk.first().ok_or_else(|| {
+                    ConclaveError::InvalidConfiguration(
+                        "VTXO tree level unexpectedly contained an empty chunk".into(),
+                    )
+                })?;
                 let right = chunk.get(1).unwrap_or(left);
-                let left_hash = hex::decode(left.tx_id.as_str()).unwrap_or_default();
-                let right_hash = hex::decode(right.tx_id.as_str()).unwrap_or_default();
+                let left_hash = hex::decode(left.tx_id.as_str()).map_err(|_| {
+                    ConclaveError::InvalidConfiguration("VTXO tree contains an invalid txid".into())
+                })?;
+                let right_hash = hex::decode(right.tx_id.as_str()).map_err(|_| {
+                    ConclaveError::InvalidConfiguration("VTXO tree contains an invalid txid".into())
+                })?;
                 let (tx_id_hex, _) = hash_node(&left_hash, &right_hash);
                 parent_level.push(VtxoTreeNode {
-                    tx_id: ArkTransactionId::new(tx_id_hex).unwrap_or_else(|_| {
-                        ArkTransactionId::new(
-                            "0000000000000000000000000000000000000000000000000000000000000000",
-                        )
-                        .expect("zero txid is valid by construction")
-                    }),
+                    tx_id: ArkTransactionId::new(tx_id_hex)?,
                     left: Some(Box::new(left.clone())),
                     right: Some(Box::new(right.clone())),
                     is_leaf: false,
@@ -461,21 +465,16 @@ impl ArkManager {
                 hasher.update(vutxo.address.as_bytes());
                 hasher.update(vutxo.vutxo_id.as_str().as_bytes());
                 let leaf_hash: [u8; 32] = hasher.finalize().into();
-                VtxoTreeNode {
-                    tx_id: ArkTransactionId::new(hex::encode(leaf_hash)).unwrap_or_else(|_| {
-                        ArkTransactionId::new(
-                            "0000000000000000000000000000000000000000000000000000000000000000",
-                        )
-                        .expect("zero txid is valid by construction")
-                    }),
+                Ok(VtxoTreeNode {
+                    tx_id: ArkTransactionId::new(hex::encode(leaf_hash))?,
                     left: None,
                     right: None,
                     is_leaf: true,
-                }
+                })
             })
-            .collect();
+            .collect::<ConclaveResult<_>>()?;
 
-        Ok(build_level(leaf_nodes))
+        build_level(leaf_nodes)
     }
 
     pub fn sign_forfeit_transaction(
@@ -666,6 +665,11 @@ mod tests {
 
     #[test]
     fn vtxo_tree_empty_rejected() {
-        assert!(manager().construct_vtxo_tree(vec![]).is_err());
+        assert_eq!(
+            manager().construct_vtxo_tree(vec![]),
+            Err(ConclaveError::InvalidConfiguration(
+                "VTXO tree requires at least one leaf".into()
+            ))
+        );
     }
 }

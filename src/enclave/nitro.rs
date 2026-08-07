@@ -231,8 +231,6 @@ impl fmt::Debug for NitroPcrPolicy {
 impl NitroPcrPolicy {
     /// Creates an exact policy. PCR4 is not implicitly required; callers select
     /// the indexes appropriate for their deployment and binding contract.
-    /// An empty measurements set is allowed — the policy will accept any PCR
-    /// values (structural verification only, no PCR content enforcement).
     pub fn new<I>(measurements: I) -> Result<Self, NitroError>
     where
         I: IntoIterator<Item = (u8, [u8; NITRO_SHA384_PCR_BYTES])>,
@@ -247,16 +245,11 @@ impl NitroPcrPolicy {
             }
         }
 
-        Ok(Self { required })
-    }
-
-    /// Creates a policy that accepts any PCR values — structural verification
-    /// only (COSE signature + certificate chain), no PCR content enforcement.
-    /// Use [`new`] with specific PCR baselines for production deployments.
-    pub fn structural_only() -> Self {
-        Self {
-            required: BTreeMap::new(),
+        if required.is_empty() {
+            return Err(NitroError::PcrPolicyEmpty);
         }
+
+        Ok(Self { required })
     }
 
     /// Returns the exact required indexes without exposing measurement bytes.
@@ -2400,6 +2393,7 @@ mod tests {
             NitroPcrPolicy::new([(0, [0; NITRO_SHA384_PCR_BYTES])]),
             Err(NitroError::PcrPolicyInvalid)
         );
+        assert_eq!(NitroPcrPolicy::new([]), Err(NitroError::PcrPolicyEmpty));
         let mut all_zero = document.clone();
         all_zero.pcrs.insert(0, [0; NITRO_SHA384_PCR_BYTES]);
         let exact = NitroAttestationPolicy::new(

@@ -68,7 +68,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Priority**: P1
 - **Description**: The typed value-bearing boundary now fails closed and requires provider-verified hardware provenance, but the repository does not contain an authenticated real hardware/provider verifier or signer implementation.
 - **Risk**: Software fixtures, simulated attestation, or an unverified provider could otherwise be mistaken for value-bearing production authorization.
-- **Session 57 Progress (2026-08-05)**: Phase 3 verifier framework built with 4 backends (Nitro, PKCS#11, WebAuthn, OIDC). All verifiers implement the `ProofVerifier` trait. 14 verifier tests pass. Verifier framework complete (Session 55-57). Blocked on: live Nitro deployment evidence (P0), core adapter integration (P0), distributed replay (P1).
+- **Session 57 Progress (corrected 2026-08-07)**: Verifier APIs exist for Nitro, PKCS#11, WebAuthn, and OIDC. Default production proof routes remain fail-closed/unavailable. Nitro certificate checks are structural/linkage/root-pin only and still require complete certificate-path validation plus configured PCR/workload and release/KMS bindings; WebAuthn verification remains stubbed. PKCS#11 and OIDC APIs are wired, but provider/runtime evidence remains open.
 - **Recommendation**: Define and integrate the provider response/key-binding contract, vendor roots and collateral, hardware-generated keys, deployment checks, and provider-backed positive/negative integration tests. Keep `UnavailableEnclave` as the default until that evidence exists.
 - **Tracking**: [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195)
 
@@ -77,7 +77,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Priority**: P1
 - **Description**: Typed settlement authorization and attestation replay checks are contained by process-local `ReplayGuard` instances; distributed deployment coordination is not implemented or evidenced.
 - **Risk**: A process-local replay cache cannot establish single-use authorization across replicas, restarts, or independent provider/runtime boundaries.
-- **Session 57 Progress (2026-08-05)**: Phase 3 verifier framework built with 4 backends (Nitro, PKCS#11, WebAuthn, OIDC). All verifiers implement the `ProofVerifier` trait. 14 verifier tests pass. Verifier framework complete (Session 55-57). Blocked on: live Nitro deployment evidence (P0), core adapter integration (P0), distributed replay (P1).
+- **Session 57 Progress (corrected 2026-08-07)**: Verifier APIs exist, but all default production routes remain unavailable and distributed replay remains unimplemented. Local/unit results do not establish provider or deployment support.
 - **Recommendation**: Specify and independently review deployment-safe replay semantics, then add provider-backed and distributed integration tests with failure-closed behavior.
 - **Tracking**: [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195)
 
@@ -86,7 +86,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Priority**: P1
 - **Description**: Phase A now binds the complete proof policy through the rail and final-dispatch boundaries, but provider-specific verification, roots, collateral/revocation, runtime integration, and exact artifact evidence remain unavailable.
 - **Risk**: Research specifications or typed taxonomy could be mistaken for an authenticated TLS/WebAuthn/FIDO/TPM/mobile/TEE provider claim.
-- **Session 57 Progress (2026-08-05)**: Phase 3 verifier framework built with 4 backends (Nitro, PKCS#11, WebAuthn, OIDC). All verifiers implement the `ProofVerifier` trait. 14 verifier tests pass. Verifier framework complete (Session 55-57). Blocked on: live Nitro deployment evidence (P0), core adapter integration (P0), distributed replay (P1).
+- **Session 57 Progress (corrected 2026-08-07)**: Provider-specific API surfaces exist, but the default production registry remains unavailable. Nitro lacks complete certificate-path validation and configured deployment bindings; WebAuthn verification is incomplete; exact provider/runtime evidence remains open.
 - **Recommendation**: Select one provider scope at a time, implement its authenticated verifier and exact policy namespace, add official vectors and provider-backed negative tests, then attach CI, independent-review, provenance, and release-artifact evidence.
 - **Tracking**: [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202)
 
@@ -95,7 +95,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Priority**: P1
 - **Description**: WASM compilation and simulated attestation demonstrate build or structural behavior only. Provider/runtime integration, independent review, exact release artifacts, SBOM, provenance, and support decisions remain uncollected.
 - **Risk**: A green local or CI build could be misread as hardware, runtime, deployment, or release evidence.
-- **Session 57 Progress (2026-08-05)**: Phase 3 verifier framework built with 4 backends (Nitro, PKCS#11, WebAuthn, OIDC). All verifiers implement the `ProofVerifier` trait. 14 verifier tests pass. Verifier framework complete (Session 55-57). Blocked on: live Nitro deployment evidence (P0), core adapter integration (P0), distributed replay (P1).
+- **Session 57 Progress (corrected 2026-08-07)**: Verifier API and unit-test evidence exists, but real provider/runtime, independent-review, and release-artifact evidence remains open. Default production routes stay unavailable.
 - **Recommendation**: Attach exact provider/runtime test results, reviewed artifact digests, provenance/SBOM, independent findings, and a scoped support decision before promotion.
 - **Tracking**: [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202)
 
@@ -192,10 +192,10 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 | DOC-001 | 2026-07-08 | v2.0.7 release | ✅ Resolved | 2026-07-14 |
 | DEP-002 | 2026-07-08 | Q3 2026 | Planned | 2026-07-14 |
 | TEST-001 | 2026-07-08 | Hardware/provider evidence | Reclassified — simulation/unit evidence only; #195 open | 2026-07-20 |
-| SEC-002 | 2026-07-21 | Real provider verifier/signer | In Progress — 4 backends wired (Nitro, PKCS#11, WebAuthn, OIDC); blocked on live Nitro deployment evidence (P0), core adapter integration (P0) | 2026-08-05 |
+| SEC-002 | 2026-07-21 | Real provider verifier/signer | In Progress — APIs exist; default production routes unavailable; Nitro path validation/deployment bindings and WebAuthn verification remain incomplete | 2026-08-07 |
 | SEC-003 | 2026-07-21 | Distributed replay authorization | In Progress — design planned for Session 58; backend selection pending (DynamoDB vs PostgreSQL) | 2026-08-05 |
-| SEC-004 | 2026-07-21 | Provider-specific proof verification | In Progress — 4 backends wired; blocked on live Nitro deployment evidence (P0), independent review (#202) | 2026-08-05 |
-| EVID-001 | 2026-07-21 | Provider/runtime/artifact evidence | In Progress — Phase 3 verifier framework built (4 backends, 14 tests); real provider/runtime evidence still open; #200/#202 open | 2026-08-05 |
+| SEC-004 | 2026-07-21 | Provider-specific proof verification | In Progress — default routes unavailable; Nitro and WebAuthn verification gates remain open; independent review #202 open | 2026-08-07 |
+| EVID-001 | 2026-07-21 | Provider/runtime/artifact evidence | In Progress — API/unit evidence only; real provider/runtime evidence still open; #200/#202 open | 2026-08-07 |
 | SEC-001 | 2026-07-12 | Structural FROST validation | ✅ Resolved (structural validation only; production cryptography open) | 2026-07-20 |
 | DOC-003 | 2026-07-08 | CHANGELOG [Unreleased] | ✅ Resolved | 2026-07-14 |
 | ARCH-001 | 2026-07-14 | Runtime/platform/secret boundary | Reclassified — API inventory only; #200 open | 2026-07-20 |

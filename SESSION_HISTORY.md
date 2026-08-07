@@ -11,7 +11,7 @@
 ### Verification
 - `cargo check` clean (SDK + core adapter)
 - `cargo test` 229 total passing (all workspaces)
-- 4 verifier backends operational (Nitro, PKCS#11, OIDC, WebAuthn)
+- Verifier APIs present for Nitro, PKCS#11, OIDC, and WebAuthn. Correction (2026-08-07): default production routes remained unavailable; Nitro validation was structural/linkage/root-pin only and still needed deployment bindings; WebAuthn verification remained stubbed.
 
 ---
 

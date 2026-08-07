@@ -1,7 +1,7 @@
 # Next Session Plan
 
-> **For**: OpenHands AI Agent  
-> **Context**: Continuing Conxius Enclave SDK v2.0.14 development  
+> **For**: OpenHands AI Agent
+> **Context**: Continuing Conxius Enclave SDK v2.0.14 development
 > **Priority Order**: Remaining P0 gates → P1 → P2
 > **Knowledge Base**: v0.6.0 (Session 55-57, Aug 2026)
 > **Last Session**: Session 57 — FROST attestation gating, version aligned at 2.0.14
@@ -13,13 +13,13 @@
 ### P0: Live Nitro Enclave Deployment Evidence
 - Deploy SDK enclave binary to AWS Nitro instance (via lib-conxian-core Nitro CI)
 - Run `AwsNitroVerifier.verify()` against real attestation document
-- Capture: attestation doc → X.509 chain → COSE → PCR validation → `VerifiedProofReceipt`
+- Complete cryptographic certificate-path validation, then capture attestation doc → COSE → configured PCR/workload identity → release/KMS binding → `VerifiedProofReceipt`
 - Store as CI artifact with SHA-256 digest
 
 ### P0: Core Adapter ↔ SDK v2.0.14+ Integration
 - The core adapter now pins SDK v2.0.14 (git tag), up from =2.0.11
 - Wire adapter's `CoreEnclaveAdapter` to use `ProofVerifierRegistry::production()`
-- Test: adapter → `AwsNitroVerifier` → real attestation → verified receipt
+- Keep the default registry route unavailable until adapter → explicitly configured `AwsNitroVerifier` → real attestation → verified receipt is evidenced
 - Compatibility: 28 adapter tests pass with v2.0.14 (verified 2026-08-05)
 
 ### P1: Distributed Replay Design
@@ -51,18 +51,18 @@
 
 ## Session 55-57 Completed (2026-08-03 → 2026-08-05)
 
-### ✅ P0: AwsNitroVerifier Unblocked (Session 55)
-- `NitroCertificateTrustBoundary` connected to AWS Nitro PKI (`a6772fc`)
-- Wired into `ProofVerifierRegistry::production()`
-- X.509 chain validation against Nitro Root CA G1
+### P0: AwsNitroVerifier structural groundwork (Session 55; production gate still open)
+- `NitroCertificateTrustBoundary` performs structural certificate-linkage and Nitro Root CA G1 pin checks (`a6772fc`)
+- `ProofVerifierRegistry::production()` intentionally keeps the TEE route unavailable
+- Complete cryptographic certificate-path validation plus configured PCR/workload and release/KMS bindings remain required
 
 ### ✅ P1: PKCS#11 + OIDC Verifiers Wired (Session 55-56)
 - `cryptoki` v0.10 feature flag → Pkcs11Verifier sign/verify (`c460bd0`)
 - `jsonwebtoken` v10 → OidcVerifier JWT verification, JWK kid matching (`5850619`)
 - `secrecy` v0.8 for PKCS#11 PIN management
 
-### ✅ P2: WebAuthn + FROST Attestation Gating (Session 55-57)
-- `webauthn-rs` v0.5 feature flag → WebauthnVerifier attestation (`cc98177`)
+### P2: WebAuthn API + FROST Attestation Gating (Session 55-57)
+- `webauthn-rs` v0.5 feature flag and WebauthnVerifier API added (`cc98177`); verification remains stubbed/incomplete
 - FROST DKG/signing gated behind enclave attestation policy (`1a2199c`)
 
 ### ✅ CVE Patches

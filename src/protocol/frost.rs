@@ -858,6 +858,7 @@ impl FrostSigningContext {
             message,
         )?;
 
+        let share_len = share_raw.len() as u32;
         let share_digest = compute_digest(&share_raw);
         self.share_bytes.insert(share_digest, share_raw);
 
@@ -879,10 +880,7 @@ impl FrostSigningContext {
             share: FrostOpaqueEnvelope::new(
                 FrostEnvelopeKind::SignatureShare,
                 share_digest,
-                self.share_bytes
-                    .get(&share_digest)
-                    .expect("share just inserted above")
-                    .len() as u32,
+                share_len,
             )?,
         })
     }

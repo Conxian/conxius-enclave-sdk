@@ -174,7 +174,7 @@ All 11 SDK issues (SDK-001 through SDK-011) implemented and tested.
 See `docs/PHASE1_ISSUES_ROADMAP.md` for the full breakdown.
 
 ### Quality
-- **544 tests pass** (all suites), 0 failures
+- **Exact-head CI checks**: use the recorded command and scope; do not infer hardware/provider support from a passing test suite
 - **0 clippy warnings** (Session 57 remediation — all pre-existing issues resolved)
 - **cargo-deny**: advisories ok, bans ok, licenses ok, sources ok
 - **Feature gates**: `frost-crypto`, `bip110_compliant` — all fail-closed
@@ -272,19 +272,24 @@ src/protocol/
 
 ## Phase 2 — Protocol Integration Hardening (Init 2026-08-03)
 
-Phase 2 moves Babylon, RGB, Statechain, and BitVM2 beyond quarantine boundaries
-with real UCS-backed signing paths and WASM consumer surface.
+Phase 2 adds UCS-backed API and signing surfaces for Babylon, RGB, Statechain,
+and BitVM2. Production use remains conditional on the protocol and provider
+evidence gates documented below.
 
-### Completed (Phase 2)
-- ✅ `BabylonDelegationManager`: create_delegation, activate, unbond with UCS signing
-- ✅ `RgbTransitionBuilder`: build_transition with Bitcoin anchor + UCS signing
-- ✅ `WasmSigningRuntime`: JSON API for all 6 chain families
-- ✅ `StatechainSigner`: vUTXO transfer + backup signing through UCS
-- ✅ `BitVm2Signer`: challenge + response signing through UCS
-- ✅ `CovenantSigner`: recursive covenant signing through UCS
-- ✅ `DlcSigner`: oracle signing integration through UCS
-- ✅ `LightningSigner`: BOLT12 offer signing through UCS
-- ✅ `ZkmlSigner`: proof verification signing through UCS
+### Implemented API/UCS surfaces (Phase 2)
+- `BabylonDelegationManager`: create_delegation, activate, unbond UCS path
+- `RgbTransitionBuilder`: Bitcoin-anchor transition UCS path
+- `WasmSigningRuntime`: JSON API for all 6 chain families
+- `StatechainSigner`: vUTXO transfer + backup UCS path
+- `BitVm2Signer`: challenge + response UCS path
+- `CovenantSigner`: recursive covenant UCS path
+- `DlcSigner`: oracle signing UCS integration
+- `LightningSigner`: BOLT12 offer UCS path
+- `ZkmlSigner`: proof-verification signing UCS path
+
+These surfaces are not unconditional production/value-bearing support. Provider
+attestation, protocol implementation, runtime, independent-review, and release
+evidence gates still apply.
 
 ### Pending (Phase 2+)
 - FROST ceremony with real enclave attestation
@@ -329,4 +334,6 @@ SDK-001 (UCS Trait)
 | Stale advisory ignores | `deny.toml` | Removed 4 stale `RUSTSEC-2026-*` entries + unmatched `0BSD` license |
 | `cargo-deny` warnings | `deny.toml` | Clean: 2 active ignores (RUSTSEC-2023-0089 atomic-polyfill, RUSTSEC-2024-0436), licenses ok |
 
-**Post-remediation**: 544 tests, 0 clippy warnings, cargo-deny clean, Dependabot clean.
+**Historical Session 57 result**: the then-recorded exact-head checks reported
+clean Clippy and cargo-deny results. Re-run the current CI commands before using
+that historical result as evidence.

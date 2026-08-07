@@ -158,7 +158,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 
 | ID | Priority | Status | Blocking Release |
 |----|----------|--------|------------------|
-| CON-1506 / P0 | P0 | In Progress (Session 55-57: All 4 verifier backends wired (NitroCertificateTrustBoundary, cryptoki, jsonwebtoken, webauthn-rs). Blocked on live Nitro deployment evidence.. 14 tests, 0 clippy.) | Yes |
+| CON-1506 / P0 | P0 | In Progress: verifier APIs exist; default production routes remain unavailable. Nitro still needs complete certificate-path validation plus configured PCR/workload and release/KMS bindings; WebAuthn verification is incomplete. | Yes |
 | CON-1506 / P1 | P1 | Open — supply chain, release, matrix, privacy, and operations evidence; implementation tracking is #199–#201 | Yes |
 | TEST-001 | P2 | Planned — broader hardware/runtime evidence | Yes for affected capability |
 | DEP-002 | P2 | Planned — unmaintained crate review | Conditional |
