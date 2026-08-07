@@ -1233,10 +1233,7 @@ mod rail_proxy_tests {
     use crate::enclave::{EnclaveManager, SignRequest, SignResponse, SignerCapability};
     use crate::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
     use crate::protocol::business::BusinessRegistry;
-    use crate::telemetry::{
-        TelemetryClient, TelemetryDeliveryStatus, TelemetryPolicy, TestTransport, TransportError,
-        TransportResponse,
-    };
+    use crate::telemetry::TelemetryClient;
     use ed25519_dalek::{Signer as _, SigningKey};
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
