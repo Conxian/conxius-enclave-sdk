@@ -3,7 +3,7 @@
 > This is a gated checklist, not a production-readiness claim.
 > Status: Beta / conditional | Last Updated: 2026-08-05
 
-The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), [machine-readable evidence](./docs/architecture/capability-evidence.json), [trust/replay foundation](./docs/architecture/TRUST_REPLAY_FOUNDATION.md), [public operations runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md), [release recovery runbook](./docs/operations/RELEASE_RECOVERY_RUNBOOK.md), and [protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.14`; `Cargo.toml` declaring `2.0.15` represents the current development version.
+The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), [machine-readable evidence](./docs/architecture/capability-evidence.json), [trust/replay foundation](./docs/architecture/TRUST_REPLAY_FOUNDATION.md), [public operations runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md), [release recovery runbook](./docs/operations/RELEASE_RECOVERY_RUNBOOK.md), and [protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) as the canonical evidence record. The latest visible GitHub release/tag is `v2.0.14`; `Cargo.toml` is aligned at `2.0.14`.
 
 Merged PR [#205](https://github.com/Conxian/conxius-enclave-sdk/pull/205), merged PR [#216](https://github.com/Conxian/conxius-enclave-sdk/pull/216), and the typed-settlement follow-up code checkpoint are containment and evidence-boundary work only. They make missing provider evidence fail closed and preserve signer-identity binding; they do not establish real hardware/provider integration, distributed replay, runtime support, independent review, release artifacts, or production readiness. Issue [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) remains open.
 
@@ -112,7 +112,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 
 ### 🚀 Release Process
 
-- [ ] Reconcile package metadata with a verified release tag (latest visible: `v2.0.14`; Cargo.toml: `2.0.15`)
+- [ ] Reconcile package metadata with a verified release tag (latest visible: `v2.0.14`; Cargo.toml: `2.0.14` — aligned)
 - [x] Select one authoritative release/publish workflow (`release-strict.yml`; one automatic tag publisher with manual recovery)
 - [ ] Verify the exact tagged registry artifact and retain all release-gate results for that artifact
 - [ ] Attach registry, SBOM, provenance, lockfile, checksum, and release-note evidence from a live tagged run
@@ -147,7 +147,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 | Version | Status | Notes |
 |---------|--------|-------|
 | 2.x line | Beta / conditional | Production enablement remains blocked by CON-1506 P0/P1 gates and protocol roadmap milestones |
-| v2.0.15 | Cargo.toml development version (2026-08-05) | Session 57: clippy clean, 4 verifier backends wired, FROST attestation gating |
+| v2.0.14 | Cargo.toml package version (2026-08-07) | Session 57: clippy clean, 4 verifier backends wired, FROST attestation gating. Version reverted to 2.0.14 for release alignment. |
 | v2.0.14 | Git tag (2026-08-05) | Core adapter aligned; verify artifacts before use |
 | v2.0.11 | Older GitHub release/tag | Superseded; refer to v2.0.14+ |
 | 2.0.12 | Cargo metadata only at the 2026-07-21 review | Superseded; no matching tag was found |

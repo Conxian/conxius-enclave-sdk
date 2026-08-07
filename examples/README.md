@@ -1,6 +1,6 @@
-# Conclave SDK Examples
+# Conxius Enclave SDK Examples
 
-This directory contains example code demonstrating how to use the Conclave SDK.
+This directory contains example code demonstrating how to use the Conxius Enclave SDK.
 
 ## Running Examples
 
@@ -48,4 +48,4 @@ The SDK provides WASM bindings for:
 
 ---
 
-*Part of Conclave SDK v2.0.15*
+*Part of Conxius Enclave SDK v2.0.14*

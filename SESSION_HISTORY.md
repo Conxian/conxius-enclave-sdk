@@ -1,8 +1,8 @@
 ## Session 57 (2026-08-05) — Version alignment & cross-repo sync
 
 ### Changes
-- Bumped Cargo.toml version 2.0.12 → 2.0.15
-- Converted [Unreleased] CHANGELOG → [2.0.15]
+- Bumped Cargo.toml version 2.0.12 → 2.0.15, then reverted to 2.0.14 for release alignment
+- Converted [Unreleased] CHANGELOG → [2.0.15]; 2.0.15 section preserved as historical record
 - Core adapter (lib-conxian-core) SDK dep aligned from =2.0.11 to git tag v2.0.14
 - All 28 core adapter tests pass against v2.0.14
 - Updated all KB artifacts (NEXT_SESSION_PLAN, SESSION_HISTORY, AGENTS.md, DEBT_INVENTORY, PRODUCTION_READINESS, TRACKING)

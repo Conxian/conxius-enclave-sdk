@@ -426,7 +426,10 @@ impl ArkManager {
 
         fn build_level(nodes: Vec<VtxoTreeNode>) -> VtxoTreeNode {
             if nodes.len() == 1 {
-                return nodes.into_iter().next().unwrap();
+                return nodes
+                    .into_iter()
+                    .next()
+                    .expect("build_level: single node guaranteed by len==1 guard");
             }
             let mut parent_level = Vec::new();
             for chunk in nodes.chunks(2) {
@@ -440,7 +443,7 @@ impl ArkManager {
                         ArkTransactionId::new(
                             "0000000000000000000000000000000000000000000000000000000000000000",
                         )
-                        .unwrap()
+                        .expect("zero txid is valid by construction")
                     }),
                     left: Some(Box::new(left.clone())),
                     right: Some(Box::new(right.clone())),
@@ -463,7 +466,7 @@ impl ArkManager {
                         ArkTransactionId::new(
                             "0000000000000000000000000000000000000000000000000000000000000000",
                         )
-                        .unwrap()
+                        .expect("zero txid is valid by construction")
                     }),
                     left: None,
                     right: None,

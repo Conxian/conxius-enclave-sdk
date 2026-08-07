@@ -60,7 +60,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Category**: Documentation
 - **Priority**: P1
 - **Description**: README states "no published GitHub releases" but CHANGELOG documents releases
-- **Resolution**: v2.0.14 now tagged; Cargo.toml at 2.0.15. Active release process.
+- **Resolution**: v2.0.14 is the current tagged release; Cargo.toml is aligned at 2.0.14. Active release process.
 - **Related Issue**: #154
 
 #### SEC-002: Real Provider Verifier and Signer Integration
