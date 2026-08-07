@@ -394,7 +394,6 @@ pub trait SovereignHandshake {
         request: SwapRequest,
         fdc3_context: Option<crate::protocol::intent::Fdc3Context>,
     ) -> ConclaveResult<SwapIntent>;
-
 }
 
 /// Checked dispatcher for sovereign settlement rails.
@@ -2561,7 +2560,6 @@ mod rail_proxy_tests {
             .is_ok());
     }
 
-
     #[test]
     fn test_clock_failure_precedes_attestation_verification_and_replay_recording() {
         const NOW_SECS: u64 = 1_000_000;
@@ -2795,11 +2793,6 @@ mod rail_proxy_tests {
         let proxy = proxy.with_min_trust_tier(TrustTier::T1);
         assert!(proxy.prepare_intent("x402", request.clone(), None).is_ok());
     }
-
-
-
-
-
 
     #[tokio::test]
     async fn built_in_adapter_dispatch_is_quarantined_before_network() {

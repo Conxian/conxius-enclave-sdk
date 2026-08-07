@@ -146,5 +146,4 @@ mod tests {
         let h2 = RgbTransitionBuilder::<crate::signing::ucs::EnclaveUniversalSigner>::compute_transition_hash(&cid, &RgbSchema::Rgb20, &seal);
         assert_eq!(h1, h2);
     }
-
 }
