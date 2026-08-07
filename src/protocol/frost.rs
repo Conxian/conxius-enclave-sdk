@@ -761,7 +761,12 @@ impl FrostSigningContext {
             group_public_key: FrostOpaqueEnvelope::new(
                 FrostEnvelopeKind::PublicKeyPackage,
                 vk_digest,
-                self.verifying_key.as_ref().unwrap().len() as u32,
+                self.verifying_key
+                    .as_ref()
+                    .ok_or_else(|| {
+                        ConclaveError::CryptoError("FROST: verifying key not set".into())
+                    })?
+                    .len() as u32,
             )?,
         })
     }
@@ -862,7 +867,9 @@ impl FrostSigningContext {
             .iter()
             .find(|(_pid, digest)| *digest == key_digest)
             .map(|(pid, _)| *pid)
-            .unwrap_or_else(|| FrostParticipantId::new(1).unwrap());
+            .ok_or_else(|| {
+                ConclaveError::CryptoError("FROST: participant not found for key digest".into())
+            })?;
 
         Ok(FrostSignatureShare {
             encoding_version: FrostEncodingVersion::current(),
@@ -872,7 +879,10 @@ impl FrostSigningContext {
             share: FrostOpaqueEnvelope::new(
                 FrostEnvelopeKind::SignatureShare,
                 share_digest,
-                self.share_bytes.get(&share_digest).unwrap().len() as u32,
+                self.share_bytes
+                    .get(&share_digest)
+                    .expect("share just inserted above")
+                    .len() as u32,
             )?,
         })
     }

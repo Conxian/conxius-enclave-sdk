@@ -1,7 +1,7 @@
 # `conxius-enclave-sdk` Repository Analysis
 
 > Comprehensive analysis of capabilities, gaps, and implementation roadmap
-> Generated: 2026-07-14 | Updated: 2026-08-05 | Package metadata: 2.0.15; latest visible release/tag: v2.0.14
+> Generated: 2026-07-14 | Updated: 2026-08-07 | Package metadata: 2.0.14; latest visible release/tag: v2.0.14
 
 ---
 
@@ -88,9 +88,9 @@ frost = "0.4.x"                 # ⚠️ Dependency present; production integrat
 
 ---
 
-## Gap Scorecard (v2.0.15+ Roadmap)
+## Gap Scorecard (v2.0.14+ Roadmap)
 
-### Completed Items (v2.0.15)
+### Completed Items (Session 57 / v2.0.14+)
 
 1. ✅ **BitVM2 Static Tree Root** - Made `calculate_tree_root` method static for clarity
 

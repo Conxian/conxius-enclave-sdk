@@ -13,7 +13,7 @@ The SDK provides a high-integrity root of trust for security-sensitive wallet, s
 
 **Beta / conditional.** The 2.x line exposes the interfaces needed for development and integration work, but the [2026-07-20 production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) found P0 evidence gaps. Do **not** enable value-bearing production signing or settlement from this tree.
 
-The latest visible GitHub release/tag is `v2.0.14` as of 2026-08-05. `Cargo.toml` declares package version `2.0.15`, but package metadata is not release or production-support evidence. Review the [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) for the boundary of each surface.
+The latest visible GitHub release/tag is `v2.0.14` as of 2026-08-05. `Cargo.toml` declares package version `2.0.14`, aligned with the latest release tag. Review the [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) for the boundary of each surface.
 
 ## Quick Start
 

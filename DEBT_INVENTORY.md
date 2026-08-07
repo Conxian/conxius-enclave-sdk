@@ -60,7 +60,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Category**: Documentation
 - **Priority**: P1
 - **Description**: README states "no published GitHub releases" but CHANGELOG documents releases
-- **Resolution**: v2.0.14 now tagged; Cargo.toml at 2.0.15. Active release process.
+- **Resolution**: v2.0.14 is the current tagged release; Cargo.toml is aligned at 2.0.14. Active release process.
 - **Related Issue**: #154
 
 #### SEC-002: Real Provider Verifier and Signer Integration
@@ -160,6 +160,29 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Current**: Only documented releases, no unreleased changes section
 - **Recommendation**: Add `[Unreleased]` section for tracking changes before release
 - **Status**: ✅ RESOLVED (2026-07-13)
+
+#### AUDIT-001: Untested Protocol Modules (Capability Audit 2026-08-07)
+- **Category**: Testing
+- **Priority**: P2
+- **Description**: Capability audit identified 4 protocol modules with zero test coverage (`frost.rs`, `musig2.rs`, `cctp.rs`, `sidecar.rs`). Additionally, 26 out of 95 Rust source files have no dedicated test module.
+- **Impact**: Behavioral regressions in these modules may not be caught by CI.
+- **Recommendation**: Add targeted integration tests for the 4 untested modules and a minimum 3-4 test cases for each untested signing module.
+- **Status**: MONITORING
+
+#### AUDIT-002: Large File Maintainability Risk (Capability Audit 2026-08-07)
+- **Category**: Architecture
+- **Priority**: P3
+- **Description**: Three source files exceed 2,000 lines (`protocol/frost.rs` at 3,041 lines, `signing/threshold.rs` at 2,326 lines, `enclave/nitro.rs` at 2,086 lines). These are well-covered by tests but present maintenance challenges.
+- **Impact**: Onboarding friction; merge conflict surface; potential for cyclic imports.
+- **Recommendation**: Consider extraction of helper modules (e.g., `frost_serde.rs`, `threshold_pedersen.rs`, `nitro_parser.rs`). Non-breaking as long as `pub use` re-exports from parent modules are maintained.
+- **Status**: MONITORING
+
+#### AUDIT-003: Taproot Utility Return Type (Capability Audit 2026-08-07) ✅ RESOLVED
+- **Category**: Code Quality
+- **Priority**: P0
+- **Description**: `src/signing/taproot.rs` used `expect()` calls in `taproot_output_key` (violates no-panic policy).
+- **Resolution**: Return type changed to `ConclaveResult<XOnlyPublicKey>` with proper error mapping (Session 57+).
+- **Status**: ✅ RESOLVED (2026-08-07)
 
 ## Burn-Down Tracking
 

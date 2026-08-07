@@ -12,14 +12,14 @@
 - KB: DEBT_INVENTORY stale #199 refs removed, PROTO-001 in burn-down
 - Audit report: `.audit_report_session57.md` — 440-line full-scope workflow/issue/debt audit
 
-## [2.0.15] - 2026-08-05
+## [2.0.15] - 2026-08-05 (unreleased; version reverted to 2.0.14 for release alignment)
 
 ### Added
 - FROST DKG/signing gated behind enclave attestation policy (#286)
 - 4 verifier backends wired: Nitro, PKCS#11 (cryptoki), WebAuthn (webauthn-rs), OIDC (jsonwebtoken v10)
 
 ### Changed
-- Cargo.toml bumped to 2.0.15
+- Cargo.toml bumped to 2.0.15 (Session 57), then reverted to 2.0.14 for release alignment
 - Core adapter SDK dep aligned from =2.0.11 to git tag v2.0.14
 - AGENTS.md v0.3.1 → v0.6.0 (Session 57 alignment)
 

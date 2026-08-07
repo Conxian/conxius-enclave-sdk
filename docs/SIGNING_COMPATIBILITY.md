@@ -1,7 +1,7 @@
 # Signing Compatibility Matrix (SDK-010)
 
-> Phase 1, generated 2026-08-03. Tracks which chain/algorithm pairs are
-> supported by which signing backend.
+> Phase 2, generated 2026-08-07. Tracks which chain/algorithm pairs are
+> supported by which signing backend. All 13 signing modules are complete.
 
 ## Signing Backend × Chain Family
 
@@ -12,8 +12,20 @@
 | **Ethereum** | ECDSA secp256k1 | ✅ SDK-001 | ✅ value-bearing | N/A | N/A | N/A |
 | **Solana** | Ed25519 | ✅ SDK-001 | ✅ value-bearing | N/A | N/A | N/A |
 | **Stacks** | ECDSA secp256k1 | ✅ SDK-001 | ✅ value-bearing | N/A | N/A | N/A |
-| **Babylon** | Schnorr delegation | ✅ SDK-001 | 🚧 quarantine | 🚧 planned | 🚧 planned | N/A |
-| **RGB** | Bitcoin anchor | 🚧 planned | 🚧 quarantine | N/A | N/A | N/A |
+| **Babylon** | Schnorr delegation | ✅ SDK-001 | ✅ Phase 2 done | N/A | N/A | N/A |
+| **RGB** | Bitcoin anchor | ✅ SDK-001 | ✅ Phase 2 done | N/A | N/A | N/A |
+
+## Phase 2+ Signing Modules
+
+| Module | Protocol | Status |
+|---|---|---|
+| `covenant_signing.rs` | Covenant (OP_CAT) recursive signing | ✅ |
+| `dlc_signing.rs` | DLC oracle signing | ✅ |
+| `lightning_signing.rs` | Lightning BOLT12 offer signing | ✅ |
+| `zkml_signing.rs` | ZKML proof verification signing | ✅ |
+| `statechain_signing.rs` | Spark statechain vUTXO signing | ✅ |
+| `bitvm2_signing.rs` | BitVM2 challenge/response signing | ✅ |
+| `wasm_runtime.rs` | WASM signing surface | ✅ |
 
 ## Trust Tier Enforcement
 

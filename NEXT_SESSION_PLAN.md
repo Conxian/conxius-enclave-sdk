@@ -1,10 +1,10 @@
 # Next Session Plan
 
 > **For**: OpenHands AI Agent  
-> **Context**: Continuing Conclave SDK v2.0.15 development  
+> **Context**: Continuing Conxius Enclave SDK v2.0.14 development  
 > **Priority Order**: Remaining P0 gates → P1 → P2
 > **Knowledge Base**: v0.6.0 (Session 55-57, Aug 2026)
-> **Last Session**: Session 57 — FROST attestation gating, version bump to 2.0.15
+> **Last Session**: Session 57 — FROST attestation gating, version aligned at 2.0.14
 
 ---
 
@@ -43,7 +43,7 @@
 - Groth16: Document as deferred (no audited BLS12-381 ZK pairing backend for WASM)
 
 ### Housekeeping
-- Bump Cargo.toml to 2.0.15 (done: 2026-08-05)
+- Bump Cargo.toml to 2.0.15, tag, and release (bumped then reverted in Session 57; pending in Session 58)
 - Update all KB artifacts (NEXT_SESSION_PLAN, SESSION_HISTORY, AGENTS.md, DEBT_INVENTORY, PRODUCTION_READINESS, TRACKING)
 - Core adapter SDK dep aligned to v2.0.14 (done: 2026-08-05)
 

@@ -10,6 +10,8 @@ use bitcoin::key::XOnlyPublicKey;
 use bitcoin::taproot::{TapLeafHash, TapNodeHash, TapTweakHash};
 use secp256k1::Scalar;
 
+use crate::{ConclaveError, ConclaveResult};
+
 /// Compute the BIP-341 taproot tweak from an internal key and optional
 /// merkle root (script tree).
 pub fn compute_taproot_tweak(
@@ -25,12 +27,13 @@ pub fn compute_taproot_tweak(
 pub fn taproot_output_key(
     internal_key: &XOnlyPublicKey,
     merkle_root: Option<[u8; 32]>,
-) -> XOnlyPublicKey {
+) -> ConclaveResult<XOnlyPublicKey> {
     let tweak_bytes = compute_taproot_tweak(internal_key, merkle_root);
-    let tweak = Scalar::from_be_bytes(tweak_bytes).expect("tweak is a valid scalar");
+    let tweak = Scalar::from_be_bytes(tweak_bytes)
+        .map_err(|_| ConclaveError::CryptoError("invalid taproot tweak scalar".into()))?;
     internal_key
         .add_tweak(&tweak)
-        .expect("taproot output key derivation")
+        .map_err(|_| ConclaveError::CryptoError("taproot output key derivation failed".into()))
 }
 
 /// Compute a tapleaf hash from a script.
@@ -105,7 +108,7 @@ mod tests {
             "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
         )
         .unwrap();
-        let output_key = taproot_output_key(&key, None);
+        let output_key = taproot_output_key(&key, None).expect("taproot tweak must succeed");
         // Output key should differ from internal key after tweaking
         assert_ne!(output_key, key);
     }
