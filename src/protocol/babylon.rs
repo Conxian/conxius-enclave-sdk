@@ -115,17 +115,6 @@ impl<'a, S: UniversalChainSigner> BabylonDelegationManager<'a, S> {
     }
 }
 
-#[deprecated(since = "2.0.13", note = "use BabylonDelegationManager instead")]
-pub fn sign_babylon_delegation(
-    _delegation_hash: [u8; 32],
-    _derivation_path: &str,
-    _key_id: &str,
-) -> ConclaveResult<String> {
-    Err(ConclaveError::Unsupported(
-        "babylon: delegation signing requires BabylonDelegationManager (Phase 2)".to_string(),
-    ))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,13 +132,6 @@ mod tests {
         for pair in states.windows(2) {
             assert_ne!(pair[0], pair[1]);
         }
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn deprecated_sign_returns_unsupported() {
-        let result = sign_babylon_delegation([0x00; 32], "m/44'/0'/0'/0/0", "k");
-        assert!(matches!(result, Err(ConclaveError::Unsupported(_))));
     }
 
     #[test]

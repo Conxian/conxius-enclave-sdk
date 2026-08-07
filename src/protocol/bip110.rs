@@ -372,15 +372,6 @@ impl Bip110Validator {
         Ok(chunks)
     }
 
-    /// Compatibility wrapper for the original infallible chunk-count API.
-    ///
-    /// Invalid zero-capacity configurations return `0` instead of panicking.
-    /// Prefer [`Self::try_chunk_count`] when configuration errors matter.
-    #[deprecated(note = "use try_chunk_count for fallible validation")]
-    pub fn chunk_count(&self, message: &str) -> usize {
-        self.try_chunk_count(message).unwrap_or_default()
-    }
-
     /// Calculate the number of length-prefixed chunks needed for a message.
     pub fn try_chunk_count(&self, message: &str) -> ConclaveResult<usize> {
         let max_payload = self
@@ -404,16 +395,6 @@ impl Default for Bip110Validator {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Compatibility wrapper for the original infallible segmentation API.
-///
-/// A zero-sized configuration returns an empty result instead of panicking or
-/// dropping data. Prefer [`try_chunk_for_bip110`] when configuration errors
-/// matter.
-#[deprecated(note = "use try_chunk_for_bip110 for fallible validation")]
-pub fn chunk_for_bip110(data: &[u8], max_chunk_size: usize) -> Vec<Vec<u8>> {
-    try_chunk_for_bip110(data, max_chunk_size).unwrap_or_default()
 }
 
 /// Strictly chunk data into BIP-110-sized segments without silently truncating
@@ -568,23 +549,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(deprecated)]
-    fn test_chunk_count_public_compatibility_and_strict_variant() {
-        let validator = Bip110Validator::new();
-        #[allow(deprecated)]
-        let compatibility_count = validator.chunk_count("hello");
-        assert_eq!(compatibility_count, 1);
-        assert_eq!(validator.try_chunk_count("hello").unwrap(), 1);
-
-        let zero = Bip110Validator::with_limits(Bip110Limits {
-            max_pushdata_bytes: 0,
-            ..Bip110Limits::default()
-        });
-        assert_eq!(zero.chunk_count("x"), 0);
-        assert!(zero.try_chunk_count("x").is_err());
-    }
-
-    #[test]
     fn test_requires_chunking() {
         let validator = Bip110Validator::new();
         assert!(!validator.requires_chunking("hello"));
@@ -609,24 +573,6 @@ mod tests {
         let chunks = validator.validate_message_chunking(&message).unwrap();
         assert_eq!(chunks.len(), 2);
         assert!(chunks.iter().all(|chunk| chunk.len() <= 256));
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn test_chunk_for_bip110_public_compatibility_and_strict_variant() {
-        let data = vec![0u8; 300];
-        #[allow(deprecated)]
-        let compatibility_chunks = chunk_for_bip110(&data, 256);
-        assert_eq!(compatibility_chunks.len(), 2);
-        assert_eq!(compatibility_chunks[0].len(), 256);
-        assert_eq!(compatibility_chunks[1].len(), 44);
-
-        let strict_chunks = try_chunk_for_bip110(&data, 256).unwrap();
-        assert_eq!(strict_chunks, compatibility_chunks);
-
-        assert!(chunk_for_bip110(&[1u8], 0).is_empty());
-        assert!(try_chunk_for_bip110(&[1u8], 0).is_err());
-        assert!(try_chunk_for_bip110(&[], 0).is_err());
     }
 
     #[test]

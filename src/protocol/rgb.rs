@@ -116,18 +116,6 @@ impl<'a, S: UniversalChainSigner> RgbTransitionBuilder<'a, S> {
         sha256::Hash::from_engine(engine).to_byte_array()
     }
 }
-
-#[deprecated(since = "2.0.13", note = "use RgbTransitionBuilder instead")]
-pub fn sign_rgb_transition(
-    _transition_hash: [u8; 32],
-    _derivation_path: &str,
-    _key_id: &str,
-) -> ConclaveResult<String> {
-    Err(ConclaveError::Unsupported(
-        "rgb: transition signing requires RgbTransitionBuilder (Phase 2)".to_string(),
-    ))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,10 +147,4 @@ mod tests {
         assert_eq!(h1, h2);
     }
 
-    #[test]
-    #[allow(deprecated)]
-    fn deprecated_sign_returns_unsupported() {
-        let result = sign_rgb_transition([0x00; 32], "m/86'/0'/0'/0/0", "k");
-        assert!(matches!(result, Err(ConclaveError::Unsupported(_))));
-    }
 }

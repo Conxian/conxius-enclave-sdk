@@ -199,25 +199,6 @@ fn prepare_intent_commits_to_the_complete_security_context() -> ConclaveResult<(
 }
 
 #[tokio::test]
-async fn production_raw_broadcast_is_rejected_before_any_network_dispatch() {
-    let rail_proxy = proxy();
-    let intent = rail_proxy
-        .prepare_intent("x402", request(), None)
-        .expect("x402 request should prepare");
-
-    #[allow(deprecated)]
-    let result = rail_proxy
-        .broadcast_signed_intent(intent, "opaque-signature".to_string(), None)
-        .await;
-
-    assert!(matches!(
-        result,
-        Err(ConclaveError::Unsupported(message))
-            if message.contains("Typed operation-signature envelope required")
-    ));
-}
-
-#[tokio::test]
 async fn production_opportunity_dispatch_reaches_provider_boundary() {
     let enclave = CountingEnclave::new();
     let dispatcher = OpportunityDispatcher::new(&enclave, Arc::new(proxy()));

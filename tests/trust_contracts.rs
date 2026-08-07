@@ -7,8 +7,6 @@ use conxius_enclave_sdk::enclave::{
     ReleaseEvidenceKind, ReleaseEvidenceManifest, ReplayOperation, ReplayProofMechanism,
     ReplayProofSubject, ReplayPurpose, TrustDigest, TrustReplayBinding,
 };
-use conxius_enclave_sdk::ConclaveError;
-
 fn digest(byte: u8) -> TrustDigest {
     [byte; 32]
 }
@@ -29,20 +27,6 @@ fn production_attestation_policy_and_provider_status_remain_unavailable() {
     assert_eq!(
         AttestationProvider::from_attestation_level(AttestationLevel::CloudTEE),
         None
-    );
-}
-
-#[test]
-#[allow(deprecated)]
-fn deprecated_string_root_builder_remains_unavailable_in_public_builds() {
-    let result =
-        AttestationPolicy::production().with_trusted_roots(vec!["fixture-root".to_string()]);
-    assert!(matches!(result, Err(ConclaveError::Unsupported(_))));
-
-    let production = AttestationPolicy::production();
-    assert_eq!(
-        production.provider_verifier_status(),
-        ProviderVerifierStatus::Unavailable
     );
 }
 

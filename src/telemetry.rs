@@ -392,15 +392,6 @@ impl TelemetryClient {
 
         TelemetryDispatch::Scheduled
     }
-
-    /// Compatibility shim for callers of the original API.
-    ///
-    /// The supplied identifier is intentionally discarded and is never serialized.
-    #[deprecated(note = "use track_event; signature-derived identifiers are not transmitted")]
-    pub fn track_signature(&self, _signature_hash: String) {
-        let _ = self.track_event(TelemetryEvent::SignedIntent);
-    }
-
     pub fn delivery_status(&self) -> TelemetryDeliveryStatus {
         match self.state.lock() {
             Ok(state) => state.status,
@@ -1238,39 +1229,6 @@ mod tests {
                 status_code: Some(400),
                 retries_exhausted: false,
             })
-        );
-    }
-
-    #[tokio::test]
-    async fn legacy_signature_identifier_is_redacted_from_body_and_diagnostics() {
-        let secret_identifier = "sig-secret-looking-identifier-7f4c";
-        let transport = Arc::new(TestTransport::with_responses([Err(
-            TransportError::Network,
-        )]));
-        let client = TelemetryClient::with_test_transport(
-            "http://telemetry.invalid",
-            "",
-            test_policy(0),
-            Arc::clone(&transport),
-        )
-        .expect("test transport should be constructible");
-
-        #[allow(deprecated)]
-        client.track_signature(secret_identifier.to_string());
-        wait_for_delivery(&client).await;
-
-        let requests = transport.requests();
-        assert_eq!(requests.len(), 1);
-        assert!(!requests[0]
-            .body
-            .windows(secret_identifier.len())
-            .any(|window| window == secret_identifier.as_bytes()));
-
-        let diagnostics = format!("{:?}", client.last_failure());
-        assert!(!diagnostics.contains(secret_identifier));
-        assert_eq!(
-            client.last_failure().map(|failure| failure.kind),
-            Some(TelemetryFailureKind::Network)
         );
     }
 

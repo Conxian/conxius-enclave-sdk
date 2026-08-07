@@ -395,22 +395,6 @@ pub trait SovereignHandshake {
         fdc3_context: Option<crate::protocol::intent::Fdc3Context>,
     ) -> ConclaveResult<SwapIntent>;
 
-    /// Executes the swap by broadcasting the signed intent to the Gateway.
-    ///
-    /// Deprecated migration shim: this legacy API carries an opaque signature
-    /// string and is not a rail execution boundary. Production builds always
-    /// return `Unsupported` until a typed operation-signature envelope binds
-    /// the algorithm, operation public key, provider evidence, and complete
-    /// canonical intent hash. The old request-only hash format is rejected.
-    #[deprecated(
-        note = "Use the future typed operation-signature API; raw signatures are rejected."
-    )]
-    async fn broadcast_signed_intent(
-        &self,
-        intent: SwapIntent,
-        signature: String,
-        attestation: Option<String>,
-    ) -> ConclaveResult<SwapResponse>;
 }
 
 /// Checked dispatcher for sovereign settlement rails.
@@ -632,10 +616,6 @@ impl RailProxy {
 
     /// Preflight the typed operation dispatch boundary before any provider
     /// public-key lookup or value-bearing signing occurs.
-    ///
-    /// Validate the typed dispatch boundary before any provider public-key
-    /// lookup or value-bearing signing occurs. Raw-signature rejection remains
-    /// confined to the deprecated `broadcast_signed_intent` shim below.
     pub(crate) fn preflight_typed_dispatch(&self, intent: &SwapIntent) -> ConclaveResult<()> {
         self.validate_request_assets(&intent.request)?;
         if intent.signable_hash != intent.canonical_hash() {
@@ -1082,42 +1062,6 @@ impl SovereignHandshake for RailProxy {
         intent.signable_hash = intent.canonical_hash();
 
         Ok(intent)
-    }
-
-    async fn broadcast_signed_intent(
-        &self,
-        intent: SwapIntent,
-        signature: String,
-        attestation: Option<String>,
-    ) -> ConclaveResult<SwapResponse> {
-        self.validate_request_assets(&intent.request)?;
-        #[cfg(not(test))]
-        {
-            let _ = (intent, signature, attestation);
-            return Err(ConclaveError::Unsupported(
-                "Typed operation-signature envelope required; raw signatures are not verified and are never forwarded in production"
-                    .to_string(),
-            ));
-        }
-
-        #[cfg(test)]
-        {
-            let canonical_hash = intent.canonical_hash();
-            if intent.signable_hash != canonical_hash {
-                return Err(ConclaveError::EnclaveFailure(
-                    "Swap intent canonical hash mismatch; legacy request-only hashes are rejected"
-                        .to_string(),
-                ));
-            }
-
-            // This branch exists only for local unit-test rail fixtures. It is
-            // intentionally not compiled into downstream production builds.
-            ensure_operation_signature_is_bound(&signature)?;
-            self.verify_hardware_integrity(&intent, &attestation)?;
-
-            let operation = VerifiedOperation::from_test_fixture(intent, signature);
-            self.dispatch_verified_operation(operation).await
-        }
     }
 }
 
@@ -2661,36 +2605,6 @@ mod rail_proxy_tests {
             .is_ok());
     }
 
-    #[tokio::test]
-    async fn test_canonical_intent_hash_mismatch_is_rejected_before_replay_recording() {
-        let proxy = test_proxy();
-        let mut intent = test_intent(vec![14; 32]);
-        let canonical_hash = intent.signable_hash.clone();
-        intent.signable_hash[0] ^= 0xFF;
-        let forged_attestation = Some(test_attestation_json(intent.signable_hash.clone()));
-
-        #[allow(deprecated)]
-        let result = proxy
-            .broadcast_signed_intent(
-                intent.clone(),
-                "opaque-signature".to_string(),
-                forged_attestation,
-            )
-            .await;
-        assert!(matches!(
-            result,
-            Err(ConclaveError::EnclaveFailure(message))
-                if message.contains("canonical hash mismatch")
-        ));
-
-        // The rejected mismatch must not consume replay state for the real
-        // canonical intent hash.
-        intent.signable_hash = canonical_hash.clone();
-        let valid_attestation = Some(test_attestation_json(canonical_hash));
-        assert!(proxy
-            .verify_hardware_integrity(&intent, &valid_attestation)
-            .is_ok());
-    }
 
     #[test]
     fn test_clock_failure_precedes_attestation_verification_and_replay_recording() {
@@ -2926,144 +2840,10 @@ mod rail_proxy_tests {
         assert!(proxy.prepare_intent("x402", request.clone(), None).is_ok());
     }
 
-    #[tokio::test]
-    async fn test_legacy_opaque_signature_path_is_test_only() {
-        let mut rail_proxy = test_proxy();
-        rail_proxy = rail_proxy.with_min_trust_tier(TrustTier::T4);
-        rail_proxy.register_rail(Box::new(CustomRail));
 
-        let mut intent = test_intent(vec![13; 32]);
-        intent.rail_type = "custom_partner".to_string();
-        intent.signable_hash = intent.canonical_hash();
-        let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
 
-        // This deliberately opaque value is accepted only because this unit
-        // test is compiled with the internal cfg(test) compatibility path.
-        #[allow(deprecated)]
-        let response = rail_proxy
-            .broadcast_signed_intent(intent, "sig".to_string(), attestation)
-            .await
-            .unwrap();
-        assert!(response.proof_envelope.is_some());
-    }
 
-    #[tokio::test]
-    async fn test_disabled_telemetry_does_not_block_verified_dispatch() {
-        let mut rail_proxy = test_proxy()
-            .with_min_trust_tier(TrustTier::T4)
-            .with_telemetry(Arc::new(TelemetryClient::disabled()));
-        rail_proxy.register_rail(Box::new(CustomRail));
 
-        let mut intent = test_intent(vec![16; 32]);
-        intent.rail_type = "custom_partner".to_string();
-        intent.signable_hash = intent.canonical_hash();
-        let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
-
-        #[allow(deprecated)]
-        let response = rail_proxy
-            .broadcast_signed_intent(intent, "sig".to_string(), attestation)
-            .await
-            .expect("disabled telemetry must not block verified dispatch");
-
-        assert!(response.proof_envelope.is_some());
-        assert_eq!(
-            rail_proxy
-                .telemetry
-                .as_ref()
-                .expect("telemetry should remain attached")
-                .delivery_status(),
-            crate::telemetry::TelemetryDeliveryStatus::Disabled
-        );
-    }
-
-    #[tokio::test]
-    async fn enabled_telemetry_failure_does_not_change_verified_rail_result() {
-        let (telemetry, transport) =
-            telemetry_client_with_responses([Err(TransportError::Network)]);
-        let mut rail_proxy = test_proxy()
-            .with_min_trust_tier(TrustTier::T4)
-            .with_telemetry(Arc::clone(&telemetry));
-        rail_proxy.register_rail(Box::new(CustomRail));
-
-        let intent = custom_settlement_intent(vec![17; 32]);
-        let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
-
-        #[allow(deprecated)]
-        let response = rail_proxy
-            .broadcast_signed_intent(intent, "sig".to_string(), attestation)
-            .await
-            .expect("telemetry failure must not block verified dispatch");
-
-        assert_eq!(response.proof_envelope.as_deref(), Some("partner_proof"));
-        assert_eq!(response.rail_used, "custom_partner");
-        wait_for_telemetry_status(&telemetry, TelemetryDeliveryStatus::Failed).await;
-        assert_eq!(transport.request_count(), 1);
-        assert_eq!(
-            telemetry.last_failure().map(|failure| failure.kind),
-            Some(crate::telemetry::TelemetryFailureKind::Network)
-        );
-    }
-
-    #[tokio::test]
-    async fn pre_dispatch_attestation_failure_does_not_schedule_telemetry() {
-        let (telemetry, transport) =
-            telemetry_client_with_responses([Ok(TransportResponse { status: 204 })]);
-        let mut rail_proxy = test_proxy()
-            .with_min_trust_tier(TrustTier::T4)
-            .with_telemetry(Arc::clone(&telemetry));
-        rail_proxy.register_rail(Box::new(CustomRail));
-
-        let intent = custom_settlement_intent(vec![18; 32]);
-        #[allow(deprecated)]
-        let result = rail_proxy
-            .broadcast_signed_intent(intent, "sig".to_string(), None)
-            .await;
-
-        assert!(matches!(
-            result,
-            Err(ConclaveError::EnclaveFailure(message)) if message.contains("attestation required")
-        ));
-        assert_eq!(telemetry.delivery_status(), TelemetryDeliveryStatus::Idle);
-        assert_eq!(telemetry.failure_count(), 0);
-        assert_eq!(transport.request_count(), 0);
-    }
-
-    #[tokio::test]
-    async fn pre_dispatch_replay_failure_does_not_schedule_additional_telemetry() {
-        let (telemetry, transport) = telemetry_client_with_responses([
-            Ok(TransportResponse { status: 204 }),
-            Ok(TransportResponse { status: 204 }),
-        ]);
-        let mut rail_proxy = test_proxy()
-            .with_min_trust_tier(TrustTier::T4)
-            .with_telemetry(Arc::clone(&telemetry));
-        rail_proxy.register_rail(Box::new(CustomRail));
-
-        let intent = custom_settlement_intent(vec![19; 32]);
-        let attestation = Some(test_attestation_json(intent.signable_hash.clone()));
-
-        #[allow(deprecated)]
-        rail_proxy
-            .broadcast_signed_intent(intent.clone(), "sig".to_string(), attestation.clone())
-            .await
-            .expect("initial verified dispatch should succeed");
-        wait_for_telemetry_status(&telemetry, TelemetryDeliveryStatus::Delivered).await;
-        assert_eq!(transport.request_count(), 1);
-
-        #[allow(deprecated)]
-        let replay_result = rail_proxy
-            .broadcast_signed_intent(intent, "sig".to_string(), attestation)
-            .await;
-        assert!(matches!(
-            replay_result,
-            Err(ConclaveError::EnclaveFailure(message)) if message.contains("replay")
-        ));
-        assert_eq!(transport.request_count(), 1);
-        assert_eq!(
-            telemetry.delivery_status(),
-            TelemetryDeliveryStatus::Delivered
-        );
-    }
 
     #[tokio::test]
     async fn built_in_adapter_dispatch_is_quarantined_before_network() {
