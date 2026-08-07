@@ -182,14 +182,16 @@ See `docs/PHASE1_ISSUES_ROADMAP.md` for the full breakdown.
 
 ### Attestation Infrastructure (Session 57 Audit)
 
-**Status: 26,800 LOC. AwsNitroVerifier operational; remaining verifiers pending.**
+**Status: 26,800 LOC. AWS Nitro verification remains fail-closed in production.**
 
 All 8 attestation providers (AWS Nitro, Intel DCAP, AMD SEV-SNP, ARM CCA,
 Android KeyMint, Apple Secure Enclave, FIDO2, TPM) are modeled with enums,
-proof composition, and trust infrastructure. The production registry now
-defaults to [`AwsNitroVerifier::structural_only`] for TEE proofs (COSE
-signature + pinned root CA). All other provider verifiers return
-`ProofVerifierStatus::Unavailable` pending real backend integration.
+proof composition, and trust infrastructure. The Nitro verifier provides
+structural verification primitives, but the production registry keeps the TEE
+route unavailable pending cryptographically complete certificate-path
+validation and configured workload/release bindings. All other default provider
+routes also return `ProofVerifierStatus::Unavailable` pending real backend
+integration.
 
 **What's wired and working:**
 - TrustTier enforcement (T1–T4) gating settlement dispatch ✅
@@ -203,7 +205,7 @@ signature + pinned root CA). All other provider verifiers return
 
 | Priority | Verifier | Reason |
 |----------|----------|--------|
-| P0 | AWS Nitro | ~~Primary deployment target. Parser exists. Needs: AWS PKI root, COSE Sign1 verification, CAB forum PCR references.~~ ✅ Done — `AwsNitroVerifier::structural_only()` registered in production registry by default. |
+| P0 | AWS Nitro | Parser and structural verifier exist. Still required: cryptographically complete certificate-path validation, configured PCR/workload and release/KMS bindings, and provider/runtime evidence. Default production TEE verification remains fail-closed/unavailable. |
 | P1 | TrustedFreshnessClock | Enclave-attested timestamp source. Current system clock is spoofable. |
 | P1 | Platform attestation (DCAP or SEV-SNP) | On-prem/managed deployments. Modeled, zero implementation. |
 | P2 | Android KeyMint | Mobile signing surface. StrongBox sim exists. Needs Google root chain. |
@@ -225,7 +227,7 @@ Four verifier backends built per the 3-tier user architecture blueprint:
 
 | Tier | Verifier | File | Status |
 |------|----------|------|--------|
-| Cloud TEE/HSM | `AwsNitroVerifier` | `src/enclave/verifiers/nitro_verifier.rs` | ✅ Available. `AwsNitroTrustBoundary` (production), X.509 chain validation, Root CA pinned. |
+| Cloud TEE/HSM | `AwsNitroVerifier` | `src/enclave/verifiers/nitro_verifier.rs` | Structural verification primitives with pinned-root and certificate-linkage checks. Production availability remains blocked on cryptographically complete certificate-path validation and configured workload/release bindings. |
 | On-Premise | `Pkcs11Verifier` | `src/enclave/verifiers/pkcs11_verifier.rs` | ✅ Available. `cryptoki` v0.10 wired behind feature flag. Full PKCS#11 API: enumerate_slots, discover_keys, sign, verify, get_public_key, is_hardware_backed. Mechanism mapping: ECDSA, EdDSA, RSA. |
 | Endpoint | `WebauthnVerifier` | `src/enclave/verifiers/webauthn_verifier.rs` | Structural API (packed/tpm/android-key/apple attestation). Hardware tier classification. **Blocked**: `webauthn-rs` v0.5 in Cargo.toml but verification still stubbed even with feature enabled. |
 | Cross-cutting | `OidcVerifier` | `src/enclave/verifiers/oidc_verifier.rs` | ✅ Available. `jsonwebtoken` v10 (non-optional dep). JWT signature verification (RSA/EC), JWK kid matching, claim validation (iss/aud/exp/nonce) all working. |
@@ -237,7 +239,7 @@ Four verifier backends built per the 3-tier user architecture blueprint:
 - `ConclaveError::Attestation(String)` added
 
 **Next steps (Priority order):**
-1. ~~`NitroCertificateTrustBoundary` production impl — unblock `AwsNitroVerifier`~~ ✅ Done (Session 55)
+1. Complete AWS Nitro production verification: cryptographically validate the certificate path and configure workload/release bindings; keep the default production route fail-closed until those gates are met.
 2. Add `cryptoki` crate → wire PKCS#11 HSM signing
 3. ~~Add `jsonwebtoken` crate → wire OIDC token verification~~ ✅ Done (Session 55 P1)
 4. Wire FIDO2 attestation verification (webauthn-rs v0.5 in Cargo.toml, verification still stubbed)
