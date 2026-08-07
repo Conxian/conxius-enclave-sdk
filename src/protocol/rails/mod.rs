@@ -1174,15 +1174,6 @@ fn default_attestation_policy() -> AttestationPolicy {
 }
 
 #[cfg(test)]
-fn ensure_operation_signature_is_bound(signature: &str) -> ConclaveResult<()> {
-    #[cfg(test)]
-    {
-        let _ = signature;
-        Ok(())
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
     use crate::protocol::asset::{AssetIdentifier, Chain};
@@ -1331,25 +1322,6 @@ mod rail_proxy_tests {
         }
     }
 
-    fn telemetry_test_policy() -> TelemetryPolicy {
-        TelemetryPolicy::new(Duration::from_millis(25), 0, Duration::ZERO)
-            .expect("telemetry test policy should be bounded")
-    }
-
-    fn telemetry_client_with_responses(
-        responses: impl IntoIterator<Item = Result<TransportResponse, TransportError>>,
-    ) -> (Arc<TelemetryClient>, Arc<TestTransport>) {
-        let transport = Arc::new(TestTransport::with_responses(responses));
-        let client = TelemetryClient::with_test_transport(
-            "http://telemetry.invalid",
-            "",
-            telemetry_test_policy(),
-            Arc::clone(&transport),
-        )
-        .expect("telemetry test client should be constructible");
-        (Arc::new(client), transport)
-    }
-
     #[test]
     fn public_rail_integrity_requires_durable_replay_before_attestation_work() {
         let proxy = unconfigured_proxy();
@@ -1451,19 +1423,6 @@ mod rail_proxy_tests {
                 if message.contains("durable replay store is required")
         ));
         assert_eq!(calls.load(Ordering::Relaxed), 0);
-    }
-
-    async fn wait_for_telemetry_status(
-        client: &TelemetryClient,
-        expected: TelemetryDeliveryStatus,
-    ) {
-        for _ in 0..50 {
-            if client.delivery_status() == expected {
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(1)).await;
-        }
-        assert_eq!(client.delivery_status(), expected);
     }
 
     fn test_intent(seed: Vec<u8>) -> SwapIntent {

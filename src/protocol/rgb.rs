@@ -5,7 +5,7 @@
 //! RGB state transitions through the UCS.
 
 use crate::signing::ucs::UniversalChainSigner;
-use crate::{ConclaveError, ConclaveResult};
+use crate::ConclaveResult;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RgbContractId([u8; 32]);
