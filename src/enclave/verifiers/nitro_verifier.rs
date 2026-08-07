@@ -49,6 +49,21 @@ impl AwsNitroVerifier {
         })
     }
 
+    /// Creates a verifier that performs structural verification only (COSE
+    /// signature + certificate chain against the pinned AWS Nitro root CA)
+    /// without enforcing PCR baselines. Use [`new`] with PCR baselines for
+    /// production deployments that require workload identity binding.
+    pub fn structural_only() -> Self {
+        let policy = NitroAttestationPolicy::new(NitroPcrPolicy::structural_only());
+        Self {
+            policy,
+            trust_boundary: AwsNitroTrustBoundary::new(),
+            root_ca_der: Self::embedded_root_ca(),
+            verifier_id: "conxian.trust.aws.nitro.v1".into(),
+            max_age_ms: 300_000,
+        }
+    }
+
     pub fn verify_root_ca_fingerprint(&self) -> ConclaveResult<()> {
         let hash = Sha256::digest(&self.root_ca_der);
         let fp = hex::encode(hash);

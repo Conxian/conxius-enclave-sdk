@@ -14,9 +14,9 @@ The Conxius Enclave SDK is the definitive **Sovereign Rails** infrastructure for
 - **No-Panic**: Avoid `panic!`, `unwrap()`, and `expect()` in production paths. Use `ConclaveResult` for error handling.
 - **Zeroization**: Sensitive data must be zeroed out when no longer needed.
 
-## Protocol Module Catalog (Session 53 — Aug 2026) — 50 Modules
+## Protocol Module Catalog (Session 53 — Aug 2026) — 52 Modules
 
-### Blockchain Protocols (22 modules)
+### Blockchain Protocols (24 modules)
 
 | Module | Path | Description | Status |
 |--------|------|-------------|--------|
@@ -36,12 +36,14 @@ The Conxius Enclave SDK is the definitive **Sovereign Rails** infrastructure for
 | mmr | `src/protocol/mmr.rs` | Merkle mountain range proofs | ✅ |
 | ethereum | `src/protocol/ethereum.rs` | EVM chain abstraction, EIP-1559 | ✅ |
 | solana | `src/protocol/solana.rs` | Solana program integration | ✅ |
-| statechain | `src/protocol/statechain.rs` | Spark statechain protocol boundary (577 lines) | ✅ Structural |
+| statechain | `src/protocol/statechain.rs` | Spark statechain protocol boundary (600 lines) | ✅ Structural |
 | sidl | `src/protocol/sidl.rs` | Sovereign Interface Definition Lang | ✅ |
 | credit | `src/protocol/credit.rs` | Credit facility management | ✅ |
 | fiat | `src/protocol/fiat.rs` | Fiat on/off ramp types | ✅ |
 | asset | `src/protocol/asset.rs` | Multi-asset registry (42 chains incl. SPARK) | ✅ |
 | bip110 | `src/protocol/bip110.rs` | BIP-110 reduced data temporary softfork validation | ✅ |
+| babylon | `src/protocol/babylon.rs` | Babylon staking delegation manager (SDK-005) | ✅ |
+| rgb | `src/protocol/rgb.rs` | RGB asset transition builder (SDK-006) | ✅ |
 
 ### Cross-cutting Protocols (16 modules)
 
@@ -111,7 +113,7 @@ Statechain (Spark) module is now a documented settlement rail in the market laye
 | `monitoring.md` | Via gateway adapter metrics | Prometheus endpoint |
 | `FUNDING_AND_ECONOMICS.md` §3.4 | VTXO fees in revenue model | Micro revenue stream |
 
-> Statechain struct validation complete (577 lines). Cryptography ops now backed by real ZF FROST v3.0.0 DKG + threshold signing (Session 53, PR #264 merged). MARKET-010 closed with structural evidence.
+> Statechain struct validation complete (600 lines). Cryptography ops now backed by real ZF FROST v3.0.0 DKG + threshold signing (Session 53, PR #264 merged). MARKET-010 closed with structural evidence.
 
 ### TrustTier Enforcement (Session 48)
 Enclave attestation is the gating mechanism for Managed/Strict tier auto-execution:
@@ -180,13 +182,14 @@ See `docs/PHASE1_ISSUES_ROADMAP.md` for the full breakdown.
 
 ### Attestation Infrastructure (Session 57 Audit)
 
-**Status: 25,288 LOC scaffolding. Zero verifier backends.**
+**Status: 26,800 LOC. AwsNitroVerifier operational; remaining verifiers pending.**
 
 All 8 attestation providers (AWS Nitro, Intel DCAP, AMD SEV-SNP, ARM CCA,
 Android KeyMint, Apple Secure Enclave, FIDO2, TPM) are modeled with enums,
-proof composition, and trust infrastructure — but every one returns
-`ProviderVerifierStatus::Unavailable`. The only partial implementation is
-the Nitro CBOR/COSE parser (offline, structural, no AWS PKI root).
+proof composition, and trust infrastructure. The production registry now
+defaults to [`AwsNitroVerifier::structural_only`] for TEE proofs (COSE
+signature + pinned root CA). All other provider verifiers return
+`ProofVerifierStatus::Unavailable` pending real backend integration.
 
 **What's wired and working:**
 - TrustTier enforcement (T1–T4) gating settlement dispatch ✅
@@ -200,7 +203,7 @@ the Nitro CBOR/COSE parser (offline, structural, no AWS PKI root).
 
 | Priority | Verifier | Reason |
 |----------|----------|--------|
-| P0 | AWS Nitro | Primary deployment target. Parser exists. Needs: AWS PKI root, COSE Sign1 verification, CAB forum PCR references. |
+| P0 | AWS Nitro | ~~Primary deployment target. Parser exists. Needs: AWS PKI root, COSE Sign1 verification, CAB forum PCR references.~~ ✅ Done — `AwsNitroVerifier::structural_only()` registered in production registry by default. |
 | P1 | TrustedFreshnessClock | Enclave-attested timestamp source. Current system clock is spoofable. |
 | P1 | Platform attestation (DCAP or SEV-SNP) | On-prem/managed deployments. Modeled, zero implementation. |
 | P2 | Android KeyMint | Mobile signing surface. StrongBox sim exists. Needs Google root chain. |
@@ -224,8 +227,8 @@ Four verifier backends built per the 3-tier user architecture blueprint:
 |------|----------|------|--------|
 | Cloud TEE/HSM | `AwsNitroVerifier` | `src/enclave/verifiers/nitro_verifier.rs` | ✅ Available. `AwsNitroTrustBoundary` (production), X.509 chain validation, Root CA pinned. |
 | On-Premise | `Pkcs11Verifier` | `src/enclave/verifiers/pkcs11_verifier.rs` | ✅ Available. `cryptoki` v0.10 wired behind feature flag. Full PKCS#11 API: enumerate_slots, discover_keys, sign, verify, get_public_key, is_hardware_backed. Mechanism mapping: ECDSA, EdDSA, RSA. |
-| Endpoint | `WebauthnVerifier` | `src/enclave/verifiers/webauthn_verifier.rs` | Structural API (packed/tpm/android-key/apple attestation). Hardware tier classification. **Blocked**: `webauthn-rs` crate not in Cargo.toml. |
-| Cross-cutting | `OidcVerifier` | `src/enclave/verifiers/oidc_verifier.rs` | ✅ Available. `jsonwebtoken` v9 wired. JWT signature verification (RSA/EC), JWK kid matching, claim validation (iss/aud/exp/nonce) all working. |
+| Endpoint | `WebauthnVerifier` | `src/enclave/verifiers/webauthn_verifier.rs` | Structural API (packed/tpm/android-key/apple attestation). Hardware tier classification. **Blocked**: `webauthn-rs` v0.5 in Cargo.toml but verification still stubbed even with feature enabled. |
+| Cross-cutting | `OidcVerifier` | `src/enclave/verifiers/oidc_verifier.rs` | ✅ Available. `jsonwebtoken` v10 (non-optional dep). JWT signature verification (RSA/EC), JWK kid matching, claim validation (iss/aud/exp/nonce) all working. |
 
 **Proof system changes:**
 - `ProofVerifierStatus::Available` added (was `Unavailable`-only + `TestOnly`)
@@ -237,7 +240,7 @@ Four verifier backends built per the 3-tier user architecture blueprint:
 1. ~~`NitroCertificateTrustBoundary` production impl — unblock `AwsNitroVerifier`~~ ✅ Done (Session 55)
 2. Add `cryptoki` crate → wire PKCS#11 HSM signing
 3. ~~Add `jsonwebtoken` crate → wire OIDC token verification~~ ✅ Done (Session 55 P1)
-4. Add `webauthn-rs` crate → wire FIDO2 attestation verification
+4. Wire FIDO2 attestation verification (webauthn-rs v0.5 in Cargo.toml, verification still stubbed)
 5. FROST ceremony attestation gating
 6. TrustedFreshnessClock (enclave-attested timestamp)
 
@@ -254,7 +257,11 @@ src/signing/
 ├── taproot.rs          SDK-008: BIP-341/342 utilities
 ├── wasm_runtime.rs     Phase 2: WASM signing surface
 ├── statechain_signing.rs Phase 2: Spark statechain vUTXO signing
-└── bitvm2_signing.rs   Phase 2: BitVM2 challenge/response signing
+├── bitvm2_signing.rs   Phase 2: BitVM2 challenge/response signing
+├── covenant_signing.rs Phase 2+: Covenant (OP_CAT) recursive covenant signing
+├── dlc_signing.rs      Phase 2+: DLC oracle signing integration
+├── lightning_signing.rs Phase 2+: Lightning BOLT12 offer signing
+└── zkml_signing.rs     Phase 2+: ZKML proof verification signing
 
 src/protocol/
 ├── babylon.rs          SDK-005: BabylonDelegationManager (Phase 2 harden)
@@ -272,13 +279,13 @@ with real UCS-backed signing paths and WASM consumer surface.
 - ✅ `WasmSigningRuntime`: JSON API for all 6 chain families
 - ✅ `StatechainSigner`: vUTXO transfer + backup signing through UCS
 - ✅ `BitVm2Signer`: challenge + response signing through UCS
+- ✅ `CovenantSigner`: recursive covenant signing through UCS
+- ✅ `DlcSigner`: oracle signing integration through UCS
+- ✅ `LightningSigner`: BOLT12 offer signing through UCS
+- ✅ `ZkmlSigner`: proof verification signing through UCS
 
 ### Pending (Phase 2+)
 - FROST ceremony with real enclave attestation
-- DLC oracle signing integration
-- Lightning BOLT12 offer signing
-- Covenant (OP_CAT) recursive covenant signing
-- ZKML proof verification signing
 
 ### Branch Promotion Topology
 ```

@@ -1,9 +1,12 @@
 //! Bounded, fail-closed verification for independent external proofs.
 //!
-//! This module is an evidence framework, not a provider implementation. The
-//! production registry contains one explicit unavailable verifier for each
-//! semantic proof kind. No structural, simulated, or software verifier can
-//! satisfy the production registry.
+//! This module is an evidence framework with pluggable provider verifiers.
+//! The production registry defaults to the [`AwsNitroVerifier`] for TEE proofs
+//! (structural verification: COSE signature + pinned root CA). Non-TEE proof
+//! kinds remain explicitly unavailable until provider verifiers are registered.
+//! Deployments that require PCR workload-identity binding should call
+//! [`ProofVerifierRegistry::register`] with an [`AwsNitroVerifier::new`]
+//! configured with PCR baselines.
 
 use crate::enclave::android_authorization::ANDROID_KEYMINT_PROOF_VERIFIER_ID;
 use crate::enclave::replay_guard::key_identity_digest;
@@ -28,6 +31,9 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+
+#[cfg(not(target_arch = "wasm32"))]
+use crate::enclave::verifiers::nitro_verifier::AwsNitroVerifier;
 
 /// Current version of the independent proof envelope.
 pub const PROOF_ENVELOPE_VERSION: u16 = 1;
@@ -58,7 +64,7 @@ pub const USER_PROOF_VERIFIER_ID: &str = "conxian.proof.user.unavailable.v1";
 /// Canonical production policy identity for the semantic phone proof kind.
 /// Keep this stable because policy digests commit to the exact verifier ID.
 pub const PHONE_PROOF_VERIFIER_ID: &str = "conxian.proof.phone.unavailable.v1";
-pub const TEE_PROOF_VERIFIER_ID: &str = "conxian.proof.tee.unavailable.v1";
+pub const TEE_PROOF_VERIFIER_ID: &str = "conxian.trust.aws.nitro.v1";
 pub const FIDO_PROOF_VERIFIER_ID: &str = "conxian.proof.fido.unavailable.v1";
 pub const TPM_PROOF_VERIFIER_ID: &str = "conxian.proof.tpm.unavailable.v1";
 
@@ -1045,14 +1051,27 @@ impl ProofReplayBindingContext {
 }
 
 impl ProofVerifierRegistry {
-    /// Builds the only production registry currently supported. Every real
-    /// provider verifier is explicit and unavailable.
+    /// Builds the production registry. The TEE proof kind is backed by
+    /// [`AwsNitroVerifier::structural_only`] (COSE signature + pinned root CA).
+    /// All other proof kinds remain explicitly unavailable until provider
+    /// verifiers are registered via [`register`].
     pub fn production() -> Self {
         let mut verifiers: HashMap<(ProofKind, String), Arc<dyn ProofVerifier>> = HashMap::new();
         for kind in ProofKind::all() {
             let verifier_id = kind.production_verifier_id();
-            let verifier = UnavailableProofVerifier { kind, verifier_id };
-            verifiers.insert((kind, verifier_id.to_string()), Arc::new(verifier));
+            let verifier: Arc<dyn ProofVerifier> = if kind == ProofKind::Tee {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    Arc::new(AwsNitroVerifier::structural_only())
+                }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    Arc::new(UnavailableProofVerifier { kind, verifier_id })
+                }
+            } else {
+                Arc::new(UnavailableProofVerifier { kind, verifier_id })
+            };
+            verifiers.insert((kind, verifier_id.to_string()), verifier);
 
             if kind == ProofKind::Phone {
                 let android_verifier = UnavailableProofVerifier {
@@ -2660,14 +2679,22 @@ mod tests {
     }
 
     #[test]
-    fn production_registry_has_explicit_unavailable_routes() {
+    fn production_registry_has_nitro_available_others_unavailable() {
         let registry = ProofVerifierRegistry::production();
         assert_eq!(registry.route_count(), 7);
         for kind in ProofKind::all() {
-            assert_eq!(
-                registry.verifier_status(kind, kind.production_verifier_id()),
-                ProofVerifierStatus::Unavailable
-            );
+            let status = registry.verifier_status(kind, kind.production_verifier_id());
+            if kind == ProofKind::Tee {
+                assert_eq!(
+                    status, ProofVerifierStatus::Available,
+                    "TEE (Nitro) verifier must be Available"
+                );
+            } else {
+                assert_eq!(
+                    status, ProofVerifierStatus::Unavailable,
+                    "non-TEE verifier {kind:?} must remain Unavailable"
+                );
+            }
         }
         assert_eq!(
             registry.verifier_status(ProofKind::Phone, ANDROID_KEYMINT_PROOF_VERIFIER_ID),

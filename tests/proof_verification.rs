@@ -76,14 +76,22 @@ fn proof(kind: ProofKind, proof_id: &str) -> ProofEnvelope {
 }
 
 #[test]
-fn production_registry_exposes_only_unavailable_exact_routes() {
+fn production_registry_exposes_nitro_available_others_unavailable() {
     let registry = ProofVerifierRegistry::production();
     assert_eq!(registry.route_count(), 7);
     for kind in ProofKind::all() {
-        assert_eq!(
-            registry.verifier_status(kind, kind.production_verifier_id()),
-            ProofVerifierStatus::Unavailable
-        );
+        let status = registry.verifier_status(kind, kind.production_verifier_id());
+        if kind == ProofKind::Tee {
+            assert_eq!(
+                status, ProofVerifierStatus::Available,
+                "TEE (Nitro) verifier must be Available"
+            );
+        } else {
+            assert_eq!(
+                status, ProofVerifierStatus::Unavailable,
+                "non-TEE verifier must remain Unavailable"
+            );
+        }
     }
     assert_eq!(
         ProofKind::Phone.production_verifier_id(),
