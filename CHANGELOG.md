@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.16] - 2026-08-07
+## [v2.0.16] - 2026-08-07
 
 ### Fixed
 - Cargo.lock: root version synced to 2.0.15 (was 2.0.14), re-locked for CI Strict
@@ -9,7 +9,7 @@
 - Version bump to 2.0.16 for crates.io publish (v2.0.15 tag protected)
 - DeepSeek CI review: JS template literals replaced with array concat (YAML parse fix)
 
-## [2.0.15] - 2026-08-05 (unreleased; version reverted to 2.0.14 for release alignment)
+## [v2.0.15] - 2026-08-05 (unreleased; version reverted to 2.0.14 for release alignment)
 
 ### Added
 - FROST DKG/signing gated behind enclave attestation policy (#286)
@@ -27,13 +27,13 @@
 - WASM Playwright version: 1.54.2 → 1.55.1 (CVE-2025-59288)
 - dependabot.yml: removed broken `target-branch: "dev"` from staged
 
-## [2.0.14] - 2026-08-05
+## [v2.0.14] - 2026-08-05
 
 ### Fixed
 - cargo fmt applied across workspace
 - MPL-2.0 license allow added to deny.toml
 
-## [2.0.13] - 2026-07-28
+## [v2.0.13] - 2026-07-28
 
 ### Added
 - Phase 3 attestation verifier framework: AwsNitroVerifier, Pkcs11Verifier, OidcVerifier, WebauthnVerifier
@@ -104,13 +104,13 @@
 
 ### Documentation
 
-## [2.0.12] - 2026-07-15
+## [v2.0.12] - 2026-07-15
 
 ### Fixed
 - Refactored the BitVM2 vTXO tree-root helper into an associated function so stable Clippy passes.
 - Bumped the crate version after v2.0.11 was already published to crates.io.
 
-## [2.0.11] - 2026-07-15
+## [v2.0.11] - 2026-07-15
 
 ### Added
 - Added auto-create GitHub Release job on tag push
