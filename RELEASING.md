@@ -127,7 +127,7 @@ cargo publish --locked --dry-run
 .github/scripts/verify-registry-artifact.sh X.Y.Z <crate> <checksum> <output-json>
 ```
 
-The current repository metadata is at `2.0.14`, aligned with the latest visible release/tag `v2.0.14`. Release controls and SBOM infrastructure are in place via `release-strict.yml`; issue #199 (tagged release with SBOM + provenance) remains open pending live Nitro deployment evidence.
+The current repository metadata is at `2.0.16`, aligned with the latest visible release/tag `v2.0.16`. Release controls and SBOM infrastructure are in place via `release-strict.yml`; issue #199 (tagged release with SBOM + provenance) remains open pending live Nitro deployment evidence.
 
 ## Mainnet Readiness and Security
 

@@ -1,4 +1,4 @@
-# Conxius Enclave SDK: Agent Directives (v0.6.0 — Session 57, Aug 2026)
+# Conxius Enclave SDK: Agent Directives (v0.6.0 — Session 58, Aug 2026)
 
 > **Note:** The internal Rust types `ConclaveResult` and `ConclaveError` are legacy names
 > that predate the brand alignment. Renaming them would be a breaking change across all
@@ -175,12 +175,12 @@ See `docs/PHASE1_ISSUES_ROADMAP.md` for the full breakdown.
 
 ### Quality
 - **544 tests pass** (all suites), 0 failures
-- **0 clippy warnings** (Session 57 remediation — all pre-existing issues resolved)
+- **0 clippy warnings** (Session 58 remediation — all pre-existing issues resolved)
 - **cargo-deny**: advisories ok, bans ok, licenses ok, sources ok
 - **Feature gates**: `frost-crypto`, `bip110_compliant` — all fail-closed
 - **Dependabot**: playwright bumped to 1.55.1 (CVE-2025-59288 resolved)
 
-### Attestation Infrastructure (Session 57 Audit)
+### Attestation Infrastructure (Session 58 Audit)
 
 **Status: 26,800 LOC. AWS Nitro verification remains fail-closed in production.**
 
@@ -221,7 +221,7 @@ integration.
 - `docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md` — Provider capability matrix
 - `docs/architecture/TRUST_REPLAY_FOUNDATION.md` — Trust replay design
 
-### Phase 3 — Attestation Verifier Framework (Session 57)
+### Phase 3 — Attestation Verifier Framework (Session 58)
 
 Four verifier backends built per the 3-tier user architecture blueprint:
 
@@ -317,7 +317,7 @@ SDK-001 (UCS Trait)
                   └→ SDK-011 (Dependency Alignment)
 ```
 
-### Session 57 — Pre-existing Issue Remediation (2026-08-03)
+### Session 58 — Pre-existing Issue Remediation (2026-08-03)
 
 | Issue | Location | Resolution |
 |-------|----------|------------|
