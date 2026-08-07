@@ -1,6 +1,6 @@
 [package]
 name = "conxius-enclave-sdk"
-version = "2.0.15"
+version = "2.0.16"
 license = "MIT"
 rust-version = "1.97.1"
 edition = "2021"
