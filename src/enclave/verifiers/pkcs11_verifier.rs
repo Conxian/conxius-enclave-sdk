@@ -17,7 +17,7 @@ use crate::{ConclaveError, ConclaveResult};
 
 #[cfg(feature = "cryptoki")]
 use {
-    cryptoki::context::{CInitializeArgs, Pkcs11},
+    cryptoki::context::{CInitializeArgs, CInitializeFlags, Pkcs11},
     cryptoki::mechanism::eddsa::{EddsaParams, EddsaSignatureScheme},
     cryptoki::mechanism::Mechanism,
     cryptoki::object::{Attribute, AttributeType, KeyType as CkKeyType, ObjectClass},
@@ -95,7 +95,7 @@ impl Pkcs11Verifier {
             let lib_path = &self.config.library_path;
             let ctx = Pkcs11::new(lib_path)
                 .map_err(|e| format!("failed to load PKCS#11 library '{lib_path}': {e:?}"))?;
-            ctx.initialize(CInitializeArgs::OsThreads)
+            ctx.initialize(CInitializeArgs::new(CInitializeFlags::OS_LOCKING_OK))
                 .map_err(|e| format!("C_Initialize failed: {e:?}"))?;
             Ok(ctx)
         }) {
@@ -117,7 +117,7 @@ impl Pkcs11Verifier {
             })?;
         let session = ctx.open_rw_session(slot).map_err(to_conclave_err)?;
         if let Some(ref pin) = self.config.pin {
-            let auth = secrecy::SecretString::new(pin.clone());
+            let auth = secrecy::SecretString::new(pin.clone().into());
             session
                 .login(UserType::User, Some(&auth))
                 .map_err(to_conclave_err)?;
