@@ -38,7 +38,7 @@ jobs:
           toolchain: 1.97.1
 
       - name: Install cargo-audit
-        uses: taiki-e/install-action@1beb33eee6d086258184383af9a538940be190ed
+        uses: taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8
         with:
           tool: cargo-audit@0.22.2
 
@@ -61,7 +61,7 @@ jobs:
           toolchain: 1.97.1
 
       - name: Install cargo-deny
-        uses: taiki-e/install-action@1beb33eee6d086258184383af9a538940be190ed
+        uses: taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8
         with:
           tool: cargo-deny@0.20.2
 
