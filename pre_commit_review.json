@@ -1,20 +1,16 @@
 {
   "changes": [
     {
-      "file": "src/protocol/covenant.rs",
-      "description": "Hardened CovenantManager with structural verification for OP_CAT recursive invariants."
+      "file": ".gitignore",
+      "description": "Added explicit ignore rules for test/coverage/runtime artifacts (test-results/, playwright-report/, coverage/, .nyc_output/, *.log, *.tmp, tmp/, .tmp/, .cache/, dist/, build/)."
     },
     {
-      "file": "src/protocol/nexus/fedimint.rs",
-      "description": "Expanded FedimintAdapter to support multiple concurrent federations and added registration logic."
+      "file": ".github/workflows/hygiene.yml",
+      "description": "Hardened repository hygiene CI check to verify no tracked test-results, playwright-reports, coverage output, release evidence, or sensitive credentials exist in git."
     },
     {
-      "file": "src/protocol/ark.rs",
-      "description": "Enhanced ArkManager with improved error handling and scan parameter validation."
-    },
-    {
-      "file": "src/wasm_bindings.rs",
-      "description": "Exposed new hardened features to WASM client."
+      "file": "CHANGELOG.md",
+      "description": "Documented repository hygiene rules and CI check hardening under [Unreleased]."
     }
   ]
 }
