@@ -8,6 +8,23 @@ wasm-pack.log
 .wasm-pack-lock
 tests/wasm/.generated/
 
+# Test & Coverage Artifacts
+test-results/
+playwright-report/
+coverage/
+.nyc_output/
+
+# Logs & Temp Files
+*.log
+*.tmp
+tmp/
+.tmp/
+.cache/
+
+# Node & Frontend Build Artifacts
+dist/
+build/
+
 # Tooling & Agents
 .claude/
 .cursor/

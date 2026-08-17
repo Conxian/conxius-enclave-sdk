@@ -13,9 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Check for forbidden files
+      - name: Check for forbidden files and generated artifacts
         run: |
-          ! git ls-files | grep -E "^.env$|^target/|^pkg/|^node_modules/"
+          ! git ls-files | grep -E "^.env$|^.env\.|^target/|^pkg/|^node_modules/|^test-results/|^playwright-report/|^coverage/|^.nyc_output/|^release-evidence/|^secret/|^private/" | grep -v "^\.env\.example$"
       - name: Check for sensitive extensions
         run: |
           ! git ls-files | grep -E "\.key$|\.pem$|\.p12$|\.jks$"
