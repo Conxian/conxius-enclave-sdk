@@ -499,6 +499,9 @@ mod trust_enforcement_tests {
 
 #[cfg(test)]
 mod edge_case_tests {
+    use crate::enclave::AttestationPolicy;
+    use crate::ConclaveError;
+
     use super::*;
     use rand::random;
 
@@ -579,5 +582,24 @@ mod edge_case_tests {
             results.iter().all(|r| *r),
             "All unique attestation keys should be accepted"
         );
+    }
+
+    #[test]
+    fn test_verify_with_policy_result_fails_closed() {
+        let generator = MockAttestationGenerator::new(AttestationLevel::TEE);
+        let nonce: [u8; 4] = random();
+        let mut report = generator.generate_valid_report(&nonce, 1_000_000);
+        report.certificate_chain.clear(); // Empty chain
+
+        let result = report.verify_with_policy_result(&nonce, &AttestationPolicy::production());
+        assert!(
+            result.is_err(),
+            "Invalid attestation must fail closed with error"
+        );
+        if let Err(ConclaveError::Unsupported(msg)) = result {
+            assert!(msg.contains("attestation report failed"));
+        } else {
+            panic!("Expected ConclaveError::Unsupported");
+        }
     }
 }

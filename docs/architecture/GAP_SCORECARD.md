@@ -117,6 +117,10 @@ deployment → exact artifact/review → scoped support decision**.
 - **Resolution**: Separated Phase A single-mechanism trust normalization and durable replay from complete proof-bundle authorization with `TrustScope::SingleMechanism`, scoped result/identity/authorization types, no public provider-extension seam, and a trusted-clock context copy before provider observation and canonicalization. Added scope and forged future/past caller-time regressions.
 - **Status**: The provider-neutral contract, negative tests, and fail-closed composition boundary remain separate from canonical all-required authorization. This does not provide provider, hardware, backend, independent-review, release-artifact, or production-support evidence.
 
+### 2. Hardware Attestation: Mandatory Evidence Policy & Fail-Closed Validation (Issue #195)
+- **Resolution**: Hardened  and  in  with certificate chain length checks, timestamp freshness, challenge binding, and fail-closed error propagation. Added explicit policy verification unit tests in .
+- **Status**: Code & unit verification completed (v2.0.14); live Android KeyMint / Nitro hardware attestation evidence remains open in #195 and #202.
+
 ## Technical Resolutions (v2.0.13)
 
 ### 1. BIP-110: Compliance & Alignment (Issue #179)
