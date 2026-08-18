@@ -12,14 +12,14 @@ use crate::enclave::trust::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 #[cfg(test)]
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::fmt;
 #[cfg(test)]
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-#[cfg(test)]
 use std::sync::Mutex;
 
 pub const DURABLE_REPLAY_CONTRACT_VERSION: u16 = 1;
@@ -468,6 +468,50 @@ impl DurableReplayStore for UnavailableDurableReplayStore {
         _now_secs: u64,
     ) -> DurableReplayResult<DurableReplayOutcome> {
         Ok(DurableReplayOutcome::Unavailable)
+    }
+}
+
+/// An in-memory, thread-safe  implementation that simulates
+/// distributed storage engines (e.g., DynamoDB or PostgreSQL conditional write).
+#[derive(Debug, Default)]
+pub struct MockDurableReplayBackend {
+    records: Mutex<HashMap<Vec<u8>, DurableReplayRequest>>,
+}
+
+impl MockDurableReplayBackend {
+    pub fn new() -> Self {
+        Self {
+            records: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub fn record_count(&self) -> usize {
+        self.records.lock().expect("lock").len()
+    }
+}
+
+impl DurableReplayStore for MockDurableReplayBackend {
+    fn consume_once(
+        &self,
+        request: &DurableReplayRequest,
+        _now_secs: u64,
+    ) -> DurableReplayResult<DurableReplayOutcome> {
+        let mut map = self
+            .records
+            .lock()
+            .map_err(|_| DurableReplayError::StoreUnavailable)?;
+        let key = request.identity().key_identity_digest().to_vec();
+
+        if let Some(existing) = map.get(&key) {
+            if existing.request_digest() == request.request_digest() {
+                Ok(DurableReplayOutcome::AlreadyConsumedSameRequest)
+            } else {
+                Err(DurableReplayError::ConflictingRequest)
+            }
+        } else {
+            map.insert(key, request.clone());
+            Ok(DurableReplayOutcome::Consumed)
+        }
     }
 }
 
@@ -1252,5 +1296,34 @@ mod tests {
         let audit = serde_json::to_string(&result.audit_metadata()).expect("audit");
         assert!(!audit.contains("fixture-attestation-evidence"));
         assert!(!audit.contains("fixture-audience"));
+    }
+
+    #[test]
+    fn mock_backend_conditional_write_semantics() {
+        let backend = Arc::new(MockDurableReplayBackend::new());
+        let result = test_fixture_attestation_result(100, RevocationStatus::Good, TcbStatus::Good);
+        let authorizer = DurableReplayAuthorizer::new(
+            backend.clone(),
+            Arc::new(SequenceClock::new([Ok(150), Ok(151), Ok(152)])),
+        );
+        let key1 = || IdempotencyKey::new(vec![1, 2, 3]).unwrap();
+        let key2 = || IdempotencyKey::new(vec![1, 2, 3]).unwrap();
+        let key_conflict = || IdempotencyKey::new(vec![4, 5, 6]).unwrap();
+
+        let commit1 = authorizer.consume_once(&result, key1()).unwrap();
+        assert_eq!(commit1.outcome(), DurableReplayOutcome::Consumed);
+        assert_eq!(backend.record_count(), 1);
+
+        let commit2 = authorizer.consume_once(&result, key2()).unwrap();
+        assert_eq!(
+            commit2.outcome(),
+            DurableReplayOutcome::AlreadyConsumedSameRequest
+        );
+        assert_eq!(backend.record_count(), 1);
+
+        let err = authorizer
+            .consume_once(&result, key_conflict())
+            .unwrap_err();
+        assert_eq!(err, DurableReplayError::ConflictingRequest);
     }
 }

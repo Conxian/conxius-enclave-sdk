@@ -721,3 +721,71 @@ BIP-110 is a temporary softfork that moves Bitcoin policy limits into consensus 
 *Research log initiated: 2026-07-15*
 *Updated: 2026-07-26 (Durable replay conformance research)*
 *Maintained by: SDK Team*
+
+---
+
+## Session 58 Comprehensive System Audit & Open Item Analysis (2026-08-06)
+
+### Open Issues Audit
+1. **#267 [P0] BitVM2 Groth16 SNARK Verification**:
+   - Status: Boundary modeled in . Returns  without ZK backend.
+   - Gap ID:  | Score: 68/75
+2. **#242 [P0] AWS Nitro Attestation & KMS Release**:
+   - Status: Nitro CA chain and verifier operational in . Live Nitro deployment evidence required for production gate.
+   - Gap ID:  | Score: 56/75
+3. **#241 [P0] Android KeyMint/StrongBox & Play Integrity**:
+   - Status: Verification logic present in  & .
+   - Gap ID:  | Score: 59/75
+4. **#240 [P0] Attestation Roots, Collateral & Durable Replay**:
+   - Status:  and  trait defined in . In-memory mock and conditional-write test harness being implemented in Session 58.
+   - Gap ID:  | Score: 66/75
+5. **#202 [P0] Independent Security Review & Release Acceptance**:
+   - Status: Awaiting third-party audit.
+   - Gap ID:  | Score: 44/75
+6. **#271 [P1] LDK Payment Execution**:
+   - Status: Structural model in .
+   - Gap ID:  | Score: 58/75
+7. **#200 [P1] WASM Secret Boundary & Runtime Evidence**:
+   - Status:  exposed. Secret zeroization and memory isolation evidence pending.
+   - Gap ID:  | Score: 61/75
+8. **#272 [P2] BitVM SNARK Proof Validation**:
+   - Status: Structural boundary in .
+   - Gap ID:  | Score: 50/75
+
+### Open PRs Audit
+- **#288**: Dependabot action bumps (taiki-e v2.85.6, CodeQL v4.37.4) - OPEN.
+- **#220**: fix(enclave): carry typed evidence through settlement authorization - OPEN (superseded by enclave trust contracts #247-#249).
+
+---
+
+## Session 58 Comprehensive System Audit & Open Item Analysis (2026-08-06)
+
+### Open Issues Audit
+1. **#267 [P0] BitVM2 Groth16 SNARK Verification**:
+   - Status: Boundary modeled in `src/protocol/bitvm2.rs`. Returns `VerificationUnavailable` without ZK backend.
+   - Gap ID: `G267-BITVM2` | Score: 68/75
+2. **#242 [P0] AWS Nitro Attestation & KMS Release**:
+   - Status: Nitro CA chain and verifier operational in `src/enclave/nitro.rs`. Live Nitro deployment evidence required for production gate.
+   - Gap ID: `G242-NP` | Score: 56/75
+3. **#241 [P0] Android KeyMint/StrongBox & Play Integrity**:
+   - Status: Verification logic present in `src/enclave/android_strongbox.rs` & `android_authorization.rs`.
+   - Gap ID: `G241-AP` | Score: 59/75
+4. **#240 [P0] Attestation Roots, Collateral & Durable Replay**:
+   - Status: `Issue240PhaseAContract` and `DurableReplayStore` trait defined in `src/enclave/durable_replay.rs`. In-memory mock and conditional-write test harness being implemented in Session 58.
+   - Gap ID: `G240-RP` | Score: 66/75
+5. **#202 [P0] Independent Security Review & Release Acceptance**:
+   - Status: Awaiting third-party audit.
+   - Gap ID: `G202-REV` | Score: 44/75
+6. **#271 [P1] LDK Payment Execution**:
+   - Status: Structural model in `src/protocol/lightning.rs`.
+   - Gap ID: `G271-LDK` | Score: 58/75
+7. **#200 [P1] WASM Secret Boundary & Runtime Evidence**:
+   - Status: `src/wasm_bindings.rs` exposed. Secret zeroization and memory isolation evidence pending.
+   - Gap ID: `G200-WASM` | Score: 61/75
+8. **#272 [P2] BitVM SNARK Proof Validation**:
+   - Status: Structural boundary in `src/protocol/bitvm.rs`.
+   - Gap ID: `G272-BITVM` | Score: 50/75
+
+### Open PRs Audit
+- **#288**: Dependabot action bumps (taiki-e v2.85.6, CodeQL v4.37.4) - OPEN.
+- **#220**: fix(enclave): carry typed evidence through settlement authorization - OPEN (superseded by enclave trust contracts #247-#249).
