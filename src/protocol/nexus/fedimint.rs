@@ -563,11 +563,14 @@ impl FedimintAdapter {
         ))
     }
 
-    pub fn verify_note(&self, _note: &EcashNote) -> ConclaveResult<bool> {
-        Err(protocol_unsupported(
-            UnsupportedProtocol::Fedimint,
-            UnsupportedOperation::NoteVerification,
-        ))
+    pub fn verify_note(&self, note: &EcashNote) -> ConclaveResult<bool> {
+        note.validate()?;
+        if let Some(config) = self.federations.get(&note.federation_id) {
+            config.validate()?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     pub fn create_dleq_proof(
@@ -609,12 +612,26 @@ impl FedimintAdapter {
 
     pub fn validate_threshold_signature(
         &self,
-        _signature: &ThresholdBlindSignature,
+        signature: &ThresholdBlindSignature,
     ) -> ConclaveResult<bool> {
-        Err(protocol_unsupported(
-            UnsupportedProtocol::Fedimint,
-            UnsupportedOperation::ThresholdAggregation,
-        ))
+        signature.encoding_version.validate()?;
+        signature.federation_id.validate()?;
+        signature.aggregated_signature.validate()?;
+        if signature.aggregated_signature.kind != FedimintEnvelopeKind::AggregatedSignature {
+            return Err(boundary_error(BoundaryValidationError::InvalidEnvelope));
+        }
+        if signature.signature_count < signature.threshold || signature.threshold == 0 {
+            return Err(boundary_error(BoundaryValidationError::InvalidThreshold));
+        }
+        if let Some(config) = self.federations.get(&signature.federation_id) {
+            config.validate()?;
+            if signature.threshold != config.guardian_threshold.threshold {
+                return Err(boundary_error(BoundaryValidationError::InvalidThreshold));
+            }
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 
@@ -744,13 +761,65 @@ mod tests {
             adapter.issue_ecash(intent, vec![handle()], vec![handle()]),
             UnsupportedOperation::Minting,
         );
-        assert_unsupported(
-            adapter.verify_note(&note),
-            UnsupportedOperation::NoteVerification,
-        );
+        assert_eq!(adapter.verify_note(&note).expect("valid note check"), false);
         assert_eq!(adapter.federations.len(), before_federations);
         assert_eq!(adapter.operation_count(), before_operations);
         assert_eq!(adapter.backend(), FedimintBackend::Unconfigured);
+    }
+
+    #[test]
+    fn verify_note_and_threshold_signatures() {
+        let mut adapter = FedimintAdapter::new();
+        let fed_id = federation_id();
+        let key_envelope =
+            FedimintOpaqueEnvelope::new(FedimintEnvelopeKind::GuardianPublicKey, [1; 32], 32)
+                .expect("valid key envelope");
+        let threshold = GuardianThreshold::new(1, 1, vec![key_envelope]).expect("valid threshold");
+        let config = FederationConfig {
+            encoding_version: FedimintEncodingVersion::current(),
+            federation_id: fed_id.clone(),
+            guardian_threshold: threshold,
+            provider_id: FedimintProviderId::new("prov-1").expect("valid provider id"),
+        };
+        adapter.federations.insert(fed_id.clone(), config);
+
+        let note = EcashNote {
+            federation_id: fed_id.clone(),
+            amount: 500,
+            provider_handle: handle(),
+            signature: envelope(FedimintEnvelopeKind::NoteSignature),
+        };
+        assert_eq!(adapter.verify_note(&note).expect("note verified"), true);
+
+        let unregistered_note = EcashNote {
+            federation_id: FederationId::new("unregistered").expect("valid id"),
+            amount: 500,
+            provider_handle: handle(),
+            signature: envelope(FedimintEnvelopeKind::NoteSignature),
+        };
+        assert_eq!(
+            adapter
+                .verify_note(&unregistered_note)
+                .expect("unregistered check"),
+            false
+        );
+
+        let agg_sig =
+            FedimintOpaqueEnvelope::new(FedimintEnvelopeKind::AggregatedSignature, [2; 32], 32)
+                .expect("valid sig");
+        let thresh_sig = ThresholdBlindSignature {
+            encoding_version: FedimintEncodingVersion::current(),
+            aggregated_signature: agg_sig,
+            signature_count: 1,
+            threshold: 1,
+            federation_id: fed_id,
+        };
+        assert_eq!(
+            adapter
+                .validate_threshold_signature(&thresh_sig)
+                .expect("valid thresh sig"),
+            true
+        );
     }
 
     fn assert_unsupported<T>(result: ConclaveResult<T>, operation: UnsupportedOperation) {
