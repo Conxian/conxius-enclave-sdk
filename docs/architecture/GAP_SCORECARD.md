@@ -121,6 +121,12 @@ deployment → exact artifact/review → scoped support decision**.
 - **Resolution**: Hardened  and  in  with certificate chain length checks, timestamp freshness, challenge binding, and fail-closed error propagation. Added explicit policy verification unit tests in .
 - **Status**: Code & unit verification completed (v2.0.14); live Android KeyMint / Nitro hardware attestation evidence remains open in #195 and #202.
 
+## Technical Resolutions (v2.0.16)
+
+### 1. Fedimint: Ecash Note & Threshold Signature Validation
+- **Resolution**: Extended `FedimintAdapter` in `src/protocol/nexus/fedimint.rs` to validate e-cash note signatures, provider handles, and threshold signatures against active registered federation configurations.
+- **Status**: Structural/API validation completed (v2.0.16); live BLS12-381 threshold blinding, provider interoperability, independent review, and production support remain open in #197 and #202.
+
 ## Technical Resolutions (v2.0.13)
 
 ### 1. BIP-110: Compliance & Alignment (Issue #179)

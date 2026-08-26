@@ -724,6 +724,15 @@ BIP-110 is a temporary softfork that moves Bitcoin policy limits into consensus 
 
 ---
 
+## Fedimint Threshold BLS & Ecash Validation Research (2026-08-26)
+
+### Key Findings
+1. **BLS12-381 Threshold Signatures**: Fedimint utilizes threshold BLS blind signatures (`fedimint-tbs`) where $t$-of-$n$ guardian signature shares are aggregated into a single verifiable note signature.
+2. **DLEQ Proof Verification**: Discrete Logarithm Equality (DLEQ) proofs allow the mint to prove that issued blind signature shares correspond to the federation's public key without revealing user secrets.
+3. **Validation Sequence**: `FedimintAdapter` validates note amount non-zero, provider handle non-empty, note signature envelope kind (`NoteSignature`), and federation membership. Threshold signatures require $k \ge t$ where $t$ is the guardian threshold.
+
+---
+
 ## Session 58 Comprehensive System Audit & Open Item Analysis (2026-08-06)
 
 ### Open Issues Audit
