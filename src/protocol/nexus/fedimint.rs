@@ -761,7 +761,7 @@ mod tests {
             adapter.issue_ecash(intent, vec![handle()], vec![handle()]),
             UnsupportedOperation::Minting,
         );
-        assert_eq!(adapter.verify_note(&note).expect("valid note check"), false);
+        assert!(!adapter.verify_note(&note).expect("valid note check"));
         assert_eq!(adapter.federations.len(), before_federations);
         assert_eq!(adapter.operation_count(), before_operations);
         assert_eq!(adapter.backend(), FedimintBackend::Unconfigured);
@@ -789,7 +789,7 @@ mod tests {
             provider_handle: handle(),
             signature: envelope(FedimintEnvelopeKind::NoteSignature),
         };
-        assert_eq!(adapter.verify_note(&note).expect("note verified"), true);
+        assert!(adapter.verify_note(&note).expect("note verified"));
 
         let unregistered_note = EcashNote {
             federation_id: FederationId::new("unregistered").expect("valid id"),
@@ -797,12 +797,9 @@ mod tests {
             provider_handle: handle(),
             signature: envelope(FedimintEnvelopeKind::NoteSignature),
         };
-        assert_eq!(
-            adapter
-                .verify_note(&unregistered_note)
-                .expect("unregistered check"),
-            false
-        );
+        assert!(!adapter
+            .verify_note(&unregistered_note)
+            .expect("unregistered check"));
 
         let agg_sig =
             FedimintOpaqueEnvelope::new(FedimintEnvelopeKind::AggregatedSignature, [2; 32], 32)
@@ -814,12 +811,9 @@ mod tests {
             threshold: 1,
             federation_id: fed_id,
         };
-        assert_eq!(
-            adapter
-                .validate_threshold_signature(&thresh_sig)
-                .expect("valid thresh sig"),
-            true
-        );
+        assert!(adapter
+            .validate_threshold_signature(&thresh_sig)
+            .expect("valid thresh sig"));
     }
 
     fn assert_unsupported<T>(result: ConclaveResult<T>, operation: UnsupportedOperation) {
