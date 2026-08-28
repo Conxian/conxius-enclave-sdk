@@ -1,5 +1,7 @@
 use crate::{ConclaveError, ConclaveResult};
+use lightning_invoice::Bolt11Invoice;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -93,6 +95,51 @@ impl LightningPaymentIntent {
             expires_at: expiry_secs.map(|s| now + s),
             event_log: Vec::new(),
         }
+    }
+
+    /// Parse and validate BOLT11 invoice parameters against the intent fields.
+    pub fn parse_and_validate_invoice(&self) -> ConclaveResult<Bolt11Invoice> {
+        let parsed =
+            Bolt11Invoice::from_str(&self.invoice).map_err(|_| ConclaveError::InvalidPayload)?;
+
+        let invoice_hash = hex::encode(parsed.payment_hash());
+        if !invoice_hash.eq_ignore_ascii_case(&self.payment_hash) {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        if parsed.would_expire(std::time::Duration::from_secs(current_unix_seconds())) {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        if let Some(inv_msat) = parsed.amount_milli_satoshis() {
+            if inv_msat != self.amount_msat {
+                return Err(ConclaveError::InvalidPayload);
+            }
+        }
+
+        Ok(parsed)
+    }
+
+    /// Verify preimage settlement and update intent state to Succeeded.
+    pub fn verify_settlement_preimage(&mut self, preimage_hex: &str) -> ConclaveResult<()> {
+        let preimage_bytes =
+            hex::decode(preimage_hex).map_err(|_| ConclaveError::InvalidPayload)?;
+
+        if preimage_bytes.len() != 32 {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        use sha2::{Digest, Sha256};
+        let computed_hash = Sha256::digest(preimage_bytes);
+        let computed_hash_hex = hex::encode(computed_hash);
+
+        if !computed_hash_hex.eq_ignore_ascii_case(&self.payment_hash) {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        self.apply_event(LightningEvent::PaymentSettled {
+            preimage: preimage_hex.to_string(),
+        })
     }
 
     pub fn apply_event(&mut self, event: LightningEvent) -> ConclaveResult<()> {
@@ -303,5 +350,31 @@ mod tests {
 
         assert!(!intent.can_retry());
         assert_eq!(intent.retry_count, MAX_LIGHTNING_RETRIES);
+    }
+
+    #[test]
+    fn test_preimage_settlement_verification() {
+        // Preimage 32 bytes of 0x01
+        let preimage_bytes = [1u8; 32];
+        let preimage_hex = hex::encode(preimage_bytes);
+        use sha2::{Digest, Sha256};
+        let expected_hash = hex::encode(Sha256::digest(preimage_bytes));
+
+        let mut intent =
+            LightningPaymentIntent::new(expected_hash, "lnbc...".to_string(), 50000, None);
+
+        intent
+            .apply_event(LightningEvent::PaymentInitiated)
+            .unwrap();
+        assert_eq!(intent.status, LightningPaymentStatus::Pending);
+
+        // Wrong preimage
+        let wrong_preimage = hex::encode([2u8; 32]);
+        assert!(intent.verify_settlement_preimage(&wrong_preimage).is_err());
+
+        // Right preimage
+        assert!(intent.verify_settlement_preimage(&preimage_hex).is_ok());
+        assert_eq!(intent.status, LightningPaymentStatus::Succeeded);
+        assert_eq!(intent.preimage, Some(preimage_hex));
     }
 }

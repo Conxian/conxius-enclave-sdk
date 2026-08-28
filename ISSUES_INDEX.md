@@ -21,7 +21,7 @@
 - [ ] [**#202**](https://github.com/Conxian/conxius-enclave-sdk/issues/202): [P0] Complete independent security review and release acceptance evidence
 
 ### P1 — Important
-- [ ] [**#271**](https://github.com/Conxian/conxius-enclave-sdk/issues/271): P1: lightning — implement LDK payment execution (307 lines structural)
+- [x] [**#271**] (Implemented Session 60)(https://github.com/Conxian/conxius-enclave-sdk/issues/271): P1: lightning — implement LDK payment execution
 - [ ] [**#200**](https://github.com/Conxian/conxius-enclave-sdk/issues/200): [P1] Harden the WASM secret boundary and add runtime/platform evidence
 
 ### P2 — Planned

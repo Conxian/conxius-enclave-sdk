@@ -821,3 +821,32 @@ In accordance with the 75-point weighted gap scoring rubric (Security: 3x, Block
   - $\alpha \in G_1$, $\beta \in G_2$, $\gamma \in G_2$, $\delta \in G_2$, $\gamma_{abc} \in G_1^*$
 - Public inputs: instance ID, commitment ID, state root hash, challenge digest.
 - Verification algorithm checks structural validity of points, non-zero representation, non-trivial generator constraints, and returns `Groth16VerificationOutcome::Valid` for valid proof structures and `Groth16VerificationOutcome::Invalid` for malformed/corrupted points.
+
+---
+
+## Session 60 — Expanded LDK Lightning Payment Execution Research (#271) (2026-08-08)
+
+### Research & Candidate 75-Point Scoring Update
+Re-evaluating remaining open issues using the 75-point weighted formula (Security 3x, Blocker 3x, Unlock 2x, Evidence 2x, Confidence 2x, Efficiency 1x, External 1x, Doc Risk 1x):
+
+| Gap / Candidate | Sec | Blocker | Unlock | Evidence | Confidence | Efficiency | External | Doc Risk | Formula Score | Status |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `#271` LDK Lightning Payment Execution | 5 | 5 | 4 | 5 | 5 | 4 | 5 | 4 | 71 / 75 | **Selected Candidate (Session 60)** |
+| `#200` WASM Secret Isolation & Memory Boundary | 4 | 5 | 4 | 3 | 4 | 4 | 4 | 4 | 61 / 75 | Next Sprint Target |
+| `#242` AWS Nitro Live Enclave Attestation | 5 | 4 | 4 | 2 | 3 | 3 | 4 | 4 | 56 / 75 | Next Sprint Target |
+
+### LDK Lightning Payment Execution & BOLT11 Verification Technical Findings
+1. **Invoice Parsing & Validation (`lightning-invoice`)**:
+   - `lightning_invoice::Bolt11Invoice` parses human-readable BOLT11 strings.
+   - Decodes payment hash (`payment_hash()`), payment secret (`payment_secret()`), amount in millisatoshis (`amount_milli_satoshis()`), invoice expiration (`is_expired()`), and payee public key.
+   - Enforces strict verification between `LightningPaymentIntent` attributes and parsed invoice values.
+
+2. **HTLC State Machine & Fail-Closed Retry Boundaries**:
+   - Payment execution tracks HTLC routing state through `Created` -> `Pending` -> `Succeeded` / `Failed` / `Indeterminate`.
+   - Fail-closed error handling differentiates transient routing errors (eligible for retry up to `MAX_LIGHTNING_RETRIES = 5`) from permanent failures (invalid invoice, expired invoice, route unavailable) and indeterminate limbo states.
+   - Settlement validation requires SHA-256 digest of the 32-byte preimage to strictly match the expected payment hash before marking payment as `Succeeded`.
+
+3. **Lightning Signing Operations (`src/signing/lightning_signing.rs`)**:
+   - BOLT12 offer signing using Taproot Schnorr signatures (`sign_bolt12_offer`).
+   - LNURL-auth challenge signing using ECDSA over secp256k1 (`sign_lnurl_auth`).
+   - HTLC success and refund transaction script signing through `sign_htlc_transaction`.
