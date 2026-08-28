@@ -226,3 +226,16 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 
 *Inventory initiated by OpenHands AI agent - 2026-07-08*
 *Maintained by: SDK Team*
+
+---
+
+## Session 59 — Expanded Research & Candidate 75-Point Scoring Matrix (2026-08-07)
+
+### Research & Candidate Scoring Synthesis
+In accordance with the 75-point weighted gap scoring rubric (Security: 3x, Blocker: 3x, Unlock: 2x, Evidence: 2x, Confidence: 2x, Efficiency: 1x, External: 1x, Doc Risk: 1x), the remaining candidates are evaluated:
+
+| Gap / Candidate | Sec | Blocker | Unlock | Evidence | Confidence | Efficiency | External | Doc Risk | Formula Score | Status |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `#267` BitVM2 Groth16 Proof Verification | 5 | 5 | 4 | 5 | 5 | 4 | 5 | 5 | 73 / 75 | **Selected Candidate (Session 59)** |
+| `#242` AWS Nitro Live Enclave Attestation | 5 | 4 | 4 | 2 | 3 | 3 | 4 | 4 | 56 / 75 | Next Sprint Target |
+| `#200` WASM Secret Isolation & Memory Boundary | 4 | 5 | 4 | 3 | 4 | 4 | 4 | 4 | 61 / 75 | Next Sprint Target |

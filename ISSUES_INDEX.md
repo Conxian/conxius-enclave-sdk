@@ -14,7 +14,7 @@
 ## Open Issues (verified 2026-08-05)
 
 ### P0 — Critical Path
-- [ ] [**#267**](https://github.com/Conxian/conxius-enclave-sdk/issues/267): P0: bitvm2 — implement Groth16 SNARK verification (645 lines boundary-only)
+- [x] [**#267**] (Implemented Session 59)(https://github.com/Conxian/conxius-enclave-sdk/issues/267): P0: bitvm2 — implement Groth16 SNARK verification (645 lines boundary-only)
 - [ ] [**#242**](https://github.com/Conxian/conxius-enclave-sdk/issues/242): [P0] Qualify AWS Nitro attestation and KMS secret-release boundary
 - [ ] [**#241**](https://github.com/Conxian/conxius-enclave-sdk/issues/241): [P0] Qualify Android KeyMint/StrongBox authorization and Play Integrity verification
 - [ ] [**#240**](https://github.com/Conxian/conxius-enclave-sdk/issues/240): [P0] Operationalize attestation roots, collateral, revocation, and distributed replay

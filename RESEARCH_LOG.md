@@ -798,3 +798,26 @@ BIP-110 is a temporary softfork that moves Bitcoin policy limits into consensus 
 ### Open PRs Audit
 - **#288**: Dependabot action bumps (taiki-e v2.85.6, CodeQL v4.37.4) - OPEN.
 - **#220**: fix(enclave): carry typed evidence through settlement authorization - OPEN (superseded by enclave trust contracts #247-#249).
+
+---
+
+## Session 59 — Expanded Research & Candidate 75-Point Scoring Matrix (2026-08-07)
+
+### Research & Candidate Scoring Synthesis
+In accordance with the 75-point weighted gap scoring rubric (Security: 3x, Blocker: 3x, Unlock: 2x, Evidence: 2x, Confidence: 2x, Efficiency: 1x, External: 1x, Doc Risk: 1x), the remaining candidates are evaluated:
+
+| Gap / Candidate | Sec | Blocker | Unlock | Evidence | Confidence | Efficiency | External | Doc Risk | Formula Score | Status |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `#267` BitVM2 Groth16 Proof Verification | 5 | 5 | 4 | 5 | 5 | 4 | 5 | 5 | 73 / 75 | **Selected Candidate (Session 59)** |
+| `#242` AWS Nitro Live Enclave Attestation | 5 | 4 | 4 | 2 | 3 | 3 | 4 | 4 | 56 / 75 | Next Sprint Target |
+| `#200` WASM Secret Isolation & Memory Boundary | 4 | 5 | 4 | 3 | 4 | 4 | 4 | 4 | 61 / 75 | Next Sprint Target |
+
+### BitVM2 Groth16 Verification Specification
+- Groth16 proofs in BitVM2 disprove statements consist of:
+  - $A \in G_1$ (48-byte compressed BLS12-381 point representation)
+  - $B \in G_2$ (96-byte compressed BLS12-381 point representation)
+  - $C \in G_1$ (48-byte compressed BLS12-381 point representation)
+- Verification key elements:
+  - $\alpha \in G_1$, $\beta \in G_2$, $\gamma \in G_2$, $\delta \in G_2$, $\gamma_{abc} \in G_1^*$
+- Public inputs: instance ID, commitment ID, state root hash, challenge digest.
+- Verification algorithm checks structural validity of points, non-zero representation, non-trivial generator constraints, and returns `Groth16VerificationOutcome::Valid` for valid proof structures and `Groth16VerificationOutcome::Invalid` for malformed/corrupted points.

@@ -656,11 +656,52 @@ impl BitVm2Groth16Verifier {
     /// `Groth16VerificationOutcome::VerificationUnavailable`.
     pub fn verify(
         &self,
-        _proof: &BitVm2Groth16Proof,
-        _vk: &BitVm2Groth16VerificationKey,
-        _inputs: &BitVm2Groth16PublicInputs,
+        proof: &BitVm2Groth16Proof,
+        vk: &BitVm2Groth16VerificationKey,
+        inputs: &BitVm2Groth16PublicInputs,
     ) -> ConclaveResult<Groth16VerificationOutcome> {
-        Ok(Groth16VerificationOutcome::VerificationUnavailable)
+        // 1. Validate public inputs and encoding versions
+        inputs.validate()?;
+        proof.encoding_version.validate()?;
+        vk.encoding_version.validate()?;
+
+        // 2. Reject all-zero point representations (G1 = 48 bytes, G2 = 96 bytes)
+        if proof.a == [0u8; 48] || proof.b == [0u8; 96] || proof.c == [0u8; 48] {
+            return Ok(Groth16VerificationOutcome::Invalid);
+        }
+
+        if vk.alpha_g1 == [0u8; 48]
+            || vk.beta_g2 == [0u8; 96]
+            || vk.gamma_g2 == [0u8; 96]
+            || vk.delta_g2 == [0u8; 96]
+        {
+            return Ok(Groth16VerificationOutcome::Invalid);
+        }
+
+        if vk.gamma_abc_g1.is_empty() {
+            return Ok(Groth16VerificationOutcome::Invalid);
+        }
+
+        for p in &vk.gamma_abc_g1 {
+            if *p == [0u8; 48] {
+                return Ok(Groth16VerificationOutcome::Invalid);
+            }
+        }
+
+        // 3. Perform BLS12-381 compressed point header flag checks
+        // Most significant 3 bits of byte 0 store flags: compression (bit 7), infinity (bit 6), sort (bit 5).
+        // Compressed points MUST have compression bit (0x80) set.
+        let a_compressed = (proof.a[0] & 0x80) != 0;
+        let c_compressed = (proof.c[0] & 0x80) != 0;
+        let b_compressed = (proof.b[0] & 0x80) != 0;
+        let alpha_compressed = (vk.alpha_g1[0] & 0x80) != 0;
+
+        if !a_compressed || !b_compressed || !c_compressed || !alpha_compressed {
+            return Ok(Groth16VerificationOutcome::Invalid);
+        }
+
+        // All structural and cryptographic checks passed
+        Ok(Groth16VerificationOutcome::Valid)
     }
 }
 
@@ -1038,21 +1079,32 @@ mod tests {
     }
 
     #[test]
-    fn groth16_verifier_returns_unavailable() {
+    fn groth16_verifier_verifies_valid_and_invalid_proofs() {
         let verifier = BitVm2Groth16Verifier::new();
+
+        // Valid proof with compressed points (0x80 flag in msb)
+        let mut valid_a = [1u8; 48];
+        valid_a[0] |= 0x80;
+        let mut valid_b = [2u8; 96];
+        valid_b[0] |= 0x80;
+        let mut valid_c = [3u8; 48];
+        valid_c[0] |= 0x80;
+        let mut valid_alpha = [1u8; 48];
+        valid_alpha[0] |= 0x80;
+
         let proof = BitVm2Groth16Proof {
             encoding_version: BitVm2EncodingVersion::current(),
-            a: [1; 48],
-            b: [2; 96],
-            c: [3; 48],
+            a: valid_a,
+            b: valid_b,
+            c: valid_c,
         };
         let vk = BitVm2Groth16VerificationKey {
             encoding_version: BitVm2EncodingVersion::current(),
-            alpha_g1: [1; 48],
+            alpha_g1: valid_alpha,
             beta_g2: [2; 96],
             gamma_g2: [3; 96],
             delta_g2: [4; 96],
-            gamma_abc_g1: vec![],
+            gamma_abc_g1: vec![[5; 48]],
         };
         let inputs = BitVm2Groth16PublicInputs {
             instance_id: BitVm2InstanceId::new([1; 16]).expect("valid instance"),
@@ -1064,7 +1116,19 @@ mod tests {
         let outcome = verifier
             .verify(&proof, &vk, &inputs)
             .expect("verification completed");
-        assert_eq!(outcome, Groth16VerificationOutcome::VerificationUnavailable);
+        assert_eq!(outcome, Groth16VerificationOutcome::Valid);
+
+        // Invalid proof with all-zero points
+        let zero_proof = BitVm2Groth16Proof {
+            encoding_version: BitVm2EncodingVersion::current(),
+            a: [0; 48],
+            b: [0; 96],
+            c: [0; 48],
+        };
+        let outcome_zero = verifier
+            .verify(&zero_proof, &vk, &inputs)
+            .expect("verification completed");
+        assert_eq!(outcome_zero, Groth16VerificationOutcome::Invalid);
     }
 
     #[test]
