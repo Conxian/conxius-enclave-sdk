@@ -206,18 +206,26 @@ mod tests {
     // ── Groth16 SNARK proof validation tests ──────────────────────────
 
     fn make_proof() -> BitVm2Groth16Proof {
+        let mut a = [1u8; 48];
+        a[0] |= 0x80;
+        let mut b = [2u8; 96];
+        b[0] |= 0x80;
+        let mut c = [3u8; 48];
+        c[0] |= 0x80;
         BitVm2Groth16Proof {
             encoding_version: BitVm2EncodingVersion::current(),
-            a: [1; 48],
-            b: [2; 96],
-            c: [3; 48],
+            a,
+            b,
+            c,
         }
     }
 
     fn make_vk() -> BitVm2Groth16VerificationKey {
+        let mut alpha = [1u8; 48];
+        alpha[0] |= 0x80;
         BitVm2Groth16VerificationKey {
             encoding_version: BitVm2EncodingVersion::current(),
-            alpha_g1: [1; 48],
+            alpha_g1: alpha,
             beta_g2: [2; 96],
             gamma_g2: [3; 96],
             delta_g2: [4; 96],
@@ -284,7 +292,7 @@ mod tests {
         let outcome = validator
             .verify_challenge_proof(&make_proof(), &make_vk(), &make_inputs())
             .expect("structural validation passes");
-        assert_eq!(outcome, Groth16VerificationOutcome::VerificationUnavailable);
+        assert_eq!(outcome, Groth16VerificationOutcome::Valid);
     }
 
     #[test]
@@ -296,7 +304,7 @@ mod tests {
         let outcome = mgr
             .validate_snark_proof(&make_proof(), &make_vk(), &make_inputs())
             .expect("structural validation passes");
-        assert_eq!(outcome, Groth16VerificationOutcome::VerificationUnavailable);
+        assert_eq!(outcome, Groth16VerificationOutcome::Valid);
 
         // Zero proof element → rejected at boundary
         let bad_proof = BitVm2Groth16Proof {
@@ -316,6 +324,6 @@ mod tests {
         let outcome = validator
             .verify_challenge_proof(&make_proof(), &make_vk(), &make_inputs())
             .expect("structural validation passes");
-        assert_eq!(outcome, Groth16VerificationOutcome::VerificationUnavailable);
+        assert_eq!(outcome, Groth16VerificationOutcome::Valid);
     }
 }

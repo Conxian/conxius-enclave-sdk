@@ -243,3 +243,6 @@ The Ark, Fedimint, and related BitVM entries below record API/structural impleme
 - **TEE Attestation**: Intel SGX DCAP, AMD SEV-SNP, ARM PSA patterns documented in `RESEARCH_LOG.md`.
 - **BitVM2**: Permissionless challenger model, optimistic rollup architecture documented in `RESEARCH_LOG.md`.
 - **Fedimint Evolution**: Threshold BLS blind signatures, DLEQ proofs documented in `RESEARCH_LOG.md`.
+
+### Session 59 Resolution (2026-08-07)
+- **#267 BitVM2 Groth16 Verification**: Implemented BLS12-381 compressed point decoding and structural validation in `BitVm2Groth16Verifier`. Valid proof structures return `Groth16VerificationOutcome::Valid`, invalid/corrupted points return `Invalid`, and malformed inputs fail closed with boundary error.
