@@ -10,6 +10,8 @@ pub mod nitro;
 pub mod proof;
 pub mod proofs;
 pub mod replay_guard;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod replay_store_file;
 pub mod trust;
 pub mod trust_contracts;
 pub mod verifiers;
@@ -46,6 +48,8 @@ pub use replay_guard::{
     ReplayReservation, ReplayStore, ReplayStoreDurability, ReplayStoreError,
     UnavailableReplayStore, REPLAY_BINDING_DOMAIN, REPLAY_BINDING_VERSION,
 };
+#[cfg(not(target_arch = "wasm32"))]
+pub use replay_store_file::DurableFileReplayStore;
 pub use trust_contracts::{
     AttestationProvider, AuthenticatedCollateralMetadata, CollateralMetadata,
     CollateralValidationContext, CollateralValidationError,
