@@ -1,21 +1,17 @@
 # Conclave SDK Issues Index
 
-> Auto-generated from GitHub. Last sync: 2026-08-29T06:01:40Z
+> Auto-generated from GitHub. Last sync: 2026-08-29T06:37:34Z
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
 
 ## Summary
 - **Total Issues**: 39
-- **Open Issues**: 7
-- **Closed Issues**: 32
+- **Open Issues**: 6
+- **Closed Issues**: 33
 
 ## Open Issues
 - [ ] [**#271**](https://github.com/Conxian/conxius-enclave-sdk/issues/271): P1: lightning — implement LDK payment execution (307 lines structural)
-  - Labels: enhancement
-  - Assigned: unassigned
-
-- [ ] [**#267**](https://github.com/Conxian/conxius-enclave-sdk/issues/267): P0: bitvm2 — implement Groth16 SNARK verification (645 lines boundary-only)
   - Labels: enhancement
   - Assigned: unassigned
 
@@ -60,6 +56,9 @@
   - Labels: enhancement
 
 - [x] [**#268**](https://github.com/Conxian/conxius-enclave-sdk/issues/268): P1: ark — implement Ark protocol signing (533 lines boundary-only)
+  - Labels: enhancement
+
+- [x] [**#267**](https://github.com/Conxian/conxius-enclave-sdk/issues/267): P0: bitvm2 — implement Groth16 SNARK verification (645 lines boundary-only)
   - Labels: enhancement
 
 - [x] [**#266**](https://github.com/Conxian/conxius-enclave-sdk/issues/266): P0: FROST execution context — bridge opaque envelopes to raw ZF FROST bytes

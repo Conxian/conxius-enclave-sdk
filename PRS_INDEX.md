@@ -1,6 +1,6 @@
 # Conclave SDK Pull Requests Index
 
-> Auto-generated from GitHub. Last sync: 2026-08-29T06:01:40Z
+> Auto-generated from GitHub. Last sync: 2026-08-29T06:37:34Z
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
