@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "schemaVersion": 1,
   "repository": "Conxian/conxius-enclave-sdk",
-  "reviewedRef": "0b3634fa1984a7f16c2b179f8dfd970098aeb791",
-  "lastVerified": "2026-07-26",
+  "reviewedRef": "688baaaac8504b57c53cce96b98f9d927d94ecb9",
+  "lastVerified": "2026-08-29",
   "maturity": "beta-conditional",
   "statusVocabulary": {
     "evidence": ["yes", "partial", "no", "not-evidenced"],
@@ -772,21 +772,21 @@
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/protocol/lightning.rs:1-280",
-        "src/protocol/lightning.rs:1-280",
+        "src/protocol/lightning.rs:1-802",
+        "src/signing/lightning_signing.rs:1-81",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
       ],
       "evidenceChain": [
         {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-250", "https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
-        {"stage": "code", "refs": ["src/protocol/lightning.rs:1-280"]},
-        {"stage": "test", "refs": ["src/protocol/lightning.rs:1-280"]},
+        {"stage": "code", "refs": ["src/protocol/lightning.rs:1-802", "src/signing/lightning_signing.rs:1-81"]},
+        {"stage": "test", "refs": ["src/protocol/lightning.rs:1-802"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "Payment state-machine tests and WASM build surfaces are not LND/provider, runtime, hardware, or production settlement evidence.",
-      "notes": "Lightning remains conditional despite the presence of a public API and local lifecycle tests."
+      "exclusion": "BOLT11 parsing, SHA-256 preimage settlement, HTLC signing, and deterministic graph route-finding are structural/local and are not LND gossip/probing, channel state machine, runtime, hardware, or production settlement evidence.",
+      "notes": "Lightning remains conditional: deterministic route-finding (Dijkstra over a channel graph) and HTLC signing are implemented, but a live channel state machine, gossip-based pathfinding, and provider integration remain open (#271)."
     },
     {
       "id": "dlc",

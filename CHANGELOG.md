@@ -5,6 +5,7 @@
 ### Added
 - `src/protocol/lightning.rs`: Added `parse_and_validate_invoice` and `verify_settlement_preimage` on `LightningPaymentIntent` for BOLT11 invoice verification via `lightning-invoice` and SHA-256 settlement preimage checking (#271).
 - `src/signing/lightning_signing.rs`: Added `sign_htlc_transaction` for HTLC success and refund transaction script signing through UCS (#271).
+- `src/protocol/lightning.rs`: Added `LightningRouter::find_route` (deterministic, fail-closed Dijkstra route selection over a type-safe channel graph) and `LightningPaymentIntent::compute_route`, plus `LightningNetworkGraph`, `LightningChannelEdge`, `LightningRoute`, and `LightningRouteConstraints` types (#271).
 - `.gitignore`: Added explicit ignore rules for generated test and runtime artifacts (`test-results/`, `playwright-report/`, `coverage/`, `.nyc_output/`, `*.log`, `*.tmp`, `tmp/`, `.tmp/`, `.cache/`, `dist/`, `build/`).
 
 ### Security & Governance

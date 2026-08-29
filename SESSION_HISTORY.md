@@ -6,11 +6,13 @@
 - Closed #267 (completion comment); posted #271 status comment (route-finding + channel state machine remain).
 - Expanded `RESEARCH_LOG.md` across all 6 open issues (distributed idempotency, Nitro/Android attestation roots, LDK pathfinding, WASM memory isolation, SBOM/SLSA provenance).
 - Implemented `FileBackedDurableReplayStore` in `src/enclave/durable_replay.rs` (gated `not(wasm32)`): a real durable consume-once backend whose `O_EXCL` create maps to the `ON CONFLICT DO NOTHING` conditional-write primitive, with `fsync`-before-`Consumed`, `UncertainCommit` on write failure, a persisted high-water anti-rollback clock, and restart durability. Re-exported from `enclave` as `FileBackedDurableReplayStore`.
+- Implemented `LightningRouter::find_route` in `src/protocol/lightning.rs` (#271): deterministic, fail-closed Dijkstra route selection over a type-safe channel graph, plus `LightningPaymentIntent::compute_route` (derives the payee from the BOLT11 invoice) and `LightningNetworkGraph`/`LightningChannelEdge`/`LightningRoute`/`LightningRouteConstraints` types. Updated `capability-evidence.json` + `CAPABILITY_MATRIX.md` accordingly.
 
 ### Verification
 - `cargo clippy --all-targets --all-features -- -D warnings` clean.
-- `cargo test --lib` 569 passed (default); `cargo test --lib --features groth16` 571 passed.
-- New tests: `file_backed_store_is_durable_across_restart`, `file_backed_store_is_idempotent_and_conflict_safe`, `file_backed_store_fails_closed_on_expiry_and_rollback`, `file_backed_store_unavailable_when_dir_creation_fails`, `file_backed_store_authorizer_end_to_end`.
+- `cargo test --lib` 573 passed (default); `cargo test --lib --features groth16` 575 passed.
+- New tests: `file_backed_store_*` (5), `route_finder_selects_minimum_fee_path`, `route_finder_fails_closed_without_feasible_path`, `route_finder_enforces_budgets_and_disabled_edges`, `route_finder_validates_graph_and_amount`.
+- `python3 scripts/validate_capability_evidence.py --check` clean (70 capabilities; matrix current).
 - wasm32 build still requires `clang` (pre-existing `secp256k1-sys` C toolchain); the file-backed store is `#[cfg(not(target_arch = "wasm32"))]`.
 
 ---

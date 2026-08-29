@@ -30,8 +30,8 @@
 
 ## Session 62 — Planned
 
-### P0: Finish #271 (LDK route-finding + channel state machine)
-- Route-finding (`Router` impl / Dijkstra scoring + probing) and a channel state machine are the two remaining `#271` "Required" items; implement or explicitly narrow scope, then close.
+### P0: Finish #271 (channel state machine)
+- Route-finding is implemented (`LightningRouter::find_route` + `LightningPaymentIntent::compute_route`); the remaining `#271` "Required" item is a channel state machine. Implement or explicitly narrow scope, then close.
 
 ### P0: Operationalize #240 trust/collateral items (trust store side)
 - The replay backend (`FileBackedDurableReplayStore`) is done; remaining `#240` acceptance items are versioned authenticated root/collateral bundles as release inputs, deterministic revocation/expiry/TCB/freshness enforcement, and recovery/rotation/audit tests on the `TrustBundle` surface.

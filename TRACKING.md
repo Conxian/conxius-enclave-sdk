@@ -43,7 +43,7 @@ The current implementation and acceptance backlog spans GitHub issues across mul
 | [#241](https://github.com/Conxian/conxius-enclave-sdk/issues/241) | Android KeyMint/StrongBox + Play Integrity | P0 | Blocked |
 | [#240](https://github.com/Conxian/conxius-enclave-sdk/issues/240) | Attestation roots, collateral, revocation, distributed replay | P0 | In Progress (replay backend done, trust items open) |
 | [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) | Independent security review and release acceptance | P0 | Blocked |
-| [#271](https://github.com/Conxian/conxius-enclave-sdk/issues/271) | Lightning LDK payment execution | P1 | Implemented (Session 60) |
+| [#271](https://github.com/Conxian/conxius-enclave-sdk/issues/271) | Lightning LDK payment execution | P1 | In Progress (route-finding done, channel state machine open) |
 | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200) | WASM secret boundary and runtime/platform evidence | P1 | In Progress (boundary hardened) |
 | [#272](https://github.com/Conxian/conxius-enclave-sdk/issues/272) | BitVM SNARK proof validation | P2 | Closed |
 

@@ -30,7 +30,7 @@ The SDK (`conxius-enclave-sdk`) is a Rust-based security-primitives library for 
 | **Enclave** | 6 | Attestation, software signer, replay guards | ⚠️ Conditional; hardware evidence incomplete |
 | **Bitcoin** | 8 | BIP-322, ECDSA/Schnorr, PSBT | ⚠️ Correctness and hardware gates open |
 | **Multi-Chain** | 12+ | Ethereum, Solana, Stacks, Cosmos, Polygon | ⚠️ API surface; integration evidence incomplete |
-| **Lightning** | 1 | LND integration paths | ⚠️ API surface; support scope not established |
+| **Lightning** | 1 | BOLT11 invoice, HTLC signing, deterministic route-finding | ⚠️ Structural/local; no channel state machine or live LND/LDK integration |
 | **Ark** | 1 | vTXO tree construction, stateless recovery | ⚠️ Simulated/partial; not production-supported |
 | **BitVM2** | 1 | Optimistic challenge-response | ⚠️ Structural/partial; not production-supported |
 | **Fedimint** | 2 | Federation adapter, blinding | ⚠️ Simulated threshold path; not production-supported |

@@ -74,7 +74,7 @@ Supports `#271` (route-finding + channel state machine are the two remaining ite
 - `ldk-node` wraps pathfinding/fee/retry, but a self-hosted integration must supply a `Router`, chain sync, and channel monitor persistence.
 - Pathfinding quality depends on regular probing and scoring-feed freshness, not just the algorithm.
 
-**Repository application**: `src/protocol/lightning.rs` already covers BOLT11 parsing and preimage settlement; `src/signing/lightning_signing.rs` covers HTLC signing. Route-finding (`Router` impl) and a channel state machine remain open items on #271.
+**Repository application**: `src/protocol/lightning.rs` covers BOLT11 parsing, preimage settlement, and now deterministic route-finding (`LightningRouter::find_route` + `LightningPaymentIntent::compute_route`); `src/signing/lightning_signing.rs` covers HTLC signing. A live gossip-based `Router` (LDK) and a channel state machine remain open items on #271.
 
 ## WASM memory isolation for secrets (2026-08-29)
 
