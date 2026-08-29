@@ -53,7 +53,7 @@ Expands the durable-replay research behind `G240-RP` and the new
 - The idempotency-key store must be **transactionally co-located with the effect it guards**; a separate key store reintroduces the race it is meant to prevent.
 - The atomic primitive is a **conditional write**: PostgreSQL `INSERT … ON CONFLICT DO NOTHING`, DynamoDB `PutItem` with `attribute_not_exists` / condition expressions, or a POSIX `O_EXCL` create. Consumers deduplicate by a stored processed-key set with a unique constraint.
 
-**Repository application**: `FileBackedDurableReplayStore::consume_once` maps the conditional write to `OpenOptions::create_new(true)` (`O_EXCL`) — the filesystem equivalent of `ON CONFLICT DO NOTHING`. Records are `fsync`-ed before `Consumed` is returned, and a failed write is returned as `UncertainCommit` (fail closed). The high-water clock is persisted to resist rollback across restarts. A true multi-replica backend (DynamoDB/PostgreSQL) remains outside the crate, per the `DurableReplayStore` contract.
+**Repository application**: `FileBackedDurableReplayStore::consume_once` maps the conditional write to `OpenOptions::create_new(true)` (`O_EXCL`) — the filesystem equivalent of `ON CONFLICT DO NOTHING`. Records are `fsync`-ed before `Consumed` is returned, and a failed write is returned as `UncertainCommit` (fail closed). The high-water clock is persisted to resist rollback across restarts. `DurableFileReplayStore` (`src/enclave/replay_store_file.rs`) additionally implements the lower-level `ReplayStore` contract with `DurableProvider` durability: `fsync`-ed O_EXCL records, all-or-nothing `consume_once_batch` (validation + conflict scan before any write, with rollback of partial creates), and a persisted anti-rollback high-water clock; it passes the full backend-neutral consume-once conformance suite. A true multi-replica backend (DynamoDB/PostgreSQL) remains outside the crate.
 
 ## Attestation roots, revocation, and freshness (2026-08-29)
 
@@ -74,7 +74,7 @@ Supports `#271` (route-finding + channel state machine are the two remaining ite
 - `ldk-node` wraps pathfinding/fee/retry, but a self-hosted integration must supply a `Router`, chain sync, and channel monitor persistence.
 - Pathfinding quality depends on regular probing and scoring-feed freshness, not just the algorithm.
 
-**Repository application**: `src/protocol/lightning.rs` covers BOLT11 parsing, preimage settlement, and now deterministic route-finding (`LightningRouter::find_route` + `LightningPaymentIntent::compute_route`); `src/signing/lightning_signing.rs` covers HTLC signing. A live gossip-based `Router` (LDK) and a channel state machine remain open items on #271.
+**Repository application**: `src/protocol/lightning.rs` covers BOLT11 parsing, preimage settlement, and deterministic route-finding (`LightningRouter::find_route` + `LightningPaymentIntent::compute_route`); `src/signing/lightning_signing.rs` covers HTLC/commitment signing; `src/protocol/lightning_channel.rs` adds a fail-closed metadata channel state machine (funding/open/HTLC-settle/fail/cooperative-close/force-close with a conserved capacity invariant). A live gossip-based `Router` (LDK) and commitment/revocation coordination with an LND/LDK node remain the only open `#271` items and are provider integration outside this crate.
 
 ## WASM memory isolation for secrets (2026-08-29)
 

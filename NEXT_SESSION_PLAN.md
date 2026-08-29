@@ -3,8 +3,8 @@
 > **For**: OpenHands AI Agent  
 > **Context**: Continuing Conxius Enclave SDK v2.0.16 development
 > **Priority Order**: Remaining P0 gates → P1 → P2
-> **Knowledge Base**: v0.6.2 (Session 61, Aug 2026)
-> **Last Session**: Session 61 — Real Groth16 BLS12-381 pairing verification (#267)
+> **Knowledge Base**: v0.7.0 (Session 62, Aug 2026)
+> **Last Session**: Session 62 — Full scope #271 + #240 (channel state machine + durable ReplayStore provider)
 
 ---
 
@@ -28,19 +28,29 @@
 
 ---
 
-## Session 62 — Planned
+## Session 62 Completed (2026-08-29)
 
-### P0: Finish #271 (channel state machine)
-- Route-finding is implemented (`LightningRouter::find_route` + `LightningPaymentIntent::compute_route`); the remaining `#271` "Required" item is a channel state machine. Implement or explicitly narrow scope, then close.
+### ✅ #271 — channel state machine (code-actionable scope complete)
+- `src/protocol/lightning_channel.rs`: fail-closed metadata `LightningChannel` (funding/open/HTLC-settle/fail/cooperative-close/force-close), conserved capacity invariant, monotonic `commitment_number`, SHA-256 preimage settlement.
+- Remaining `#271` items are live LND/LDK commitment/revocation coordination + gossip-based pathfinding — provider integration (external to this crate).
 
-### P0: Operationalize #240 trust/collateral items (trust store side)
-- The replay backend (`FileBackedDurableReplayStore`) is done; remaining `#240` acceptance items are versioned authenticated root/collateral bundles as release inputs, deterministic revocation/expiry/TCB/freshness enforcement, and recovery/rotation/audit tests on the `TrustBundle` surface.
+### ✅ #240 — durable ReplayStore provider (code-actionable scope complete)
+- `src/enclave/replay_store_file.rs`: `DurableFileReplayStore` (`ReplayStoreDurability::DurableProvider`), passes the full backend-neutral consume-once conformance suite.
+- Acceptance items 1,2,3,4,5,7 are code-complete; item 6 (artifact/SBOM/provenance/independent review) is external-blocked on #202.
+
+---
+
+## Session 63 — Planned
 
 ### P0: Remaining provider/runtime evidence gates (external-blocked)
 - `#242` AWS Nitro live attestation + KMS boundary (requires AWS deployment).
 - `#241` Android KeyMint/StrongBox + Play Integrity (requires real device).
 - `#200` WASM runtime/platform evidence (requires headless browser/Node).
-- `#202` independent security review + release acceptance (requires external reviewer).
+- `#202` independent security review + release acceptance (requires external reviewer); `#240` item 6 depends on this.
+
+### P0: Close-out bookkeeping for #271 + #240
+- `#271`: confirm scope decision (metadata state machine + route-finding done; live LDK node out-of-scope) and post a close/narrow-scope comment.
+- `#240`: confirm items 1-5,7 done and item 6 external-blocked; update the issue acceptance checklist.
 
 ### P1: Fedimint real threshold BLS blinding (DEBT PROTO-001)
 - Replace Fedimint structural-only path with real BLS12-381 threshold blinding/DLEQ validation (now that `bls12_381` is a dependency).

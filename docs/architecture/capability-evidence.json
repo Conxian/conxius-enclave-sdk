@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "schemaVersion": 1,
   "repository": "Conxian/conxius-enclave-sdk",
-  "reviewedRef": "688baaaac8504b57c53cce96b98f9d927d94ecb9",
+  "reviewedRef": "511ebf589a102ff0d3895d6b8d7568751fcfaf28",
   "lastVerified": "2026-08-29",
   "maturity": "beta-conditional",
   "statusVocabulary": {
@@ -148,6 +148,7 @@
         "src/enclave/trust.rs",
         "src/enclave/replay_guard.rs:1-103",
         "src/enclave/durable_replay.rs",
+        "src/enclave/replay_store_file.rs",
         "src/enclave/proofs.rs",
         "src/enclave/attestation.rs:1-251",
         "src/enclave/mod.rs:700-760",
@@ -155,6 +156,7 @@
         "src/protocol/rails/mod.rs:560-620",
         "src/enclave/hardware_attestation_tests.rs:1-450",
         "tests/issue_240_phase_a.rs",
+        "tests/durable_replay_conformance.rs",
         "docs/architecture/ISSUE-240_PHASE_A_CONTRACT.md",
         "docs/architecture/SDK_BOUNDARY_CONTRACT.md",
         ".github/workflows/ci.yml:1-100",
@@ -163,14 +165,14 @@
       ],
       "evidenceChain": [
         {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150", "docs/architecture/TRUST_REPLAY_FOUNDATION.md", "https://github.com/Conxian/conxius-enclave-sdk/issues/240", "https://github.com/Conxian/conxius-enclave-sdk/issues/195"]},
-        {"stage": "code", "refs": ["src/enclave/replay_guard.rs:1-103", "src/enclave/durable_replay.rs", "src/enclave/trust.rs", "src/enclave/proofs.rs", "src/enclave/attestation.rs:1-251", "src/enclave/mod.rs:700-760", "src/protocol/rails/mod.rs:560-620"]},
-        {"stage": "test", "refs": ["src/enclave/hardware_attestation_tests.rs:1-450", "src/enclave/replay_guard.rs:1-103", "src/enclave/durable_replay.rs", "src/enclave/trust.rs", "src/enclave/proofs.rs", "tests/issue_240_phase_a.rs", "src/enclave/mod.rs:1000-1618", "src/protocol/rails/mod.rs:900-1190"]},
+        {"stage": "code", "refs": ["src/enclave/replay_guard.rs:1-103", "src/enclave/durable_replay.rs", "src/enclave/replay_store_file.rs", "src/enclave/trust.rs", "src/enclave/proofs.rs", "src/enclave/attestation.rs:1-251", "src/enclave/mod.rs:700-760", "src/protocol/rails/mod.rs:560-620"]},
+        {"stage": "test", "refs": ["src/enclave/hardware_attestation_tests.rs:1-450", "src/enclave/replay_guard.rs:1-103", "src/enclave/durable_replay.rs", "src/enclave/replay_store_file.rs", "src/enclave/trust.rs", "src/enclave/proofs.rs", "tests/issue_240_phase_a.rs", "tests/durable_replay_conformance.rs", "src/enclave/mod.rs:1000-1618", "src/protocol/rails/mod.rs:900-1190"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/195", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "The trust bundle verifier routes are explicitly unavailable in production, fixture verification is test-only, and ReplayGuard is process-local. Single-mechanism replay authorization remains process-local or fixture-tested and is not distributed replay coordination or exact-artifact production evidence. No vendor roots, durable replay backend, hardware runtime, independent-review, SBOM, provenance, or exact release-artifact support is claimed.",
-      "notes": "Reviewed fix commit 99f8415be19d59ed4a2e5a07ff66b70902ede106 covers separate SingleMechanismReplayIdentity and SingleMechanismReplayAuthorization types, explicit single-mechanism scope binding, bounded idempotency keys, atomic-store outcomes, trusted-clock and expiry checks, and process-local rollback high-water checks. The merged trust contracts also retain versioned canonical trust snapshots, authenticated envelope route/source/profile digests, evidence freshness checks, deterministic rejection states, refresh rotation/outage semantics, and complete provider/proof/nonce/operation/purpose/policy/key/evidence replay bindings. Durable proof authorization enforces the exact canonical production policy, while durable final signing consumes a distinct operation binding immediately before provider signing; neither path supplies complete all-required authorization or production provider evidence. Existing ProofReplayKey and ReplayGuard remain unchanged, and a real durable backend, deployment, provider verifier, independent review, or release artifact remains open."
+      "exclusion": "The trust bundle verifier routes are explicitly unavailable in production and fixture verification is test-only. A durable file-backed replay backend (`DurableFileReplayStore`, `ReplayStoreDurability::DurableProvider`) now satisfies the backend-neutral consume-once conformance suite, but it is a local/reference adapter; multi-replica, multi-region distributed replay coordination, hardware runtime, independent-review, SBOM, provenance, and exact release-artifact support remain unclaimed.",
+      "notes": "Reviewed fix commit 99f8415be19d59ed4a2e5a07ff66b70902ede106 covers separate SingleMechanismReplayIdentity and SingleMechanismReplayAuthorization types, explicit single-mechanism scope binding, bounded idempotency keys, atomic-store outcomes, trusted-clock and expiry checks, and process-local rollback high-water checks. The merged trust contracts also retain versioned canonical trust snapshots, authenticated envelope route/source/profile digests, evidence freshness checks, deterministic rejection states, refresh rotation/outage semantics, and complete provider/proof/nonce/operation/purpose/policy/key/evidence replay bindings. Durable proof authorization enforces the exact canonical production policy, while durable final signing consumes a distinct operation binding immediately before provider signing; neither path supplies complete all-required authorization or production provider evidence. Added DurableFileReplayStore (`src/enclave/replay_store_file.rs`), the first ReplayStore adapter advertising DurableProvider: O_EXCL record files with fsync-before-commit, all-or-nothing consume_once_batch with rollback, persisted anti-rollback high-water clock, and validation-before-time-observation; it passes the full backend-neutral conformance suite (10 cases incl. 32-thread contention) in `tests/durable_replay_conformance.rs`. ReplayGuard remains process-local and multi-replica/region distributed transactions, deployment, provider verifier, independent review, and release artifacts remain open."
     },
     {
       "id": "rail-policy",
@@ -773,20 +775,21 @@
       "productionSupport": "unsupported",
       "evidenceRefs": [
         "src/protocol/lightning.rs:1-802",
+        "src/protocol/lightning_channel.rs",
         "src/signing/lightning_signing.rs:1-81",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
       ],
       "evidenceChain": [
         {"stage": "requirement", "refs": ["docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-250", "https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200"]},
-        {"stage": "code", "refs": ["src/protocol/lightning.rs:1-802", "src/signing/lightning_signing.rs:1-81"]},
-        {"stage": "test", "refs": ["src/protocol/lightning.rs:1-802"]},
+        {"stage": "code", "refs": ["src/protocol/lightning.rs:1-802", "src/protocol/lightning_channel.rs", "src/signing/lightning_signing.rs:1-81"]},
+        {"stage": "test", "refs": ["src/protocol/lightning.rs:1-802", "src/protocol/lightning_channel.rs"]},
         {"stage": "ci", "refs": [".github/workflows/ci.yml:1-100", ".github/workflows/ci-strict.yml:1-100"]},
         {"stage": "artifact", "refs": []}
       ],
       "blockers": ["https://github.com/Conxian/conxius-enclave-sdk/issues/197", "https://github.com/Conxian/conxius-enclave-sdk/issues/200", "https://github.com/Conxian/conxius-enclave-sdk/issues/202"],
-      "exclusion": "BOLT11 parsing, SHA-256 preimage settlement, HTLC signing, and deterministic graph route-finding are structural/local and are not LND gossip/probing, channel state machine, runtime, hardware, or production settlement evidence.",
-      "notes": "Lightning remains conditional: deterministic route-finding (Dijkstra over a channel graph) and HTLC signing are implemented, but a live channel state machine, gossip-based pathfinding, and provider integration remain open (#271)."
+      "exclusion": "BOLT11 parsing, SHA-256 preimage settlement, HTLC signing, deterministic graph route-finding, and the metadata channel state machine are structural/local and are not LND gossip/probing, live commitment/revocation coordination, runtime, hardware, or production settlement evidence.",
+      "notes": "Lightning remains conditional: deterministic route-finding (Dijkstra over a channel graph), HTLC signing, and a fail-closed metadata channel state machine (funding/HTLC/close lifecycle with a conserved capacity invariant) are implemented, but live gossip-based pathfinding and commitment/revocation coordination with an LND/LDK node remain open (#271)."
     },
     {
       "id": "dlc",

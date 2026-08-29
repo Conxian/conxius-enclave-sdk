@@ -1,3 +1,19 @@
+## Session 62 (2026-08-29) — Full scope #271 + #240 (channel state machine + durable ReplayStore provider)
+
+### Changes
+- `#271`: Added `src/protocol/lightning_channel.rs` — a fail-closed, metadata-only `LightningChannel` state machine (funding → open → HTLC add/settle/fail → cooperative/unilateral close) with a conserved capacity invariant (`local + remote + pending HTLCs == capacity`), a monotonic `commitment_number`, and SHA-256 preimage settlement verification. Commitment/revocation signing remains delegated to `LightningSigner` via UCS.
+- `#240`: Added `src/enclave/replay_store_file.rs` — `DurableFileReplayStore`, the first `ReplayStore` adapter advertising `ReplayStoreDurability::DurableProvider`. `fsync`-ed O_EXCL records, all-or-nothing `consume_once_batch` with rollback, persisted anti-rollback high-water clock, validation-before-time-observation. Passes the full backend-neutral conformance suite in `tests/durable_replay_conformance.rs`.
+- Updated `capability-evidence.json` (replay-protection + lightning entries), regenerated `CAPABILITY_MATRIX.md`, and refreshed `CHANGELOG`/`TRACKING`/`NEXT_SESSION_PLAN`/`RESEARCH_LOG`.
+
+### Verification
+- `cargo clippy --all-targets --all-features -- -D warnings` clean.
+- `cargo test --lib` 584 passed (default); `cargo test --lib --features groth16` 586 passed.
+- `cargo test --test durable_replay_conformance` 10 passed (incl. `file_backed_store_passes_complete_backend_neutral_suite`: 10-case suite, 32-thread + overlapping-batch contention).
+- New tests: `protocol::lightning_channel` (7), `enclave::replay_store_file` (4).
+- `python3 scripts/validate_capability_evidence.py --check` clean (70 capabilities; matrix current).
+
+---
+
 ## Session 61 (2026-08-29) — Real Groth16 pairing verification (#267) + durable replay backend (#240) + full cycle re-sync
 
 ### Changes
