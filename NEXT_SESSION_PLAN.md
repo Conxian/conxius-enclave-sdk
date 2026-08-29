@@ -42,15 +42,17 @@
 
 ## Session 63 — Planned
 
-### P0: Remaining provider/runtime evidence gates (external-blocked)
-- `#242` AWS Nitro live attestation + KMS boundary (requires AWS deployment).
-- `#241` Android KeyMint/StrongBox + Play Integrity (requires real device).
-- `#200` WASM runtime/platform evidence (requires headless browser/Node).
-- `#202` independent security review + release acceptance (requires external reviewer); `#240` item 6 depends on this.
+### P0: Finish the cross-repo replay/idempotency backend (conxian-nexus)
+- Land `feat/idempotency-store` PR #250; wire `IdempotencyStore` to the Neon `Conxian Nexus` project (`DATABASE_URL` + run migration).
+- Add the live-DB conformance suite (single/batch/restart/anti-rollback/retention/32-thread contention) mirroring the enclave SDK's `tests/durable_replay_conformance.rs` (nexus #251).
 
-### P0: Close-out bookkeeping for #271 + #240
-- `#271`: confirm scope decision (metadata state machine + route-finding done; live LDK node out-of-scope) and post a close/narrow-scope comment.
-- `#240`: confirm items 1-5,7 done and item 6 external-blocked; update the issue acceptance checklist.
+### P0: Close-out decisions (await user)
+- `#271`: confirm narrow-scope close (route-finding + channel state machine done; live LND/LDK out-of-scope).
+- `corelibs` Neon project: decide whether to rename → `conxian-core` (consistency) or leave as-is.
+- `#240` item 6 + `#202`: independent review (external).
+
+### P0: Remaining provider/runtime evidence gates (external-blocked)
+- `#242` AWS Nitro live attestation + KMS (AWS deployment); `#241` Android KeyMint/StrongBox (device); `#200` WASM runtime (headless browser/Node).
 
 ### P1: Fedimint real threshold BLS blinding (DEBT PROTO-001)
 - Replace Fedimint structural-only path with real BLS12-381 threshold blinding/DLEQ validation (now that `bls12_381` is a dependency).

@@ -8,6 +8,7 @@
 - `src/protocol/lightning.rs`: Added `LightningRouter::find_route` (deterministic, fail-closed Dijkstra route selection over a type-safe channel graph) and `LightningPaymentIntent::compute_route`, plus `LightningNetworkGraph`, `LightningChannelEdge`, `LightningRoute`, and `LightningRouteConstraints` types (#271).
 - `src/protocol/lightning_channel.rs`: Added a fail-closed metadata channel state machine (`LightningChannel`) covering the funding/open/HTLC-settle/fail/cooperative-close/force-close lifecycle with a conserved capacity invariant and SHA-256 preimage settlement verification (#271).
 - `src/enclave/replay_store_file.rs`: Added `DurableFileReplayStore`, the first `ReplayStore` adapter advertising `ReplayStoreDurability::DurableProvider`, with `fsync`-ed O_EXCL records, all-or-nothing `consume_once_batch`, a persisted anti-rollback high-water clock, and validation-before-time-observation; passes the backend-neutral consume-once conformance suite (#240).
+- `src/protocol/ark.rs`: Removed residual fail-open/panic paths in `construct_vtxo_tree` — it no longer silently substitutes empty/zero txids (`unwrap_or_default`/zero-txid fallback) or panics on `.unwrap()`/`.expect()`; it now fails closed via `ConclaveError::InvalidConfiguration` (port of unmerged `c47b23fd`).
 - `.gitignore`: Added explicit ignore rules for generated test and runtime artifacts (`test-results/`, `playwright-report/`, `coverage/`, `.nyc_output/`, `*.log`, `*.tmp`, `tmp/`, `.tmp/`, `.cache/`, `dist/`, `build/`).
 
 ### Security & Governance

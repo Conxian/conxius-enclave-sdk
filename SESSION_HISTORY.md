@@ -12,6 +12,13 @@
 - New tests: `protocol::lightning_channel` (7), `enclave::replay_store_file` (4).
 - `python3 scripts/validate_capability_evidence.py --check` clean (70 capabilities; matrix current).
 
+### Cross-repo phase (org-wide)
+- Audited the Conxian org (15 repos) via `ECOSYSTEM_REGISTRY.json` + `SDK_OWNERSHIP_POLICY.md`; mapped the dependency chain `conxian-nexus → lib-conxian-core (full-sdk) → conxius-enclave-sdk (enclave)`.
+- Mapped all 6 Neon projects to repos; corrected a near-duplicate rename (`corelibs` ≠ nexus — the real nexus DB is `Conxian Nexus`, orange-paper).
+- `#271`/fail-closed hygiene: ported the unmerged `c47b23fd` Ark VTXO fail-open/panic fix (`8b447a7`); nitro/frost portions were already on main.
+- **conxian-nexus**: implemented `IdempotencyStore` (fail-closed consume-once, Postgres `ON CONFLICT DO NOTHING` + atomic batch) + migration `20260829000000_idempotency.sql`; PR #250, follow-up issue #251.
+- Cross-repo issue updates: #240/#271 comments; nexus #251 created.
+
 ---
 
 ## Session 61 (2026-08-29) — Real Groth16 pairing verification (#267) + durable replay backend (#240) + full cycle re-sync
