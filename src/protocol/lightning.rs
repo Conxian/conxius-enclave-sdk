@@ -142,6 +142,28 @@ impl LightningPaymentIntent {
         })
     }
 
+
+    /// Compute a fail-closed multi-hop route for this payment from
+    /// `source_node` to the invoice payee. Route selection is deterministic and
+    /// fails closed (no route, capacity/fee/CLTV/hop violation) rather than
+    /// returning a partial or unverifiable path.
+    pub fn compute_route(
+        &self,
+        source_node: &str,
+        graph: &LightningNetworkGraph,
+        constraints: &LightningRouteConstraints,
+    ) -> Result<LightningRoute, LightningRouteError> {
+        let invoice = self
+            .parse_and_validate_invoice()
+            .map_err(|_| LightningRouteError::InvalidInvoice)?;
+        let payee = invoice
+            .payee_pub_key()
+            .ok_or(LightningRouteError::InvalidInvoice)?;
+        let target_node = hex::encode(payee.serialize());
+        LightningRouter::find_route(graph, source_node, &target_node, self.amount_msat, constraints)
+    }
+
+
     pub fn apply_event(&mut self, event: LightningEvent) -> ConclaveResult<()> {
         let now = current_unix_seconds();
 
@@ -234,6 +256,274 @@ impl LightningPaymentIntent {
         Ok(())
     }
 }
+
+
+// ── Route-finding ────────────────────────────────────────────────────────
+//
+// Deterministic, fail-closed route selection over a channel graph. This is a
+// self-contained route-finder (Dijkstra over directed channel edges) rather
+// than a full LDK node; it enforces amount/capacity, fee, CLTV, and hop budget
+// constraints and never returns a partial or unverifiable path.
+
+/// A directed Lightning channel edge in the route-finding graph.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LightningChannelEdge {
+    pub source: String,
+    pub target: String,
+    pub short_channel_id: u64,
+    pub capacity_msat: u64,
+    pub htlc_minimum_msat: u64,
+    pub htlc_maximum_msat: Option<u64>,
+    pub base_fee_msat: u64,
+    pub proportional_fee_ppm: u64,
+    pub cltv_expiry_delta: u32,
+    pub enabled: bool,
+}
+
+/// A snapshot of the Lightning network channel graph for route selection.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LightningNetworkGraph {
+    edges: Vec<LightningChannelEdge>,
+}
+
+impl LightningNetworkGraph {
+    pub fn new() -> Self {
+        Self { edges: Vec::new() }
+    }
+
+    pub fn add_edge(&mut self, edge: LightningChannelEdge) -> &mut Self {
+        self.edges.push(edge);
+        self
+    }
+
+    pub fn edges(&self) -> &[LightningChannelEdge] {
+        &self.edges
+    }
+
+    pub fn len(&self) -> usize {
+        self.edges.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.edges.is_empty()
+    }
+
+    fn enabled_edges_from<'a>(
+        &'a self,
+        node: &'a str,
+    ) -> impl Iterator<Item = &'a LightningChannelEdge> + 'a {
+        self.edges
+            .iter()
+            .filter(move |edge| edge.enabled && edge.source == node)
+    }
+}
+
+/// A single hop in a computed route.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LightningRouteHop {
+    pub node_id: String,
+    pub short_channel_id: u64,
+    pub fee_msat: u64,
+    pub cltv_expiry_delta: u32,
+}
+
+/// A computed multi-hop route.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LightningRoute {
+    pub hops: Vec<LightningRouteHop>,
+    pub total_fee_msat: u64,
+    pub total_cltv_delta: u32,
+}
+
+impl LightningRoute {
+    pub fn is_empty(&self) -> bool {
+        self.hops.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.hops.len()
+    }
+}
+
+/// Route-selection budget constraints. `None` means unbounded.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LightningRouteConstraints {
+    pub max_fee_msat: Option<u64>,
+    pub max_cltv_delta: Option<u32>,
+    pub max_hops: Option<usize>,
+}
+
+/// Fail-closed route-finding error. Budget/capacity/CLTV violations fold into
+/// `NoRoute`: the router either finds a feasible route or reports none, and
+/// never returns a partial or unverifiable path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum LightningRouteError {
+    #[error("no feasible route found")]
+    NoRoute,
+    #[error("route-finding graph is empty")]
+    GraphEmpty,
+    #[error("payment amount must be greater than zero")]
+    AmountBelowMinimum,
+    #[error("invoice is invalid or missing a payee node")]
+    InvalidInvoice,
+}
+
+fn edge_fee_msat(edge: &LightningChannelEdge, amount_msat: u64) -> u64 {
+    let proportional = (edge.proportional_fee_ppm as u128 * amount_msat as u128) / 1_000_000;
+    edge.base_fee_msat.saturating_add(proportional as u64)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct QueueEntry {
+    node: String,
+    fee_msat: u64,
+    cltv_delta: u32,
+    hops: usize,
+}
+
+impl Ord for QueueEntry {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // Reverse to make a min-heap keyed on (fee, cltv, hops).
+        other
+            .fee_msat
+            .cmp(&self.fee_msat)
+            .then_with(|| other.cltv_delta.cmp(&self.cltv_delta))
+            .then_with(|| other.hops.cmp(&self.hops))
+            .then_with(|| other.node.cmp(&self.node))
+    }
+}
+
+impl PartialOrd for QueueEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Deterministic, fail-closed route finder over a channel graph.
+pub struct LightningRouter;
+
+impl LightningRouter {
+    /// Find the minimum-fee route from `source` to `target` for `amount_msat`,
+    /// honoring the given budget constraints. Returns `Err` (fail closed) when
+    /// no feasible route exists.
+    pub fn find_route(
+        graph: &LightningNetworkGraph,
+        source: &str,
+        target: &str,
+        amount_msat: u64,
+        constraints: &LightningRouteConstraints,
+    ) -> Result<LightningRoute, LightningRouteError> {
+        if graph.is_empty() {
+            return Err(LightningRouteError::GraphEmpty);
+        }
+        if amount_msat == 0 {
+            return Err(LightningRouteError::AmountBelowMinimum);
+        }
+        if source == target {
+            return Err(LightningRouteError::NoRoute);
+        }
+
+        use std::collections::{BinaryHeap, HashMap};
+
+        let mut best: HashMap<String, (u64, u32, usize)> = HashMap::new();
+        let mut previous: HashMap<String, (String, LightningChannelEdge)> = HashMap::new();
+        let mut heap = BinaryHeap::new();
+
+        best.insert(source.to_string(), (0, 0, 0));
+        heap.push(QueueEntry {
+            node: source.to_string(),
+            fee_msat: 0,
+            cltv_delta: 0,
+            hops: 0,
+        });
+
+        while let Some(entry) = heap.pop() {
+            // Skip stale entries (lazy deletion).
+            if let Some((fee, cltv, hops)) = best.get(&entry.node) {
+                if entry.fee_msat > *fee || entry.cltv_delta > *cltv || entry.hops > *hops {
+                    continue;
+                }
+            }
+
+            if entry.node == target {
+                break;
+            }
+
+            for edge in graph.enabled_edges_from(&entry.node) {
+                // Capacity / HTLC-value feasibility.
+                if edge.capacity_msat < amount_msat {
+                    continue;
+                }
+                if amount_msat < edge.htlc_minimum_msat {
+                    continue;
+                }
+                if edge.htlc_maximum_msat.is_some_and(|max| amount_msat > max) {
+                    continue;
+                }
+
+                let fee = edge_fee_msat(edge, amount_msat);
+                let new_fee = entry.fee_msat.saturating_add(fee);
+                let new_cltv = entry.cltv_delta.saturating_add(edge.cltv_expiry_delta);
+                let new_hops = entry.hops + 1;
+
+                if constraints.max_fee_msat.is_some_and(|max| new_fee > max) {
+                    continue;
+                }
+                if constraints.max_cltv_delta.is_some_and(|max| new_cltv > max) {
+                    continue;
+                }
+                if constraints.max_hops.is_some_and(|max| new_hops > max) {
+                    continue;
+                }
+
+                let better = match best.get(&edge.target) {
+                    None => true,
+                    Some((fee, cltv, hops)) => (new_fee, new_cltv, new_hops) < (*fee, *cltv, *hops),
+                };
+                if better {
+                    best.insert(edge.target.clone(), (new_fee, new_cltv, new_hops));
+                    previous.insert(
+                        edge.target.clone(),
+                        (entry.node.clone(), edge.clone()),
+                    );
+                    heap.push(QueueEntry {
+                        node: edge.target.clone(),
+                        fee_msat: new_fee,
+                        cltv_delta: new_cltv,
+                        hops: new_hops,
+                    });
+                }
+            }
+        }
+
+        let (total_fee_msat, total_cltv_delta, _) =
+            best.get(target).copied().ok_or(LightningRouteError::NoRoute)?;
+
+        // Reconstruct the path from `target` back to `source`.
+        let mut hops: Vec<LightningRouteHop> = Vec::new();
+        let mut node = target.to_string();
+        while node != source {
+            let (prev_node, edge) = previous
+                .get(&node)
+                .ok_or(LightningRouteError::NoRoute)?;
+            hops.push(LightningRouteHop {
+                node_id: edge.target.clone(),
+                short_channel_id: edge.short_channel_id,
+                fee_msat: edge_fee_msat(edge, amount_msat),
+                cltv_expiry_delta: edge.cltv_expiry_delta,
+            });
+            node = prev_node.clone();
+        }
+        hops.reverse();
+
+        Ok(LightningRoute {
+            hops,
+            total_fee_msat,
+            total_cltv_delta,
+        })
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -377,4 +667,136 @@ mod tests {
         assert_eq!(intent.status, LightningPaymentStatus::Succeeded);
         assert_eq!(intent.preimage, Some(preimage_hex));
     }
+
+
+    fn channel(
+        source: &str,
+        target: &str,
+        short_channel_id: u64,
+        base_fee_msat: u64,
+    ) -> LightningChannelEdge {
+        LightningChannelEdge {
+            source: source.to_string(),
+            target: target.to_string(),
+            short_channel_id,
+            capacity_msat: 1_000_000,
+            htlc_minimum_msat: 1,
+            htlc_maximum_msat: None,
+            base_fee_msat,
+            proportional_fee_ppm: 0,
+            cltv_expiry_delta: 10,
+            enabled: true,
+        }
+    }
+
+    #[test]
+    fn route_finder_selects_minimum_fee_path() {
+        let mut graph = LightningNetworkGraph::new();
+        graph.add_edge(channel("A", "B", 1, 1));
+        graph.add_edge(channel("B", "D", 2, 1));
+        graph.add_edge(channel("A", "C", 3, 100));
+        graph.add_edge(channel("C", "D", 4, 100));
+
+        let route =
+            LightningRouter::find_route(&graph, "A", "D", 50_000, &LightningRouteConstraints::default())
+                .unwrap();
+        assert_eq!(route.total_fee_msat, 2);
+        assert_eq!(route.total_cltv_delta, 20);
+        assert_eq!(route.len(), 2);
+        assert_eq!(route.hops[0].node_id, "B");
+        assert_eq!(route.hops[0].short_channel_id, 1);
+        assert_eq!(route.hops[1].node_id, "D");
+    }
+
+    #[test]
+    fn route_finder_fails_closed_without_feasible_path() {
+        let mut graph = LightningNetworkGraph::new();
+        graph.add_edge(channel("A", "B", 1, 1));
+        // No edge out of B → no route to D.
+        assert_eq!(
+            LightningRouter::find_route(&graph, "A", "D", 1_000, &LightningRouteConstraints::default()),
+            Err(LightningRouteError::NoRoute)
+        );
+
+        // Source == target is not a valid route.
+        assert_eq!(
+            LightningRouter::find_route(&graph, "A", "A", 1_000, &LightningRouteConstraints::default()),
+            Err(LightningRouteError::NoRoute)
+        );
+
+        // Amount exceeds capacity on the only edge.
+        let mut small = LightningNetworkGraph::new();
+        let mut low_capacity = channel("A", "B", 1, 1);
+        low_capacity.capacity_msat = 100;
+        small.add_edge(low_capacity);
+        assert_eq!(
+            LightningRouter::find_route(&small, "A", "B", 1_000, &LightningRouteConstraints::default()),
+            Err(LightningRouteError::NoRoute)
+        );
+    }
+
+    #[test]
+    fn route_finder_enforces_budgets_and_disabled_edges() {
+        let mut graph = LightningNetworkGraph::new();
+        graph.add_edge(channel("A", "B", 1, 5));
+        graph.add_edge(channel("B", "D", 2, 5));
+
+        // Fee budget too low (total 10 > 9).
+        let fee_budget = LightningRouteConstraints {
+            max_fee_msat: Some(9),
+            ..LightningRouteConstraints::default()
+        };
+        assert_eq!(
+            LightningRouter::find_route(&graph, "A", "D", 1_000, &fee_budget),
+            Err(LightningRouteError::NoRoute)
+        );
+
+        // CLTV budget too low (total 20 > 19).
+        let cltv_budget = LightningRouteConstraints {
+            max_cltv_delta: Some(19),
+            ..LightningRouteConstraints::default()
+        };
+        assert_eq!(
+            LightningRouter::find_route(&graph, "A", "D", 1_000, &cltv_budget),
+            Err(LightningRouteError::NoRoute)
+        );
+
+        // Hop budget too low (2 hops > 1).
+        let hop_budget = LightningRouteConstraints {
+            max_hops: Some(1),
+            ..LightningRouteConstraints::default()
+        };
+        assert_eq!(
+            LightningRouter::find_route(&graph, "A", "D", 1_000, &hop_budget),
+            Err(LightningRouteError::NoRoute)
+        );
+
+        // Disabled edge is not traversed.
+        let mut disabled = LightningNetworkGraph::new();
+        let mut blocked = channel("A", "B", 1, 1);
+        blocked.enabled = false;
+        disabled.add_edge(blocked);
+        disabled.add_edge(channel("B", "D", 2, 1));
+        assert_eq!(
+            LightningRouter::find_route(&disabled, "A", "D", 1_000, &LightningRouteConstraints::default()),
+            Err(LightningRouteError::NoRoute)
+        );
+    }
+
+    #[test]
+    fn route_finder_validates_graph_and_amount() {
+        let graph = LightningNetworkGraph::new();
+        assert_eq!(
+            LightningRouter::find_route(&graph, "A", "B", 1_000, &LightningRouteConstraints::default()),
+            Err(LightningRouteError::GraphEmpty)
+        );
+
+        let mut graph = LightningNetworkGraph::new();
+        graph.add_edge(channel("A", "B", 1, 1));
+        assert_eq!(
+            LightningRouter::find_route(&graph, "A", "B", 0, &LightningRouteConstraints::default()),
+            Err(LightningRouteError::AmountBelowMinimum)
+        );
+    }
+
 }
