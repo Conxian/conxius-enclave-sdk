@@ -774,6 +774,19 @@ impl DurableReplayStore for CountingStore {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn test_durable_replay_conditional_write_conformance() {
+        let store = MockDurableReplayBackend::new();
+        let req1 =
+            DurableReplayRequest::new(identity(), IdempotencyKey::new(vec![1, 2, 3]).expect("key"))
+                .expect("request");
+        let res1 = store.consume_once(&req1, 100).expect("consume_once 1");
+        assert_eq!(res1, DurableReplayOutcome::Consumed);
+
+        let res2 = store.consume_once(&req1, 100).expect("consume_once 2");
+        assert_eq!(res2, DurableReplayOutcome::AlreadyConsumedSameRequest);
+    }
     use super::*;
     use crate::enclave::trust::{
         test_fixture_attestation_result, test_fixture_attestation_result_with_window,
