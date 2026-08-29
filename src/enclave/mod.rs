@@ -79,6 +79,8 @@ pub use durable_replay::{
     DURABLE_REPLAY_IDENTITY_DOMAIN, DURABLE_REPLAY_REQUEST_DOMAIN, IDEMPOTENCY_KEY_DOMAIN,
     MAX_DURABLE_REPLAY_IDENTIFIER_BYTES, MAX_IDEMPOTENCY_KEY_BYTES,
 };
+#[cfg(not(target_arch = "wasm32"))]
+pub use durable_replay::FileBackedDurableReplayStore;
 
 pub use trust::{
     deserialize_attestation_evidence_json, deserialize_collateral_snapshot_json,

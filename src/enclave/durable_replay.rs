@@ -515,6 +515,204 @@ impl DurableReplayStore for MockDurableReplayBackend {
     }
 }
 
+
+#[cfg(not(target_arch = "wasm32"))]
+mod file_backed {
+    use super::*;
+    use std::fs::{self, OpenOptions};
+    use std::io::{ErrorKind, Write};
+    use std::path::{Path, PathBuf};
+
+    const RECORD_MAGIC: [u8; 4] = *b"DRR1";
+    const RECORD_SIZE: usize = 4 + 2 + 32 + 8;
+    const CLOCK_FILE_NAME: &str = ".high-water-clock";
+
+    /// A filesystem-backed durable consume-once store. Records survive process
+    /// restarts, and the `create_new` (O_EXCL) claim provides the atomic
+    /// conditional-write primitive that a distributed backend (DynamoDB
+    /// conditional put / PostgreSQL `ON CONFLICT DO NOTHING`) is expected to
+    /// provide. This is a reference backend for local and test deployments; the
+    /// production distributed backend remains outside this crate.
+    #[derive(Debug)]
+    pub struct FileBackedDurableReplayStore {
+        state: Mutex<FileReplayState>,
+    }
+
+    #[derive(Debug)]
+    struct FileReplayState {
+        dir: PathBuf,
+        high_water_secs: Option<u64>,
+    }
+
+    fn record_path(dir: &Path, identity_digest: &[u8; 32]) -> PathBuf {
+        dir.join(hex::encode(identity_digest))
+    }
+
+    fn encode_record(request_digest: &[u8; 32], expires_at: u64) -> [u8; RECORD_SIZE] {
+        let mut record = [0u8; RECORD_SIZE];
+        record[0..4].copy_from_slice(&RECORD_MAGIC);
+        record[4..6].copy_from_slice(&DURABLE_REPLAY_CONTRACT_VERSION.to_be_bytes());
+        record[6..38].copy_from_slice(request_digest);
+        record[38..46].copy_from_slice(&expires_at.to_be_bytes());
+        record
+    }
+
+    fn decode_record(bytes: &[u8]) -> Option<([u8; 32], u64)> {
+        if bytes.len() != RECORD_SIZE || bytes[0..4] != RECORD_MAGIC {
+            return None;
+        }
+        if u16::from_be_bytes([bytes[4], bytes[5]]) != DURABLE_REPLAY_CONTRACT_VERSION {
+            return None;
+        }
+        let mut request_digest = [0u8; 32];
+        request_digest.copy_from_slice(&bytes[6..38]);
+        let expires_at = u64::from_be_bytes(bytes[38..46].try_into().ok()?);
+        Some((request_digest, expires_at))
+    }
+
+    fn read_record(path: &Path) -> DurableReplayResult<Option<([u8; 32], u64)>> {
+        match fs::read(path) {
+            Ok(bytes) => Ok(decode_record(&bytes)),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+            Err(_) => Err(DurableReplayError::StoreUnavailable),
+        }
+    }
+
+    fn read_high_water(dir: &Path) -> DurableReplayResult<Option<u64>> {
+        let path = dir.join(CLOCK_FILE_NAME);
+        match fs::read(&path) {
+            Ok(bytes) if bytes.len() == 8 => Ok(Some(u64::from_be_bytes(
+                bytes.try_into().expect("length checked"),
+            ))),
+            Ok(_) => Err(DurableReplayError::StoreUnavailable),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+            Err(_) => Err(DurableReplayError::StoreUnavailable),
+        }
+    }
+
+    fn write_high_water(dir: &Path, now_secs: u64) -> DurableReplayResult<()> {
+        let path = dir.join(CLOCK_FILE_NAME);
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&path)
+            .map_err(|_| DurableReplayError::StoreUnavailable)?;
+        file.write_all(&now_secs.to_be_bytes())
+            .and_then(|_| file.sync_all())
+            .map_err(|_| DurableReplayError::UncertainCommit)
+    }
+
+    impl FileBackedDurableReplayStore {
+        /// Opens (creating if necessary) a durable replay store rooted at `dir`.
+        pub fn open(dir: impl AsRef<Path>) -> DurableReplayResult<Self> {
+            let dir = dir.as_ref().to_path_buf();
+            fs::create_dir_all(&dir).map_err(|_| DurableReplayError::StoreUnavailable)?;
+            let high_water_secs = read_high_water(&dir)?;
+            Ok(Self {
+                state: Mutex::new(FileReplayState {
+                    dir,
+                    high_water_secs,
+                }),
+            })
+        }
+
+        /// Number of committed records, excluding the anti-rollback clock file.
+        pub fn record_count(&self) -> usize {
+            let Ok(state) = self.state.lock() else {
+                return 0;
+            };
+            let Ok(entries) = fs::read_dir(&state.dir) else {
+                return 0;
+            };
+            entries
+                .flatten()
+                .filter(|entry| {
+                    entry
+                        .path()
+                        .file_name()
+                        .is_some_and(|name| name != CLOCK_FILE_NAME)
+                        && fs::read(entry.path()).is_ok_and(|bytes| decode_record(&bytes).is_some())
+                })
+                .count()
+        }
+
+        fn claim(
+            state: &mut FileReplayState,
+            path: &Path,
+            record: &[u8; RECORD_SIZE],
+            request_digest: &[u8; 32],
+            now_secs: u64,
+        ) -> DurableReplayResult<DurableReplayOutcome> {
+            match OpenOptions::new().write(true).create_new(true).open(path) {
+                Ok(mut file) => {
+                    if file.write_all(record).and_then(|_| file.sync_all()).is_err() {
+                        drop(file);
+                        let _ = fs::remove_file(path);
+                        return Err(DurableReplayError::UncertainCommit);
+                    }
+                    // The committed record is the consume-once source of truth.
+                    // Advancing the anti-rollback high-water mark is best-effort:
+                    // a clock-write failure must not un-consume a committed record.
+                    state.high_water_secs = Some(now_secs);
+                    let _ = write_high_water(&state.dir, now_secs);
+                    Ok(DurableReplayOutcome::Consumed)
+                }
+                Err(error) if error.kind() == ErrorKind::AlreadyExists => {
+                    match read_record(path)? {
+                        Some((stored_request_digest, stored_expires_at)) => {
+                            if stored_expires_at < now_secs {
+                                let _ = fs::remove_file(path);
+                                Self::claim(state, path, record, request_digest, now_secs)
+                            } else if stored_request_digest == *request_digest {
+                                Ok(DurableReplayOutcome::AlreadyConsumedSameRequest)
+                            } else {
+                                Ok(DurableReplayOutcome::ConflictingRequest)
+                            }
+                        }
+                        None => Err(DurableReplayError::StoreUnavailable),
+                    }
+                }
+                Err(_) => Err(DurableReplayError::StoreUnavailable),
+            }
+        }
+    }
+
+    impl DurableReplayStore for FileBackedDurableReplayStore {
+        fn consume_once(
+            &self,
+            request: &DurableReplayRequest,
+            now_secs: u64,
+        ) -> DurableReplayResult<DurableReplayOutcome> {
+            let identity_digest = request.identity().digest()?;
+            let expires_at = request.identity().expires_at();
+            if expires_at < now_secs {
+                return Err(DurableReplayError::Expired);
+            }
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|_| DurableReplayError::StoreUnavailable)?;
+            if state.high_water_secs.is_some_and(|last| now_secs < last) {
+                return Err(DurableReplayError::ClockRollback);
+            }
+            let path = record_path(&state.dir, &identity_digest);
+            let record = encode_record(&request.request_digest(), expires_at);
+            Self::claim(
+                &mut state,
+                &path,
+                &record,
+                &request.request_digest(),
+                now_secs,
+            )
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use file_backed::FileBackedDurableReplayStore;
+
+
 /// Authorization returned only for a consumed request or a backend-confirmed
 /// same-request idempotent retry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1339,4 +1537,128 @@ mod tests {
             .unwrap_err();
         assert_eq!(err, DurableReplayError::ConflictingRequest);
     }
+
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn temp_store_dir(tag: &str) -> std::path::PathBuf {
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+        let unique = COUNTER.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!(
+            "conxius-file-replay-{}-{}-{tag}",
+            std::process::id(),
+            unique
+        ))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn file_backed_store_is_durable_across_restart() {
+        let dir = temp_store_dir("restart");
+        let request = DurableReplayRequest::new(identity(), IdempotencyKey::new(vec![1]).unwrap())
+            .unwrap();
+
+        {
+            let store = FileBackedDurableReplayStore::open(&dir).unwrap();
+            assert_eq!(
+                store.consume_once(&request, 100).unwrap(),
+                DurableReplayOutcome::Consumed
+            );
+            assert_eq!(store.record_count(), 1);
+        }
+
+        // A fresh store instance on the same directory sees the committed record.
+        let store = FileBackedDurableReplayStore::open(&dir).unwrap();
+        assert_eq!(
+            store.consume_once(&request, 100).unwrap(),
+            DurableReplayOutcome::AlreadyConsumedSameRequest
+        );
+        assert_eq!(store.record_count(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn file_backed_store_is_idempotent_and_conflict_safe() {
+        let dir = temp_store_dir("idempotent");
+        let store = FileBackedDurableReplayStore::open(&dir).unwrap();
+        let request = DurableReplayRequest::new(identity(), IdempotencyKey::new(vec![1]).unwrap())
+            .unwrap();
+        assert_eq!(
+            store.consume_once(&request, 100).unwrap(),
+            DurableReplayOutcome::Consumed
+        );
+        assert_eq!(
+            store.consume_once(&request, 100).unwrap(),
+            DurableReplayOutcome::AlreadyConsumedSameRequest
+        );
+        // Same identity, different idempotency key → conflict.
+        let conflict =
+            DurableReplayRequest::new(identity(), IdempotencyKey::new(vec![2]).unwrap()).unwrap();
+        assert_eq!(
+            store.consume_once(&conflict, 100).unwrap(),
+            DurableReplayOutcome::ConflictingRequest
+        );
+        assert_eq!(store.record_count(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn file_backed_store_fails_closed_on_expiry_and_rollback() {
+        let dir = temp_store_dir("expiry-rollback");
+        let store = FileBackedDurableReplayStore::open(&dir).unwrap();
+        let request = DurableReplayRequest::new(identity(), IdempotencyKey::new(vec![1]).unwrap())
+            .unwrap();
+        // identity expires at 200.
+        assert_eq!(
+            store.consume_once(&request, 201),
+            Err(DurableReplayError::Expired)
+        );
+        assert_eq!(
+            store.consume_once(&request, 100).unwrap(),
+            DurableReplayOutcome::Consumed
+        );
+        // Below the persisted high-water mark → rollback.
+        assert_eq!(
+            store.consume_once(&request, 99),
+            Err(DurableReplayError::ClockRollback)
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn file_backed_store_unavailable_when_dir_creation_fails() {
+        let base = temp_store_dir("blocked");
+        let _blocker = std::fs::File::create(&base).unwrap();
+        let child = base.join("subdir");
+        assert_eq!(
+            FileBackedDurableReplayStore::open(&child).unwrap_err(),
+            DurableReplayError::StoreUnavailable
+        );
+        let _ = std::fs::remove_file(&base);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn file_backed_store_authorizer_end_to_end() {
+        let dir = temp_store_dir("authorizer");
+        let store = Arc::new(FileBackedDurableReplayStore::open(&dir).unwrap());
+        let result = test_fixture_attestation_result(100, RevocationStatus::Good, TcbStatus::Good);
+        let authorizer = DurableReplayAuthorizer::new(store, Arc::new(FixtureClock { now_secs: 100 }));
+        let key = IdempotencyKey::new(vec![7]).unwrap();
+        assert_eq!(
+            authorizer
+                .consume_once(&result, key.clone())
+                .unwrap()
+                .outcome(),
+            DurableReplayOutcome::Consumed
+        );
+        assert_eq!(
+            authorizer.consume_once(&result, key).unwrap().outcome(),
+            DurableReplayOutcome::AlreadyConsumedSameRequest
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
 }
