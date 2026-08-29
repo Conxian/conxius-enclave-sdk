@@ -43,6 +43,59 @@ valid proofs, only check them.
 
 ---
 
+## Distributed idempotency & effectively-once replay (2026-08-29)
+
+Expands the durable-replay research behind `G240-RP` and the new
+`FileBackedDurableReplayStore`.
+
+**Facts** (sources: [Idempotency and Exactly-Once Semantics](https://distributedsystemauthority.com/idempotency-and-exactly-once-semantics), [Idempotency in Distributed Transaction Systems](https://blog.bytedoodle.com/idempotency-in-distributed-transaction-systems), [Idempotency Patterns](https://backendbytes.com/articles/idempotency-patterns-distributed-systems), [Two Generals Problem](https://en.wikipedia.org/wiki/Two_Generals%27_Problem)):
+- True exactly-once delivery is impossible (Two Generals); the production standard is **at-least-once delivery + idempotent consumers = effective exactly-once**.
+- The idempotency-key store must be **transactionally co-located with the effect it guards**; a separate key store reintroduces the race it is meant to prevent.
+- The atomic primitive is a **conditional write**: PostgreSQL `INSERT … ON CONFLICT DO NOTHING`, DynamoDB `PutItem` with `attribute_not_exists` / condition expressions, or a POSIX `O_EXCL` create. Consumers deduplicate by a stored processed-key set with a unique constraint.
+
+**Repository application**: `FileBackedDurableReplayStore::consume_once` maps the conditional write to `OpenOptions::create_new(true)` (`O_EXCL`) — the filesystem equivalent of `ON CONFLICT DO NOTHING`. Records are `fsync`-ed before `Consumed` is returned, and a failed write is returned as `UncertainCommit` (fail closed). The high-water clock is persisted to resist rollback across restarts. A true multi-replica backend (DynamoDB/PostgreSQL) remains outside the crate, per the `DurableReplayStore` contract.
+
+## Attestation roots, revocation, and freshness (2026-08-29)
+
+Supports `#242` (AWS Nitro), `#241` (Android), and `#240` trust ops.
+
+**AWS Nitro** (sources: [AWS verify-root](https://docs.aws.amazon.com/enclaves/latest/user/verify-root.html), [NSM attestation_process](https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md), [Trail of Bits](https://blog.trailofbits.com/2024/02/16/a-few-notes-on-aws-nitro-enclaves-images-and-attestation)): the attestation document is CBOR-encoded and COSE-Sign1-signed with **ES384 (P-384)**. Validation = decode CBOR → map to COSE_Sign1 → verify the certificate chain against the AWS Nitro Attestation PKI root (fingerprint `64:1A:03:21:A3:E2:44:EF:E4:56:46:31:95:D6:06:31:7E:D7:CD:CC:3C:17:56:E0:98:93:F3:C6:8F:79:BB:5B`, subject `CN=aws.nitro-enclaves, C=US, O=Amazon, OU=AWS`) → verify signature → compare PCRs (PCR0-2 are SHA-384 image hashes).
+
+**Android** (sources: [AOSP Key/ID attestation](https://source.android.com/docs/security/features/keystore/attestation), [Play Integrity](https://android-developers.googleblog.com/2025/10/stronger-threat-detection-simpler.html)): key attestation is an X.509 chain with an attestation extension OID `1.3.6.1.4.1.11129.2.1.17` whose `attestationSecurityLevel` is `Software(0)`, `TrustedEnvironment(1)`, or `StrongBox(2)`. Play Integrity is the recommended server-side path (`appIntegrity`, `deviceIntegrity`, `accountIntegrity` verdicts signed by Google); direct key-attestation users must handle the Feb 2026 platform root rotation.
+
+**Repository application**: the `TrustBundle`/`TrustBundleCache`/`TrustRefreshState` surface in `src/enclave/trust/` already models versioned authenticated roots, refresh, and freshness. Remaining live evidence requires the external providers (AWS Nitro instance, Android device) and is tracked as blocked.
+
+## LDK pathfinding & channel state machine (2026-08-29)
+
+Supports `#271` (route-finding + channel state machine are the two remaining items).
+
+**Facts** (sources: [rust-lightning](https://github.com/lightningdevkit/rust-lightning), [LDK pathfinding](https://lightningdevkit.org/docs/pathfinding), [Delving Bitcoin](https://delvingbitcoin.org/t/highly-available-lightning-channels-revisited-route-or-out/1438)):
+- `rust-lightning` splits into `lightning` (core channel state machine + on-chain), `lightning-background-processor`, `lightning-invoice`, and exposes a `Router` trait for pathfinding (Dijkstra-based scoring + probing).
+- `ldk-node` wraps pathfinding/fee/retry, but a self-hosted integration must supply a `Router`, chain sync, and channel monitor persistence.
+- Pathfinding quality depends on regular probing and scoring-feed freshness, not just the algorithm.
+
+**Repository application**: `src/protocol/lightning.rs` already covers BOLT11 parsing and preimage settlement; `src/signing/lightning_signing.rs` covers HTLC signing. Route-finding (`Router` impl) and a channel state machine remain open items on #271.
+
+## WASM memory isolation for secrets (2026-08-29)
+
+Supports `#200`.
+
+**Facts** (sources: [webassembly.org/security](https://webassembly.org/docs/security), [wasm-bindgen guide](https://rustwasm.github.io/docs/wasm-bindgen/)):
+- Wasm's linear memory is a bounds-checked, zero-initialized sandbox; isolation is coarse (module boundary), not per-object. There is no enclave-grade page protection for individual secrets in plain Wasm.
+- `wasm-bindgen` marshals data through shared linear memory; a "secret boundary" must therefore rely on opaque handles, zeroization on drop, and avoiding `JsValue`/`String` copies of key material rather than memory protection.
+
+**Repository application**: `src/wasm_bindings.rs` and `src/wasm_support.rs` enforce fail-closed typing and no-key-export surfaces; runtime/platform evidence requires a headless browser/Node (blocked).
+
+## SBOM, SLSA provenance, and release acceptance (2026-08-29)
+
+Supports `#202`.
+
+**Facts** (sources: [SLSA spec](https://slsa.dev/spec/v1.2/faq), [SLSA levels](https://slsa.dev/spec/v1.2/levels)):
+- SBOM answers "what is in the artifact"; SLSA provenance (in-toto attestation) answers "how it was built"; both are needed. SLSA build track L0-3, source track L1-4 (two-party review, history integrity).
+- GitHub `actions/attest-build-provenance` generates signed SLSA provenance via OIDC.
+
+**Repository application**: CI already enforces SBOM + provenance + `cargo publish --dry-run` (Release Strict). The remaining item is an independent (external) review and explicit release acceptance, which is blocked on a reviewer.
+
 ## Durable replay and atomic admission patterns (2026-07-26)
 
 These primary sources inform the active `ReplayStore` conformance contract.

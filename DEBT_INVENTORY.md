@@ -243,8 +243,8 @@ In accordance with the 75-point weighted gap scoring rubric (Security: 3x, Block
 ## Session 61 — Groth16 Real Pairing Verification Resolved (2026-08-29)
 
 - **`#267` (73/75)**: ✅ Implemented. The structural-only Groth16 verifier (Session 59) was a fail-open gap; it now performs the real BLS12-381 pairing equation behind the `groth16` feature and fails closed otherwise. Closed as a code-gap; BitVM2 protocol-conformance/live-bridge/review evidence remains open (`#202`).
+- **`G240-RP` durable replay backend (66/75)**: ✅ Reference backend implemented (`FileBackedDurableReplayStore`). Real filesystem durability (survives restart), `O_EXCL` atomic conditional write (`ON CONFLICT DO NOTHING`), `fsync`-before-`Consumed`, `UncertainCommit` on write failure, and a persisted high-water anti-rollback clock. The production multi-replica backend (DynamoDB/PostgreSQL) remains outside the crate per the `DurableReplayStore` contract.
 - **Remaining scored candidates (Session 62 targets)**:
-  - `G240-RP` durable distributed replay backend (#240, 66/75) — highest remaining code-actionable P0.
   - `#200` WASM runtime/platform evidence (61/75) — external-blocked (headless browser/Node).
   - `#242` AWS Nitro live attestation (56/75) — external-blocked (AWS deployment).
   - `#241` Android KeyMint/StrongBox (59/75) — external-blocked (real device).

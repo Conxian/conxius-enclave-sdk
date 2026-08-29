@@ -1,16 +1,17 @@
-## Session 61 (2026-08-29) — Real Groth16 BLS12-381 pairing verification (#267) + full cycle re-sync
+## Session 61 (2026-08-29) — Real Groth16 pairing verification (#267) + durable replay backend (#240) + full cycle re-sync
 
 ### Changes
 - Ran `git fetch --all`, `scripts/sync_issues.sh` (39 issues / 279 PRs synced), and re-audited all 7 open issues, 0 open PRs, and the Conxian org (14 repos).
-- Implemented real Groth16 proof verification in `src/protocol/bitvm2.rs` (`BitVm2Groth16Verifier`) backed by the `bls12_381` crate, gated behind a new `groth16` Cargo feature.
-- Fixed a fail-open gap: the verifier previously returned `Valid` for arbitrary non-curve bytes after structural checks; it now runs the actual Groth16 pairing equation `e(A,B) == e(alpha,beta)·e(acc,gamma)·e(C,delta)` and fails closed on decompression/arity/identity/subgroup failures.
-- Added the `groth16 = ["dep:bls12_381"]` feature and `bls12_381 = { version = "0.8", default-features = false, features = ["alloc","groups","pairings"], optional = true }`.
-- Added tests: `groth16_verifier_verifies_genuine_proof` (constructed valid proof), `groth16_verifier_rejects_arity_mismatch`, `groth16_verifier_rejects_arbitrary_bytes_fail_closed`; updated `src/protocol/bitvm.rs` bridge tests and docs to fail-closed semantics.
+- Implemented real Groth16 proof verification in `src/protocol/bitvm2.rs` (`BitVm2Groth16Verifier`) backed by the `bls12_381` crate, gated behind a new `groth16` Cargo feature. Fixed the prior fail-open path that returned `Valid` for arbitrary non-curve bytes; it now runs `e(A,B) == e(alpha,beta)·e(acc,gamma)·e(C,delta)` and fails closed on decompression/arity/identity/subgroup failures.
+- Closed #267 (completion comment); posted #271 status comment (route-finding + channel state machine remain).
+- Expanded `RESEARCH_LOG.md` across all 6 open issues (distributed idempotency, Nitro/Android attestation roots, LDK pathfinding, WASM memory isolation, SBOM/SLSA provenance).
+- Implemented `FileBackedDurableReplayStore` in `src/enclave/durable_replay.rs` (gated `not(wasm32)`): a real durable consume-once backend whose `O_EXCL` create maps to the `ON CONFLICT DO NOTHING` conditional-write primitive, with `fsync`-before-`Consumed`, `UncertainCommit` on write failure, a persisted high-water anti-rollback clock, and restart durability. Re-exported from `enclave` as `FileBackedDurableReplayStore`.
 
 ### Verification
 - `cargo clippy --all-targets --all-features -- -D warnings` clean.
-- `cargo test --lib` 564 passed; `cargo test --lib --features groth16` 566 passed.
-- wasm32 build still requires `clang` (pre-existing `secp256k1-sys` C toolchain, unrelated to this change).
+- `cargo test --lib` 569 passed (default); `cargo test --lib --features groth16` 571 passed.
+- New tests: `file_backed_store_is_durable_across_restart`, `file_backed_store_is_idempotent_and_conflict_safe`, `file_backed_store_fails_closed_on_expiry_and_rollback`, `file_backed_store_unavailable_when_dir_creation_fails`, `file_backed_store_authorizer_end_to_end`.
+- wasm32 build still requires `clang` (pre-existing `secp256k1-sys` C toolchain); the file-backed store is `#[cfg(not(target_arch = "wasm32"))]`.
 
 ---
 

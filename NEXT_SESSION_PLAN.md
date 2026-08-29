@@ -30,12 +30,11 @@
 
 ## Session 62 — Planned
 
-### P0: Close the implemented-but-open issues (#267, #271)
-- `#267` Groth16 pairing verification is implemented and tested; confirm no residual acceptance items and close the issue with a completion note.
-- `#271` LDK payment execution is implemented; confirm remaining sub-items (route-finding / channel state machine) are either complete or explicitly deferred, then close or narrow scope.
+### P0: Finish #271 (LDK route-finding + channel state machine)
+- Route-finding (`Router` impl / Dijkstra scoring + probing) and a channel state machine are the two remaining `#271` "Required" items; implement or explicitly narrow scope, then close.
 
-### P0: Durable distributed replay backend (#240 / G240-RP, score 66)
-- Promote the in-memory `ReplayStore`/`MockDurableReplayBackend` contract to a real durable backend adapter (DynamoDB conditional-write or PostgreSQL `ON CONFLICT`) behind the provider-neutral `ReplayStore` trait; keep production status gated pending provider/runtime evidence.
+### P0: Operationalize #240 trust/collateral items (trust store side)
+- The replay backend (`FileBackedDurableReplayStore`) is done; remaining `#240` acceptance items are versioned authenticated root/collateral bundles as release inputs, deterministic revocation/expiry/TCB/freshness enforcement, and recovery/rotation/audit tests on the `TrustBundle` surface.
 
 ### P0: Remaining provider/runtime evidence gates (external-blocked)
 - `#242` AWS Nitro live attestation + KMS boundary (requires AWS deployment).
