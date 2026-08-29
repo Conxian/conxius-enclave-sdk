@@ -26,6 +26,14 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 
 ### P1 - Critical
 
+#### DEP-001: Yanked `secp256k1 0.32.0-beta.2` dependency
+- **Category**: Dependency
+- **Priority**: P1 - Critical
+- **Description**: `Cargo.toml` pins `secp256k1 = "0.32.0-beta.2"` (a hard, non-optional dependency), which is **yanked** from crates.io. Any fresh dependency resolution (`cargo generate-lockfile`, downstream `cargo add`) fails, blocking `conxian-nexus` CI and merge of nexus PR #250.
+- **Tracking**: [#320](https://github.com/Conxian/conxius-enclave-sdk/issues/320)
+- **Fix**: Bump to a non-yanked release (`0.33.0`) and re-verify `frost-secp256k1-tr` v3.0.0 compatibility, then publish a patch and bump the pin in `lib-conxian-core` → `conxian-nexus`.
+
+
 #### PROTO-001: Protocol implementation boundaries and evidence
 - **Category**: Architecture / Security / Testing
 - **Priority**: P1 (downgraded from P0 — major progress Session 53)

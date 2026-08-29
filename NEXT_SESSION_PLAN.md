@@ -42,17 +42,21 @@
 
 ## Session 63 — Planned
 
-### P0: Finish the cross-repo replay/idempotency backend (conxian-nexus)
-- Land `feat/idempotency-store` PR #250; wire `IdempotencyStore` to the Neon `Conxian Nexus` project (`DATABASE_URL` + run migration).
-- Add the live-DB conformance suite (single/batch/restart/anti-rollback/retention/32-thread contention) mirroring the enclave SDK's `tests/durable_replay_conformance.rs` (nexus #251).
+### P0: Unblock yanked `secp256k1` (#320)
+- Bump `secp256k1` 0.32.0-beta.2 → 0.33.0 (non-yanked) in this SDK; re-verify FROST (`frost-secp256k1-tr` v3.0.0) compatibility.
+- `cargo generate-lockfile` succeeds; `cargo test --locked` + clippy clean; `frost` feature tests pass.
+- Publish a patch release and bump the `conxius-enclave-sdk` pin in `lib-conxian-core` → `conxian-nexus`, so nexus PR #250 can merge.
 
-### P0: Close-out decisions (await user)
-- `#271`: confirm narrow-scope close (route-finding + channel state machine done; live LND/LDK out-of-scope).
-- `corelibs` Neon project: decide whether to rename → `conxian-core` (consistency) or leave as-is.
-- `#240` item 6 + `#202`: independent review (external).
+### P0: Finish the cross-repo replay/idempotency backend (conxian-nexus)
+- After #320: land `IdempotencyStore` PR #250; wire to Neon `Conxian Nexus` (`DATABASE_URL` + run migration).
+- Add the live-DB conformance suite (single/batch/restart/anti-rollback/retention/32-thread contention) mirroring `tests/durable_replay_conformance.rs` (nexus #251).
+
+### P1: #271 — expand research + mainnet proofing (kept open)
+- Research: BOLT12 offers, BIP-353, trampoline routing, splicing, async payments, MPP/AMP, blinded paths.
+- Mainnet proofing: test vectors, signet/mainnet dry-runs vs LND/LDK, commitment/revocation interop.
 
 ### P0: Remaining provider/runtime evidence gates (external-blocked)
-- `#242` AWS Nitro live attestation + KMS (AWS deployment); `#241` Android KeyMint/StrongBox (device); `#200` WASM runtime (headless browser/Node).
+- `#242` AWS Nitro live attestation + KMS (AWS deployment); `#241` Android KeyMint/StrongBox (device); `#200` WASM runtime (headless browser/Node); `#240` item 6 / `#202` independent review (external).
 
 ### P1: Fedimint real threshold BLS blinding (DEBT PROTO-001)
 - Replace Fedimint structural-only path with real BLS12-381 threshold blinding/DLEQ validation (now that `bls12_381` is a dependency).

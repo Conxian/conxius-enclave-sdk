@@ -55,9 +55,10 @@ cargo test -p enclave-poc -- --test-threads=1  # Nitro POC (requires AWS)
 `conxian-nexus` → `lib-conxian-core` (`full-sdk`) → `conxius-enclave-sdk` (optional `enclave` feature). The `ReplayStore` trait is in this repo; production backends belong in services, NOT this library.
 
 ### Neon projects (6) → repos
-`Conxian Nexus` (orange-paper, eu-central-1, pg17) = nexus · `corelibs` (sparkling-sunset) = lib-conxian-core · `Software dev kit` = SDK · `Gateway` = gateway · `Business Operating System` = business · `market` = conxian_market. Managed via `NEON_API_KEY` (`https://console.neon.tech/api/v2/...`).
+`Conxian Nexus` (orange-paper, eu-central-1, pg17) = nexus · `conxian-core` (sparkling-sunset) = lib-conxian-core · `Software dev kit` = SDK · `Gateway` = gateway · `Business Operating System` = business · `market` = conxian_market. Managed via `NEON_API_KEY` (`https://console.neon.tech/api/v2/...`).
 
 ### Cross-repo work state
-- **This repo**: #240 (trait + `DurableFileReplayStore` + conformance suite) and #271 (route-finding + channel state machine) code-complete; ark VTXO fail-open/panic fix in `8b447a7`.
-- **conxian-nexus**: `feat/idempotency-store` PR #250 + follow-up issue #251 (wire to Neon + live-DB conformance suite).
-- **Decisions pending**: #271 narrow-scope close; `corelibs`→`conxian-core` rename; #240 item 6 / #202 independent review (external).
+- **This repo**: #240 (trait + `DurableFileReplayStore` + conformance suite) and #271 (route-finding + channel state machine) code-complete; ark VTXO fail-open/panic fix in `8b447a7`; #320 P0 yanked `secp256k1 0.32.0-beta.2` (blocks downstream lockfile resolution).
+- **conxian-nexus**: `IdempotencyStore` PR #250 (ready-for-review; merge blocked by #320) + follow-up issue #251 (wire to Neon + live-DB conformance suite).
+- **Neon**: `corelibs` renamed → `conxian-core` (done).
+- **Decisions**: #271 keep open (expand research + mainnet proofing); #240 item 6 / #202 independent review (external).
