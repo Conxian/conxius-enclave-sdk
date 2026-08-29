@@ -28,6 +28,7 @@ pub mod identity;
 pub mod intent;
 pub mod job_card;
 pub mod lightning;
+pub mod lightning_channel;
 pub mod mmr;
 pub mod musig2;
 pub mod nexus;
