@@ -1,4 +1,4 @@
-# Conxius Enclave SDK: Agent Directives (Session 58, Aug 2026)
+# Conxius Enclave SDK: Agent Directives (Session 61, Aug 2026)
 
 > **Archive**: `docs/archive/AGENTS_archive_session_58.md` (full session + Phase tracking)
 > **Version**: v2.0.16 — published to crates.io
@@ -10,9 +10,10 @@
 - **Auditable**: Release Strict workflow enforces SBOM, provenance, and artifact integrity.
 
 ## Coding Standards
-- Rust 2021 edition, MSRV 1.97.1. `cargo clippy -- -D warnings` before every push.
+- Rust 2021 edition, MSRV 1.97.1. `cargo clippy --all-targets --all-features -- -D warnings` before every push.
 - No `unsafe` without documented justification. No hardcoded secrets (use `secrets.template`).
 - All new protocol modules require `SystemState::initialize()` integration.
+- Value-bearing crypto is feature-gated and fails closed without the feature: `groth16` (BLS12-381 pairings), `frost-crypto` (ZF FROST v3), `cryptoki` (PKCS#11), `webauthn` (FIDO2).
 
 ## Protocol Module Catalog — 52 Modules (24 blockchain + 28 infrastructure)
 

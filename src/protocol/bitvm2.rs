@@ -340,8 +340,9 @@ impl BitVm2ChallengeResponse {
 // against the on-chain verification key.
 //
 // This module models the proof envelope, verification key, and verifier
-// boundary. Without an audited ZK backend, all verification returns
-// ProtocolUnsupported.
+// boundary. With the `groth16` feature enabled, the verifier performs the real
+// BLS12-381 pairing check; without it, verification fails closed with
+// `VerificationUnavailable`.
 
 // Serde helper wrappers for large byte arrays (serde only supports arrays up to [u8; 32]).
 struct Bytes48([u8; 48]);
@@ -637,9 +638,10 @@ pub enum Groth16VerificationOutcome {
 
 /// Groth16 verifier boundary.
 ///
-/// Accepts a proof, verification key, and public inputs. Actual ZK proof
-/// verification requires an audited pairing backend; without one, all
-/// verification returns `VerificationUnavailable`.
+/// With the `groth16` feature enabled, this verifier performs the real
+/// BLS12-381 pairing check for the Groth16 verification equation. Without the
+/// feature, verification fails closed and returns
+/// [`Groth16VerificationOutcome::VerificationUnavailable`].
 #[derive(Debug, Clone, Default)]
 pub struct BitVm2Groth16Verifier {
     _private: (),
@@ -652,24 +654,31 @@ impl BitVm2Groth16Verifier {
 
     /// Verify a Groth16 proof against a verification key and public inputs.
     ///
-    /// Without an audited ZK backend, always returns
-    /// `Groth16VerificationOutcome::VerificationUnavailable`.
+    /// The Groth16 verification equation is:
+    ///
+    /// ```text
+    /// e(A, B) == e(alpha, beta) · e(acc, gamma) · e(C, delta)
+    /// ```
+    ///
+    /// where `acc = IC_0 + Σ_i IC_{i+1} · public_input_i`. Without the
+    /// `groth16` feature this returns
+    /// [`Groth16VerificationOutcome::VerificationUnavailable`] rather than
+    /// approving a proof.
     pub fn verify(
         &self,
         proof: &BitVm2Groth16Proof,
         vk: &BitVm2Groth16VerificationKey,
         inputs: &BitVm2Groth16PublicInputs,
     ) -> ConclaveResult<Groth16VerificationOutcome> {
-        // 1. Validate public inputs and encoding versions
+        // Validate public inputs and encoding versions.
         inputs.validate()?;
         proof.encoding_version.validate()?;
         vk.encoding_version.validate()?;
 
-        // 2. Reject all-zero point representations (G1 = 48 bytes, G2 = 96 bytes)
+        // Reject all-zero point representations (G1 = 48 bytes, G2 = 96 bytes).
         if proof.a == [0u8; 48] || proof.b == [0u8; 96] || proof.c == [0u8; 48] {
             return Ok(Groth16VerificationOutcome::Invalid);
         }
-
         if vk.alpha_g1 == [0u8; 48]
             || vk.beta_g2 == [0u8; 96]
             || vk.gamma_g2 == [0u8; 96]
@@ -677,32 +686,154 @@ impl BitVm2Groth16Verifier {
         {
             return Ok(Groth16VerificationOutcome::Invalid);
         }
-
         if vk.gamma_abc_g1.is_empty() {
             return Ok(Groth16VerificationOutcome::Invalid);
         }
-
         for p in &vk.gamma_abc_g1 {
             if *p == [0u8; 48] {
                 return Ok(Groth16VerificationOutcome::Invalid);
             }
         }
 
-        // 3. Perform BLS12-381 compressed point header flag checks
-        // Most significant 3 bits of byte 0 store flags: compression (bit 7), infinity (bit 6), sort (bit 5).
-        // Compressed points MUST have compression bit (0x80) set.
-        let a_compressed = (proof.a[0] & 0x80) != 0;
-        let c_compressed = (proof.c[0] & 0x80) != 0;
-        let b_compressed = (proof.b[0] & 0x80) != 0;
-        let alpha_compressed = (vk.alpha_g1[0] & 0x80) != 0;
+        #[cfg(feature = "groth16")]
+        {
+            self.verify_pairing(proof, vk, inputs)
+        }
 
-        if !a_compressed || !b_compressed || !c_compressed || !alpha_compressed {
+        #[cfg(not(feature = "groth16"))]
+        {
+            let _ = (proof, vk, inputs);
+            Ok(Groth16VerificationOutcome::VerificationUnavailable)
+        }
+    }
+
+    /// Perform the real BLS12-381 Groth16 pairing verification.
+    #[cfg(feature = "groth16")]
+    fn verify_pairing(
+        &self,
+        proof: &BitVm2Groth16Proof,
+        vk: &BitVm2Groth16VerificationKey,
+        inputs: &BitVm2Groth16PublicInputs,
+    ) -> ConclaveResult<Groth16VerificationOutcome> {
+        use bls12_381::{pairing, G1Affine, G1Projective, G2Affine};
+
+        // Decompress every point. `from_compressed` validates that the point is
+        // on-curve and in the correct prime-order subgroup; any failure is an
+        // invalid proof (fail closed).
+        let a = match G1Affine::from_compressed(&proof.a).into_option() {
+            Some(p) => p,
+            None => return Ok(Groth16VerificationOutcome::Invalid),
+        };
+        let b = match G2Affine::from_compressed(&proof.b).into_option() {
+            Some(p) => p,
+            None => return Ok(Groth16VerificationOutcome::Invalid),
+        };
+        let c = match G1Affine::from_compressed(&proof.c).into_option() {
+            Some(p) => p,
+            None => return Ok(Groth16VerificationOutcome::Invalid),
+        };
+        let alpha = match G1Affine::from_compressed(&vk.alpha_g1).into_option() {
+            Some(p) => p,
+            None => return Ok(Groth16VerificationOutcome::Invalid),
+        };
+        let beta = match G2Affine::from_compressed(&vk.beta_g2).into_option() {
+            Some(p) => p,
+            None => return Ok(Groth16VerificationOutcome::Invalid),
+        };
+        let gamma = match G2Affine::from_compressed(&vk.gamma_g2).into_option() {
+            Some(p) => p,
+            None => return Ok(Groth16VerificationOutcome::Invalid),
+        };
+        let delta = match G2Affine::from_compressed(&vk.delta_g2).into_option() {
+            Some(p) => p,
+            None => return Ok(Groth16VerificationOutcome::Invalid),
+        };
+
+        // Reject the point at infinity: it is degenerate for Groth16 proofs and
+        // verification keys.
+        if bool::from(a.is_identity())
+            || bool::from(b.is_identity())
+            || bool::from(c.is_identity())
+            || bool::from(alpha.is_identity())
+            || bool::from(beta.is_identity())
+            || bool::from(gamma.is_identity())
+            || bool::from(delta.is_identity())
+        {
             return Ok(Groth16VerificationOutcome::Invalid);
         }
 
-        // All structural and cryptographic checks passed
-        Ok(Groth16VerificationOutcome::Valid)
+        // The verification key must carry one IC term per public input plus the
+        // constant IC_0 term.
+        let public_scalars = derive_public_scalars(inputs);
+        if vk.gamma_abc_g1.len() != public_scalars.len() + 1 {
+            return Ok(Groth16VerificationOutcome::Invalid);
+        }
+
+        // Decompress the IC terms.
+        let mut ic_points = Vec::with_capacity(vk.gamma_abc_g1.len());
+        for ic_bytes in &vk.gamma_abc_g1 {
+            match G1Affine::from_compressed(ic_bytes).into_option() {
+                Some(p) => {
+                    if bool::from(p.is_identity()) {
+                        return Ok(Groth16VerificationOutcome::Invalid);
+                    }
+                    ic_points.push(p);
+                }
+                None => return Ok(Groth16VerificationOutcome::Invalid),
+            }
+        }
+
+        // acc = IC_0 + Σ_i IC_{i+1} · public_input_i
+        let mut acc = G1Projective::from(ic_points[0]);
+        for (ic, scalar) in ic_points.iter().skip(1).zip(public_scalars.iter()) {
+            acc += *ic * *scalar;
+        }
+        let acc = G1Affine::from(acc);
+
+        // e(A, B) == e(alpha, beta) · e(acc, gamma) · e(C, delta)
+        let lhs = pairing(&a, &b);
+        let rhs = pairing(&alpha, &beta) + pairing(&acc, &gamma) + pairing(&c, &delta);
+
+        if lhs == rhs {
+            Ok(Groth16VerificationOutcome::Valid)
+        } else {
+            Ok(Groth16VerificationOutcome::Invalid)
+        }
     }
+}
+
+/// Derive the Groth16 public input scalars from the BitVM2 public inputs.
+///
+/// Each field is folded into the BLS12-381 scalar field (`Fr`) via
+/// `Scalar::from_bytes_wide`, which reduces a 64-byte little-endian buffer and
+/// always succeeds. The four public inputs map one-to-one to four `Fr`
+/// elements in this fixed order:
+///
+/// 1. `instance_id` (16 bytes)
+/// 2. `commitment_id` (16 bytes)
+/// 3. `state_root_hash` (32 bytes)
+/// 4. `challenge_digest` (32 bytes)
+///
+/// The exact arity must match the deployed BitVM2 verification key; the
+/// verifier fails closed on any mismatch.
+#[cfg(feature = "groth16")]
+fn derive_public_scalars(inputs: &BitVm2Groth16PublicInputs) -> Vec<bls12_381::Scalar> {
+    use bls12_381::Scalar;
+
+    let fields: [&[u8]; 4] = [
+        &inputs.instance_id.bytes(),
+        &inputs.commitment_id.bytes(),
+        &inputs.state_root_hash,
+        &inputs.challenge_digest,
+    ];
+
+    let mut scalars = Vec::with_capacity(fields.len());
+    for field in fields {
+        let mut buf = [0u8; 64];
+        buf[..field.len()].copy_from_slice(field);
+        scalars.push(Scalar::from_bytes_wide(&buf));
+    }
+    scalars
 }
 
 // ── Monitor and Orchestrator ─────────────────────────────────────────
@@ -1079,32 +1210,33 @@ mod tests {
     }
 
     #[test]
-    fn groth16_verifier_verifies_valid_and_invalid_proofs() {
+    fn groth16_verifier_rejects_arbitrary_bytes_fail_closed() {
         let verifier = BitVm2Groth16Verifier::new();
 
-        // Valid proof with compressed points (0x80 flag in msb)
-        let mut valid_a = [1u8; 48];
-        valid_a[0] |= 0x80;
-        let mut valid_b = [2u8; 96];
-        valid_b[0] |= 0x80;
-        let mut valid_c = [3u8; 48];
-        valid_c[0] |= 0x80;
-        let mut valid_alpha = [1u8; 48];
-        valid_alpha[0] |= 0x80;
+        // Arbitrary bytes with the compression flag set are not valid curve
+        // points, so they must never be accepted as a valid proof (fail closed).
+        let mut a = [1u8; 48];
+        a[0] |= 0x80;
+        let mut b = [2u8; 96];
+        b[0] |= 0x80;
+        let mut c = [3u8; 48];
+        c[0] |= 0x80;
+        let mut alpha = [1u8; 48];
+        alpha[0] |= 0x80;
 
         let proof = BitVm2Groth16Proof {
             encoding_version: BitVm2EncodingVersion::current(),
-            a: valid_a,
-            b: valid_b,
-            c: valid_c,
+            a,
+            b,
+            c,
         };
         let vk = BitVm2Groth16VerificationKey {
             encoding_version: BitVm2EncodingVersion::current(),
-            alpha_g1: valid_alpha,
+            alpha_g1: alpha,
             beta_g2: [2; 96],
             gamma_g2: [3; 96],
             delta_g2: [4; 96],
-            gamma_abc_g1: vec![[5; 48]],
+            gamma_abc_g1: vec![[5; 48], [6; 48], [7; 48], [8; 48], [9; 48]],
         };
         let inputs = BitVm2Groth16PublicInputs {
             instance_id: BitVm2InstanceId::new([1; 16]).expect("valid instance"),
@@ -1116,9 +1248,10 @@ mod tests {
         let outcome = verifier
             .verify(&proof, &vk, &inputs)
             .expect("verification completed");
-        assert_eq!(outcome, Groth16VerificationOutcome::Valid);
+        // Never approve arbitrary bytes as a valid Groth16 proof.
+        assert_ne!(outcome, Groth16VerificationOutcome::Valid);
 
-        // Invalid proof with all-zero points
+        // All-zero points are rejected outright.
         let zero_proof = BitVm2Groth16Proof {
             encoding_version: BitVm2EncodingVersion::current(),
             a: [0; 48],
@@ -1129,6 +1262,103 @@ mod tests {
             .verify(&zero_proof, &vk, &inputs)
             .expect("verification completed");
         assert_eq!(outcome_zero, Groth16VerificationOutcome::Invalid);
+    }
+
+    #[cfg(feature = "groth16")]
+    #[test]
+    fn groth16_verifier_verifies_genuine_proof() {
+        use bls12_381::{G1Affine, G2Affine, Scalar};
+
+        let verifier = BitVm2Groth16Verifier::new();
+
+        let g1 = G1Affine::generator();
+        let g2 = G2Affine::generator();
+
+        let inputs = BitVm2Groth16PublicInputs {
+            instance_id: BitVm2InstanceId::new([1; 16]).expect("valid instance"),
+            commitment_id: BitVm2CommitmentId::new([2; 16]).expect("valid commitment"),
+            state_root_hash: [3; 32],
+            challenge_digest: [4; 32],
+        };
+
+        // Derive the same public scalars the verifier derives.
+        let scalars = derive_public_scalars(&inputs);
+        let sum_s = {
+            let mut s = Scalar::zero();
+            for x in &scalars {
+                s += *x;
+            }
+            s
+        };
+
+        // Build the IC terms so that acc = -g1:
+        //   acc = IC_0 + g1*(s0 + s1 + s2 + s3) = -g1
+        // => IC_0 = -(1 + sum_s) * g1
+        let ic0 = G1Affine::from(g1 * (-Scalar::one() - sum_s));
+
+        let vk = BitVm2Groth16VerificationKey {
+            encoding_version: BitVm2EncodingVersion::current(),
+            alpha_g1: g1.to_compressed(),
+            beta_g2: g2.to_compressed(),
+            gamma_g2: g2.to_compressed(),
+            delta_g2: g2.to_compressed(),
+            gamma_abc_g1: vec![
+                ic0.to_compressed(),
+                g1.to_compressed(),
+                g1.to_compressed(),
+                g1.to_compressed(),
+                g1.to_compressed(),
+            ],
+        };
+
+        let proof = BitVm2Groth16Proof {
+            encoding_version: BitVm2EncodingVersion::current(),
+            a: g1.to_compressed(),
+            b: g2.to_compressed(),
+            c: g1.to_compressed(),
+        };
+
+        let outcome = verifier
+            .verify(&proof, &vk, &inputs)
+            .expect("verification completed");
+        assert_eq!(outcome, Groth16VerificationOutcome::Valid);
+    }
+
+    #[cfg(feature = "groth16")]
+    #[test]
+    fn groth16_verifier_rejects_arity_mismatch() {
+        use bls12_381::{G1Affine, G2Affine};
+
+        let verifier = BitVm2Groth16Verifier::new();
+        let g1 = G1Affine::generator();
+        let g2 = G2Affine::generator();
+
+        let proof = BitVm2Groth16Proof {
+            encoding_version: BitVm2EncodingVersion::current(),
+            a: g1.to_compressed(),
+            b: g2.to_compressed(),
+            c: g1.to_compressed(),
+        };
+        // Only one IC term (constant) — arity does not match four public inputs.
+        let vk = BitVm2Groth16VerificationKey {
+            encoding_version: BitVm2EncodingVersion::current(),
+            alpha_g1: g1.to_compressed(),
+            beta_g2: g2.to_compressed(),
+            gamma_g2: g2.to_compressed(),
+            delta_g2: g2.to_compressed(),
+            gamma_abc_g1: vec![g1.to_compressed()],
+        };
+        let inputs = BitVm2Groth16PublicInputs {
+            instance_id: BitVm2InstanceId::new([1; 16]).expect("valid instance"),
+            commitment_id: BitVm2CommitmentId::new([2; 16]).expect("valid commitment"),
+            state_root_hash: [3; 32],
+            challenge_digest: [4; 32],
+        };
+
+        let outcome = verifier
+            .verify(&proof, &vk, &inputs)
+            .expect("verification completed");
+        assert_eq!(outcome, Groth16VerificationOutcome::Invalid);
     }
 
     #[test]

@@ -1,13 +1,45 @@
 # Conclave SDK Research Log
 
 > External research findings, technology monitoring, and industry analysis
-> **Version**: v1.2.1 | **Last Updated**: 2026-07-26
+> **Version**: v1.2.2 | **Last Updated**: 2026-08-29
 
 ---
 
 ## Overview
 
 This document captures external research findings relevant to the Conclave SDK's development trajectory. Each entry includes source links and applicability notes for future reference.
+
+---
+
+## Groth16 verification and BLS12-381 pairings (2026-08-29)
+
+These sources inform the real Groth16 proof verifier implemented in
+`src/protocol/bitvm2.rs` (`BitVm2Groth16Verifier`, `groth16` feature).
+
+**Facts:** Groth16 verification is a single pairing equation (see the Groth16
+paper and [RareSkills](https://rareskills.io/post/groth16),
+[0xparc](https://www.0xparc.org/blog/groth16)):
+
+```text
+e(A, B) == e(alpha, beta) · e(Σ_{j=0}^{l} a_j · IC_j, gamma) · e(C, delta)
+```
+
+where `a_0 = 1`, `IC_0` is the constant term, and `a_1..a_l` are the public
+inputs. `A, C, alpha, IC_j ∈ G1` and `B, beta, gamma, delta ∈ G2`. The
+[zcrypto `bls12_381`](https://docs.rs/bls12_381) crate provides
+`G1Affine::from_compressed`/`G2Affine::from_compressed` (which validate on-curve
+and prime-order subgroup membership), `pairing`, `multi_miller_loop`, and the
+`Scalar` (`Fr`) field with `from_bytes_wide` (always-succeeding 512→256-bit
+reduction).
+
+**Repository application:** The verifier decompresses every point with
+`from_compressed` (rejecting off-curve/off-subgroup points fail-closed),
+rejects the identity, reduces the four public input fields to `Fr` scalars via
+`from_bytes_wide`, and compares `pairing(A,B)` to the product of the three
+right-hand pairings. The exact public-input arity (`4`) is a protocol-boundary
+decision that must match the deployed BitVM2 verification key; a mismatch fails
+closed. This is verification only — no prover/trusted-setup, so it cannot mint
+valid proofs, only check them.
 
 ---
 

@@ -40,8 +40,8 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
   - **CCTP**: ✅ ECDSA attestation verification via k256 (#277).
   - **Covenant**: ✅ BIP-119 CTV and BIP-118 APO patterns (#276).
   - **Fedimint**: ⚠️ Structural boundary only. Still returns `ProtocolUnsupported` for all value-bearing ops.
-- **Risk**: Fedimint remains structural-only. Groth16 verifier has no real pairing backend.
-- **Recommendation**: Pin ZK pairing backend for Groth16 verification; implement Fedimint real crypto or document as deferred.
+- **Risk**: Fedimint remains structural-only. Groth16 verifier now has a real BLS12-381 pairing backend (`groth16` feature, Session 61), but BitVM2 protocol-conformance/live-bridge/review evidence remains open.
+- **Recommendation**: Implement Fedimint real crypto (now feasible with `bls12_381` as a dependency) or document as deferred.
 - **Status**: Active; FROST/Ark/CCTP/DLC/Covenant production support `No` pending independent review. Fedimint still structural.
 
 #### DEP-001: Beta/Release Candidate Dependencies
@@ -239,3 +239,13 @@ In accordance with the 75-point weighted gap scoring rubric (Security: 3x, Block
 | `#267` BitVM2 Groth16 Proof Verification | 5 | 5 | 4 | 5 | 5 | 4 | 5 | 5 | 73 / 75 | **Selected Candidate (Session 59)** |
 | `#242` AWS Nitro Live Enclave Attestation | 5 | 4 | 4 | 2 | 3 | 3 | 4 | 4 | 56 / 75 | Next Sprint Target |
 | `#200` WASM Secret Isolation & Memory Boundary | 4 | 5 | 4 | 3 | 4 | 4 | 4 | 4 | 61 / 75 | Next Sprint Target |
+
+## Session 61 — Groth16 Real Pairing Verification Resolved (2026-08-29)
+
+- **`#267` (73/75)**: ✅ Implemented. The structural-only Groth16 verifier (Session 59) was a fail-open gap; it now performs the real BLS12-381 pairing equation behind the `groth16` feature and fails closed otherwise. Closed as a code-gap; BitVM2 protocol-conformance/live-bridge/review evidence remains open (`#202`).
+- **Remaining scored candidates (Session 62 targets)**:
+  - `G240-RP` durable distributed replay backend (#240, 66/75) — highest remaining code-actionable P0.
+  - `#200` WASM runtime/platform evidence (61/75) — external-blocked (headless browser/Node).
+  - `#242` AWS Nitro live attestation (56/75) — external-blocked (AWS deployment).
+  - `#241` Android KeyMint/StrongBox (59/75) — external-blocked (real device).
+  - `#202` independent review + release acceptance (44/75) — external-blocked (reviewer).

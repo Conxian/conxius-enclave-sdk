@@ -29,6 +29,10 @@ webauthn = ["dep:webauthn-rs"]
 # boundary types validate structurally but return ProtocolUnsupported
 # for all cryptographic execution paths.
 frost-crypto = ["frost-secp256k1-tr", "rand_core06"]
+# Groth16/BitVM2 SNARK proof verification backed by BLS12-381 pairings.
+# Gates value-bearing Groth16 verification. Without this feature,
+# BitVm2Groth16Verifier returns VerificationUnavailable (fail closed).
+groth16 = ["dep:bls12_381"]
 
 [dependencies]
 x509-cert = "0.3.0"
@@ -63,6 +67,7 @@ bs58 = "0.5.1"
 sha2 = "0.11.0"
 blake2 = "0.10.6"
 subtle = "2.6.1"
+bls12_381 = { version = "0.8", default-features = false, features = ["alloc", "groups", "pairings"], optional = true }
 thiserror = "2.0.18"
 tokio = { version = "1.52.3", features = ["rt", "macros", "time"] }
 alloy = { version = "2.1.0", features = ["rpc-types", "rpc-client", "network", "signer-local", "provider-http", "pubsub"] }

@@ -77,8 +77,9 @@ impl BitVmManager {
     ///
     /// Structural validation is performed on the proof, verification key, and
     /// public inputs before delegating to the Groth16 verifier. Actual ZK proof
-    /// verification requires an audited pairing backend (`bellman` crate); without
-    /// one, the verifier returns `VerificationUnavailable`.
+    /// verification performs the real BLS12-381 pairing check when the `groth16`
+    /// feature is enabled; otherwise the verifier fails closed with
+    /// `VerificationUnavailable`.
     pub fn validate_snark_proof(
         &self,
         proof: &BitVm2Groth16Proof,
@@ -96,8 +97,8 @@ impl BitVmManager {
 // proofs (BLS12-381 pairing-based) to validate Bitcoin-level computation
 // results in the challenge-response disprove protocol. This primitives
 // layer provides structural validation and a bridge to the bitvm2
-// verification chain. Full cryptographic verification requires the
-// `bellman` crate — see SDK #267 (BitVM2 protocol layer).
+// verification chain. Real cryptographic verification is enabled by the
+// `groth16` feature (BLS12-381 pairings) — see SDK #267 (BitVM2 layer).
 
 /// SNARK proof validator for BitVM Groth16 challenge-response verification.
 ///
@@ -117,9 +118,10 @@ impl BitVmSnarkValidator {
 
     /// Verify a Groth16 SNARK proof for the BitVM challenge-response protocol.
     ///
-    /// Performs fail-closed structural validation first, then delegates to
-    /// the Groth16 verifier. Returns `VerificationUnavailable` until an
-    /// audited ZK backend is integrated.
+    /// Performs fail-closed structural validation first, then delegates to the
+    /// Groth16 verifier. With the `groth16` feature enabled the verifier runs
+    /// the real BLS12-381 pairing check; otherwise it returns
+    /// `VerificationUnavailable`.
     pub fn verify_challenge_proof(
         &self,
         proof: &BitVm2Groth16Proof,
@@ -287,12 +289,13 @@ mod tests {
     }
 
     #[test]
-    fn snark_validator_returns_unavailable_for_valid_inputs() {
+    fn snark_validator_fails_closed_for_non_curve_bytes() {
         let validator = BitVmSnarkValidator::new();
         let outcome = validator
             .verify_challenge_proof(&make_proof(), &make_vk(), &make_inputs())
             .expect("structural validation passes");
-        assert_eq!(outcome, Groth16VerificationOutcome::Valid);
+        // Fake points (non-curve bytes) are never approved as a valid proof.
+        assert_ne!(outcome, Groth16VerificationOutcome::Valid);
     }
 
     #[test]
@@ -300,11 +303,11 @@ mod tests {
         let enclave = Arc::new(CloudEnclave::new("http://localhost".to_string()).unwrap());
         let mgr = BitVmManager::new(enclave);
 
-        // Valid structural inputs → VerificationUnavailable
+        // Structural inputs → fail closed (never Valid for fake points)
         let outcome = mgr
             .validate_snark_proof(&make_proof(), &make_vk(), &make_inputs())
             .expect("structural validation passes");
-        assert_eq!(outcome, Groth16VerificationOutcome::Valid);
+        assert_ne!(outcome, Groth16VerificationOutcome::Valid);
 
         // Zero proof element → rejected at boundary
         let bad_proof = BitVm2Groth16Proof {
@@ -324,6 +327,6 @@ mod tests {
         let outcome = validator
             .verify_challenge_proof(&make_proof(), &make_vk(), &make_inputs())
             .expect("structural validation passes");
-        assert_eq!(outcome, Groth16VerificationOutcome::Valid);
+        assert_ne!(outcome, Groth16VerificationOutcome::Valid);
     }
 }

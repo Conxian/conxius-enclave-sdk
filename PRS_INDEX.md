@@ -1,98 +1,91 @@
 # Conclave SDK Pull Requests Index
 
-> Auto-generated from GitHub. Last sync: 2026-08-05 (Session 57)
-> **Manual update:** 2026-08-05 (Session 57 housekeeping)
+> Auto-generated from GitHub. Last sync: 2026-08-29T06:01:40Z
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
 
 ## Summary
-- **Total PRs**: 220+
-- **Open PRs**: 1 (#220)
-- **Merged PRs**: 200+ (since last sync: #258-#279 plus earlier)
+- **Total PRs**: 279
+- **Open PRs**: 0
+- **Merged PRs**: 264
+- **Closed PRs**: 15
 
 ## Open PRs
-- [ ] [**#288**](https://github.com/Conxian/conxius-enclave-sdk/pull/288): chore: promote staged → main (Session 57 — Dependabot bump rollup)
-  - Author: botshelomokoka | Created: 2026-08-05
-  - Status: OPEN — Dependabot CI action bumps (taiki-e v2.85.6, CodeQL v4.37.4)
+*None returned by GitHub in this snapshot.*
 
-- [ ] [**#220**](https://github.com/Conxian/conxius-enclave-sdk/pull/220): fix(enclave): carry typed evidence through settlement authorization
-  - Author: charliecreates[bot]
-  - Status: OPEN — may be superseded by enclave trust contracts (#247-#249)
+## Recently Merged PRs
+- [x] [**#319**](https://github.com/Conxian/conxius-enclave-sdk/pull/319): feat(enclave): add durable replay conditional write conformance test (#240)
+  - Author: botshelomokoka | Merged: 2026-08-29
 
-## Recently Merged PRs (Session 57)
-- [x] [**#287**](https://github.com/Conxian/conxius-enclave-sdk/pull/287): fix: resolve clippy warnings for Rust 1.97.0 compliance (Session 57)
-  - Author: botshelomokoka | Merged: 2026-08-05
-  - Files: 9 source files, webauthn_verifier, wasm-runtime.yml, dependabot.yml
+- [x] [**#318**](https://github.com/Conxian/conxius-enclave-sdk/pull/318): feat(wasm): harden secret isolation and memory zeroization (#200)
+  - Author: botshelomokoka | Merged: 2026-08-28
 
-## Session 53 Sprint PRs (this session)
+- [x] [**#317**](https://github.com/Conxian/conxius-enclave-sdk/pull/317): feat(wasm): harden WASM secret boundary with zeroize (#200)
+  - Author: botshelomokoka | Merged: 2026-08-29
 
-- [**Sprint commit c4aff10**]: feat: ROAST coordinator (#213), BitVM2 Groth16 (#267), AGENTS.md update (#274), CI fix
-  - Files: `src/protocol/nexus/roast.rs` (new), `src/protocol/bitvm2.rs` (+230), `AGENTS.md`, `src/protocol/frost.rs` (fix)
+- [x] [**#316**](https://github.com/Conxian/conxius-enclave-sdk/pull/316): feat(lightning): implement LDK payment execution engine (#271)
+  - Author: botshelomokoka | Merged: 2026-08-28
 
-## Recently Merged PRs (since last sync)
-- [x] [**#219**](https://github.com/Conxian/conxius-enclave-sdk/pull/219): feat: add typed protocol boundary foundation
-  - Author: charliecreates[bot] | Merged: 2026-07-21
+- [x] [**#315**](https://github.com/Conxian/conxius-enclave-sdk/pull/315): feat(bitvm2): implement Groth16 SNARK proof verification (#267)
+  - Author: botshelomokoka | Merged: 2026-08-28
 
-- [x] [**#218**](https://github.com/Conxian/conxius-enclave-sdk/pull/218): Potential fix for code scanning alert no. 18: Hard-coded cryptographic value
-  - Author: botshelomokoka | Merged: 2026-07-21
+- [x] [**#314**](https://github.com/Conxian/conxius-enclave-sdk/pull/314): FROST Round 2 Signature Verification & KB Hardening
+  - Author: botshelomokoka | Merged: 2026-08-26
 
-- [x] [**#217**](https://github.com/Conxian/conxius-enclave-sdk/pull/217): fix: close post-review signing and ECDSA binding gaps
-  - Author: charliecreates[bot] | Merged: 2026-07-21
+- [x] [**#313**](https://github.com/Conxian/conxius-enclave-sdk/pull/313): feat(fedimint): implement e-cash note and threshold validation
+  - Author: botshelomokoka | Merged: 2026-08-26
 
-- [x] [**#216**](https://github.com/Conxian/conxius-enclave-sdk/pull/216): fix(enclave): quarantine software value signing paths
-  - Author: charliecreates[bot] | Merged: 2026-07-21
+- [x] [**#312**](https://github.com/Conxian/conxius-enclave-sdk/pull/312): docs: complete full-system integration audit and receipt
+  - Author: botshelomokoka | Merged: 2026-08-23
 
-- [x] [**#215**](https://github.com/Conxian/conxius-enclave-sdk/pull/215): docs: record containment evidence and refresh tracking
-  - Author: charliecreates[bot] | Merged: 2026-07-21
+- [x] [**#311**](https://github.com/Conxian/conxius-enclave-sdk/pull/311): feat(enclave): system audit, gap scorecard & durable replay mock backend
+  - Author: botshelomokoka | Merged: 2026-08-18
 
-- [x] [**#214**](https://github.com/Conxian/conxius-enclave-sdk/pull/214): fix: fail closed on unverifiable attestation and rail signing
-  - Author: charliecreates[bot] | Merged: 2026-07-20
+- [x] [**#310**](https://github.com/Conxian/conxius-enclave-sdk/pull/310): feat(frost/attestation): harden DKG share verification and hardware attestation enforcement
+  - Author: botshelomokoka | Merged: 2026-08-17
 
-- [x] [**#213**](https://github.com/Conxian/conxius-enclave-sdk/pull/213): fix(release): make toolchain and release evidence reproducible
-  - Author: charliecreates[bot] | Merged: 2026-07-21
+- [x] [**#309**](https://github.com/Conxian/conxius-enclave-sdk/pull/309): Audit capability matrix, establish candidate scoring model, and expand protocol research
+  - Author: botshelomokoka | Merged: 2026-08-17
 
-- [x] [**#212**](https://github.com/Conxian/conxius-enclave-sdk/pull/212): fix: fail closed CCTP, account abstraction, and asset adapters
-  - Author: charliecreates[bot] | Merged: 2026-07-20
+- [x] [**#308**](https://github.com/Conxian/conxius-enclave-sdk/pull/308): chore(hygiene): harden gitignore and CI hygiene workflow
+  - Author: botshelomokoka | Merged: 2026-08-17
 
-- [x] [**#211**](https://github.com/Conxian/conxius-enclave-sdk/pull/211): fix(wasm): close key and provider boundary
-  - Author: charliecreates[bot] | Merged: 2026-07-20
+- [x] [**#307**](https://github.com/Conxian/conxius-enclave-sdk/pull/307): Add workflow for creating and deleting Neon branches
+  - Author: botshelomokoka | Merged: 2026-08-10
 
-- [x] [**#210**](https://github.com/Conxian/conxius-enclave-sdk/pull/210): fix: harden telemetry privacy and delivery semantics
-  - Author: charliecreates[bot] | Merged: 2026-07-21
+- [x] [**#306**](https://github.com/Conxian/conxius-enclave-sdk/pull/306): Fix PKCS#11 verifier compilation issues
+  - Author: botshelomokoka | Merged: 2026-08-08
 
-- [x] [**#209**](https://github.com/Conxian/conxius-enclave-sdk/pull/209): fix: fail closed on simulated threshold protocols
-  - Author: charliecreates[bot] | Merged: 2026-07-21
+- [x] [**#303**](https://github.com/Conxian/conxius-enclave-sdk/pull/303): chore: promote staged to main (7 dependabot bumps)
+  - Author: botshelomokoka | Merged: 2026-08-08
 
-- [x] [**#208**](https://github.com/Conxian/conxius-enclave-sdk/pull/208): fix: canonicalize Bitcoin and Ethereum validation
-  - Author: charliecreates[bot] | Merged: 2026-07-20
+- [x] [**#302**](https://github.com/Conxian/conxius-enclave-sdk/pull/302): chore(deps): bump taiki-e/install-action from 2.85.6 to 2.85.8
+  - Author: dependabot[bot] | Merged: 2026-08-08
 
-- [x] [**#207**](https://github.com/Conxian/conxius-enclave-sdk/pull/207): docs: reconcile live issue and PR indexes
-  - Author: charliecreates[bot] | Merged: 2026-07-20
+- [x] [**#301**](https://github.com/Conxian/conxius-enclave-sdk/pull/301): chore(deps): bump the codeql-action group with 3 updates
+  - Author: dependabot[bot] | Merged: 2026-08-08
 
-- [x] [**#206**](https://github.com/Conxian/conxius-enclave-sdk/pull/206): fix: reject unsupported BIP-110 spend scripts
-  - Author: charliecreates[bot] | Merged: 2026-07-20
+- [x] [**#300**](https://github.com/Conxian/conxius-enclave-sdk/pull/300): chore(deps): bump jsonwebtoken from 10.4.0 to 11.0.0
+  - Author: dependabot[bot] | Merged: 2026-08-08
 
-- [x] [**#205**](https://github.com/Conxian/conxius-enclave-sdk/pull/205): fix(attestation): make #195 freshness verification deterministic
-  - Author: charliecreates[bot] | Merged: 2026-07-21
+- [x] [**#299**](https://github.com/Conxian/conxius-enclave-sdk/pull/299): chore(deps): bump alloy from 2.2.0 to 2.3.0
+  - Author: dependabot[bot] | Merged: 2026-08-08
 
-- [x] [**#204**](https://github.com/Conxian/conxius-enclave-sdk/pull/204): docs: add machine-first capability evidence tracking
-  - Author: charliecreates[bot] | Merged: 2026-07-20
-
-- [x] [**#203**](https://github.com/Conxian/conxius-enclave-sdk/pull/203): fix: enforce BIP-110 in BIP-322 flows
-  - Author: charliecreates[bot] | Merged: 2026-07-20
-
-- [x] [**#193**](https://github.com/Conxian/conxius-enclave-sdk/pull/193): docs: record production enablement audit
-  - Author: charliecreates[bot] | Merged: 2026-07-20
-
-- [x] [**#192**](https://github.com/Conxian/conxius-enclave-sdk/pull/192): docs: correct FROST/MuSig2 guide audit findings
-  - Author: charliecreates[bot] | Merged: 2026-07-20
-
-- [x] [**#190**](https://github.com/Conxian/conxius-enclave-sdk/pull/190): docs: add FROST treasury integration runbook
-  - Author: charliecreates[bot] | Merged: 2026-07-20
+- [x] [**#298**](https://github.com/Conxian/conxius-enclave-sdk/pull/298): chore(deps): bump secrecy from 0.8.0 to 0.10.3
+  - Author: dependabot[bot] | Merged: 2026-08-08
 
 
 ## Closed (Not Merged) PRs
+- [ ] [**#305**](https://github.com/Conxian/conxius-enclave-sdk/pull/305): feat: capability audit remediations
+  - Author: botshelomokoka
+
+- [ ] [**#294**](https://github.com/Conxian/conxius-enclave-sdk/pull/294): fix: complete fail-closed and no-panic follow-up to #293
+  - Author: charliecreates[bot]
+
+- [ ] [**#284**](https://github.com/Conxian/conxius-enclave-sdk/pull/284): fix(deps): upgrade jsonwebtoken 9→10 to resolve Dependabot #7 (CVE-2026-25537)
+  - Author: botshelomokoka
+
 - [ ] [**#163**](https://github.com/Conxian/conxius-enclave-sdk/pull/163): chore(deps): update x509-cert requirement from 0.2.5 to 0.3.0
   - Author: dependabot[bot]
 

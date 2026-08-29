@@ -26,11 +26,11 @@ This document provides a comprehensive overview of the repository status, includ
 | **Repository** | Conxian/conxius-enclave-sdk |
 | **Default Branch** | main |
 | **Language** | Rust |
-| **Latest visible release/tag** | v2.0.14 (git tag); Cargo.toml 2.0.14 (2026-08-07) |
-| **Cargo package metadata** | 2.0.14 (aligned with release tag) |
+| **Latest visible release/tag** | v2.0.16 (git tag); Cargo.toml 2.0.16 |
+| **Cargo package metadata** | 2.0.16 (aligned with release tag) |
 | **Production Status** | Beta / conditional; value-bearing enablement blocked by CON-1506 gates |
 | **Test Coverage** | Historical source count; not an independent release gate |
-| **Last Updated** | 2026-08-05 (Session 57 housekeeping) |
+| **Last Updated** | 2026-08-29 (Session 61) |
 
 ## Production-enablement backlog map
 
@@ -38,14 +38,14 @@ The current implementation and acceptance backlog spans GitHub issues across mul
 
 | GitHub issue | Evidence gate | Priority | Status |
 | --- | --- | --- | --- |
-| [#267](https://github.com/Conxian/conxius-enclave-sdk/issues/267) | BitVM2 Groth16 SNARK verification | P0 | Open |
+| [#267](https://github.com/Conxian/conxius-enclave-sdk/issues/267) | BitVM2 Groth16 SNARK verification | P0 | Implemented (Session 61) |
 | [#242](https://github.com/Conxian/conxius-enclave-sdk/issues/242) | AWS Nitro attestation + KMS boundary | P0 | Blocked |
 | [#241](https://github.com/Conxian/conxius-enclave-sdk/issues/241) | Android KeyMint/StrongBox + Play Integrity | P0 | Blocked |
 | [#240](https://github.com/Conxian/conxius-enclave-sdk/issues/240) | Attestation roots, collateral, revocation, distributed replay | P0 | In Progress |
 | [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) | Independent security review and release acceptance | P0 | Blocked |
-| [#271](https://github.com/Conxian/conxius-enclave-sdk/issues/271) | Lightning LDK payment execution | P1 | Open |
-| [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200) | WASM secret boundary and runtime/platform evidence | P1 | In Progress |
-| [#272](https://github.com/Conxian/conxius-enclave-sdk/issues/272) | BitVM SNARK proof validation | P2 | Open |
+| [#271](https://github.com/Conxian/conxius-enclave-sdk/issues/271) | Lightning LDK payment execution | P1 | Implemented (Session 60) |
+| [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200) | WASM secret boundary and runtime/platform evidence | P1 | In Progress (boundary hardened) |
+| [#272](https://github.com/Conxian/conxius-enclave-sdk/issues/272) | BitVM SNARK proof validation | P2 | Closed |
 
 ### Resolved (Session 57)
 **#196** (Bitcoin/Ethereum verification), **#198** (CCTP fail-closed), **#199** (reproducible toolchain), **#201** (telemetry, #210), **#197** (threshold settlement, mostly resolved except Fedimint), **#195** (hardware attestation, Phase 3 verifiers built)
