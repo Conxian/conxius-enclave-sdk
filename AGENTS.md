@@ -1,7 +1,7 @@
 # Conxius Enclave SDK: Agent Directives (Session 61, Aug 2026)
 
 > **Archive**: `docs/archive/AGENTS_archive_session_58.md` (full session + Phase tracking)
-> **Version**: v2.0.16 — published to crates.io
+> **Version**: v2.0.17 — published to crates.io
 
 ## Core Ethos
 - **Hardware-backed**: Every signing path requires attestation. No TEE-bypass code paths.
@@ -41,7 +41,7 @@
 
 ## Testing
 ```bash
-cargo test --locked                    # All 227 tests
+cargo test --locked                    # All 629 tests
 cargo test -p enclave-poc -- --test-threads=1  # Nitro POC (requires AWS)
 ```
 
@@ -68,10 +68,17 @@ Full inventory + phased plan: `docs/ORG_WIDE_PHASED_PLAN.md`.
 ### Neon projects (6) → repos
 `Conxian Nexus` (orange-paper, eu-central-1, pg17) = nexus · `conxian-core` (sparkling-sunset) = lib-conxian-core · `Software dev kit` = SDK · `Gateway` = gateway · `Business Operating System` = business · `market` = conxian_market. Managed via `NEON_API_KEY` (`https://console.neon.tech/api/v2/...`).
 
-### Cross-repo work state
-- **This repo**: #240 (trait + `DurableFileReplayStore` + conformance suite) and #271 (route-finding + channel state machine) code-complete; ark VTXO fail-open/panic fix; #320 P0 yanked `secp256k1 0.32.0-beta.2` → **RESOLVED (PR #321)**: `bitcoin 0.32.102` + `secp256k1 0.33.1`. PRs #322 (docs/gap/research) + #323 (Fedimint DLEQ crypto) open.
-- **conxian-nexus**: `IdempotencyStore` PR #250 **MERGED** (unblocked by #321); follow-up issue #251 (wire to Neon + live-DB conformance suite) open.
-- **lib-conxian-core**: PR #280 open — "align enclave-sdk references and re-export metadata" (downstream re-alignment for #321).
+### Cross-repo work state (Session 63 — post-autorun)
+- **This repo**: #240 (trait + `DurableFileReplayStore` + conformance suite) and #271 (route-finding + channel state machine) code-complete; ark VTXO fail-open/panic fix; #320 P0 yanked `secp256k1 0.32.0-beta.2` → **RESOLVED**: `bitcoin 0.32.102` + `secp256k1 0.33.1`. **v2.0.17 released** (tag + crates.io) — the first tag free of the yanked crate. PRs #322 (docs/gap/research), #323 (Fedimint DLEQ), #324 (org plan), #325 (release bump), #326 (release verify User-Agent 403 fix) — **all merged**. GitHub Release recovery triggered for v2.0.16 + v2.0.17 (were missing because the release verify `curl` lacked a `User-Agent` → crates.io 403).
+- **conxian-nexus**: dependency fix merged (#255 — removed yanked crate by re-pinning `lib-conxian-core`). `IdempotencyStore` PR #250 was **closed** (not merged); follow-up issue #251 (wire to Neon + live-DB conformance suite) **open** — next feature target.
+- **lib-conxian-core**: #281 (converge on SDK v2.0.17) + #280 (align refs + `sdk-signing` feature gate + `nitro` wasm32 gate) **merged**. Yanked crate now absent from its lockfile.
+- **conxian-gateway**: dependabot 12-crate Rust group bump #350 **closed** (breaks Build/Clippy/Test/MSRV — `str`→`[u8;N]` API break). Needs a curated migration before those deps can bump.
+- **Conxian**: dependabot `@types/node` #700 **closed** (npm lock drift — `mime-db@1.52.0` missing). Needs `npm install` lockfile regen.
 - **AWS (KMS/Nitro)**: `botshelo` IAM user in account `692112933743`; `ec2:RunInstances` + `kms:CreateKey`/`Encrypt(RSAES_OAEP_SHA_256)` confirmed; KMS release key `alias/conxian-nitro-release` (RSA_2048) created. See `docs/ORG_WIDE_PHASED_PLAN.md` §6.
 - **Neon**: `corelibs` renamed → `conxian-core` (done).
 - **Decisions**: #271 keep open (expand research + mainnet proofing); #240 item 6 / #202 independent review (external).
+
+### Known remaining debt (in-scope, tracked)
+- **ARCH-002**: 4 coexisting `secp256k1` versions (`0.29.1`/`0.30.0`/`0.31.1`/`0.33.1`) across the Rust spine.
+- **Provider evidence**: #242 (Nitro live attestation — needs EC2), #241 (Android — needs device), #200 (WASM runtime).
+- **Product/market**: wallet #444, market #8, business #938, Conxian #529/530/532.

@@ -1,20 +1,35 @@
 # Conclave SDK Pull Requests Index
 
-> Auto-generated from GitHub. Last sync: 2026-08-30T06:45:13Z
+> Auto-generated from GitHub. Last sync: 2026-08-30T08:31:39Z
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
 
 ## Summary
-- **Total PRs**: 280
+- **Total PRs**: 285
 - **Open PRs**: 0
-- **Merged PRs**: 265
+- **Merged PRs**: 270
 - **Closed PRs**: 15
 
 ## Open PRs
 *None returned by GitHub in this snapshot.*
 
 ## Recently Merged PRs
+- [x] [**#326**](https://github.com/Conxian/conxius-enclave-sdk/pull/326): fix(release): add User-Agent to crates.io artifact download
+  - Author: botshelomokoka | Merged: 2026-08-30
+
+- [x] [**#325**](https://github.com/Conxian/conxius-enclave-sdk/pull/325): chore(release): v2.0.17
+  - Author: botshelomokoka | Merged: 2026-08-30
+
+- [x] [**#324**](https://github.com/Conxian/conxius-enclave-sdk/pull/324): docs(org): Conxian org-wide phased plan + 15-repo inventory
+  - Author: botshelomokoka | Merged: 2026-08-30
+
+- [x] [**#323**](https://github.com/Conxian/conxius-enclave-sdk/pull/323): feat(fedimint): real BLS12-381 e-cash blinding + Chaum-Pedersen DLEQ
+  - Author: botshelomokoka | Merged: 2026-08-30
+
+- [x] [**#322**](https://github.com/Conxian/conxius-enclave-sdk/pull/322): docs: session 63 full-repo gap analysis + documentation drift sync
+  - Author: botshelomokoka | Merged: 2026-08-30
+
 - [x] [**#321**](https://github.com/Conxian/conxius-enclave-sdk/pull/321): fix(deps): remove yanked secp256k1 via bitcoin 0.32.102 + secp256k1 0.33.1
   - Author: botshelomokoka | Merged: 2026-08-30
 
@@ -59,21 +74,6 @@
 
 - [x] [**#306**](https://github.com/Conxian/conxius-enclave-sdk/pull/306): Fix PKCS#11 verifier compilation issues
   - Author: botshelomokoka | Merged: 2026-08-08
-
-- [x] [**#303**](https://github.com/Conxian/conxius-enclave-sdk/pull/303): chore: promote staged to main (7 dependabot bumps)
-  - Author: botshelomokoka | Merged: 2026-08-08
-
-- [x] [**#302**](https://github.com/Conxian/conxius-enclave-sdk/pull/302): chore(deps): bump taiki-e/install-action from 2.85.6 to 2.85.8
-  - Author: dependabot[bot] | Merged: 2026-08-08
-
-- [x] [**#301**](https://github.com/Conxian/conxius-enclave-sdk/pull/301): chore(deps): bump the codeql-action group with 3 updates
-  - Author: dependabot[bot] | Merged: 2026-08-08
-
-- [x] [**#300**](https://github.com/Conxian/conxius-enclave-sdk/pull/300): chore(deps): bump jsonwebtoken from 10.4.0 to 11.0.0
-  - Author: dependabot[bot] | Merged: 2026-08-08
-
-- [x] [**#299**](https://github.com/Conxian/conxius-enclave-sdk/pull/299): chore(deps): bump alloy from 2.2.0 to 2.3.0
-  - Author: dependabot[bot] | Merged: 2026-08-08
 
 
 ## Closed (Not Merged) PRs
