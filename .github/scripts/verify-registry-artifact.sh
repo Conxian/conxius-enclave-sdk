@@ -64,6 +64,7 @@ for delay in "${retry_delays[@]}"; do
   attempts=$((attempts + 1))
   rm -f "$download_path"
   if curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+    --user-agent "conxius-enclave-sdk release verification (https://github.com/Conxian/conxius-enclave-sdk)" \
     "$registry_url" --output "$download_path"; then
     registry_sha256="$(sha256sum "$download_path" | awk '{print $1}')"
     if [[ "$registry_sha256" == "$expected_sha256" ]]; then
