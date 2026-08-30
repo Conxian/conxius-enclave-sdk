@@ -994,3 +994,11 @@ Option A was executed end-to-end:
 - Verification: `cargo test --locked` (629 passed), `cargo test --locked --features bip110_compliant` (634 passed), `cargo clippy --all-targets --features bip110_compliant -- -D warnings` (clean).
 - `cargo check --all-features` is blocked in this sandbox by `openssl-sys` (via `cryptoki`), unrelated to this migration.
 
+### Full-repo audit (post-migration)
+
+A whole-tree sweep for the 0.33 modular API and `bitcoin`-vs-`secp256k1` `from_byte_array`/`from_slice` split found exactly one latent break behind `#[cfg(target_arch = "wasm32")]` (not compiled on the host):
+
+- `src/wasm_bindings.rs` (`WasmCovenantClient::generate_cat_vault_script`) used `bitcoin::XOnlyPublicKey::from_byte_array`, a 0.33-only name. Fixed to `from_slice` (the 0.32 / `secp256k1 0.29.1` API). This is a public-key covenant-script helper in the beta/"Unsupported" WASM lane (`docs/architecture/WASM_SUPPORT_MATRIX.md`), not a value-bearing signing path.
+
+Everything else is verified: `frost-crypto`/`frost.rs` reference `secp256k1` only in strings/comments (ZF FROST uses `k256`); `groth16` uses `bls12_381`; `cryptoki`/`webauthn` use `openssl`/`p256`. None interact with the SDK's `bitcoin`/`secp256k1` types, so `--all-features` (a CI gate) is unaffected by this migration. WASM is built in CI via `wasm-pack` with a `CFLAGS` workaround for `secp256k1-sys`, which requires `clang` (absent in this sandbox).
+
