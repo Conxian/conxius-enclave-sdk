@@ -1002,3 +1002,12 @@ A whole-tree sweep for the 0.33 modular API and `bitcoin`-vs-`secp256k1` `from_b
 
 Everything else is verified: `frost-crypto`/`frost.rs` reference `secp256k1` only in strings/comments (ZF FROST uses `k256`); `groth16` uses `bls12_381`; `cryptoki`/`webauthn` use `openssl`/`p256`. None interact with the SDK's `bitcoin`/`secp256k1` types, so `--all-features` (a CI gate) is unaffected by this migration. WASM is built in CI via `wasm-pack` with a `CFLAGS` workaround for `secp256k1-sys`, which requires `clang` (absent in this sandbox).
 
+### Code-scanning triage (Session 63, via PAT)
+
+Enumerated 43 open CodeQL alerts (all at `main` HEAD `7edb2cf`, i.e. pre-existing, none from the migration). Triaged every one against the source:
+
+- **42 × `hard-coded cryptographic value` ("used as a nonce", critical)** — all false positives. They flag synthetic fixture values (`vec![0;N]`, `[7;32]`, `vec![9;16]`, `digest(2)`, `"fixture-audience"`, `"android-key-1"`) used as *replay-protection* nonces on `ProofVerificationContext`, not ECDSA/Schnorr signing nonces. 29 in `tests/`, 13 in `src/` fixture/`#[cfg(test)]` builders (`proofs.rs`, `trust.rs`, `proof.rs`, `android_authorization.rs`, `rails/mod.rs`).
+- **1 × `cleartext logging` (high)** — false positive. `#[derive(Debug)]` on `AttestationReport` (contains public `certificate_chain: Vec<String>`); no `println!`/`log::*`/`fs::write`/`writeln!` sink exists anywhere in the file.
+
+Resolution: all 43 dismissed as `false positive`; `.github/codeql/codeql-config.yml` (`paths-ignore: tests/**`) added and wired into `codeql.yml` to suppress recurrence of the `tests/` bulk. Standing policy recorded in `AGENTS.md` ("scope-covered — always").
+

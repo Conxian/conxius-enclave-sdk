@@ -9,6 +9,10 @@
 - **Fail-closed**: Default reject. Never approve a code path that degrades signing security.
 - **Auditable**: Release Strict workflow enforces SBOM, provenance, and artifact integrity.
 
+## Standing Directives (Session 63)
+- **Scope-covered (always)**: Every issue discovered during a session is automatically in-scope and must be *resolved or formally tracked in-repo* — never merely reported and left open. Prefer fixing/documenting in `DEBT_INVENTORY.md`, `ISSUES_INDEX.md`, or `docs/architecture/` over deferring.
+- **Code-scanning false positives**: CodeQL `hard-coded cryptographic value` and `cleartext logging` findings are expected false positives in this crypto SDK (test vectors, synthetic replay-nonce fixtures, `#[derive(Debug)]` on public cert chains). Dismiss as `false positive`; do **not** rewrite test vectors to satisfy a scanner. Recurrence is suppressed by `.github/codeql/codeql-config.yml` (`paths-ignore: tests/**`).
+
 ## Coding Standards
 - Rust 2021 edition, MSRV 1.97.1. `cargo clippy --all-targets --all-features -- -D warnings` before every push.
 - No `unsafe` without documented justification. No hardcoded secrets (use `secrets.template`).
@@ -58,7 +62,7 @@ cargo test -p enclave-poc -- --test-threads=1  # Nitro POC (requires AWS)
 `Conxian Nexus` (orange-paper, eu-central-1, pg17) = nexus · `conxian-core` (sparkling-sunset) = lib-conxian-core · `Software dev kit` = SDK · `Gateway` = gateway · `Business Operating System` = business · `market` = conxian_market. Managed via `NEON_API_KEY` (`https://console.neon.tech/api/v2/...`).
 
 ### Cross-repo work state
-- **This repo**: #240 (trait + `DurableFileReplayStore` + conformance suite) and #271 (route-finding + channel state machine) code-complete; ark VTXO fail-open/panic fix in `8b447a7`; #320 P0 yanked `secp256k1 0.32.0-beta.2` (blocks downstream lockfile resolution).
+- **This repo**: #240 (trait + `DurableFileReplayStore` + conformance suite) and #271 (route-finding + channel state machine) code-complete; ark VTXO fail-open/panic fix in `8b447a7`; #320 P0 yanked `secp256k1 0.32.0-beta.2` → **RESOLVED (PR #321)**: `bitcoin 0.32.102` + `secp256k1 0.33.1`, yanked crate removed, 634 tests green.
 - **conxian-nexus**: `IdempotencyStore` PR #250 (ready-for-review; merge blocked by #320) + follow-up issue #251 (wire to Neon + live-DB conformance suite).
 - **Neon**: `corelibs` renamed → `conxian-core` (done).
 - **Decisions**: #271 keep open (expand research + mainnet proofing); #240 item 6 / #202 independent review (external).
