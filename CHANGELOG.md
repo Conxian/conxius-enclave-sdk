@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.0.17]
 
 ### Added
 - `src/protocol/lightning.rs`: Added `parse_and_validate_invoice` and `verify_settlement_preimage` on `LightningPaymentIntent` for BOLT11 invoice verification via `lightning-invoice` and SHA-256 settlement preimage checking (#271).
