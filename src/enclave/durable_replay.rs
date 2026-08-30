@@ -515,7 +515,6 @@ impl DurableReplayStore for MockDurableReplayBackend {
     }
 }
 
-
 #[cfg(not(target_arch = "wasm32"))]
 mod file_backed {
     use super::*;
@@ -646,7 +645,11 @@ mod file_backed {
         ) -> DurableReplayResult<DurableReplayOutcome> {
             match OpenOptions::new().write(true).create_new(true).open(path) {
                 Ok(mut file) => {
-                    if file.write_all(record).and_then(|_| file.sync_all()).is_err() {
+                    if file
+                        .write_all(record)
+                        .and_then(|_| file.sync_all())
+                        .is_err()
+                    {
                         drop(file);
                         let _ = fs::remove_file(path);
                         return Err(DurableReplayError::UncertainCommit);
@@ -711,7 +714,6 @@ mod file_backed {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use file_backed::FileBackedDurableReplayStore;
-
 
 /// Authorization returned only for a consumed request or a backend-confirmed
 /// same-request idempotent retry.
@@ -1538,7 +1540,6 @@ mod tests {
         assert_eq!(err, DurableReplayError::ConflictingRequest);
     }
 
-
     #[cfg(not(target_arch = "wasm32"))]
     fn temp_store_dir(tag: &str) -> std::path::PathBuf {
         static COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -1554,8 +1555,8 @@ mod tests {
     #[test]
     fn file_backed_store_is_durable_across_restart() {
         let dir = temp_store_dir("restart");
-        let request = DurableReplayRequest::new(identity(), IdempotencyKey::new(vec![1]).unwrap())
-            .unwrap();
+        let request =
+            DurableReplayRequest::new(identity(), IdempotencyKey::new(vec![1]).unwrap()).unwrap();
 
         {
             let store = FileBackedDurableReplayStore::open(&dir).unwrap();
@@ -1581,8 +1582,8 @@ mod tests {
     fn file_backed_store_is_idempotent_and_conflict_safe() {
         let dir = temp_store_dir("idempotent");
         let store = FileBackedDurableReplayStore::open(&dir).unwrap();
-        let request = DurableReplayRequest::new(identity(), IdempotencyKey::new(vec![1]).unwrap())
-            .unwrap();
+        let request =
+            DurableReplayRequest::new(identity(), IdempotencyKey::new(vec![1]).unwrap()).unwrap();
         assert_eq!(
             store.consume_once(&request, 100).unwrap(),
             DurableReplayOutcome::Consumed
@@ -1607,8 +1608,8 @@ mod tests {
     fn file_backed_store_fails_closed_on_expiry_and_rollback() {
         let dir = temp_store_dir("expiry-rollback");
         let store = FileBackedDurableReplayStore::open(&dir).unwrap();
-        let request = DurableReplayRequest::new(identity(), IdempotencyKey::new(vec![1]).unwrap())
-            .unwrap();
+        let request =
+            DurableReplayRequest::new(identity(), IdempotencyKey::new(vec![1]).unwrap()).unwrap();
         // identity expires at 200.
         assert_eq!(
             store.consume_once(&request, 201),
@@ -1645,7 +1646,8 @@ mod tests {
         let dir = temp_store_dir("authorizer");
         let store = Arc::new(FileBackedDurableReplayStore::open(&dir).unwrap());
         let result = test_fixture_attestation_result(100, RevocationStatus::Good, TcbStatus::Good);
-        let authorizer = DurableReplayAuthorizer::new(store, Arc::new(FixtureClock { now_secs: 100 }));
+        let authorizer =
+            DurableReplayAuthorizer::new(store, Arc::new(FixtureClock { now_secs: 100 }));
         let key = IdempotencyKey::new(vec![7]).unwrap();
         assert_eq!(
             authorizer
@@ -1660,5 +1662,4 @@ mod tests {
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
-
 }

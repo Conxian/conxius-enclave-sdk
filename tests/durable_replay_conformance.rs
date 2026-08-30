@@ -432,11 +432,8 @@ fn file_backed_store_passes_complete_backend_neutral_suite() {
     run_replay_store_conformance_suite(move || {
         let unique = COUNTER.fetch_add(1, Ordering::Relaxed);
         let dir = parent.join(format!("store-{unique}"));
-        Arc::new(
-            DurableFileReplayStore::open(dir).expect("durable file store must open"),
-        )
+        Arc::new(DurableFileReplayStore::open(dir).expect("durable file store must open"))
     });
 
     let _ = std::fs::remove_dir_all(&cleanup);
 }
-

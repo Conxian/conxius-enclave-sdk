@@ -36,17 +36,19 @@ pub fn verify_bip340_signature(
         .try_into()
         .map_err(|_| ConclaveError::InvalidPayload)?;
 
-    let public_key =
-        secp256k1::XOnlyPublicKey::from_slice(&public_key_bytes).map_err(|error| {
-            ConclaveError::CryptoError(format!("Invalid BIP-340 x-only public key: {error}"))
-        })?;
-    let signature = secp256k1::schnorr::Signature::from_slice(&signature_bytes).map_err(|error| {
-        ConclaveError::CryptoError(format!("Invalid BIP-340 signature: {error}"))
+    let public_key = secp256k1::XOnlyPublicKey::from_slice(&public_key_bytes).map_err(|error| {
+        ConclaveError::CryptoError(format!("Invalid BIP-340 x-only public key: {error}"))
     })?;
+    let signature =
+        secp256k1::schnorr::Signature::from_slice(&signature_bytes).map_err(|error| {
+            ConclaveError::CryptoError(format!("Invalid BIP-340 signature: {error}"))
+        })?;
     let message = secp256k1::Message::from_digest(message);
     let secp = secp256k1::Secp256k1::verification_only();
 
-    Ok(secp.verify_schnorr(&signature, &message, &public_key).is_ok())
+    Ok(secp
+        .verify_schnorr(&signature, &message, &public_key)
+        .is_ok())
 }
 
 pub struct TaprootManager<'a> {

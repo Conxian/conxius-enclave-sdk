@@ -137,7 +137,6 @@ fn is_p2a(script: &Script) -> bool {
     script.as_bytes() == [0x51, 0x02, 0x4e, 0x73]
 }
 
-
 impl Bip322Bridge {
     /// Calculate the BIP-322 tagged hash of the message bytes.
     ///
@@ -1112,11 +1111,7 @@ mod tests {
             Err(ConclaveError::Bip322(Bip322Error::NetworkMismatch))
         ));
 
-        for network in [
-            Network::Testnet,
-            Network::Testnet,
-            Network::Signet,
-        ] {
+        for network in [Network::Testnet, Network::Testnet, Network::Signet] {
             assert_eq!(
                 bridge
                     .verify_simple_signature_for_network(
@@ -1815,11 +1810,9 @@ mod tests {
             ("P2SH", p2sh_script),
             ("custom", vec![0x51]),
         ] {
-            let to_spend = Bip322Bridge::construct_to_spend_tx(
-                ScriptBuf::from_bytes(script_bytes),
-                "message",
-            )
-            .expect("unsupported script output creation remains structurally valid");
+            let to_spend =
+                Bip322Bridge::construct_to_spend_tx(ScriptBuf::from_bytes(script_bytes), "message")
+                    .expect("unsupported script output creation remains structurally valid");
             let mut witness = Witness::default();
             witness.push([0u8; 64]);
 
