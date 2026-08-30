@@ -1,14 +1,14 @@
 # Conclave SDK Issues Index
 
-> Auto-generated from GitHub. Last sync: 2026-08-29T06:37:34Z
+> Auto-generated from GitHub. Last sync: 2026-08-30T06:45:13Z
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
 
 ## Summary
-- **Total Issues**: 39
+- **Total Issues**: 40
 - **Open Issues**: 6
-- **Closed Issues**: 33
+- **Closed Issues**: 34
 
 ## Open Issues
 - [ ] [**#271**](https://github.com/Conxian/conxius-enclave-sdk/issues/271): P1: lightning — implement LDK payment execution (307 lines structural)
@@ -37,6 +37,7 @@
 
 
 ## Closed Issues
+- [x] [**#320**](https://github.com/Conxian/conxius-enclave-sdk/issues/320): [P0] secp256k1 0.32.0-beta.2 is yanked — breaks downstream lockfile resolution
 - [x] [**#283**](https://github.com/Conxian/conxius-enclave-sdk/issues/283): P2: Gate FROST DKG ceremonies behind enclave attestation verification
   - Labels: enhancement, P2, cryptography, frost, attestation
 

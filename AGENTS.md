@@ -17,20 +17,23 @@
 - Rust 2021 edition, MSRV 1.97.1. `cargo clippy --all-targets --all-features -- -D warnings` before every push.
 - No `unsafe` without documented justification. No hardcoded secrets (use `secrets.template`).
 - All new protocol modules require `SystemState::initialize()` integration.
-- Value-bearing crypto is feature-gated and fails closed without the feature: `groth16` (BLS12-381 pairings), `frost-crypto` (ZF FROST v3), `cryptoki` (PKCS#11), `webauthn` (FIDO2).
+- Value-bearing crypto is feature-gated and fails closed without the feature: `groth16` (BLS12-381 pairings), `frost-crypto` (ZF FROST v3), `cryptoki` (PKCS#11), `webauthn` (FIDO2), `fedimint-crypto` (BLS12-381 e-cash blinding + DLEQ).
 
-## Protocol Module Catalog — 52 Modules (24 blockchain + 28 infrastructure)
+## Protocol Module Catalog — 49 Modules (25 blockchain + 24 infrastructure)
 
 ### Blockchain Protocols
-`bitcoin`, `bip322`, `bitvm`, `bitvm2`, `dlc`, `frost` (real ZF v3.0.0 backend), `lightning` (BOLT 12/BIP-353), `musig2`, `stacks` (Nakamoto), `covenant` (OP_CAT), `ark`, `cctp`, `mmr`, `ethereum` (EIP-1559), `solana`, `statechain` (Spark), `sidl`, `credit`, `fiat`, `asset` (42 chains), `bip110`, `babylon` (SDK-005), `rgb` (SDK-006)
+`bitcoin`, `bip322`, `bitvm`, `bitvm2`, `dlc`, `frost` (real ZF v3.0.0 backend), `frost_crypto`, `lightning` (BOLT 12/BIP-353), `lightning_channel`, `musig2`, `stacks` (Nakamoto), `covenant` (OP_CAT), `ark`, `cctp`, `mmr`, `ethereum` (EIP-1559), `solana`, `statechain` (Spark), `sidl`, `credit`, `fiat`, `asset` (42 chains), `bip110`, `babylon` (SDK-005), `rgb` (SDK-006)
 
 ### Infrastructure & Integration
-`economy`, `intent`, `swap_router`, `solver`, `stablecoin`, `settlement`, `chain_abstraction`, `account_abstraction`, `control_model`, `job_card`, `a2p`, `rails` (Bisq/Boltz/Changelly/NTT/Wormhole/x402), `nexus` (Fedimint), `zkml`, `wasm_bindings`, `android_strongbox`, `cloud`
+`economy`, `intent`, `swap_router`, `solver`, `stablecoin_orchestrator`, `settlement`, `settlement_service`, `chain_abstraction`, `account_abstraction`, `control_model_adapter`, `job_card`, `a2p`, `opportunity`, `business`, `identity`, `rails` (Bisq/Boltz/Changelly/NTT/Wormhole/x402), `nexus` (Fedimint/ROAST), `zkml`
+
+### SDK-level (non-protocol modules, outside `src/protocol/`)
+`wasm_bindings` (`src/`), `android_strongbox` + `cloud` (`src/enclave/`)
 
 > Full module paths and status in archive.
 
 ## Directory Map
-- `src/protocol/` — 52 protocol modules (source of truth)
+- `src/protocol/` — 49 protocol modules (source of truth)
 - `src/signing/` — UCS trait, algorithm registry, BIP-110 preflight
 - `src/enclave/` — EnclaveManager, attestation, Nitro integration
 - `src/re_exports.rs` — Public re-export surface (70+ modules)
