@@ -1011,3 +1011,16 @@ Enumerated 43 open CodeQL alerts (all at `main` HEAD `7edb2cf`, i.e. pre-existin
 
 Resolution: all 43 dismissed as `false positive`; `.github/codeql/codeql-config.yml` (`paths-ignore: tests/**`) added and wired into `codeql.yml` to suppress recurrence of the `tests/` bulk. Standing policy recorded in `AGENTS.md` ("scope-covered — always").
 
+### Full-repo gap analysis (Session 63)
+
+Enumerated the entire tracked state (issues/PRs, capability evidence, debt inventory, gap scorecard, workflow inventory, module catalog) and cross-referenced against the actual code. Findings and resolutions:
+
+- **Version drift (resolved)**: `PRODUCTION_READINESS.md` and `REPOSITORY_ANALYSIS.md` were pinned at `2.0.14` while the actual state is `Cargo.toml`/git tag `2.0.16` (crates.io published). Corrected to `2.0.16` / latest GitHub release `v2.0.15`.
+- **Release gap (open, tracked)**: a git tag `v2.0.16` and a crates.io `v2.0.16` publication exist, but **no GitHub Release** for `v2.0.16` — the latest GitHub Release is `v2.0.15`. The `release-strict.yml` GitHub Release step did not complete for `v2.0.16`. Next release should reconcile this.
+- **Module catalog drift (resolved)**: `AGENTS.md` claimed "52 modules (24 blockchain + 28 infrastructure)" but listed only ~40 items and misnamed several. Actual: **49 protocol modules (25 blockchain + 24 infrastructure)**, plus 3 non-protocol SDK modules (`wasm_bindings`, `enclave::android_strongbox`, `enclave::cloud`). Fixed names (`stablecoin`→`stablecoin_orchestrator`, `control_model`→`control_model_adapter`) and added omitted modules (`frost_crypto`, `lightning_channel`, `settlement_service`, `opportunity`, `business`, `identity`, `nexus::roast`).
+- **Index staleness (resolved)**: `ISSUES_INDEX.md`/`PRS_INDEX.md` were one sync behind (missing #320 and PR #321). Re-ran `scripts/sync_issues.sh` → 40 issues / 280 PRs.
+- **Capability evidence (clean)**: `python3 scripts/validate_capability_evidence.py --check` → 70 capabilities, matrix current. No drift.
+- **Workflow inventory (14)**: `ci-strict`, `ci`, `hygiene`, `coverage`, `codeql`, `sbom`, `secret-scan`, `security`, `security-strict`, `release-strict`, `wasm-runtime`, `wasm-runtime-evidence`, `dependency-review`, `neon_workflow`. No missing documented workflows; branch-protection contexts now align to the actual check names (fixed the `Hygiene Check`→`Repository Hygiene` mismatch).
+- **Open issues (6)**: #271, #242, #241, #240, #202, #200 — unchanged, all documented in `GAP_SCORECARD.md` and `TRACKING.md`.
+- **Debt (DEBT_INVENTORY)**: `DEP-001` (beta deps) resolved by this session; `ARCH-002` (coexisting `secp256k1` versions bridged in `musig2`) tracked; `SEC-005` (branch protection) resolved.
+
