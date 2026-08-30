@@ -48,12 +48,16 @@ cargo test -p enclave-poc -- --test-threads=1  # Nitro POC (requires AWS)
 - **Publish**: Requires clean `git status`. `release-evidence/` must be in `.gitignore`.
 - **Crates.io verification**: `cargo search conxius-enclave-sdk --limit 1` — version must match tag.
 
-## Org Map & Cross-Repo State (Session 62)
+## Org Map & Cross-Repo State (Session 63)
 
-### Conxian org (14 public + 1 private repo)
+### Conxian org (15 repos: 14 public + 1 private)
 - **SDK layer**: `conxius-enclave-sdk` (this repo — TEE/hardware signing), `lib-conxian-core` (shared primitives).
 - **Infra/services**: `conxian-nexus` (Postgres/Redis "delivery runtime", Rust `sqlx`+`redis`), `conxian-gateway` (Redis middleware, ISO20022), `conxian-business` (control plane).
-- **Product**: `conxius-wallet` (Android wallet), `Conxian` (Stacks/Clarity), `Conxian_UI`, `conxian_market`, `conxius-orbit` (archived).
+- **Product**: `conxius-wallet` (Android wallet), `Conxian` (Stacks/Clarity), `conxian_ui`, `conxian_market`, `conxius-platform` (dev/ops), `conxius-orbit` (archived).
+- **Web/sites**: `conxian-labs-site`, `conxian.github.io`.
+- **Org governance**: `.github` (public defaults/guidance), `.github-private` (central "Map and Guide", private).
+
+Full inventory + phased plan: `docs/ORG_WIDE_PHASED_PLAN.md`.
 
 ### Dependency chain (already wired)
 `conxian-nexus` → `lib-conxian-core` (`full-sdk`) → `conxius-enclave-sdk` (optional `enclave` feature). The `ReplayStore` trait is in this repo; production backends belong in services, NOT this library.
@@ -62,7 +66,9 @@ cargo test -p enclave-poc -- --test-threads=1  # Nitro POC (requires AWS)
 `Conxian Nexus` (orange-paper, eu-central-1, pg17) = nexus · `conxian-core` (sparkling-sunset) = lib-conxian-core · `Software dev kit` = SDK · `Gateway` = gateway · `Business Operating System` = business · `market` = conxian_market. Managed via `NEON_API_KEY` (`https://console.neon.tech/api/v2/...`).
 
 ### Cross-repo work state
-- **This repo**: #240 (trait + `DurableFileReplayStore` + conformance suite) and #271 (route-finding + channel state machine) code-complete; ark VTXO fail-open/panic fix in `8b447a7`; #320 P0 yanked `secp256k1 0.32.0-beta.2` → **RESOLVED (PR #321)**: `bitcoin 0.32.102` + `secp256k1 0.33.1`, yanked crate removed, 634 tests green.
-- **conxian-nexus**: `IdempotencyStore` PR #250 (ready-for-review; merge blocked by #320) + follow-up issue #251 (wire to Neon + live-DB conformance suite).
+- **This repo**: #240 (trait + `DurableFileReplayStore` + conformance suite) and #271 (route-finding + channel state machine) code-complete; ark VTXO fail-open/panic fix; #320 P0 yanked `secp256k1 0.32.0-beta.2` → **RESOLVED (PR #321)**: `bitcoin 0.32.102` + `secp256k1 0.33.1`. PRs #322 (docs/gap/research) + #323 (Fedimint DLEQ crypto) open.
+- **conxian-nexus**: `IdempotencyStore` PR #250 **MERGED** (unblocked by #321); follow-up issue #251 (wire to Neon + live-DB conformance suite) open.
+- **lib-conxian-core**: PR #280 open — "align enclave-sdk references and re-export metadata" (downstream re-alignment for #321).
+- **AWS (KMS/Nitro)**: `botshelo` IAM user in account `692112933743`; `ec2:RunInstances` + `kms:CreateKey`/`Encrypt(RSAES_OAEP_SHA_256)` confirmed; KMS release key `alias/conxian-nitro-release` (RSA_2048) created. See `docs/ORG_WIDE_PHASED_PLAN.md` §6.
 - **Neon**: `corelibs` renamed → `conxian-core` (done).
 - **Decisions**: #271 keep open (expand research + mainnet proofing); #240 item 6 / #202 independent review (external).
