@@ -1,6 +1,6 @@
 # Conclave SDK Issues Index
 
-> Auto-generated from GitHub. Last sync: 2026-08-30T06:45:13Z
+> Auto-generated from GitHub. Last sync: 2026-08-30T08:31:39Z
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 

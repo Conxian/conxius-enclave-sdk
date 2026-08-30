@@ -31,7 +31,15 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Priority**: P1 - Critical
 - **Description**: `Cargo.toml` pinned `secp256k1 = "0.32.0-beta.2"` (a hard, non-optional dependency), which is **yanked** from crates.io. Any fresh dependency resolution (`cargo generate-lockfile`, downstream `cargo add`) failed, blocking `conxian-nexus` CI and merge of nexus PR #250.
 - **Tracking**: [#320](https://github.com/Conxian/conxius-enclave-sdk/issues/320)
-- **Resolution**: `bitcoin 0.33.0-beta` → `0.32.102` (converging on the stable `bdk_wallet` line) and `secp256k1 0.32.0-beta.2` → `0.33.1` (`recovery`,`std`). The yanked crate is fully removed from the lockfile; `frost-crypto` is unaffected (ZF FROST uses `k256`, not `secp256k1`). Remaining step: publish the release and bump the pin in `lib-conxian-core` → `conxian-nexus` to unblock nexus PR #250.
+- **Resolution**: `bitcoin 0.33.0-beta` → `0.32.102` (converging on the stable `bdk_wallet` line) and `secp256k1 0.32.0-beta.2` → `0.33.1` (`recovery`,`std`). The yanked crate is fully removed from the lockfile; `frost-crypto` is unaffected (ZF FROST uses `k256`, not `secp256k1`). **Complete (2026-08-30)**: v2.0.17 released to crates.io, `lib-conxian-core` converged (#281/#280 merged), `conxian-nexus` re-pinned (#255), GitHub Releases backfilled for v2.0.16 + v2.0.17.
+
+
+#### CI-004: crates.io release verification 403 + recovery tag gate
+- **Category**: CI/CD / Release
+- **Priority**: P1 - Critical
+- **Description**: `verify-registry-artifact.sh` `curl`ed the published `.crate` from crates.io **without a `User-Agent`**, so crates.io returned HTTP 403 and every release since v2.0.16 failed `Publish to crates.io` → no GitHub Release was created (crate was still published). Secondary: the recovery mode (`recover_existing_registry`) hard-required `GITHUB_REF_TYPE=tag`, so it could never run on `main` (where the fixed script lives).
+- **Tracking**: PR #326 (User-Agent) + PR #327 (recovery tag gate)
+- **Resolution**: #326 merged — `curl` now sends a `User-Agent`; #327 opened (skips the tag gate in recovery mode) — **blocked on `admin-conxian-labs` code-owner review** of `.github/workflows/release-strict.yml`. GitHub Releases for v2.0.16 + v2.0.17 were backfilled manually in the interim (without SBOM/provenance assets, which #327's automated recovery will add on next run).
 
 
 #### PROTO-001: Protocol implementation boundaries and evidence
