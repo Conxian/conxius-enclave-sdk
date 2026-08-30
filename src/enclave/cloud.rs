@@ -86,7 +86,7 @@ impl CloudEnclave {
     fn is_valid_secret_key_bytes(key_bytes: &[u8; 32]) -> bool {
         let ok = unsafe {
             secp256k1::ffi::secp256k1_ec_seckey_verify(
-                secp256k1::ffi::secp256k1_context_no_precomp,
+                secp256k1::ffi::secp256k1_context_static,
                 key_bytes.as_ptr(),
             )
         };

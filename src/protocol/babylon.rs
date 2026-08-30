@@ -103,7 +103,7 @@ impl<'a, S: UniversalChainSigner> BabylonDelegationManager<'a, S> {
     }
 
     fn compute_delegation_hash(params: &BabylonDelegationParams) -> [u8; 32] {
-        use bitcoin::hashes::{sha256, HashEngine};
+        use bitcoin::hashes::{sha256, Hash, HashEngine};
         let tag = sha256::Hash::hash("Babylon/Delegation".as_bytes());
         let mut engine = sha256::Hash::engine();
         engine.input(tag.as_byte_array().as_slice());

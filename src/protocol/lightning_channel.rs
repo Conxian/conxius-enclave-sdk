@@ -290,7 +290,10 @@ impl LightningChannel {
 
     /// Initiate a unilateral (force) close.
     pub fn force_close(&mut self) -> Result<(), LightningChannelError> {
-        if !matches!(self.phase, LightningChannelPhase::Open | LightningChannelPhase::Closing) {
+        if !matches!(
+            self.phase,
+            LightningChannelPhase::Open | LightningChannelPhase::Closing
+        ) {
             return Err(LightningChannelError::InvalidTransition);
         }
         self.transition_to(LightningChannelPhase::Dispute)?;
@@ -299,8 +302,14 @@ impl LightningChannel {
     }
 
     /// Terminal close: `Closing` or `Dispute` -> `Closed`.
-    pub fn complete_close(&mut self, closing_txid: impl Into<String>) -> Result<(), LightningChannelError> {
-        if !matches!(self.phase, LightningChannelPhase::Closing | LightningChannelPhase::Dispute) {
+    pub fn complete_close(
+        &mut self,
+        closing_txid: impl Into<String>,
+    ) -> Result<(), LightningChannelError> {
+        if !matches!(
+            self.phase,
+            LightningChannelPhase::Closing | LightningChannelPhase::Dispute
+        ) {
             return Err(LightningChannelError::InvalidTransition);
         }
         self.transition_to(LightningChannelPhase::Closed)?;
@@ -336,13 +345,26 @@ impl LightningChannel {
     fn transition_to(&mut self, next: LightningChannelPhase) -> Result<(), LightningChannelError> {
         let valid = matches!(
             (self.phase, next),
-            (LightningChannelPhase::Created, LightningChannelPhase::PendingOpen)
-                | (LightningChannelPhase::PendingOpen, LightningChannelPhase::Open)
-                | (LightningChannelPhase::Open, LightningChannelPhase::Closing)
+            (
+                LightningChannelPhase::Created,
+                LightningChannelPhase::PendingOpen
+            ) | (
+                LightningChannelPhase::PendingOpen,
+                LightningChannelPhase::Open
+            ) | (LightningChannelPhase::Open, LightningChannelPhase::Closing)
                 | (LightningChannelPhase::Open, LightningChannelPhase::Dispute)
-                | (LightningChannelPhase::Closing, LightningChannelPhase::Dispute)
-                | (LightningChannelPhase::Closing, LightningChannelPhase::Closed)
-                | (LightningChannelPhase::Dispute, LightningChannelPhase::Closed)
+                | (
+                    LightningChannelPhase::Closing,
+                    LightningChannelPhase::Dispute
+                )
+                | (
+                    LightningChannelPhase::Closing,
+                    LightningChannelPhase::Closed
+                )
+                | (
+                    LightningChannelPhase::Dispute,
+                    LightningChannelPhase::Closed
+                )
         );
         if !valid {
             return Err(LightningChannelError::InvalidTransition);
@@ -465,7 +487,9 @@ mod tests {
     #[test]
     fn settle_requires_correct_preimage() {
         let mut channel = open_channel(1_000_000, 0);
-        let id = channel.add_offered_htlc(100_000, payment_hash_of(preimage(7)), 500).unwrap();
+        let id = channel
+            .add_offered_htlc(100_000, payment_hash_of(preimage(7)), 500)
+            .unwrap();
 
         assert_eq!(
             channel.settle_htlc(id, &preimage(8)),
@@ -482,7 +506,9 @@ mod tests {
     #[test]
     fn cooperative_close_requires_resolved_htlcs() {
         let mut channel = open_channel(1_000_000, 0);
-        let id = channel.add_offered_htlc(100_000, payment_hash_of(preimage(7)), 500).unwrap();
+        let id = channel
+            .add_offered_htlc(100_000, payment_hash_of(preimage(7)), 500)
+            .unwrap();
 
         // Unresolved HTLC blocks cooperative close.
         assert_eq!(
@@ -500,7 +526,9 @@ mod tests {
     #[test]
     fn force_close_can_occur_with_pending_htlcs() {
         let mut channel = open_channel(1_000_000, 0);
-        channel.add_offered_htlc(100_000, payment_hash_of(preimage(7)), 500).unwrap();
+        channel
+            .add_offered_htlc(100_000, payment_hash_of(preimage(7)), 500)
+            .unwrap();
         channel.force_close().unwrap();
         assert_eq!(channel.phase, LightningChannelPhase::Dispute);
         channel.complete_close("txid-1").unwrap();

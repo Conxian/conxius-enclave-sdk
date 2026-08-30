@@ -1,13 +1,13 @@
 use crate::{ConclaveError, ConclaveResult};
 use base64::prelude::*;
 use bitcoin::consensus::encode::deserialize;
-use bitcoin::hashes::sha256;
+use bitcoin::hashes::{sha256, Hash as _};
 use bitcoin::psbt::Psbt;
-use bitcoin::script::{ScriptBufExt, ScriptExt, ScriptPubKeyBuf, ScriptPubKeyExt, ScriptSigBuf};
+use bitcoin::script::{Script, ScriptBuf};
 use bitcoin::sighash::{EcdsaSighashType, Prevouts, SighashCache, TapSighashType};
 use bitcoin::{
     absolute, ecdsa, key::CompressedPublicKey, secp256k1, taproot, transaction, Address, Amount,
-    OutPoint, Sequence, TapScript, Transaction, TxIn, TxOut, Txid, Witness,
+    OutPoint, Sequence, Transaction, TxIn, TxOut, Txid, Witness,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -131,6 +131,12 @@ enum TaprootWitnessKind {
     Annex,
 }
 
+/// Detect the P2A (Pay-to-Anchor) witness program, which bitcoin 0.32 does
+/// not expose as a `Script` helper method.
+fn is_p2a(script: &Script) -> bool {
+    script.as_bytes() == [0x51, 0x02, 0x4e, 0x73]
+}
+
 impl Bip322Bridge {
     /// Calculate the BIP-322 tagged hash of the message bytes.
     ///
@@ -151,7 +157,7 @@ impl Bip322Bridge {
     /// not reject a future witness version. Future or undefined witness
     /// versions become unsupported only when a spend context is constructed.
     pub fn construct_to_spend_tx(
-        script_pubkey: ScriptPubKeyBuf,
+        script_pubkey: ScriptBuf,
         message: &str,
     ) -> ConclaveResult<Transaction> {
         let tx = Self::construct_to_spend_tx_unchecked(script_pubkey, message)?;
@@ -163,7 +169,7 @@ impl Bip322Bridge {
     }
 
     fn construct_to_spend_tx_unchecked(
-        script_pubkey: ScriptPubKeyBuf,
+        script_pubkey: ScriptBuf,
         message: &str,
     ) -> ConclaveResult<Transaction> {
         let message_hash = Self::message_hash(message);
@@ -173,19 +179,19 @@ impl Bip322Bridge {
         script_sig.extend_from_slice(&message_hash);
 
         let tx = Transaction {
-            version: transaction::Version::maybe_non_standard(0),
+            version: transaction::Version::non_standard(0),
             lock_time: absolute::LockTime::ZERO,
-            inputs: vec![TxIn {
+            input: vec![TxIn {
                 previous_output: OutPoint {
                     txid: Txid::from_byte_array([0u8; 32]),
                     vout: u32::MAX,
                 },
-                script_sig: ScriptSigBuf::from_bytes(script_sig),
+                script_sig: ScriptBuf::from_bytes(script_sig),
                 sequence: Sequence::ZERO,
                 witness: Witness::default(),
             }],
-            outputs: vec![TxOut {
-                amount: Amount::ZERO,
+            output: vec![TxOut {
+                value: Amount::ZERO,
                 script_pubkey,
             }],
         };
@@ -235,21 +241,21 @@ impl Bip322Bridge {
         witness: Witness,
     ) -> ConclaveResult<Transaction> {
         let tx = Transaction {
-            version: transaction::Version::maybe_non_standard(0),
+            version: transaction::Version::non_standard(0),
             lock_time: absolute::LockTime::ZERO,
-            inputs: vec![TxIn {
+            input: vec![TxIn {
                 previous_output: OutPoint {
                     txid: to_spend.compute_txid(),
                     vout: 0,
                 },
-                script_sig: ScriptSigBuf::new(),
+                script_sig: ScriptBuf::new(),
                 sequence: Sequence::ZERO,
                 witness,
             }],
-            outputs: vec![TxOut {
-                amount: Amount::ZERO,
+            output: vec![TxOut {
+                value: Amount::ZERO,
                 // BIP-322's virtual output is exactly OP_RETURN, with no data push.
-                script_pubkey: ScriptPubKeyBuf::from_bytes(vec![0x6a]),
+                script_pubkey: ScriptBuf::from_bytes(vec![0x6a]),
             }],
         };
 
@@ -263,7 +269,7 @@ impl Bip322Bridge {
         let tx = Self::construct_to_sign_tx_unchecked(to_spend, witness)?;
 
         #[cfg(feature = "bip110_compliant")]
-        Self::validate_bip110_to_sign_context(to_spend, &tx.inputs[0].witness)?;
+        Self::validate_bip110_to_sign_context(to_spend, &tx.input[0].witness)?;
 
         Ok(tx)
     }
@@ -272,15 +278,15 @@ impl Bip322Bridge {
         to_spend: &Transaction,
         expected_message: Option<&str>,
     ) -> ConclaveResult<()> {
-        if to_spend.version.to_u32() != 0
+        if to_spend.version.0 != 0
             || to_spend.lock_time != absolute::LockTime::ZERO
-            || to_spend.inputs.len() != 1
-            || to_spend.outputs.len() != 1
+            || to_spend.input.len() != 1
+            || to_spend.output.len() != 1
         {
             return Err(ConclaveError::InvalidPayload);
         }
 
-        let input = &to_spend.inputs[0];
+        let input = &to_spend.input[0];
         if input.previous_output.txid != Txid::from_byte_array([0u8; 32])
             || input.previous_output.vout != u32::MAX
             || input.sequence != Sequence::ZERO
@@ -299,8 +305,8 @@ impl Bip322Bridge {
             }
         }
 
-        let output = &to_spend.outputs[0];
-        if output.amount != Amount::ZERO || output.script_pubkey.is_empty() {
+        let output = &to_spend.output[0];
+        if output.value != Amount::ZERO || output.script_pubkey.is_empty() {
             return Err(ConclaveError::InvalidPayload);
         }
 
@@ -310,8 +316,8 @@ impl Bip322Bridge {
     #[cfg(feature = "bip110_compliant")]
     fn validate_bip110_to_spend_output(to_spend: &Transaction) -> ConclaveResult<()> {
         let validator = crate::protocol::bip110::Bip110Validator::new();
-        let input = &to_spend.inputs[0];
-        let output = &to_spend.outputs[0];
+        let input = &to_spend.input[0];
+        let output = &to_spend.output[0];
 
         validator.validate_script_pushdata(input.script_sig.as_bytes())?;
         validator.validate_script_pubkey(output.script_pubkey.as_bytes())?;
@@ -324,7 +330,7 @@ impl Bip322Bridge {
         witness: &Witness,
     ) -> ConclaveResult<()> {
         let validator = crate::protocol::bip110::Bip110Validator::new();
-        let output = &to_spend.outputs[0];
+        let output = &to_spend.output[0];
 
         Self::validate_bip110_to_spend_output(to_spend)?;
         validator.validate_script_pubkey([0x6a])?;
@@ -333,7 +339,7 @@ impl Bip322Bridge {
             && !output.script_pubkey.is_p2wpkh()
             && !output.script_pubkey.is_p2wsh()
             && !output.script_pubkey.is_p2tr()
-            && !output.script_pubkey.is_p2a()
+            && !is_p2a(&output.script_pubkey)
         {
             return Err(ConclaveError::Unsupported(
                 "Future or undefined witness versions are unsupported in BIP-110 mode".to_string(),
@@ -346,10 +352,10 @@ impl Bip322Bridge {
     #[cfg(feature = "bip110_compliant")]
     fn validate_bip110_witness(
         validator: &crate::protocol::bip110::Bip110Validator,
-        script_pubkey: &ScriptPubKeyBuf,
+        script_pubkey: &ScriptBuf,
         witness: &Witness,
     ) -> ConclaveResult<()> {
-        if script_pubkey.is_p2a() {
+        if is_p2a(script_pubkey) {
             return Err(ConclaveError::Unsupported(
                 "P2A spend construction is unsupported in BIP-110 mode".to_string(),
             ));
@@ -423,7 +429,7 @@ impl Bip322Bridge {
         }
 
         if spend_len == 1 {
-            let signature = witness.get(0).ok_or(ConclaveError::InvalidPayload)?;
+            let signature = witness.nth(0).ok_or(ConclaveError::InvalidPayload)?;
             if signature.len() != 64 && signature.len() != 65 {
                 return Err(ConclaveError::InvalidPayload);
             }
@@ -437,19 +443,19 @@ impl Bip322Bridge {
         let control_block_index = spend_len - 1;
         let tapscript_index = spend_len - 2;
         let control_block = witness
-            .get(control_block_index)
+            .nth(control_block_index)
             .ok_or(ConclaveError::InvalidPayload)?;
         Self::validate_taproot_control_block_shape(control_block)?;
 
         let tapscript = witness
-            .get(tapscript_index)
+            .nth(tapscript_index)
             .ok_or(ConclaveError::InvalidPayload)?;
         Self::validate_serialized_script(tapscript)?;
 
         #[cfg(feature = "bip110_compliant")]
         {
             for index in 0..tapscript_index {
-                let item = witness.get(index).ok_or(ConclaveError::InvalidPayload)?;
+                let item = witness.nth(index).ok_or(ConclaveError::InvalidPayload)?;
                 if let Some(validator) = validator {
                     validator.validate_script_argument_witness_item(item)?;
                 }
@@ -481,7 +487,7 @@ impl Bip322Bridge {
     }
 
     fn validate_taproot_script_path_commitment(
-        script_pubkey: &ScriptPubKeyBuf,
+        script_pubkey: &ScriptBuf,
         witness: &Witness,
     ) -> ConclaveResult<Bip322InconclusiveReason> {
         let annex = witness.len() >= 2
@@ -494,14 +500,14 @@ impl Bip322Bridge {
         }
 
         let control_block_bytes = witness
-            .get(spend_len - 1)
+            .nth(spend_len - 1)
             .ok_or(ConclaveError::InvalidPayload)?;
         Self::validate_taproot_control_block_shape(control_block_bytes)?;
         let control_block = taproot::ControlBlock::decode(control_block_bytes)
             .map_err(|_| ConclaveError::InvalidPayload)?;
 
         let tapscript_bytes = witness
-            .get(spend_len - 2)
+            .nth(spend_len - 2)
             .ok_or(ConclaveError::InvalidPayload)?;
         Self::validate_serialized_script(tapscript_bytes)?;
 
@@ -511,11 +517,12 @@ impl Bip322Bridge {
             .ok_or(ConclaveError::InvalidPayload)?
             .try_into()
             .map_err(|_| ConclaveError::InvalidPayload)?;
-        let output_key = secp256k1::XOnlyPublicKey::from_byte_array(output_key_bytes)
+        let output_key = secp256k1::XOnlyPublicKey::from_slice(&output_key_bytes)
             .map_err(|_| ConclaveError::InvalidPayload)?;
-        let tapscript = TapScript::from_bytes(tapscript_bytes);
+        let tapscript = Script::from_bytes(tapscript_bytes);
+        let secp = secp256k1::Secp256k1::verification_only();
 
-        if !control_block.verify_taproot_commitment(output_key.into(), tapscript) {
+        if !control_block.verify_taproot_commitment(&secp, output_key, tapscript) {
             return Err(ConclaveError::InvalidPayload);
         }
 
@@ -539,7 +546,7 @@ impl Bip322Bridge {
     }
 
     fn validate_serialized_script(script: &[u8]) -> ConclaveResult<()> {
-        let script = ScriptSigBuf::from_bytes(script.to_vec());
+        let script = ScriptBuf::from_bytes(script.to_vec());
         if script
             .instructions_minimal()
             .any(|instruction| instruction.is_err())
@@ -550,7 +557,7 @@ impl Bip322Bridge {
     }
 
     fn validate_p2wsh_witness_structure(
-        script_pubkey: &ScriptPubKeyBuf,
+        script_pubkey: &ScriptBuf,
         witness: &Witness,
     ) -> ConclaveResult<()> {
         let witness_script = witness.last().ok_or(ConclaveError::InvalidPayload)?;
@@ -617,7 +624,7 @@ impl Bip322Bridge {
         }
     }
 
-    fn challenge_type(script_pubkey: &ScriptPubKeyBuf) -> SimpleChallenge {
+    fn challenge_type(script_pubkey: &ScriptBuf) -> SimpleChallenge {
         if script_pubkey.is_p2wpkh() {
             SimpleChallenge::P2wpkh
         } else if script_pubkey.is_p2wsh() {
@@ -628,7 +635,7 @@ impl Bip322Bridge {
             SimpleChallenge::Legacy
         } else if script_pubkey.is_p2sh() {
             SimpleChallenge::P2sh
-        } else if script_pubkey.is_p2a() {
+        } else if is_p2a(script_pubkey) {
             SimpleChallenge::P2a
         } else if script_pubkey.is_witness_program() {
             SimpleChallenge::FutureWitness
@@ -663,8 +670,8 @@ impl Bip322Bridge {
             return Err(ConclaveError::InvalidPayload);
         }
 
-        let signature_bytes = witness.get(0).ok_or(ConclaveError::InvalidPayload)?;
-        let public_key_bytes = witness.get(1).ok_or(ConclaveError::InvalidPayload)?;
+        let signature_bytes = witness.nth(0).ok_or(ConclaveError::InvalidPayload)?;
+        let public_key_bytes = witness.nth(1).ok_or(ConclaveError::InvalidPayload)?;
         let signature = ecdsa::Signature::from_slice(signature_bytes)
             .map_err(|_| ConclaveError::InvalidPayload)?;
         let public_key = CompressedPublicKey::from_slice(public_key_bytes)
@@ -680,8 +687,8 @@ impl Bip322Bridge {
             return Ok(false);
         }
 
-        let expected_script = ScriptPubKeyBuf::new_p2wpkh(public_key.wpubkey_hash());
-        if expected_script != to_spend.outputs[0].script_pubkey {
+        let expected_script = ScriptBuf::new_p2wpkh(&public_key.wpubkey_hash());
+        if expected_script != to_spend.output[0].script_pubkey {
             return Ok(false);
         }
 
@@ -689,14 +696,15 @@ impl Bip322Bridge {
         let sighash = sighash_cache
             .p2wpkh_signature_hash(
                 0,
-                &to_spend.outputs[0].script_pubkey,
+                &to_spend.output[0].script_pubkey,
                 Amount::ZERO,
                 EcdsaSighashType::All,
             )
             .map_err(|_| ConclaveError::InvalidPayload)?;
         let message = secp256k1::Message::from_digest(sighash.to_byte_array());
+        let secp = secp256k1::Secp256k1::verification_only();
 
-        Ok(public_key.verify(message, signature).is_ok())
+        Ok(public_key.verify(&secp, &message, &signature).is_ok())
     }
 
     fn verify_p2tr(
@@ -708,7 +716,7 @@ impl Bip322Bridge {
             return Err(ConclaveError::InvalidPayload);
         }
 
-        let signature_bytes = witness.get(0).ok_or(ConclaveError::InvalidPayload)?;
+        let signature_bytes = witness.nth(0).ok_or(ConclaveError::InvalidPayload)?;
         let signature = taproot::Signature::from_slice(signature_bytes)
             .map_err(|_| ConclaveError::InvalidPayload)?;
         if signature.sighash_type != TapSighashType::Default
@@ -717,22 +725,23 @@ impl Bip322Bridge {
             return Err(ConclaveError::InvalidPayload);
         }
 
-        let output_key_bytes: [u8; 32] = to_spend.outputs[0].script_pubkey.as_bytes()[2..]
+        let output_key_bytes: [u8; 32] = to_spend.output[0].script_pubkey.as_bytes()[2..]
             .try_into()
             .map_err(|_| ConclaveError::InvalidPayload)?;
-        let output_key = secp256k1::XOnlyPublicKey::from_byte_array(output_key_bytes)
+        let output_key = secp256k1::XOnlyPublicKey::from_slice(&output_key_bytes)
             .map_err(|_| ConclaveError::InvalidPayload)?;
-        let prevout = [to_spend.outputs[0].clone()];
+        let prevout = [to_spend.output[0].clone()];
         let prevouts = Prevouts::All(&prevout);
         let mut sighash_cache = SighashCache::new(to_sign);
         let sighash = sighash_cache
             .taproot_key_spend_signature_hash(0, &prevouts, signature.sighash_type)
             .map_err(|_| ConclaveError::InvalidPayload)?;
 
-        Ok(
-            secp256k1::schnorr::verify(&signature.signature, &sighash.to_byte_array(), &output_key)
-                .is_ok(),
-        )
+        let message = secp256k1::Message::from_digest(sighash.to_byte_array());
+        let secp = secp256k1::Secp256k1::verification_only();
+        Ok(secp
+            .verify_schnorr(&signature.signature, &message, &output_key)
+            .is_ok())
     }
 
     fn parse_address(
@@ -778,7 +787,7 @@ impl Bip322Bridge {
                     }
                     SimpleChallenge::P2wsh => {
                         Self::validate_p2wsh_witness_structure(
-                            &to_spend.outputs[0].script_pubkey,
+                            &to_spend.output[0].script_pubkey,
                             &witness,
                         )?;
                         Ok(Bip322Verification::Inconclusive {
@@ -797,7 +806,7 @@ impl Bip322Bridge {
                             }
                             TaprootWitnessKind::ScriptPath => {
                                 let reason = Self::validate_taproot_script_path_commitment(
-                                    &to_spend.outputs[0].script_pubkey,
+                                    &to_spend.output[0].script_pubkey,
                                     &witness,
                                 )?;
                                 Ok(Bip322Verification::Inconclusive { reason })
@@ -810,7 +819,7 @@ impl Bip322Bridge {
                                 let spend_len = witness.len() - usize::from(annex);
                                 if spend_len > 1 {
                                     Self::validate_taproot_script_path_commitment(
-                                        &to_spend.outputs[0].script_pubkey,
+                                        &to_spend.output[0].script_pubkey,
                                         &witness,
                                     )?;
                                 }
@@ -893,7 +902,7 @@ mod tests {
     use super::*;
     #[cfg(feature = "bip110_compliant")]
     use bitcoin::key::WPubkeyHash;
-    use bitcoin::{Network, TestnetVersion};
+    use bitcoin::Network;
 
     // Official BIP-322 vectors:
     // https://github.com/bitcoin/bips/blob/master/bip-0322.mediawiki
@@ -952,14 +961,18 @@ mod tests {
     }
 
     fn taproot_script_path_vector() -> (String, Witness) {
-        let internal_key = secp256k1::XOnlyPublicKey::from_byte_array(bytes32(
+        let internal_key = secp256k1::XOnlyPublicKey::from_slice(&bytes32(
             "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
         ))
         .expect("test internal key");
-        let tapscript = bitcoin::TapScriptBuf::from_bytes(vec![0x51]);
-        let spend_info =
-            taproot::TaprootSpendInfo::with_huffman_tree(internal_key, [(1u32, tapscript.clone())])
-                .expect("test Taproot tree");
+        let tapscript = bitcoin::ScriptBuf::from_bytes(vec![0x51]);
+        let secp = secp256k1::Secp256k1::verification_only();
+        let spend_info = taproot::TaprootSpendInfo::with_huffman_tree(
+            &secp,
+            internal_key,
+            [(1u32, tapscript.clone())],
+        )
+        .expect("test Taproot tree");
         let address = Address::p2tr_tweaked(spend_info.output_key(), Network::Bitcoin);
         let control_block = spend_info
             .control_block(&(tapscript.clone(), taproot::LeafVersion::TapScript))
@@ -1073,7 +1086,7 @@ mod tests {
     fn test_bip322_explicit_network_policy_uses_bitcoin_address_semantics() {
         let bridge = Bip322Bridge;
         let mainnet = P2WPKH_ADDRESS.to_string();
-        let testnet = network_variant_of_p2wpkh(Network::Testnet(TestnetVersion::V3));
+        let testnet = network_variant_of_p2wpkh(Network::Testnet);
         let signet = network_variant_of_p2wpkh(Network::Signet);
         let regtest = network_variant_of_p2wpkh(Network::Regtest);
 
@@ -1093,16 +1106,12 @@ mod tests {
                 "Hello World",
                 &mainnet,
                 P2WPKH_HELLO_SIGNATURE,
-                Network::Testnet(TestnetVersion::V3),
+                Network::Testnet,
             ),
             Err(ConclaveError::Bip322(Bip322Error::NetworkMismatch))
         ));
 
-        for network in [
-            Network::Testnet(TestnetVersion::V3),
-            Network::Testnet(TestnetVersion::V4),
-            Network::Signet,
-        ] {
+        for network in [Network::Testnet, Network::Testnet, Network::Signet] {
             assert_eq!(
                 bridge
                     .verify_simple_signature_for_network(
@@ -1282,11 +1291,11 @@ mod tests {
 
         let original_ecdsa = decode_witness(P2WPKH_HELLO_SIGNATURE);
         let original_signature = original_ecdsa
-            .get(0)
+            .nth(0)
             .expect("official ECDSA signature")
             .to_vec();
         let original_public_key = original_ecdsa
-            .get(1)
+            .nth(1)
             .expect("official compressed public key")
             .to_vec();
 
@@ -1312,7 +1321,7 @@ mod tests {
         malformed_public_key[0] = 0x04;
         signatures.push(encode_witness(&Witness::from_slice(&[
             decode_witness(P2WPKH_HELLO_SIGNATURE)
-                .get(0)
+                .nth(0)
                 .expect("official ECDSA signature")
                 .to_vec(),
             malformed_public_key,
@@ -1320,7 +1329,7 @@ mod tests {
 
         let original_schnorr = decode_witness(GENERATED_P2TR_SIGNATURE);
         let original_schnorr_signature = original_schnorr
-            .get(0)
+            .nth(0)
             .expect("official Schnorr signature")
             .to_vec();
         let mut malformed_schnorr = original_schnorr_signature.clone();
@@ -1475,7 +1484,10 @@ mod tests {
     #[test]
     fn test_bip322_p2a_and_future_witness_boundaries_are_typed() {
         let bridge = Bip322Bridge;
-        let p2a_address = Address::p2a(Network::Bitcoin).to_string();
+        let p2a_script = ScriptBuf::from_bytes(vec![0x51, 0x02, 0x4e, 0x73]);
+        let p2a_address = Address::from_script(&p2a_script, Network::Bitcoin)
+            .expect("P2A is a valid witness program")
+            .to_string();
         assert_eq!(
             bridge
                 .verify_simple_signature_for_network(
@@ -1490,7 +1502,7 @@ mod tests {
             }
         );
 
-        let future_script = ScriptPubKeyBuf::from_bytes({
+        let future_script = ScriptBuf::from_bytes({
             let mut script = vec![0x52, 0x14];
             script.extend_from_slice(&[0u8; 20]);
             script
@@ -1512,7 +1524,7 @@ mod tests {
             }
         );
 
-        let custom_script = ScriptPubKeyBuf::from_bytes(vec![0x51]);
+        let custom_script = ScriptBuf::from_bytes(vec![0x51]);
         assert_eq!(
             Bip322Bridge::challenge_inconclusive_reason(Bip322Bridge::challenge_type(
                 &custom_script,
@@ -1565,7 +1577,7 @@ mod tests {
         let original_witness = decode_witness(P2WSH_SIGNATURE);
         let script_index = original_witness.len() - 1;
         let mut malformed_script = original_witness
-            .get(script_index)
+            .nth(script_index)
             .expect("official P2WSH witness script")
             .to_vec();
         malformed_script[0] ^= 1;
@@ -1586,7 +1598,7 @@ mod tests {
 
         let control_index = script_path.len() - 1;
         let mut control_block = script_path
-            .get(control_index)
+            .nth(control_index)
             .expect("constructed control block")
             .to_vec();
         control_block[32] ^= 1;
@@ -1664,29 +1676,29 @@ mod tests {
             Bip322Bridge::message_hash(message),
             bytes32("f0eb03b1a75ac6d9847f55c624a99169b5dccba2a31f5b23bea77ba270de0a7a")
         );
-        assert_eq!(to_spend.version.to_u32(), 0);
+        assert_eq!(to_spend.version.0, 0);
         assert_eq!(to_spend.lock_time, absolute::LockTime::ZERO);
-        assert_eq!(to_spend.inputs[0].sequence, Sequence::ZERO);
-        assert_eq!(to_spend.inputs[0].previous_output.vout, u32::MAX);
-        assert_eq!(to_spend.inputs[0].script_sig.as_bytes()[0], 0x00);
-        assert_eq!(to_spend.inputs[0].script_sig.as_bytes()[1], 0x20);
+        assert_eq!(to_spend.input[0].sequence, Sequence::ZERO);
+        assert_eq!(to_spend.input[0].previous_output.vout, u32::MAX);
+        assert_eq!(to_spend.input[0].script_sig.as_bytes()[0], 0x00);
+        assert_eq!(to_spend.input[0].script_sig.as_bytes()[1], 0x20);
         assert_eq!(
-            &to_spend.inputs[0].script_sig.as_bytes()[2..],
+            &to_spend.input[0].script_sig.as_bytes()[2..],
             &Bip322Bridge::message_hash(message)
         );
-        assert!(to_spend.inputs[0].witness.is_empty());
-        assert_eq!(to_spend.outputs[0].amount, Amount::ZERO);
+        assert!(to_spend.input[0].witness.is_empty());
+        assert_eq!(to_spend.output[0].value, Amount::ZERO);
 
-        assert_eq!(to_sign.version.to_u32(), 0);
+        assert_eq!(to_sign.version.0, 0);
         assert_eq!(
-            to_sign.inputs[0].previous_output.txid,
+            to_sign.input[0].previous_output.txid,
             to_spend.compute_txid()
         );
-        assert_eq!(to_sign.inputs[0].sequence, Sequence::ZERO);
-        assert!(to_sign.inputs[0].script_sig.is_empty());
-        assert!(to_sign.inputs[0].witness.is_empty());
-        assert_eq!(to_sign.outputs[0].amount, Amount::ZERO);
-        assert_eq!(to_sign.outputs[0].script_pubkey.as_bytes(), &[0x6a]);
+        assert_eq!(to_sign.input[0].sequence, Sequence::ZERO);
+        assert!(to_sign.input[0].script_sig.is_empty());
+        assert!(to_sign.input[0].witness.is_empty());
+        assert_eq!(to_sign.output[0].value, Amount::ZERO);
+        assert_eq!(to_sign.output[0].script_pubkey.as_bytes(), &[0x6a]);
 
         assert_eq!(
             to_spend.compute_txid().to_string(),
@@ -1713,16 +1725,16 @@ mod tests {
         ));
 
         let mut malformed = to_spend.clone();
-        malformed.inputs[0].sequence = Sequence::MAX;
+        malformed.input[0].sequence = Sequence::MAX;
         assert!(matches!(
             Bip322Bridge::construct_to_sign_tx(&malformed, "hello"),
             Err(ConclaveError::InvalidPayload)
         ));
 
         let mut mismatched_hash = to_spend.clone();
-        let mut script_sig = mismatched_hash.inputs[0].script_sig.as_bytes().to_vec();
+        let mut script_sig = mismatched_hash.input[0].script_sig.as_bytes().to_vec();
         script_sig[2] ^= 1;
-        mismatched_hash.inputs[0].script_sig = ScriptSigBuf::from_bytes(script_sig);
+        mismatched_hash.input[0].script_sig = ScriptBuf::from_bytes(script_sig);
         assert!(matches!(
             Bip322Bridge::construct_to_sign_tx(&mismatched_hash, "hello"),
             Err(ConclaveError::InvalidPayload)
@@ -1744,22 +1756,22 @@ mod tests {
     #[test]
     #[cfg(feature = "bip110_compliant")]
     fn test_bip322_bip110_validates_virtual_transaction_contexts() {
-        let oversized_script = ScriptPubKeyBuf::from_bytes(vec![0u8; 35]);
+        let oversized_script = ScriptBuf::from_bytes(vec![0u8; 35]);
         assert!(Bip322Bridge::construct_to_spend_tx(oversized_script, "hello").is_err());
 
-        let future_witness = ScriptPubKeyBuf::from_bytes({
+        let future_witness = ScriptBuf::from_bytes({
             let mut script = vec![0x52, 0x14];
             script.extend_from_slice(&[0u8; 20]);
             script
         });
         let future_to_spend = Bip322Bridge::construct_to_spend_tx(future_witness, "hello")
-            .expect("future witness-version outputs are creatable");
+            .expect("future witness-version output are creatable");
         assert!(matches!(
             Bip322Bridge::construct_to_sign_tx(&future_to_spend, "hello"),
             Err(ConclaveError::Unsupported(_))
         ));
 
-        let script_pubkey = ScriptPubKeyBuf::new_p2wpkh(WPubkeyHash::from_byte_array([0u8; 20]));
+        let script_pubkey = ScriptBuf::new_p2wpkh(&WPubkeyHash::from_byte_array([0u8; 20]));
         let to_spend = Bip322Bridge::construct_to_spend_tx(script_pubkey, "hello").unwrap();
         let mut witness = Witness::default();
         witness.push(vec![0u8; 257]);
@@ -1772,7 +1784,7 @@ mod tests {
     #[test]
     #[cfg(feature = "bip110_compliant")]
     fn test_bip322_bip110_rejects_p2a_spend_construction() {
-        let p2a_script = ScriptPubKeyBuf::from_bytes(vec![0x51, 0x02, 0x4e, 0x73]);
+        let p2a_script = ScriptBuf::from_bytes(vec![0x51, 0x02, 0x4e, 0x73]);
         let to_spend = Bip322Bridge::construct_to_spend_tx(p2a_script, "message")
             .expect("generic P2A output creation remains supported");
 
@@ -1798,11 +1810,9 @@ mod tests {
             ("P2SH", p2sh_script),
             ("custom", vec![0x51]),
         ] {
-            let to_spend = Bip322Bridge::construct_to_spend_tx(
-                ScriptPubKeyBuf::from_bytes(script_bytes),
-                "message",
-            )
-            .expect("unsupported script output creation remains structurally valid");
+            let to_spend =
+                Bip322Bridge::construct_to_spend_tx(ScriptBuf::from_bytes(script_bytes), "message")
+                    .expect("unsupported script output creation remains structurally valid");
             let mut witness = Witness::default();
             witness.push([0u8; 64]);
 

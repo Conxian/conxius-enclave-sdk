@@ -1,0 +1,22 @@
+# CodeQL configuration for conxius-enclave-sdk
+#
+# This is a hardware-backed crypto signing SDK. Test vectors, synthetic
+# replay-protection nonce fixtures, and public certificate-chain data are
+# pervasive and intentionally hard-coded. CodeQL's
+# "hard-coded cryptographic value" and "cleartext logging of sensitive
+# information" rules report these as findings, but they are false positives:
+# there is no signing nonce, secret, or logging sink present.
+#
+# We therefore exclude the tests/ directory (the bulk of the fixtures) from
+# analysis. Remaining in-src fixture sites are dismissed as "false positive"
+# rather than "fixed" (rewriting test vectors is wrong).
+
+name: "conxius-enclave-sdk CodeQL configuration"
+
+disable-default-queries: false
+
+queries:
+  - uses: security-and-quality
+
+paths-ignore:
+  - "tests/**"

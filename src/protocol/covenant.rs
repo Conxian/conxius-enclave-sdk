@@ -58,7 +58,7 @@ impl CovenantManager {
 
         // 3. Verify against the vault authority key
         script.push(0x20); // OP_PUSHBYTES_32
-        script.extend_from_slice(&internal_key.serialize().0);
+        script.extend_from_slice(&internal_key.serialize());
         script.push(0xac); // OP_CHECKSIG
 
         Ok(CovenantScript {
@@ -94,7 +94,7 @@ impl CovenantManager {
 
         // 3. Verify signature against the vault authority key
         script.push(0x20); // OP_PUSHBYTES_32
-        script.extend_from_slice(&internal_key.serialize().0);
+        script.extend_from_slice(&internal_key.serialize());
         script.push(0xac); // OP_CHECKSIG
 
         Ok(CovenantScript {
@@ -122,7 +122,7 @@ impl CovenantManager {
         // Simple key-path spend. The APO semantics come from SIGHASH_ANYPREVOUT
         // flag (0x80) on the witness signature, not from script opcodes.
         script.push(0x20); // OP_PUSHBYTES_32
-        script.extend_from_slice(&internal_key.serialize().0);
+        script.extend_from_slice(&internal_key.serialize());
         script.push(0xac); // OP_CHECKSIG
 
         Ok(CovenantScript {
@@ -177,7 +177,7 @@ mod tests {
     use bitcoin::XOnlyPublicKey;
 
     fn dummy_key() -> XOnlyPublicKey {
-        XOnlyPublicKey::from_byte_array(&[1u8; 32]).unwrap()
+        XOnlyPublicKey::from_slice(&[1u8; 32]).unwrap()
     }
 
     #[test]

@@ -11,6 +11,10 @@
 - `src/protocol/ark.rs`: Removed residual fail-open/panic paths in `construct_vtxo_tree` — it no longer silently substitutes empty/zero txids (`unwrap_or_default`/zero-txid fallback) or panics on `.unwrap()`/`.expect()`; it now fails closed via `ConclaveError::InvalidConfiguration` (port of unmerged `c47b23fd`).
 - `.gitignore`: Added explicit ignore rules for generated test and runtime artifacts (`test-results/`, `playwright-report/`, `coverage/`, `.nyc_output/`, `*.log`, `*.tmp`, `tmp/`, `.tmp/`, `.cache/`, `dist/`, `build/`).
 
+### Changed
+- `Cargo.toml` / `Cargo.lock`: Downgraded the direct `bitcoin 0.33.0-beta` → `0.32.102` (converging on the stable `bdk_wallet` line) and bumped `secp256k1 0.32.0-beta.2` → `0.33.1`, fully removing the yanked `secp256k1 0.32.0-beta.2` from the dependency graph (#320).
+- Migrated the `bitcoin` 0.33 modular API (`ScriptPubKeyBuf`/`ScriptSigBuf`/`TapScript*`, `Transaction { input, output }` + `TxOut.value`, `Witness::nth`, `Version::non_standard`, `XOnlyPublicKey::from_slice`/`to_byte_array`) to 0.32-compatible forms across `src/protocol/`, `src/signing/`, and `src/enclave/` (#320).
+
 ### Security & Governance
 - `.github/workflows/hygiene.yml`: Hardened repository hygiene CI check to verify no tracked test-results, playwright-reports, coverage output, release evidence, or sensitive credentials/config files exist in git.
 

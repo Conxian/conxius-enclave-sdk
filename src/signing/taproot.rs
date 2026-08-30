@@ -6,9 +6,10 @@
 //! # SDK-008
 //! See `docs/PHASE1_ISSUES_ROADMAP.md` for acceptance criteria.
 
+use bitcoin::hashes::Hash as _;
 use bitcoin::key::XOnlyPublicKey;
+use bitcoin::secp256k1::{Scalar, Secp256k1};
 use bitcoin::taproot::{TapLeafHash, TapNodeHash, TapTweakHash};
-use secp256k1::Scalar;
 
 use crate::{ConclaveError, ConclaveResult};
 
@@ -19,7 +20,7 @@ pub fn compute_taproot_tweak(
     merkle_root: Option<[u8; 32]>,
 ) -> [u8; 32] {
     let merkle_root = merkle_root.map(TapNodeHash::from_byte_array);
-    TapTweakHash::from_key_and_merkle_root(*internal_key, merkle_root).to_byte_array()
+    TapTweakHash::from_key_and_tweak(*internal_key, merkle_root).to_byte_array()
 }
 
 /// Compute the taproot output key (Q = P + t*G) by tweaking the internal
@@ -31,8 +32,10 @@ pub fn taproot_output_key(
     let tweak_bytes = compute_taproot_tweak(internal_key, merkle_root);
     let tweak = Scalar::from_be_bytes(tweak_bytes)
         .map_err(|_| ConclaveError::CryptoError("invalid taproot tweak scalar".into()))?;
+    let secp = Secp256k1::verification_only();
     internal_key
-        .add_tweak(&tweak)
+        .add_tweak(&secp, &tweak)
+        .map(|(key, _parity)| key)
         .map_err(|_| ConclaveError::CryptoError("taproot output key derivation failed".into()))
 }
 

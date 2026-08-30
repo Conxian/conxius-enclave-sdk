@@ -142,7 +142,6 @@ impl LightningPaymentIntent {
         })
     }
 
-
     /// Compute a fail-closed multi-hop route for this payment from
     /// `source_node` to the invoice payee. Route selection is deterministic and
     /// fails closed (no route, capacity/fee/CLTV/hop violation) rather than
@@ -160,9 +159,14 @@ impl LightningPaymentIntent {
             .payee_pub_key()
             .ok_or(LightningRouteError::InvalidInvoice)?;
         let target_node = hex::encode(payee.serialize());
-        LightningRouter::find_route(graph, source_node, &target_node, self.amount_msat, constraints)
+        LightningRouter::find_route(
+            graph,
+            source_node,
+            &target_node,
+            self.amount_msat,
+            constraints,
+        )
     }
-
 
     pub fn apply_event(&mut self, event: LightningEvent) -> ConclaveResult<()> {
         let now = current_unix_seconds();
@@ -256,7 +260,6 @@ impl LightningPaymentIntent {
         Ok(())
     }
 }
-
 
 // ── Route-finding ────────────────────────────────────────────────────────
 //
@@ -482,10 +485,7 @@ impl LightningRouter {
                 };
                 if better {
                     best.insert(edge.target.clone(), (new_fee, new_cltv, new_hops));
-                    previous.insert(
-                        edge.target.clone(),
-                        (entry.node.clone(), edge.clone()),
-                    );
+                    previous.insert(edge.target.clone(), (entry.node.clone(), edge.clone()));
                     heap.push(QueueEntry {
                         node: edge.target.clone(),
                         fee_msat: new_fee,
@@ -496,16 +496,16 @@ impl LightningRouter {
             }
         }
 
-        let (total_fee_msat, total_cltv_delta, _) =
-            best.get(target).copied().ok_or(LightningRouteError::NoRoute)?;
+        let (total_fee_msat, total_cltv_delta, _) = best
+            .get(target)
+            .copied()
+            .ok_or(LightningRouteError::NoRoute)?;
 
         // Reconstruct the path from `target` back to `source`.
         let mut hops: Vec<LightningRouteHop> = Vec::new();
         let mut node = target.to_string();
         while node != source {
-            let (prev_node, edge) = previous
-                .get(&node)
-                .ok_or(LightningRouteError::NoRoute)?;
+            let (prev_node, edge) = previous.get(&node).ok_or(LightningRouteError::NoRoute)?;
             hops.push(LightningRouteHop {
                 node_id: edge.target.clone(),
                 short_channel_id: edge.short_channel_id,
@@ -523,7 +523,6 @@ impl LightningRouter {
         })
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -668,7 +667,6 @@ mod tests {
         assert_eq!(intent.preimage, Some(preimage_hex));
     }
 
-
     fn channel(
         source: &str,
         target: &str,
@@ -697,9 +695,14 @@ mod tests {
         graph.add_edge(channel("A", "C", 3, 100));
         graph.add_edge(channel("C", "D", 4, 100));
 
-        let route =
-            LightningRouter::find_route(&graph, "A", "D", 50_000, &LightningRouteConstraints::default())
-                .unwrap();
+        let route = LightningRouter::find_route(
+            &graph,
+            "A",
+            "D",
+            50_000,
+            &LightningRouteConstraints::default(),
+        )
+        .unwrap();
         assert_eq!(route.total_fee_msat, 2);
         assert_eq!(route.total_cltv_delta, 20);
         assert_eq!(route.len(), 2);
@@ -714,13 +717,25 @@ mod tests {
         graph.add_edge(channel("A", "B", 1, 1));
         // No edge out of B → no route to D.
         assert_eq!(
-            LightningRouter::find_route(&graph, "A", "D", 1_000, &LightningRouteConstraints::default()),
+            LightningRouter::find_route(
+                &graph,
+                "A",
+                "D",
+                1_000,
+                &LightningRouteConstraints::default()
+            ),
             Err(LightningRouteError::NoRoute)
         );
 
         // Source == target is not a valid route.
         assert_eq!(
-            LightningRouter::find_route(&graph, "A", "A", 1_000, &LightningRouteConstraints::default()),
+            LightningRouter::find_route(
+                &graph,
+                "A",
+                "A",
+                1_000,
+                &LightningRouteConstraints::default()
+            ),
             Err(LightningRouteError::NoRoute)
         );
 
@@ -730,7 +745,13 @@ mod tests {
         low_capacity.capacity_msat = 100;
         small.add_edge(low_capacity);
         assert_eq!(
-            LightningRouter::find_route(&small, "A", "B", 1_000, &LightningRouteConstraints::default()),
+            LightningRouter::find_route(
+                &small,
+                "A",
+                "B",
+                1_000,
+                &LightningRouteConstraints::default()
+            ),
             Err(LightningRouteError::NoRoute)
         );
     }
@@ -778,7 +799,13 @@ mod tests {
         disabled.add_edge(blocked);
         disabled.add_edge(channel("B", "D", 2, 1));
         assert_eq!(
-            LightningRouter::find_route(&disabled, "A", "D", 1_000, &LightningRouteConstraints::default()),
+            LightningRouter::find_route(
+                &disabled,
+                "A",
+                "D",
+                1_000,
+                &LightningRouteConstraints::default()
+            ),
             Err(LightningRouteError::NoRoute)
         );
     }
@@ -787,7 +814,13 @@ mod tests {
     fn route_finder_validates_graph_and_amount() {
         let graph = LightningNetworkGraph::new();
         assert_eq!(
-            LightningRouter::find_route(&graph, "A", "B", 1_000, &LightningRouteConstraints::default()),
+            LightningRouter::find_route(
+                &graph,
+                "A",
+                "B",
+                1_000,
+                &LightningRouteConstraints::default()
+            ),
             Err(LightningRouteError::GraphEmpty)
         );
 
@@ -798,5 +831,4 @@ mod tests {
             Err(LightningRouteError::AmountBelowMinimum)
         );
     }
-
 }

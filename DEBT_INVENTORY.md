@@ -26,12 +26,12 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 
 ### P1 - Critical
 
-#### DEP-001: Yanked `secp256k1 0.32.0-beta.2` dependency
+#### DEP-001: Yanked `secp256k1 0.32.0-beta.2` dependency ✅ RESOLVED (2026-08-30)
 - **Category**: Dependency
 - **Priority**: P1 - Critical
-- **Description**: `Cargo.toml` pins `secp256k1 = "0.32.0-beta.2"` (a hard, non-optional dependency), which is **yanked** from crates.io. Any fresh dependency resolution (`cargo generate-lockfile`, downstream `cargo add`) fails, blocking `conxian-nexus` CI and merge of nexus PR #250.
+- **Description**: `Cargo.toml` pinned `secp256k1 = "0.32.0-beta.2"` (a hard, non-optional dependency), which is **yanked** from crates.io. Any fresh dependency resolution (`cargo generate-lockfile`, downstream `cargo add`) failed, blocking `conxian-nexus` CI and merge of nexus PR #250.
 - **Tracking**: [#320](https://github.com/Conxian/conxius-enclave-sdk/issues/320)
-- **Fix**: Bump to a non-yanked release (`0.33.0`) and re-verify `frost-secp256k1-tr` v3.0.0 compatibility, then publish a patch and bump the pin in `lib-conxian-core` → `conxian-nexus`.
+- **Resolution**: `bitcoin 0.33.0-beta` → `0.32.102` (converging on the stable `bdk_wallet` line) and `secp256k1 0.32.0-beta.2` → `0.33.1` (`recovery`,`std`). The yanked crate is fully removed from the lockfile; `frost-crypto` is unaffected (ZF FROST uses `k256`, not `secp256k1`). Remaining step: publish the release and bump the pin in `lib-conxian-core` → `conxian-nexus` to unblock nexus PR #250.
 
 
 #### PROTO-001: Protocol implementation boundaries and evidence
@@ -57,9 +57,9 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Priority**: P1
 - **Description**: Multiple critical cryptographic dependencies use beta/RC versions
 - **Affected Dependencies**:
-  - `bitcoin = "0.33.0-beta"` - Bitcoin protocol support
-  - `secp256k1 = "0.32.0-beta.2"` - ECDSA/Schnorr signatures
-  - `k256 = "0.14.0"` - K-256 elliptic curve
+  - `bitcoin = "0.33.0-beta"` - Bitcoin protocol support → ✅ RESOLVED: downgraded to stable `0.32.102` (2026-08-30)
+  - `secp256k1 = "0.32.0-beta.2"` - ECDSA/Schnorr signatures → ✅ RESOLVED: bumped to stable `0.33.1` (2026-08-30)
+  - `k256 = "0.14.0"` - K-256 elliptic curve (stable release)
 - **Risk**: Breaking changes on stable release, potential compatibility issues
 - **Recommendation**: Pin to stable versions as they become available; monitor upstream releases
 - **Tracking**: Monitor RustSec advisories for these crates
@@ -99,6 +99,13 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Session 57 Progress (2026-08-05)**: Phase 3 verifier framework built with 4 backends (Nitro, PKCS#11, WebAuthn, OIDC). All verifiers implement the `ProofVerifier` trait. 14 verifier tests pass. Verifier framework complete (Session 55-57). Blocked on: live Nitro deployment evidence (P0), core adapter integration (P0), distributed replay (P1).
 - **Recommendation**: Select one provider scope at a time, implement its authenticated verifier and exact policy namespace, add official vectors and provider-backed negative tests, then attach CI, independent-review, provenance, and release-artifact evidence.
 - **Tracking**: [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202)
+
+#### SEC-005: Branch protection documented but not GitHub-enforced ✅ RESOLVED (2026-08-30)
+- **Category**: Security / Governance
+- **Priority**: P1
+- **Description**: `docs/BRANCH_PROTECTION.md` (STRICT) and `docs/BRANCH_POLICY.md` (CON-520) mandate direct-commit prohibition, mandatory CODEOWNERS review, and required CI checks on `main`, but the GitHub branch-protection API reported `main` as **unprotected**. Direct pushes and merges without review/CI were not blocked.
+- **Resolution**: Applied branch protection on `main` via the API: `enforce_admins=true`, `required_approving_review_count=1`, `require_code_owner_reviews=true`, `dismiss_stale_reviews=true`, `allow_force_pushes=false`, `allow_deletions=false`, and required status checks `Rust Tests`, `Linting`, `WASM Build`, `Repository Hygiene`, `Security Checks`, `Coverage Threshold (>= 70%)`, `WASM Runtime Evidence`, `Gitleaks History Scan`. Note: the PR author cannot self-approve; CODEOWNERS approval must come from `@admin-conxian-labs` for changes by `@botshelomokoka`.
+- **Status**: Resolved — Session 63.
 
 #### EVID-001: Provider, Runtime, and Artifact Evidence
 - **Category**: Testing
@@ -143,6 +150,14 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Risk**: Incomplete web/mobile integration surface
 - **Status**: API inventory recorded (2026-07-15); runtime/platform/secret-boundary evidence remains open in [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200)
 - **Related Issue**: Historical #172 is context only; current evidence work is #200
+
+#### ARCH-002: Multiple `secp256k1` versions coexist and bridge by serialization
+- **Category**: Architecture / Dependency
+- **Priority**: P3 - Medium
+- **Description**: Four `secp256k1` versions resolve simultaneously (`0.29.1` via `bitcoin 0.32.102`, `0.30.0` via `alloy-consensus`, `0.31.1` via `musig2`/`alloy-primitives`, `0.33.1` direct). `src/protocol/musig2.rs` bridges the direct `0.33.1` types to `musig2`'s `0.31.1` types via `from_slice(&pk.serialize())` / `from_byte_array(secret_key.to_secret_bytes())`.
+- **Risk**: Type-fragmentation across a security-critical primitive; byte-serialization bridges are a subtle correctness surface and block eventual type-level convergence.
+- **Recommendation**: Track upstream convergence (alloy/musig2 moving to `0.33.x`, or stable `bitcoin 0.33.x`) and replace serialization bridges with type-identical calls once a single version dominates.
+- **Status**: Active; no correctness issue observed, tests green.
 
 #### DOC-002: Missing Examples
 - **Category**: Documentation
@@ -198,7 +213,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 
 | Item | Identified | Target | Status | Updated |
 |------|------------|--------|--------|---------|
-| DEP-001 | 2026-07-08 | Next stable deps | In Progress | 2026-07-14 |
+| DEP-001 | 2026-07-08 | Next stable deps | ✅ Resolved (2026-08-30) — bitcoin 0.32.102 + secp256k1 0.33.1 | 2026-08-30 |
 | DOC-001 | 2026-07-08 | v2.0.7 release | ✅ Resolved | 2026-07-14 |
 | DEP-002 | 2026-07-08 | Q3 2026 | Planned | 2026-07-14 |
 | TEST-001 | 2026-07-08 | Hardware/provider evidence | Reclassified — simulation/unit evidence only; #195 open | 2026-07-20 |

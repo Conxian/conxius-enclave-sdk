@@ -360,7 +360,7 @@ impl WasmCovenantClient {
     ) -> Result<JsValue, JsValue> {
         let pk_bytes = hex::decode(internal_key_hex).map_err(|_| invalid_input())?;
         let pk_arr: [u8; 32] = pk_bytes.try_into().map_err(|_| invalid_input())?;
-        let pk = bitcoin::XOnlyPublicKey::from_byte_array(&pk_arr).map_err(|_| invalid_input())?;
+        let pk = bitcoin::XOnlyPublicKey::from_slice(&pk_arr).map_err(|_| invalid_input())?;
         let hash_bytes = hex::decode(template_hash_hex).map_err(|_| invalid_input())?;
         let hash: [u8; 32] = hash_bytes.try_into().map_err(|_| invalid_input())?;
 

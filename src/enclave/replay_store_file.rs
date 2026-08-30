@@ -124,13 +124,12 @@ impl DurableFileReplayStore {
     }
 
     fn lock(&self) -> Result<MutexGuard<'_, FileState>, ReplayStoreError> {
-        self.state.lock().map_err(|_| ReplayStoreError::LockPoisoned)
+        self.state
+            .lock()
+            .map_err(|_| ReplayStoreError::LockPoisoned)
     }
 
-    fn validate(
-        reservation: &ReplayReservation,
-        now_secs: u64,
-    ) -> Result<(), ReplayStoreError> {
+    fn validate(reservation: &ReplayReservation, now_secs: u64) -> Result<(), ReplayStoreError> {
         if invalid_key(reservation) {
             return Err(ReplayStoreError::InvalidKey);
         }

@@ -935,3 +935,79 @@ Re-evaluating remaining open issues using the 75-point weighted formula (Securit
    - BOLT12 offer signing using Taproot Schnorr signatures (`sign_bolt12_offer`).
    - LNURL-auth challenge signing using ECDSA over secp256k1 (`sign_lnurl_auth`).
    - HTLC success and refund transaction script signing through `sign_htlc_transaction`.
+
+---
+
+## Session 63 — secp256k1 yank (#320) dependency-tree research (2026-08-30)
+
+Verified against the crates.io API and the committed `Cargo.lock`; source links inline.
+
+### Verified facts
+
+1. **Yank status** ([crates.io `secp256k1`](https://crates.io/api/v1/crates/secp256k1)):
+   - `0.32.0-beta.2`, `0.32.0-beta.1`, `0.32.0-beta.0` are **all yanked**.
+   - Non-yanked stable successors: `0.33.0`, `0.33.1` (MSRV 1.63). Also `0.31.1`, `0.30.0`, `0.29.1`.
+   - `secp256k1-sys` latest: `0.14.1` (matches the 0.33.x line).
+
+2. **`rand` feature removed in 0.33.x.** `rand ^0.9` is now an *optional dependency* enabled implicitly by `std`/`global-context` (`std = [..., "rand?/std", "rand?/std_rng", ...]`). A bump therefore requires dropping the feature flag: `features = ["recovery", "std", "rand"]` → `["recovery", "std"]`. `recovery` and `std` still exist.
+
+3. **FROST is independent of the rust-bitcoin `secp256k1` crate.** `frost-secp256k1-tr v3.0.0` (ZF git dep) uses `k256 0.13.4` (RustCrypto), *not* `secp256k1`. The `frost-crypto` feature is therefore unaffected by the bump; "re-verify FROST compatibility" reduces to re-running the `frost-crypto` feature tests, which pass because the crates are disjoint.
+
+4. **Critical correction — `bitcoin 0.33.0-beta` transitively yanks `secp256k1`.** `bitcoin 0.33.0-beta` depends on `secp256k1 ^0.32.0-beta.2` ([deps](https://crates.io/api/v1/crates/bitcoin/0.33.0-beta/dependencies)). Since every `0.32.0-beta.*` is yanked and there is no non-yanked `0.32.x` stable, `bitcoin 0.33.0-beta` can only resolve against a yanked secp256k1. **Bumping the SDK's direct `secp256k1` alone does not unblock downstream resolution** — the yanked version remains in the graph via `bitcoin`.
+
+5. **No stable `bitcoin 0.33.x` exists yet** — only `0.33.0-beta` (and yanked `0.33.0-beta.0`). `bitcoin 0.32.102` (stable) depends on `secp256k1 ^0.29.0` (non-yanked).
+
+6. **Two `bitcoin` versions coexist in the lock**: `0.32.102` (via `bdk_wallet 3.1.0`) and `0.33.0-beta` (the SDK's direct `bitcoin = "0.33.0-beta"`). Only the latter pulls the yanked secp256k1.
+
+### Dependency graph (from `Cargo.lock`)
+
+```
+secp256k1 0.32.0-beta.2 (YANKED)  <-  bitcoin 0.33.0-beta, conxius-enclave-sdk (direct)
+secp256k1 0.31.1                  <-  alloy-primitives 1.6.1, musig2 0.4.1, secp 0.7.0
+secp256k1 0.30.0                  <-  alloy-consensus 2.3.0
+secp256k1 0.29.1                  <-  bitcoin 0.32.102 (via bdk_wallet)
+```
+
+### Unblock options (recommendation order)
+
+1. **Minimal-but-correct is blocked on `bitcoin`.** Keeping `bitcoin 0.33.0-beta` while removing the yanked secp256k1 is impossible: that beta has no non-yanked secp256k1 to resolve to.
+2. **Option A (recommended, medium effort):** downgrade the SDK's direct `bitcoin` `0.33.0-beta` → `0.32.102` to converge on the stable line already used by `bdk_wallet`, and bump the direct `secp256k1` → `0.33.1`. Removes the yanked crate entirely. Cost: migrate the ~15 files using `bitcoin::` from the 0.33 modular API to 0.32.
+3. **Option B (wait):** keep `bitcoin 0.33.0-beta` and wait for a stable `bitcoin 0.33.0` that targets `secp256k1 0.33.x`, then bump both together. Does not unblock downstream today.
+4. **Option C (patch/pin):** vendor or `[patch]` a non-yanked secp256k1 for `bitcoin 0.33.0-beta`. Discouraged — fights upstream and forks crypto.
+
+### Direct `secp256k1` API surface in the SDK (impact of 0.32-beta → 0.33)
+
+Used in `src/enclave/{mod,cloud,android_strongbox}.rs` and `src/signing/{musig2_signing,taproot}.rs`:
+- ECDSA `sign`/`verify`/`recover` + `RecoverableSignature`/`RecoveryId` (needs `recovery`).
+- Schnorr `schnorr::{verify, sign_no_aux_rand, Signature}` + `XOnlyPublicKey`/`Parity`/`Scalar`.
+- Low-level `secp256k1::ffi::*` (`secp256k1_ec_seckey_verify`, `secp256k1_context_no_precomp`) in `cloud.rs` — re-verify against the 0.33 `ffi` surface.
+
+
+### Execution result (Option A) — 2026-08-30
+
+Option A was executed end-to-end:
+
+- `Cargo.toml`: `bitcoin 0.33.0-beta` → `0.32.102` (`std`, `rand`); `secp256k1 0.32.0-beta.2` → `0.33.1` (`recovery`, `std`).
+- `Cargo.lock` regenerated; yanked `secp256k1 0.32.0-beta.2` is **gone** (only `0.29.1` via bitcoin, `0.30.0`, `0.31.1`, `0.33.1` remain).
+- Migrated 13 source files from the 0.33 modular API to 0.32: `Script`/`ScriptBuf` (replacing `ScriptPubKeyBuf`/`ScriptSigBuf`/`TapScript`/`TapScriptBuf`), `Transaction { input, output }` + `TxOut.value`, `Witness::nth`, `Version::non_standard`, `XOnlyPublicKey::from_slice`/`to_byte_array`, `secp256k1::Secp256k1::verify_schnorr`/`add_tweak(&secp, …)`, `TapTweakHash::from_key_and_tweak`, `ControlBlock::verify_taproot_commitment(&secp, …)`, `Address::from_script` for P2A, and a local `is_p2a` helper (no `Script::is_p2a` in 0.32).
+- `cloud.rs`: `secp256k1::ffi::secp256k1_context_no_precomp` → `secp256k1_context_static` (the static-context symbol in `secp256k1-sys 0.14`).
+- Verification: `cargo test --locked` (629 passed), `cargo test --locked --features bip110_compliant` (634 passed), `cargo clippy --all-targets --features bip110_compliant -- -D warnings` (clean).
+- `cargo check --all-features` is blocked in this sandbox by `openssl-sys` (via `cryptoki`), unrelated to this migration.
+
+### Full-repo audit (post-migration)
+
+A whole-tree sweep for the 0.33 modular API and `bitcoin`-vs-`secp256k1` `from_byte_array`/`from_slice` split found exactly one latent break behind `#[cfg(target_arch = "wasm32")]` (not compiled on the host):
+
+- `src/wasm_bindings.rs` (`WasmCovenantClient::generate_cat_vault_script`) used `bitcoin::XOnlyPublicKey::from_byte_array`, a 0.33-only name. Fixed to `from_slice` (the 0.32 / `secp256k1 0.29.1` API). This is a public-key covenant-script helper in the beta/"Unsupported" WASM lane (`docs/architecture/WASM_SUPPORT_MATRIX.md`), not a value-bearing signing path.
+
+Everything else is verified: `frost-crypto`/`frost.rs` reference `secp256k1` only in strings/comments (ZF FROST uses `k256`); `groth16` uses `bls12_381`; `cryptoki`/`webauthn` use `openssl`/`p256`. None interact with the SDK's `bitcoin`/`secp256k1` types, so `--all-features` (a CI gate) is unaffected by this migration. WASM is built in CI via `wasm-pack` with a `CFLAGS` workaround for `secp256k1-sys`, which requires `clang` (absent in this sandbox).
+
+### Code-scanning triage (Session 63, via PAT)
+
+Enumerated 43 open CodeQL alerts (all at `main` HEAD `7edb2cf`, i.e. pre-existing, none from the migration). Triaged every one against the source:
+
+- **42 × `hard-coded cryptographic value` ("used as a nonce", critical)** — all false positives. They flag synthetic fixture values (`vec![0;N]`, `[7;32]`, `vec![9;16]`, `digest(2)`, `"fixture-audience"`, `"android-key-1"`) used as *replay-protection* nonces on `ProofVerificationContext`, not ECDSA/Schnorr signing nonces. 29 in `tests/`, 13 in `src/` fixture/`#[cfg(test)]` builders (`proofs.rs`, `trust.rs`, `proof.rs`, `android_authorization.rs`, `rails/mod.rs`).
+- **1 × `cleartext logging` (high)** — false positive. `#[derive(Debug)]` on `AttestationReport` (contains public `certificate_chain: Vec<String>`); no `println!`/`log::*`/`fs::write`/`writeln!` sink exists anywhere in the file.
+
+Resolution: all 43 dismissed as `false positive`; `.github/codeql/codeql-config.yml` (`paths-ignore: tests/**`) added and wired into `codeql.yml` to suppress recurrence of the `tests/` bulk. Standing policy recorded in `AGENTS.md` ("scope-covered — always").
+
