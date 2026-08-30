@@ -377,6 +377,7 @@ jobs:
           toolchain: 1.97.1
 
       - name: Enforce publishing from the validated release tag
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.recover_existing_registry) }}
         shell: bash
         run: |
           set -euo pipefail
