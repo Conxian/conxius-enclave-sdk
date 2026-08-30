@@ -1024,3 +1024,114 @@ Enumerated the entire tracked state (issues/PRs, capability evidence, debt inven
 - **Open issues (6)**: #271, #242, #241, #240, #202, #200 — unchanged, all documented in `GAP_SCORECARD.md` and `TRACKING.md`.
 - **Debt (DEBT_INVENTORY)**: `DEP-001` (beta deps) resolved by this session; `ARCH-002` (coexisting `secp256k1` versions bridged in `musig2`) tracked; `SEC-005` (branch protection) resolved.
 
+### Research note: routing around Bitcoin P2P censorship/fragmentation (Session 63)
+
+The SDK does not implement Bitcoin P2P networking (it is a signing/attestation
+boundary), but its `bitcoin`, `lightning`, `covenant`, and `ark` modules encode
+assumptions about how transactions reach miners. This note records the
+resistance strategy the SDK should preserve, organised as **(a) the problem**,
+**(b) economic incentives**, and **(c) alternative routing**, with the
+corresponding SDK touchpoints.
+
+#### (a) The problem: mempool/relay policy fragmentation
+
+Relay policy is **local, not consensus**. Every node independently decides which
+transactions to admit to its mempool and relay. Bitcoin Core v30 (late 2025) is
+policy-only — it does not change consensus — and the community is actively
+debating OP_RETURN standardness, v3 transactions, package relay, cluster
+mempool, and full-RBF. Consequences:
+
+- A consensus-valid transaction may still be **unrelayed** (non-standard) and
+  require direct miner submission or targeted-node broadcasting.
+- Divergent policies across implementations (Bitcoin Core vs Bitcoin Knots)
+  produce **policy fragmentation**: the blockchain stays consistent, but
+  propagation becomes unreliable for low-feerate or large-OP_RETURN txs.
+- Network-level observers could historically identify and block Bitcoin P2P
+  traffic via its fixed 4-byte magic bytes (now mitigated by BIP-324).
+
+The governing principle being advocated on the mailing list (gmaxwell, echoed by
+Anthony Towns) is: *"relay rules should admit all transactions which are
+reliably being mined."* That is, policy should follow the fee market rather than
+impose content rules stricter than what miners actually accept.
+
+**SDK touchpoint**: the SDK must never hard-code a relay-policy assumption that
+assumes a specific standardness rule; it should treat "constructed a valid
+transaction" and "that transaction will be relayed/mined" as distinct, and fail
+closed where the boundary cannot confirm propagation.
+
+#### (b) Economic incentives: make censorship more expensive than inclusion
+
+Censorship is a *cost* imposed on the censor. The mitigation is to align
+incentives so that mining a transaction is always the economically rational
+choice, and to lower the cost of participation so the relay set is too large and
+anonymous to coerce.
+
+- **Fee markets as the neutral arbiter.** If policy admits "everything reliably
+  mined," the fee rate becomes the only selection criterion, removing content
+  judgment from relay.
+- **Weak blocks (Anthony Towns).** Miners with divergent policies can relay a
+  weak compact block once they hold meaningful PoW share, so nodes that rejected
+  a tx can fetch it in a full round-trip — a "relay via mining power" fallback.
+- **Fee-bumping so L2 protocols can always get mined**: package relay (1P1C),
+  child-pays-for-parent (CPFP), ephemeral anchors, and v3 transaction relay
+  (TRUC) exist specifically so an under-funded parent can be economically
+  bumped without a pinning vector.
+- **Out-of-band fee acceleration.** Braidpool-style deterministic transaction
+  selection and direct out-of-band fees to miners are a last-resort bypass when
+  relay policy diverges from mining reality. Delving Bitcoin notes this is a
+  "bug, not a feature" — canonical fee-bumping in-protocol is preferred — but it
+  demonstrates the economic fallback always exists while hashpower is
+  permissionless.
+
+**SDK touchpoint**: `bitcoin` (PSBT/fee-bumping), `covenant` (CTV/APO), and the
+`ark`/`cctp` value paths should preserve child-pays-for-parent and
+fee-bumpability rather than emitting pinned or non-bumpable shapes.
+
+#### (c) Alternative routing: transport and off-chain paths
+
+When the base P2P relay is degraded, the fallback is **encrypted, unidentifiable
+transport** plus **off-chain routing** that does not depend on on-chain relay at
+all.
+
+1. **BIP-324 (v2 encrypted transport).** Merged in Core 26.0, default in 27.0
+   (2024); by early 2026 the majority of reachable nodes speak v2. It removes
+   the fixed magic bytes and makes the wire byte-stream pseudorandom, so
+   pattern-matching firewalls cannot block Bitcoin traffic. Decoy packets and
+   traffic shaping (partially unimplemented) further raise surveillance cost.
+2. **Erlay (BIP-330).** Set reconciliation cuts transaction-relay bandwidth by
+   ~40%, lowering the cost of running a node — the cheaper participation is, the
+   larger and more anonymous the relay set, the harder censorship becomes.
+3. **Alternate transports.** BIP-155 `addrv2` (Tor v3), I2P, and out-of-band
+   broadcast (mesh networks, satellite, HAM radio) are the classic last-resort
+   broadcast channels.
+4. **Lightning off-chain routing** — the strongest "alternative routing" layer:
+   - **BOLT12 offers** (merged Sept 2024): reusable payment requests with
+     **blinded paths**, so the recipient's node identity is hidden behind hops.
+   - **BIP-353 DNS Payment Instructions** (Feb 2024): human-readable
+     `user@domain` resolving (via DNSSEC) to BOLT12 offers, on-chain addresses,
+     or silent payments — a DNS-based resolution layer independent of on-chain
+     relay.
+   - **Trampoline routing**: an intermediate node computes the path, so a sender
+     does not need a full network view (censorship-resistant when the local view
+     is degraded).
+   - **Splicing / MPP / AMP**: let a single channel be resized and a payment be
+     split across paths, so a single censored edge does not block settlement.
+
+**SDK touchpoint**: `lightning` (BOLT12/BIP-353 parsing and route-finding) and
+`lightning_channel` (state machine) are the SDK's off-chain routing surface;
+`covenant` (CTV/APO) and `ark` provide the on-chain fallback shapes. The relay
+strategy should keep these decoupled from any single on-chain relay assumption.
+
+#### Summary position
+
+Censorship of consensus-valid Bitcoin transactions is an economic contest, not a
+protocol failure. The durable defences are: (1) policy that follows the fee
+market ("admit what is reliably mined"); (2) fee-bumping primitives so L2 value
+is never pinned; (3) unidentifiable encrypted transport (BIP-324) plus cheap
+relay (Erlay) to keep the relay set large and anonymous; and (4) off-chain
+routing (BOLT12/BIP-353/trampoline/blinded paths) so settlement does not depend
+on on-chain relay in the first place. The SDK should preserve all four as
+fail-closed boundaries rather than assuming any single relay path is available.
+
+Sources: [Bitcoin Optech "Waiting for confirmation"](https://bitcoinops.org/en/blog/waiting-for-confirmation) · [bitcoindev — OP_RETURN standardness / weak blocks](https://groups.google.com/g/bitcoindev/c/d6ZO7gXGYbQ) · [Lightspark — Mempool Policy](https://lightspark.com/glossary/mempool-policy) · [BIP-324 / rust-bitcoin/bip324](https://github.com/rust-bitcoin/bip324) · [Spark — Erlay](https://www.spark.money/research/bitcoin-erlay-transaction-relay-protocol) · [Delving Bitcoin — deterministic tx selection](https://delvingbitcoin.org/t/deterministic-tx-selection-for-censorship-resistance/842) · [BOLT12.org](https://bolt12.org) · [Spark — BIP-353 vs Lightning Address vs BOLT12](https://www.spark.money/research/lightning-dns-address-adoption-analysis).
+
