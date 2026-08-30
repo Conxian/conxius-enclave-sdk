@@ -47,10 +47,10 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
   - **DLC**: ✅ Oracle attestation verification + CET template construction (#279).
   - **CCTP**: ✅ ECDSA attestation verification via k256 (#277).
   - **Covenant**: ✅ BIP-119 CTV and BIP-118 APO patterns (#276).
-  - **Fedimint**: ⚠️ Structural boundary only. Still returns `ProtocolUnsupported` for all value-bearing ops.
-- **Risk**: Fedimint remains structural-only. Groth16 verifier now has a real BLS12-381 pairing backend (`groth16` feature, Session 61), but BitVM2 protocol-conformance/live-bridge/review evidence remains open.
-- **Recommendation**: Implement Fedimint real crypto (now feasible with `bls12_381` as a dependency) or document as deferred.
-- **Status**: Active; FROST/Ark/CCTP/DLC/Covenant production support `No` pending independent review. Fedimint still structural.
+  - **Fedimint**: ✅ Real BLS12-381 e-cash blinding + Chaum-Pedersen DLEQ verification implemented in `src/protocol/nexus/fedimint_crypto.rs` (gated `fedimint-crypto`, Session 63). The opaque boundary in `fedimint.rs` remains structural; full threshold mint/network integration is provider-gated.
+- **Risk**: Fedimint full threshold mint/network integration remains provider-gated. Groth16 verifier now has a real BLS12-381 pairing backend (`groth16` feature, Session 61), but BitVM2 protocol-conformance/live-bridge/review evidence remains open.
+- **Recommendation**: Fedimint DLEQ + blinding crypto is now real (`fedimint-crypto`, Session 63). The remaining full threshold mint (guardian partial-signature aggregation + network) is deferred to provider integration.
+- **Status**: Active; FROST/Ark/CCTP/DLC/Covenant production support `No` pending independent review. Fedimint crypto layer real, threshold mint provider-gated.
 
 #### DEP-001: Beta/Release Candidate Dependencies
 - **Category**: Dependency
@@ -226,7 +226,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 | ARCH-001 | 2026-07-14 | Runtime/platform/secret boundary | Reclassified — API inventory only; #200 open | 2026-07-20 |
 | DOC-002 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
 | CI-001 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
-| PROTO-001 | 2026-07-08 | FROST/BitVM2/DLC/CCTP/Covenant hardened; Fedimint real crypto | In Progress — 6/7 sub-items resolved; Fedimint still structural-only | 2026-08-05 |
+| PROTO-001 | 2026-07-08 | FROST/BitVM2/DLC/CCTP/Covenant hardened; Fedimint real crypto | ✅ Resolved — 7/7 crypto sub-items (Fedimint DLEQ + blinding real via `fedimint-crypto`); full threshold mint remains provider-gated | 2026-08-30 |
 | BIP-110 | 2026-07-15 | v2.0.13 | ✅ Resolved | 2026-07-15 |
 
 ## Resolved Debt
