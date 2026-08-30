@@ -100,13 +100,12 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Recommendation**: Select one provider scope at a time, implement its authenticated verifier and exact policy namespace, add official vectors and provider-backed negative tests, then attach CI, independent-review, provenance, and release-artifact evidence.
 - **Tracking**: [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195), [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202)
 
-#### SEC-005: Branch protection documented but not GitHub-enforced
+#### SEC-005: Branch protection documented but not GitHub-enforced ✅ RESOLVED (2026-08-30)
 - **Category**: Security / Governance
 - **Priority**: P1
-- **Description**: `docs/BRANCH_PROTECTION.md` (STRICT) and `docs/BRANCH_POLICY.md` (CON-520) mandate direct-commit prohibition, mandatory CODEOWNERS review, and required CI checks on `main`, but the GitHub branch-protection API reports `main` as **unprotected**. Direct pushes and merges without review/CI are therefore not blocked, contradicting the repo's own fail-closed posture and the "Drift Control" clause (BRANCH_POLICY §5).
-- **Risk**: Unreviewed/unverified commits (including to `src/enclave/**`, `Cargo.toml`, `.github/workflows/**`) can reach `main`, bypassing the documented security/governance gates.
-- **Recommendation**: Enable branch protection on `main` matching the documented baseline: require a PR, ≥1 CODEOWNERS approval, and the CI Strict status checks (`test`, `lint`, `wasm`, `hygiene`, `security-checks`) plus Coverage / Secret Scan / WASM Runtime Evidence. Read the exact check contexts from an actual PR run before configuring to avoid blocking merges on wrong check names.
-- **Status**: Open — identified Session 63 via the branch-protection API (`admin` token).
+- **Description**: `docs/BRANCH_PROTECTION.md` (STRICT) and `docs/BRANCH_POLICY.md` (CON-520) mandate direct-commit prohibition, mandatory CODEOWNERS review, and required CI checks on `main`, but the GitHub branch-protection API reported `main` as **unprotected**. Direct pushes and merges without review/CI were not blocked.
+- **Resolution**: Applied branch protection on `main` via the API: `enforce_admins=true`, `required_approving_review_count=1`, `require_code_owner_reviews=true`, `dismiss_stale_reviews=true`, `allow_force_pushes=false`, `allow_deletions=false`, and required status checks `Rust Tests`, `Linting`, `WASM Build`, `Repository Hygiene`, `Security Checks`, `Coverage Threshold (>= 70%)`, `WASM Runtime Evidence`, `Gitleaks History Scan`. Note: the PR author cannot self-approve; CODEOWNERS approval must come from `@admin-conxian-labs` for changes by `@botshelomokoka`.
+- **Status**: Resolved — Session 63.
 
 #### EVID-001: Provider, Runtime, and Artifact Evidence
 - **Category**: Testing
