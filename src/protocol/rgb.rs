@@ -98,7 +98,7 @@ impl<'a, S: UniversalChainSigner> RgbTransitionBuilder<'a, S> {
         schema: &RgbSchema,
         seal: &RgbSeal,
     ) -> [u8; 32] {
-        use bitcoin::hashes::{sha256, HashEngine};
+        use bitcoin::hashes::{sha256, Hash, HashEngine};
         let schema_tag = match schema {
             RgbSchema::Rgb20 => b"RGB20",
             RgbSchema::Rgb21 => b"RGB21",

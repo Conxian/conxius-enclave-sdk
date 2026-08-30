@@ -46,6 +46,7 @@
 - Bump `secp256k1` 0.32.0-beta.2 → 0.33.0 (non-yanked) in this SDK; re-verify FROST (`frost-secp256k1-tr` v3.0.0) compatibility.
 - `cargo generate-lockfile` succeeds; `cargo test --locked` + clippy clean; `frost` feature tests pass.
 - Publish a patch release and bump the `conxius-enclave-sdk` pin in `lib-conxian-core` → `conxian-nexus`, so nexus PR #250 can merge.
+- **Research correction (Session 63):** bumping the direct `secp256k1` alone is **insufficient** — `bitcoin 0.33.0-beta` transitively depends on `secp256k1 ^0.32.0-beta.2` (yanked) and there is no stable `bitcoin 0.33.x` yet. A complete unblock also requires downgrading the direct `bitcoin` `0.33.0-beta` → `0.32.102` (converging on the `bdk_wallet` line) or waiting for stable `bitcoin 0.33.0`. Also drop the removed `rand` feature when bumping `secp256k1` → `0.33.x` (`features = ["recovery", "std"]`). Full analysis in `RESEARCH_LOG.md` (Session 63).
 
 ### P0: Finish the cross-repo replay/idempotency backend (conxian-nexus)
 - After #320: land `IdempotencyStore` PR #250; wire to Neon `Conxian Nexus` (`DATABASE_URL` + run migration).

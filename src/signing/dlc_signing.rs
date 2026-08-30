@@ -62,7 +62,7 @@ impl<'a, S: UniversalChainSigner> DlcSigner<'a, S> {
     }
 
     fn oracle_message_hash(event_id: [u8; 32], outcome: u64) -> [u8; 32] {
-        use bitcoin::hashes::{sha256, HashEngine};
+        use bitcoin::hashes::{sha256, Hash, HashEngine};
         let tag = sha256::Hash::hash("DLC/oracle/outcome".as_bytes());
         let mut engine = sha256::Hash::engine();
         engine.input(tag.as_byte_array().as_slice());

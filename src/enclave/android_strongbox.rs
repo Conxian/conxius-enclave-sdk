@@ -258,14 +258,14 @@ impl CoreEnclaveManager {
             message_hash,
             priv_key_bytes,
             &SigningAlgorithm::SchnorrSecp256k1,
-            &verify_key.serialize(),
+            &verify_key.to_byte_array(),
         )?;
         let attestation_json = serde_json::to_string(&attestation)
             .map_err(|e| ConclaveError::CryptoError(format!("Serialization error: {}", e)))?;
 
         Ok(SignResponse {
             signature_hex: hex::encode(signature.to_byte_array()),
-            public_key_hex: hex::encode(verify_key.serialize()),
+            public_key_hex: hex::encode(verify_key.to_byte_array()),
             device_attestation: Some(attestation_json),
         })
     }
@@ -322,7 +322,7 @@ impl EnclaveManager for CoreEnclaveManager {
         if derivation_path.contains("86'") || derivation_path.contains("schnorr") {
             let keypair = secret_key.keypair();
             let (x_only_public_key, _) = keypair.x_only_public_key();
-            Ok(hex::encode(x_only_public_key.serialize()))
+            Ok(hex::encode(x_only_public_key.to_byte_array()))
         } else {
             Ok(hex::encode(secret_key.public_key().serialize()))
         }
@@ -536,9 +536,9 @@ mod tests {
         let signature = decode_hex::<64>(&response.signature_hex);
         let public_key = decode_hex::<32>(&response.public_key_hex);
 
-        assert_eq!(public_key, expected_output_key.serialize());
+        assert_eq!(public_key, expected_output_key.to_byte_array());
         assert_eq!(
-            verify_bip340_signature(&message, &expected_output_key.serialize(), &signature),
+            verify_bip340_signature(&message, &expected_output_key.to_byte_array(), &signature),
             Ok(true)
         );
 
@@ -554,7 +554,7 @@ mod tests {
         assert_eq!(
             verify_bip340_signature(
                 &message,
-                &expected_output_key.serialize(),
+                &expected_output_key.to_byte_array(),
                 &direct_signature.to_byte_array(),
             ),
             Ok(false)
@@ -576,9 +576,9 @@ mod tests {
             .expect("even-Y Taproot signing");
         let signature = decode_hex::<64>(&response.signature_hex);
         let public_key = decode_hex::<32>(&response.public_key_hex);
-        assert_eq!(public_key, expected_output_key.serialize());
+        assert_eq!(public_key, expected_output_key.to_byte_array());
         assert_eq!(
-            verify_bip340_signature(&message, &expected_output_key.serialize(), &signature),
+            verify_bip340_signature(&message, &expected_output_key.to_byte_array(), &signature),
             Ok(true)
         );
 

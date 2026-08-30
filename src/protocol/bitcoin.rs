@@ -6,8 +6,9 @@ use crate::{
     ConclaveError, ConclaveResult,
 };
 use bitcoin::{
+    hashes::Hash as _,
     key::PublicKey,
-    secp256k1::{self, Scalar},
+    secp256k1::{self, Scalar, Secp256k1},
     taproot::{TapLeafHash, TapNodeHash, TapTweakHash},
     XOnlyPublicKey,
 };
@@ -36,12 +37,16 @@ pub fn verify_bip340_signature(
         .map_err(|_| ConclaveError::InvalidPayload)?;
 
     let public_key =
-        secp256k1::XOnlyPublicKey::from_byte_array(public_key_bytes).map_err(|error| {
+        secp256k1::XOnlyPublicKey::from_slice(&public_key_bytes).map_err(|error| {
             ConclaveError::CryptoError(format!("Invalid BIP-340 x-only public key: {error}"))
         })?;
-    let signature = secp256k1::schnorr::Signature::from_byte_array(signature_bytes);
+    let signature = secp256k1::schnorr::Signature::from_slice(&signature_bytes).map_err(|error| {
+        ConclaveError::CryptoError(format!("Invalid BIP-340 signature: {error}"))
+    })?;
+    let message = secp256k1::Message::from_digest(message);
+    let secp = secp256k1::Secp256k1::verification_only();
 
-    Ok(secp256k1::schnorr::verify(&signature, &message, &public_key).is_ok())
+    Ok(secp.verify_schnorr(&signature, &message, &public_key).is_ok())
 }
 
 pub struct TaprootManager<'a> {
@@ -84,9 +89,15 @@ impl<'a> TaprootManager<'a> {
         let tweak = self.calculate_taproot_tweak(derivation_path, merkle_root)?;
         let tweak_scalar = Self::tweak_scalar(&tweak)?;
         let internal_key = self.internal_key(derivation_path)?;
-        let operation_pubkey = internal_key.add_tweak(&tweak_scalar).map_err(|error| {
-            ConclaveError::CryptoError(format!("Taproot key tweak failed: {error}"))
-        })?;
+        let operation_pubkey = {
+            let secp = Secp256k1::verification_only();
+            internal_key
+                .add_tweak(&secp, &tweak_scalar)
+                .map(|(key, _parity)| key)
+                .map_err(|error| {
+                    ConclaveError::CryptoError(format!("Taproot key tweak failed: {error}"))
+                })?
+        };
         let request = ValueBearingSignRequest::new(
             OperationContext::new(domain, purpose, sighash.to_vec())?,
             SigningAlgorithm::SchnorrSecp256k1,
@@ -95,7 +106,7 @@ impl<'a> TaprootManager<'a> {
             SignerKeyBinding::new(
                 key_id,
                 derivation_path,
-                operation_pubkey.serialize().0.to_vec(),
+                operation_pubkey.serialize().to_vec(),
             )?,
             Some(tweak.to_vec()),
         )?;
@@ -119,8 +130,10 @@ impl<'a> TaprootManager<'a> {
         let tweak_hash = Self::taproot_tweak_hash(internal_key, merkle_root);
         let tweak = Self::tweak_scalar(&tweak_hash.to_byte_array())?;
 
+        let secp = Secp256k1::verification_only();
         internal_key
-            .add_tweak(&tweak)
+            .add_tweak(&secp, &tweak)
+            .map(|(key, _parity)| key)
             .map_err(|error| ConclaveError::CryptoError(format!("Taproot tweak failed: {error}")))
     }
 
@@ -145,7 +158,7 @@ impl<'a> TaprootManager<'a> {
                     .as_slice()
                     .try_into()
                     .map_err(|_| ConclaveError::InvalidPayload)?;
-                XOnlyPublicKey::from_byte_array(&key_bytes).map_err(|error| {
+                XOnlyPublicKey::from_slice(&key_bytes).map_err(|error| {
                     ConclaveError::CryptoError(format!("Invalid internal x-only pubkey: {error}"))
                 })
             }
@@ -162,7 +175,7 @@ impl<'a> TaprootManager<'a> {
         internal_key: XOnlyPublicKey,
         merkle_root: Option<[u8; 32]>,
     ) -> TapTweakHash {
-        TapTweakHash::from_key_and_merkle_root(
+        TapTweakHash::from_key_and_tweak(
             internal_key,
             merkle_root.map(TapNodeHash::from_byte_array),
         )
@@ -373,7 +386,7 @@ impl OpCatHelper {
 
         // 3. Verify against pubkey
         script.push(0x20); // OP_PUSHBYTES_32
-        script.extend_from_slice(&pubkey.serialize().0);
+        script.extend_from_slice(&pubkey.serialize());
         script.push(0xac); // OP_CHECKSIG
 
         script
@@ -386,7 +399,7 @@ impl OpCatHelper {
         script.push(0x7e); // OP_CAT
         script.push(0x7e); // OP_CAT
         script.push(0x20);
-        script.extend_from_slice(&taproot_internal_key.serialize().0);
+        script.extend_from_slice(&taproot_internal_key.serialize());
         script.push(0xba); // OP_CHECKSIGVERIFY (v1)
         script
     }
@@ -424,7 +437,7 @@ mod tests {
     }
 
     fn dummy_pubkey() -> XOnlyPublicKey {
-        XOnlyPublicKey::from_byte_array(&[1u8; 32]).unwrap()
+        XOnlyPublicKey::from_slice(&[1u8; 32]).unwrap()
     }
 
     fn decode_hex<const N: usize>(value: &str) -> [u8; N] {
@@ -478,7 +491,7 @@ mod tests {
             .assume_checked();
         assert_eq!(
             &address.script_pubkey().as_bytes()[2..],
-            &output_key.serialize().0
+            &output_key.serialize()
         );
     }
 
@@ -507,7 +520,7 @@ mod tests {
             .derive_taproot_output_key("m/86'/0'/0'/0/0", merkle_root)
             .expect("BIP-341 output key derivation");
         assert_eq!(
-            hex::encode(output_key.serialize().0),
+            hex::encode(output_key.serialize()),
             "e4d810fd50586274face62b8a807eb9719cef49c04177cc6b76a9a4251d5450e"
         );
     }

@@ -21,7 +21,7 @@
 
 use super::control_model_adapter::{CoreBip110Limits, CoreBip110TransactionShape};
 use crate::{ConclaveError, ConclaveResult};
-use bitcoin::script::{Instruction, ScriptExt, ScriptPubKeyBuf, ScriptPubKeyExt, ScriptSigBuf};
+use bitcoin::script::{Instruction, ScriptBuf};
 
 const MAX_TAPROOT_CONTROL_BLOCK_BYTES: usize = 257;
 const MIN_TAPROOT_CONTROL_BLOCK_BYTES: usize = 33;
@@ -222,7 +222,7 @@ impl Bip110Validator {
         &self,
         script_pubkey: &[u8],
     ) -> Result<(), Bip110Violation> {
-        let script = ScriptPubKeyBuf::from_bytes(script_pubkey.to_vec());
+        let script = ScriptBuf::from_bytes(script_pubkey.to_vec());
         if script.is_op_return() {
             if script_pubkey.len() > self.limits.max_op_return_bytes {
                 return Err(Bip110Violation::OpReturnTooLarge {
@@ -249,7 +249,7 @@ impl Bip110Validator {
     }
 
     fn validate_script_pushdata_violation(&self, script: &[u8]) -> Result<(), Bip110Violation> {
-        let script = ScriptSigBuf::from_bytes(script.to_vec());
+        let script = ScriptBuf::from_bytes(script.to_vec());
         for instruction in script.instructions() {
             match instruction {
                 Ok(Instruction::Op(_)) => {}

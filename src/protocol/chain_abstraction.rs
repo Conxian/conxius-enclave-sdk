@@ -119,7 +119,7 @@ impl ChainAbstractionService {
                 let cpk = bitcoin::key::CompressedPublicKey::from_slice(&compressed)
                     .map_err(|e| ConclaveError::CryptoError(format!("Compression error: {}", e)))?;
 
-                Address::p2wpkh(cpk, Network::Bitcoin).to_string()
+                Address::p2wpkh(&cpk, Network::Bitcoin).to_string()
             }
             Chain::ETHEREUM | Chain::BASE | Chain::ARBITRUM | Chain::POLYGON => {
                 // Ethereum address: last 20 bytes of keccak256 hash of uncompressed public key (minus 0x04 prefix)
