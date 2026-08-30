@@ -1,7 +1,7 @@
 # `conxius-enclave-sdk` Repository Analysis
 
 > Comprehensive analysis of capabilities, gaps, and implementation roadmap
-> Generated: 2026-07-14 | Updated: 2026-08-07 | Package metadata: 2.0.14; latest visible release/tag: v2.0.14
+> Generated: 2026-07-14 | Updated: 2026-08-30 | Package metadata: 2.0.16; latest visible release/tag: v2.0.16
 
 ---
 
@@ -42,8 +42,8 @@ The SDK (`conxius-enclave-sdk`) is a Rust-based security-primitives library for 
 ### Key Dependencies
 
 ```
-bitcoin = "0.33.0-beta"        # ⚠️ Beta - needs stable release
-secp256k1 = "0.32.0-beta.2"    # ⚠️ Beta - needs stable release
+bitcoin = "0.32.102"           # ✅ Stable (converged on bdk_wallet line; PR #321)
+secp256k1 = "0.33.1"           # ✅ Stable (features: recovery, std)
 k256 = "0.14.0"                 # Stable dependency; release evidence is tracked separately
 alloy = "2.1.0"                # ✅ Ethereum RPC
 musig2 = "0.4.1"               # ✅ Multi-sig
@@ -77,7 +77,7 @@ frost = "0.4.x"                 # ⚠️ Dependency present; production integrat
 
 | ID | Category | Description | Priority | Status |
 |----|----------|-------------|----------|--------|
-| DEP-001 | Dependency | Beta/RC dependencies (bitcoin, secp256k1, k256) | P1 | ⚠️ In Progress |
+| DEP-001 | Dependency | Beta/RC dependencies (bitcoin, secp256k1, k256) | P1 | ✅ Resolved (bitcoin 0.32.102 + secp256k1 0.33.1, PR #321) |
 | DOC-001 | Documentation | No published releases (issue #154) | P1 | ✅ Closed |
 | DEP-002 | Dependency | Unmaintained crates with exceptions | P2 | 📋 Planned |
 | TEST-001 | Testing | Hardware attestation integration gaps | P1 | ⚠️ Open |

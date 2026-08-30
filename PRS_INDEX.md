@@ -1,20 +1,23 @@
 # Conclave SDK Pull Requests Index
 
-> Auto-generated from GitHub. Last sync: 2026-08-29T06:37:34Z
+> Auto-generated from GitHub. Last sync: 2026-08-30T06:45:13Z
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
 
 ## Summary
-- **Total PRs**: 279
+- **Total PRs**: 280
 - **Open PRs**: 0
-- **Merged PRs**: 264
+- **Merged PRs**: 265
 - **Closed PRs**: 15
 
 ## Open PRs
 *None returned by GitHub in this snapshot.*
 
 ## Recently Merged PRs
+- [x] [**#321**](https://github.com/Conxian/conxius-enclave-sdk/pull/321): fix(deps): remove yanked secp256k1 via bitcoin 0.32.102 + secp256k1 0.33.1
+  - Author: botshelomokoka | Merged: 2026-08-30
+
 - [x] [**#319**](https://github.com/Conxian/conxius-enclave-sdk/pull/319): feat(enclave): add durable replay conditional write conformance test (#240)
   - Author: botshelomokoka | Merged: 2026-08-29
 
@@ -70,9 +73,6 @@
   - Author: dependabot[bot] | Merged: 2026-08-08
 
 - [x] [**#299**](https://github.com/Conxian/conxius-enclave-sdk/pull/299): chore(deps): bump alloy from 2.2.0 to 2.3.0
-  - Author: dependabot[bot] | Merged: 2026-08-08
-
-- [x] [**#298**](https://github.com/Conxian/conxius-enclave-sdk/pull/298): chore(deps): bump secrecy from 0.8.0 to 0.10.3
   - Author: dependabot[bot] | Merged: 2026-08-08
 
 

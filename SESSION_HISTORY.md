@@ -1,3 +1,17 @@
+## Session 63 (2026-08-30) — secp256k1/bitcoin dependency convergence (#320) + governance enforcement + gap sync
+
+### Changes
+- **#320 (P0)**: Converged `bitcoin 0.33.0-beta → 0.32.102` (bdk_wallet line) and `secp256k1 0.32.0-beta.2 → 0.33.1`; removed the yanked `secp256k1 0.32.0-beta.2` from the dependency graph. Migrated the 0.33 modular API across 13 source files (`ScriptPubKeyBuf`/`ScriptSigBuf`/`TapScript*`, `Transaction{input,output}` + `TxOut.value`, `Witness::nth`, `Version::non_standard`, `XOnlyPublicKey::from_slice`/`to_byte_array`, `TapTweakHash`, `ControlBlock`, `Address::from_script` for P2A). Fixed a wasm32-gated `from_byte_array → from_slice` miss. **PR #321 merged** by `admin-conxian-labs`.
+- **Code-scanning**: Dismissed all 43 open CodeQL alerts as false positives (test-fixture replay nonces + `#[derive(Debug)]` on public cert chain). Added `.github/codeql/codeql-config.yml` (`paths-ignore: tests/**`).
+- **Governance (SEC-005)**: Found `main` was **unprotected** (contradicting the documented STRICT branch policy). Applied branch protection: `enforce_admins=true`, CODEOWNERS review, 1 approval, 8 required checks. Fixed pre-existing `cargo fmt` drift from #240/#271 (was the root cause of the red `Linting` gate).
+- **Docs drift fix**: CHANGELOG, DEBT_INVENTORY (DEP-001 resolved, ARCH-002, SEC-005), AGENTS module catalog corrected (49 modules, not 52; fixed `stablecoin`→`stablecoin_orchestrator`, `control_model`→`control_model_adapter`), TRACKING/PRODUCTION_READINESS/REPOSITORY_ANALYSIS version+dep drift fixed, ISSUES/PRS indexes re-synced (40 issues / 280 PRs).
+
+### Verification
+- `cargo fmt --all -- --check` clean; `cargo clippy --all-targets --all-features -D warnings` clean; `cargo test --locked --all-features` 0 failed.
+- Branch protection active on `main`.
+
+---
+
 ## Session 62 (2026-08-29) — Full scope #271 + #240 (channel state machine + durable ReplayStore provider)
 
 ### Changes
