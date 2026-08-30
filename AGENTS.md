@@ -17,7 +17,7 @@
 - Rust 2021 edition, MSRV 1.97.1. `cargo clippy --all-targets --all-features -- -D warnings` before every push.
 - No `unsafe` without documented justification. No hardcoded secrets (use `secrets.template`).
 - All new protocol modules require `SystemState::initialize()` integration.
-- Value-bearing crypto is feature-gated and fails closed without the feature: `groth16` (BLS12-381 pairings), `frost-crypto` (ZF FROST v3), `cryptoki` (PKCS#11), `webauthn` (FIDO2).
+- Value-bearing crypto is feature-gated and fails closed without the feature: `groth16` (BLS12-381 pairings), `frost-crypto` (ZF FROST v3), `cryptoki` (PKCS#11), `webauthn` (FIDO2), `fedimint-crypto` (BLS12-381 e-cash blinding + DLEQ).
 
 ## Protocol Module Catalog — 49 Modules (25 blockchain + 24 infrastructure)
 

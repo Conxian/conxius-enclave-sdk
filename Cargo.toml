@@ -33,6 +33,11 @@ frost-crypto = ["frost-secp256k1-tr", "rand_core06"]
 # Gates value-bearing Groth16 verification. Without this feature,
 # BitVm2Groth16Verifier returns VerificationUnavailable (fail closed).
 groth16 = ["dep:bls12_381"]
+# Fedimint e-cash blinding + Chaum-Pedersen DLEQ verification backed by
+# BLS12-381 G1 arithmetic. Gates value-bearing Fedimint mint operations.
+# Without this feature, Fedimint boundary types validate structurally but
+# return ProtocolUnsupported for all cryptographic execution paths.
+fedimint-crypto = ["dep:bls12_381"]
 
 [dependencies]
 x509-cert = "0.3.0"
