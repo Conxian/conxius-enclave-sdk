@@ -1,7 +1,7 @@
-# Conclave SDK: Research & Implementation Gap Scorecard (v2.0.13)
+# Conxius Enclave SDK: Research & Implementation Gap Scorecard (v2.0.13)
 
 ## Overview
-This document tracks the resolution of production-path logic, architectural gaps, and research requirements for the Conclave SDK.
+This document tracks the resolution of production-path logic, architectural gaps, and research requirements for the Conxius Enclave SDK.
 
 The [machine-readable capability evidence](./capability-evidence.json) and generated [capability matrix](./CAPABILITY_MATRIX.md) are authoritative for the distinction between API presence, implementation, integration, independent review, and production support. A completed structural/API task below does not promote a capability to production support.
 

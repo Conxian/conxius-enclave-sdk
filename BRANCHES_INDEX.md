@@ -1,4 +1,4 @@
-# Conclave SDK Branches Index
+# Conxius Enclave SDK Branches Index
 
 > Auto-generated from GitHub. Last sync: 2026-08-05 (Session 57)
 

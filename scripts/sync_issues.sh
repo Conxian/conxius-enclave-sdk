@@ -124,7 +124,7 @@ open_issues = [i for i in index_data if i['state'] == 'open']
 closed_issues = [i for i in index_data if i['state'] == 'closed']
 
 with open('ISSUES_INDEX.md', 'w') as f:
-    f.write(f"""# Conclave SDK Issues Index
+    f.write(f"""# Conxius Enclave SDK Issues Index
 
 > Auto-generated from GitHub. Last sync: {now}
 
@@ -214,7 +214,7 @@ closed_unmerged_prs = [
 ]
 
 with open('PRS_INDEX.md', 'w') as f:
-    f.write(f"""# Conclave SDK Pull Requests Index
+    f.write(f"""# Conxius Enclave SDK Pull Requests Index
 
 > Auto-generated from GitHub. Last sync: {now}
 

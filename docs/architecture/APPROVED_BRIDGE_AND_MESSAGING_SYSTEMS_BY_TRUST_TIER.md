@@ -1,6 +1,6 @@
 # Approved Bridge and Messaging Systems by Trust Tier
 
-This document defines the canonical policy for bridge and messaging systems approved for use within the Conclave SDK (and by extension, Gateway and Nexus).
+This document defines the canonical policy for bridge and messaging systems approved for use within the Conxius Enclave SDK (and by extension, Gateway and Nexus).
 
 ## 1. Trust-Tier Taxonomy (Route-Level Policy)
 

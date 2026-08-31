@@ -1,3 +1,18 @@
+## Session 64 (2026-08-31) — KB audit remediation + live toolchain verification + crates.io cleanup
+
+### Changes
+- **KB → code → CI audit**: read all KBs and aligned with verified repo/cross-repo state. Corrected module count 49→50 (`fedimint_crypto`), `src/re_exports.rs`→`src/lib.rs`, `SystemState::initialize()`→`EnclaveManager::initialize()`, version drift `v2.0.16`→`v2.0.17`, chain count `30+`→`42`, MSRV `1.94.1`→`1.97.1` across 10 docs.
+- **Live verification (first full toolchain run)**: installed Rust 1.97.1 + clippy/rustfmt + `libssl-dev`/`libpcsclite-dev`/`libclang-dev`. `cargo test --locked` 629 passed / 0 failed (confirms AGENTS.md figure exactly); `--all-features` 645 passed / 0 failed / 2 ignored; `fmt` + `clippy -D warnings` clean.
+- **Dependency security scan**: `cargo audit` 0 vulns (after adding `RUSTSEC-2023-0089` atomic-polyfill to `.cargo/audit.toml` to match `deny.toml`); `cargo deny` advisories/bans/licenses/sources ok. Removed orphaned root `audit.toml` (cargo-audit reads `.cargo/audit.toml`). Reconciled DEP-002 advisory list.
+- **crates.io cleanup**: yanked `lib-conclave-sdk@2.0.8` (stale pre-rebrand name; DEP-003 resolved) and `anya-core@1.2.0` (deprecated anya-org asset absorbed into Conxian). Both now `max_version 0.0.0`.
+- **PR #329 merged** (KB audit + remediation + live verification + crates.io cleanup).
+
+### Verification
+- `cargo test --locked` 629 passed; `--all-features` 645 passed / 0 failed; `fmt` + `clippy` clean; `cargo audit` + `cargo deny` clean.
+- Indexes re-synced: 40 issues / 288 PRs.
+
+---
+
 ## Session 63 (2026-08-30) — secp256k1/bitcoin dependency convergence (#320) + governance enforcement + gap sync
 
 ### Changes

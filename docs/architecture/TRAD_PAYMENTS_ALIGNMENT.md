@@ -16,7 +16,7 @@ Conclave's mission is not to destroy these rails, but to build a **Sovereign Bri
 
 ### C. The Settlement Gap (Latency & Fees)
 *   **Legacy Model**: T+2 or T+3 settlement. High interchange fees (2-3%).
-*   **Conclave Vision**: Lightning and Bitcoin L2s provide sub-second or sub-block finality with minimal fees, orchestrated by the Conclave SDK.
+*   **Conclave Vision**: Lightning and Bitcoin L2s provide sub-second or sub-block finality with minimal fees, orchestrated by the Conxius Enclave SDK.
 
 ## 3. Aligned Enhancements
 
@@ -27,7 +27,7 @@ We refactor the `FiatRouterService` to treat traditional providers (Stripe, Circ
 
 ### II. Industrial Intent (x402 Alignment)
 Traditional B2B payments rely on complex invoice/credit cycles. We align with the **x402 Payment-Required** standard to enable autonomous, machine-to-machine payments.
-*   **Vision**: An ERP system (SAP/Oracle) sends an x402 intent; the Conclave SDK validates the hardware signature and settles via sBTC or Lightning instantly.
+*   **Vision**: An ERP system (SAP/Oracle) sends an x402 intent; the Conxius Enclave SDK validates the hardware signature and settles via sBTC or Lightning instantly.
 
 ### III. Ubuntu Credit (Community vs. Credit Score)
 Legacy credit scores (FICO) are opaque and centralized. We implement the **Ubuntu Credit** primitive to replace them with hardware-attested social trust.

@@ -4,7 +4,25 @@
 > **Context**: Continuing Conxius Enclave SDK v2.0.17 development
 > **Priority Order**: Remaining P0 gates â†’ P1 â†’ P2
 > **Knowledge Base**: v0.7.0 (Session 62, Aug 2026)
-> **Last Session**: Session 62 â€” Full scope #271 + #240 (channel state machine + durable ReplayStore provider)
+> **Last Session**: Session 64 — KB audit + live verification + crates.io cleanup
+
+
+## Session 64 Completed (2026-08-31) — KB audit + live verification + crates.io cleanup
+
+### ✅ KB → code → CI audit
+- Read all KBs; aligned with verified repo/cross-repo state (module count 50, `re_exports.rs`→`lib.rs`, `SystemState`→`EnclaveManager`, v2.0.17, 42 chains, MSRV 1.97.1).
+
+### ✅ Live verification (first full toolchain run)
+- Rust 1.97.1: `cargo test --locked` 629 passed; `--all-features` 645 passed; `fmt` + `clippy -D warnings` clean.
+
+### ✅ Dependency security scan
+- `cargo audit` 0 vulns; `cargo deny` ok. Added `RUSTSEC-2023-0089` to `.cargo/audit.toml`; removed orphaned root `audit.toml`; reconciled DEP-002.
+
+### ✅ crates.io cleanup
+- Yanked `lib-conclave-sdk@2.0.8` (DEP-003 resolved) + `anya-core@1.2.0`.
+
+### PRs
+- #329 merged (this work).
 
 ---
 

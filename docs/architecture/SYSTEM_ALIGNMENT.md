@@ -1,4 +1,4 @@
-# Conclave SDK System Alignment Report (v2.0.3)
+# Conxius Enclave SDK System Alignment Report (v2.0.3)
 
 ## Status: Beta / conditional; scoped canonical verification evidence only
 
@@ -28,5 +28,5 @@
 
 ## Release Metadata
 - **Canonical Name**: conxius-enclave-sdk
-- **Branding**: Conclave SDK
+- **Branding**: Conxius Enclave SDK
 - **Maturity**: Beta / conditional; production support is not established.

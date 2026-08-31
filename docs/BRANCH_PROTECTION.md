@@ -7,7 +7,7 @@
 
 ## Overview
 
-This document defines the strict branch protection rules enforced across all branches in the Conclave SDK repository.
+This document defines the strict branch protection rules enforced across all branches in the Conxius Enclave SDK repository.
 
 ## Protected Branches
 

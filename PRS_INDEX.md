@@ -1,20 +1,29 @@
-# Conclave SDK Pull Requests Index
+# Conxius Enclave SDK Pull Requests Index
 
-> Auto-generated from GitHub. Last sync: 2026-08-30T08:31:39Z
+> Auto-generated from GitHub. Last sync: 2026-08-31T09:51:15Z
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
 
 ## Summary
-- **Total PRs**: 285
+- **Total PRs**: 288
 - **Open PRs**: 0
-- **Merged PRs**: 270
+- **Merged PRs**: 273
 - **Closed PRs**: 15
 
 ## Open PRs
 *None returned by GitHub in this snapshot.*
 
 ## Recently Merged PRs
+- [x] [**#329**](https://github.com/Conxian/conxius-enclave-sdk/pull/329): docs(kb): session 64 audit remediation + live verification + crates.io cleanup
+  - Author: botshelomokoka | Merged: 2026-08-31
+
+- [x] [**#328**](https://github.com/Conxian/conxius-enclave-sdk/pull/328): docs(kb): session 63 full-repo audit + remediation
+  - Author: botshelomokoka | Merged: 2026-08-30
+
+- [x] [**#327**](https://github.com/Conxian/conxius-enclave-sdk/pull/327): fix(ci): allow manual release recovery without a tag ref
+  - Author: botshelomokoka | Merged: 2026-08-30
+
 - [x] [**#326**](https://github.com/Conxian/conxius-enclave-sdk/pull/326): fix(release): add User-Agent to crates.io artifact download
   - Author: botshelomokoka | Merged: 2026-08-30
 
@@ -65,15 +74,6 @@
 
 - [x] [**#309**](https://github.com/Conxian/conxius-enclave-sdk/pull/309): Audit capability matrix, establish candidate scoring model, and expand protocol research
   - Author: botshelomokoka | Merged: 2026-08-17
-
-- [x] [**#308**](https://github.com/Conxian/conxius-enclave-sdk/pull/308): chore(hygiene): harden gitignore and CI hygiene workflow
-  - Author: botshelomokoka | Merged: 2026-08-17
-
-- [x] [**#307**](https://github.com/Conxian/conxius-enclave-sdk/pull/307): Add workflow for creating and deleting Neon branches
-  - Author: botshelomokoka | Merged: 2026-08-10
-
-- [x] [**#306**](https://github.com/Conxian/conxius-enclave-sdk/pull/306): Fix PKCS#11 verifier compilation issues
-  - Author: botshelomokoka | Merged: 2026-08-08
 
 
 ## Closed (Not Merged) PRs
