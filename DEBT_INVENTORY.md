@@ -39,7 +39,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Priority**: P1 - Critical
 - **Description**: `verify-registry-artifact.sh` `curl`ed the published `.crate` from crates.io **without a `User-Agent`**, so crates.io returned HTTP 403 and every release since v2.0.16 failed `Publish to crates.io` → no GitHub Release was created (crate was still published). Secondary: the recovery mode (`recover_existing_registry`) hard-required `GITHUB_REF_TYPE=tag`, so it could never run on `main` (where the fixed script lives).
 - **Tracking**: PR #326 (User-Agent) + PR #327 (recovery tag gate)
-- **Resolution**: #326 merged — `curl` now sends a `User-Agent`; #327 opened (skips the tag gate in recovery mode) — **blocked on `admin-conxian-labs` code-owner review** of `.github/workflows/release-strict.yml`. GitHub Releases for v2.0.16 + v2.0.17 were backfilled manually in the interim (without SBOM/provenance assets, which #327's automated recovery will add on next run).
+- **Resolution**: #326 merged — `curl` now sends a `User-Agent`; #327 **merged** (skips the tag gate in recovery mode; approved by `admin-conxian-labs` 2026-08-30). GitHub Releases for v2.0.16 + v2.0.17 were backfilled manually in the interim (without SBOM/provenance assets, which the automated recovery will add on next run).
 
 
 #### PROTO-001: Protocol implementation boundaries and evidence
@@ -95,7 +95,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Risk**: A process-local replay cache cannot establish single-use authorization across replicas, restarts, or independent provider/runtime boundaries.
 - **Session 57 Progress (2026-08-05)**: Phase 3 verifier framework built with 4 backends (Nitro, PKCS#11, WebAuthn, OIDC). All verifiers implement the `ProofVerifier` trait. 14 verifier tests pass. Verifier framework complete (Session 55-57). Blocked on: live Nitro deployment evidence (P0), core adapter integration (P0), distributed replay (P1).
 - **Session 62 Progress (2026-08-29)**: Added `DurableFileReplayStore` (`src/enclave/replay_store_file.rs`), the first `ReplayStore` adapter advertising `ReplayStoreDurability::DurableProvider`, with `fsync`-ed O_EXCL records, all-or-nothing `consume_once_batch`, and a persisted anti-rollback high-water clock; passes the backend-neutral consume-once conformance suite (10 cases). This closes the restart-durability portion of the gap. The multi-replica/multi-region distributed coordination backend (DynamoDB/PostgreSQL) remains open and is a production deployment concern.
-- **Session 62 Cross-repo (2026-08-29)**: The real Postgres backend is now being built in `conxian-nexus` (`IdempotencyStore` → PR #250, follow-up #251), using `INSERT … ON CONFLICT DO NOTHING` + transactional all-or-nothing batch against the Neon `Conxian Nexus` project. This moves the "distributed replay coordination" gap from this SDK to the service that actually needs it.
+- **Session 62 Cross-repo (2026-08-29)**: The real Postgres backend is built in `conxian-nexus` (`IdempotencyStore` → PR #250 **merged** 2026-08-29, follow-up #251), using `INSERT … ON CONFLICT DO NOTHING` + transactional all-or-nothing batch against the Neon `Conxian Nexus` project. This moves the "distributed replay coordination" gap from this SDK to the service that actually needs it.
 - **Recommendation**: Specify and independently review deployment-safe replay semantics, then add provider-backed and distributed integration tests with failure-closed behavior.
 - **Tracking**: [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195)
 
@@ -129,14 +129,24 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 #### DEP-002: Unmaintained Dependencies with Exceptions
 - **Category**: Dependency
 - **Priority**: P2
-- **Description**: Some dependencies have documented exceptions in audit.toml/deny.toml
-- **Ignored Advisories**:
-  - `RUSTSEC-2024-0436`: paste is unmaintained
-  - `RUSTSEC-2026-0173`: proc-macro-error2 is unmaintained
-  - `RUSTSEC-2024-0388`: derivative is unmaintained
-  - `RUSTSEC-2026-0009`: time stack exhaustion
+- **Description**: Some dependencies have documented exceptions in `.cargo/audit.toml`/`deny.toml`
+- **Ignored Advisories** (`.cargo/audit.toml` + `deny.toml`; verified live 2026-08-31 — `cargo audit` 0 vulns + `cargo deny` ok, 562 deps):
+  - `RUSTSEC-2023-0089`: atomic-polyfill is unmaintained (in tree, frost→heapless)
+  - `RUSTSEC-2024-0436`: paste is unmaintained (in tree)
+  - `RUSTSEC-2024-0388`: derivative is unmaintained (in tree)
+  - `RUSTSEC-2026-0173`: proc-macro-error2 is unmaintained (no longer in tree)
+  - `RUSTSEC-2026-0009`: time stack exhaustion (patched — tree has time 0.3.55 ≥ 0.3.47)
+  - `RUSTSEC-2026-0220`: ruint shift-overflow DoS (patched — tree has ruint 1.20.0)
 - **Risk**: Potential future vulnerabilities in unmaintained code
 - **Recommendation**: Review alternatives for unmaintained crates, document rationale for exceptions
+
+#### DEP-003: Stale pre-rebrand `lib-conclave-sdk` crate on crates.io
+- **Category**: Dependency / Documentation
+- **Priority**: P2 - High
+- **Description**: The SDK was rebranded "Conclave SDK" → "Conxius Enclave SDK" (PR #292), and the crates.io package was renamed to `conxius-enclave-sdk` (currently 2.0.17, owned by `botshelomokoka`, not yanked). The pre-rebrand `lib-conclave-sdk` crate (2.0.8, last published 2026-07-13) remains live on crates.io with the *same* description ("Hardware-backed security primitives for the broader Conxian ecosystem") and its `repository` field pointing at the same `Conxian/conxius-enclave-sdk` repo — nine versions behind.
+- **Risk**: Downstream users searching crates.io may resolve the stale, pre-rebrand `lib-conclave-sdk` (2.0.8) instead of `conxius-enclave-sdk` (2.0.17), missing nine versions of security/crypto hardening.
+- **Recommendation**: Yank `lib-conclave-sdk` 2.0.8 (or publish a final stub README pointing at `conxius-enclave-sdk`) and mark it deprecated.
+- **Status**: **Resolved (Session 64, 2026-08-31)** — `lib-conclave-sdk@2.0.8` yanked via crates.io API; crate now reports `yanked=true` and `max_version 0.0.0` (no non-yanked versions).
 
 #### TEST-001: Hardware Attestation Testing Gaps
 - **Category**: Testing

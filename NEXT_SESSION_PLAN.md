@@ -1,7 +1,7 @@
 # Next Session Plan
 
 > **For**: OpenHands AI Agent  
-> **Context**: Continuing Conxius Enclave SDK v2.0.16 development
+> **Context**: Continuing Conxius Enclave SDK v2.0.17 development
 > **Priority Order**: Remaining P0 gates â†’ P1 â†’ P2
 > **Knowledge Base**: v0.7.0 (Session 62, Aug 2026)
 > **Last Session**: Session 62 â€” Full scope #271 + #240 (channel state machine + durable ReplayStore provider)
@@ -16,7 +16,7 @@
 ### ✅ v2.0.17 release + CI remediation
 - v2.0.17 released to crates.io (first tag free of the yanked crate). PRs #325 (bump), #326 (User-Agent 403 fix) merged.
 - **Root-caused** the missing GitHub Releases: `verify-registry-artifact.sh` curl lacked `User-Agent` → crates.io 403 since v2.0.16.
-- Backfilled GitHub Releases v2.0.16 + v2.0.17 manually; #327 (recovery tag-gate fix) opened — **blocked on `admin-conxian-labs` code-owner review** of `.github/workflows/`.
+- Backfilled GitHub Releases v2.0.16 + v2.0.17 manually; #327 (recovery tag-gate fix) **merged** (approved by `admin-conxian-labs`) and #328 (KB audit session 63) **merged** — release recovery can now run without a tag ref.
 
 ### ✅ Cross-repo hygiene
 - Closed broken dependabot PRs: gateway #350 (Rust group break), Conxian #700 (npm lock drift).
@@ -65,7 +65,7 @@
 - **Research correction (Session 63):** bumping the direct `secp256k1` alone is **insufficient** â€” `bitcoin 0.33.0-beta` transitively depends on `secp256k1 ^0.32.0-beta.2` (yanked) and there is no stable `bitcoin 0.33.x` yet. A complete unblock also requires downgrading the direct `bitcoin` `0.33.0-beta` â†’ `0.32.102` (converging on the `bdk_wallet` line) or waiting for stable `bitcoin 0.33.0`. Also drop the removed `rand` feature when bumping `secp256k1` â†’ `0.33.x` (`features = ["recovery", "std"]`). Full analysis in `RESEARCH_LOG.md` (Session 63).
 
 ### P0: Finish the cross-repo replay/idempotency backend (conxian-nexus)
-- After #320: land `IdempotencyStore` PR #250; wire to Neon `Conxian Nexus` (`DATABASE_URL` + run migration).
+- ✅ `IdempotencyStore` PR #250 merged (2026-08-29). Remaining: wire to Neon `Conxian Nexus` (`DATABASE_URL` + run migration).
 - Add the live-DB conformance suite (single/batch/restart/anti-rollback/retention/32-thread contention) mirroring `tests/durable_replay_conformance.rs` (nexus #251).
 
 ### P1: #271 â€” expand research + mainnet proofing (kept open)

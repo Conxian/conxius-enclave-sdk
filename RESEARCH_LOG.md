@@ -1,13 +1,81 @@
 # Conclave SDK Research Log
 
 > External research findings, technology monitoring, and industry analysis
-> **Version**: v1.2.2 | **Last Updated**: 2026-08-29
+> **Version**: v1.3.0 | **Last Updated**: 2026-08-31
 
 ---
 
 ## Overview
 
 This document captures external research findings relevant to the Conclave SDK's development trajectory. Each entry includes source links and applicability notes for future reference.
+
+## Session 64 — Org-wide audit + research expansion (2026-08-31)
+
+Full KB → code → CI → cross-repo audit plus fresh external research on the three
+remaining Phase 1–2 expansion targets (#271 Lightning, PROTO-001 Fedimint threshold
+mint, #242 Nitro attestation). Audit corrections landed in AGENTS.md, TRACKING.md,
+README.md, NEXT_SESSION_PLAN.md, DEBT_INVENTORY.md, and ORG_WIDE_PHASED_PLAN.md.
+
+### Live verification (first full toolchain run, 2026-08-31)
+Installed Rust 1.97.1 + clippy/rustfmt + `libssl-dev`/`libpcsclite-dev`/`libclang-dev`
+and ran the complete CI gate against the committed `Cargo.lock`:
+- `cargo test --locked` → **629 passed, 0 failed** (confirms the AGENTS.md "629 tests" figure exactly).
+- `cargo test --locked --all-features` → **645 passed, 0 failed, 2 ignored**.
+- `cargo fmt --all -- --check` → clean.
+- `cargo clippy --locked --all-targets --all-features -- -D warnings` → clean (0 warnings).
+Confirms MSRV 1.97.1, the test count, and that no code remediation was required — the
+fail-closed surface compiles and passes as documented.
+
+### crates.io account cleanup (2026-08-31)
+- `lib-conclave-sdk@2.0.8` (pre-rebrand name of this SDK) yanked — crate now `max_version 0.0.0`.
+- `anya-core@1.2.0` (deprecated `anya-org` asset, absorbed into Conxian) yanked — `max_version 0.0.0`.
+- Remaining active account crates: `conxius-enclave-sdk` 2.0.17, `lib-conxian-core` 0.3.2, and the four `conxian_*` gateway crates (0.1.4).
+
+### BOLT12 offers & BIP-353 status (#271 expansion)
+- BOLT12 merged into the Lightning spec (Sep 2024). 3 of 4 major implementations ship
+  native support (Core Lightning, LDK, Eclair); LND is the holdout (experimental behind
+  a feature flag, bridged via the LNDK sidecar).
+- BIP-353 (DNS Payment Instructions) is marked **Complete** on bips.dev. Mature Rust
+  crates exist (`bitcoin-payment-instructions`, `bip353-rs`); LDK has send/receive
+  support and Phoenix/CakeWallet/Sparrow have shipped. bLIP-32 (DNS over onion
+  messages) remains active.
+- Network scale: publicly measured Lightning volume crossed $1.17B/month (Nov 2025),
+  ~12M tx/month, ~266% YoY; private-channel volume is undercounted.
+- Implication for `src/protocol/lightning.rs`: the SDK's BOLT12 offer parsing and
+  BIP-353 HRN resolution sit on the stable spec path; `compute_route`/`find_route`
+  remain the provider-integration seam (LND/LDK) rather than an in-crate wire concern.
+
+### Fedimint threshold BLS blind signatures & DLEQ (PROTO-001)
+- Fedimint's `fedimint-tbs` is an ad-hoc threshold blind signature over BLS12-381:
+  blind `m̄ = r·m`, blind-sign `σ̄ = x·m̄ = r·(x·m)`, verify `e(m, pk) == e(σ, g2)`.
+  One-more unforgeability reduces to (chosen-target) co-CDH; blindness is unconditional;
+  verification is a single non-interactive pairing.
+- Thresholdization is a t-of-n transformation using only the K-linearity of signing
+  (guardian partial signatures aggregate to the full signature). Reference impl uses
+  AlephBFT consensus (min 4 guardians).
+- SDK state: `fedimint_crypto.rs` already implements `blind_message`/`unblind_signature`
+  + Chaum-Pedersen `FedimintDleqProof` (gated `fedimint-crypto`). The remaining gap is
+  guardian partial-signature aggregation + consensus/network coordination — provider-gated.
+
+### AWS Nitro attestation certificate path & PCR bindings (#242)
+- NSM issues a CBOR attestation document signed by the AWS Nitro Attestation PKI; the
+  CA bundle is ordered `[ROOT, INTERM_1, …, INTERM_N]`.
+- Root cert (commercial partition) SHA-256:
+  `8cf60e2b2efca96c6a9e71e851d00c1b6991cc09eadbe64a6a1d1b1eb9faff7c`; subject
+  `CN=.nitro-enclaves, C=US, O=Amazon, OU=AWS`; 30-year lifetime. The attestation leaf
+  cert expires 3 hours after issue.
+- PCR map: PCR0 = enclave image hash, PCR1 = kernel/bootstrap, PCR2 = app code,
+  PCR8 = signing-cert fingerprint, PCR4 = instance ID (does not survive scaling).
+  Recommended bindings: PCR0 for build, PCR3+PCR8 for release.
+- Implication for `src/enclave/nitro.rs` + `verifiers/nitro_verifier.rs`: complete the
+  certificate-path validation (pinned root hash above) and configure PCR/workload +
+  release/KMS bindings; keep the production TEE route fail-closed until those gates pass.
+
+Sources: bips.dev/353, spark.money "State of the Lightning Network in 2026",
+docs.fedimint.org/crypto/tbs, aws-nitro-enclaves-nsm-api `attestation_process.md`,
+AWS Compute blog "Validating attestation documents produced by AWS Nitro Enclaves".
+
+
 
 ---
 
@@ -1017,7 +1085,7 @@ Enumerated the entire tracked state (issues/PRs, capability evidence, debt inven
 
 - **Version drift (resolved)**: `PRODUCTION_READINESS.md` and `REPOSITORY_ANALYSIS.md` were pinned at `2.0.14` while the actual state is `Cargo.toml`/git tag `2.0.16` (crates.io published). Corrected to `2.0.16` / latest GitHub release `v2.0.15`.
 - **Release gap (open, tracked)**: a git tag `v2.0.16` and a crates.io `v2.0.16` publication exist, but **no GitHub Release** for `v2.0.16` — the latest GitHub Release is `v2.0.15`. The `release-strict.yml` GitHub Release step did not complete for `v2.0.16`. Next release should reconcile this.
-- **Module catalog drift (resolved)**: `AGENTS.md` claimed "52 modules (24 blockchain + 28 infrastructure)" but listed only ~40 items and misnamed several. Actual: **49 protocol modules (25 blockchain + 24 infrastructure)**, plus 3 non-protocol SDK modules (`wasm_bindings`, `enclave::android_strongbox`, `enclave::cloud`). Fixed names (`stablecoin`→`stablecoin_orchestrator`, `control_model`→`control_model_adapter`) and added omitted modules (`frost_crypto`, `lightning_channel`, `settlement_service`, `opportunity`, `business`, `identity`, `nexus::roast`).
+- **Module catalog drift (resolved)**: `AGENTS.md` claimed "52 modules (24 blockchain + 28 infrastructure)" but listed only ~40 items and misnamed several. Actual: **50 protocol modules (25 blockchain + 25 infrastructure)** (Session 64 correction: `fedimint_crypto` added in PR #323; Session 63 initially recorded 49), plus 3 non-protocol SDK modules (`wasm_bindings`, `enclave::android_strongbox`, `enclave::cloud`). Fixed names (`stablecoin`→`stablecoin_orchestrator`, `control_model`→`control_model_adapter`) and added omitted modules (`frost_crypto`, `lightning_channel`, `settlement_service`, `opportunity`, `business`, `identity`, `nexus::roast`).
 - **Index staleness (resolved)**: `ISSUES_INDEX.md`/`PRS_INDEX.md` were one sync behind (missing #320 and PR #321). Re-ran `scripts/sync_issues.sh` → 40 issues / 280 PRs.
 - **Capability evidence (clean)**: `python3 scripts/validate_capability_evidence.py --check` → 70 capabilities, matrix current. No drift.
 - **Workflow inventory (14)**: `ci-strict`, `ci`, `hygiene`, `coverage`, `codeql`, `sbom`, `secret-scan`, `security`, `security-strict`, `release-strict`, `wasm-runtime`, `wasm-runtime-evidence`, `dependency-review`, `neon_workflow`. No missing documented workflows; branch-protection contexts now align to the actual check names (fixed the `Hygiene Check`→`Repository Hygiene` mismatch).

@@ -12,7 +12,7 @@
 | Repo | Lang | Role | Open issues | Open PRs | Last push |
 | --- | --- | --- | ---: | ---: | --- |
 | `conxius-enclave-sdk` | Rust | TEE/hardware signing SDK (source of truth for crypto) | 6 | 0 | 2026-08-30 |
-| `lib-conxian-core` | Rust | Shared protocol primitives | 0 | 1 | 2026-08-29 |
+| `lib-conxian-core` | Rust | Shared protocol primitives | 0 | 0 | 2026-08-30 |
 | `conxian-nexus` | Rust | Postgres/Redis delivery runtime (`sqlx`+`redis`) | 2 | 0 | 2026-08-29 |
 | `conxian-gateway` | Rust | Redis middleware, ISO 20022 bridge | 1 | 3 | 2026-08-30 |
 | `Conxian` | Clarity | Stacks-native automated monetary protocol | 9 | 1 | 2026-08-29 |
@@ -46,8 +46,9 @@ in `conxian-nexus`, not in the SDK library.
   This was the blocker for downstream lockfile resolution.
 - **conxian-nexus PR #250 merged** — `IdempotencyStore` is now in nexus `main`.
   The earlier note ("ready-for-review; blocked by #320") is resolved.
-- **`lib-conxian-core` PR #280** is open: "align enclave-sdk references and
-  re-export metadata" — this is the downstream re-alignment for #321.
+- **`lib-conxian-core` PR #280** merged (2026-08-30): "align enclave-sdk references
+  and re-export metadata" — the downstream re-alignment for #321, alongside #281
+  (converge on SDK v2.0.17).
 - **AWS KMS release key created + verified** (see §6): `kms:CreateKey`/`Encrypt`
   (`RSAES_OAEP_SHA_256`) and `ec2:RunInstances` confirmed on the `botshelo` IAM user.
 
