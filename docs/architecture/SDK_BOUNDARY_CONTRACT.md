@@ -1,6 +1,6 @@
 # SDK Boundary Contract (CON-628)
 
-This document defines the module boundaries and interface contracts for the Conclave SDK, ensuring a clean separation between core security logic and application-level (Wallet/Gateway) concerns.
+This document defines the module boundaries and interface contracts for the Conxius Enclave SDK, ensuring a clean separation between core security logic and application-level (Wallet/Gateway) concerns.
 
 For the cycle-safe shared control-model boundary with `lib-conxian-core`, see
 [Core Control-Model Adapter Boundary](./CONTROL_MODEL_ADAPTER_BOUNDARY.md).

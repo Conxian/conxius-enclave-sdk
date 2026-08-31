@@ -1,4 +1,4 @@
-# Conclave SDK Primitives
+# Conxius Enclave SDK Primitives
 
 ## GTM V1: Hardware-Backed Bitcoin Signing & Policy
 

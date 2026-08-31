@@ -48,4 +48,4 @@ The SDK provides WASM bindings for:
 
 ---
 
-*Part of Conxius Enclave SDK v2.0.14*
+*Part of Conxius Enclave SDK v2.0.17*

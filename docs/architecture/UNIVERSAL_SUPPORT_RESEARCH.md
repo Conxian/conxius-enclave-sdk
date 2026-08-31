@@ -58,7 +58,7 @@ OP_CAT enables concatenating two stack elements. When combined with Schnorr sign
 ### FROST (Flexible Round-Optimized Schnorr Threshold Signatures)
 FROST provides a way to create Schnorr signatures with a threshold of signers (himBHsof-$) in a way that is indistinguishable from a single-party signature.
 - **Benefit**: Reduced on-chain footprint and improved privacy compared to traditional multi-sig.
-- **Integration**: Essential for institutional-grade orchestration in the Conclave SDK.
+- **Integration**: Essential for institutional-grade orchestration in the Conxius Enclave SDK.
 
 ## Advanced Bitcoin Primitives (v0.2.8 Research)
 
@@ -75,4 +75,4 @@ OP_CAT enables concatenating two stack elements. When combined with Schnorr sign
 ### FROST (Flexible Round-Optimized Schnorr Threshold Signatures)
 FROST provides a way to create Schnorr signatures with a threshold of signers ($t$-of-$n$) in a way that is indistinguishable from a single-party signature.
 - **Benefit**: Reduced on-chain footprint and improved privacy compared to traditional multi-sig.
-- **Integration**: Essential for institutional-grade orchestration in the Conclave SDK.
+- **Integration**: Essential for institutional-grade orchestration in the Conxius Enclave SDK.

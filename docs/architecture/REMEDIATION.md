@@ -1,4 +1,4 @@
-# Conclave SDK Remediation & Alignment Report (v2.0.0)
+# Conxius Enclave SDK Remediation & Alignment Report (v2.0.0)
 
 > **Historical archive:** This report preserves prior remediation claims for
 > traceability. Current protocol status is governed by the

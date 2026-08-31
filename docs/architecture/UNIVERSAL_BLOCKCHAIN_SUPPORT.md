@@ -1,10 +1,10 @@
 # Universal Blockchain Support Architecture
 
 ## Overview
-The Conclave SDK has been enhanced to support universal blockchain transaction orchestration, addressing the needs of enterprise and fintech clients (SAP, Oracle, Circle, Fireblocks) while maintaining a strict "Bitcoin-First" moat. This expansion allows clients largely on Ethereum and Solana to leverage Conclave's hardware-backed security.
+The Conxius Enclave SDK has been enhanced to support universal blockchain transaction orchestration, addressing the needs of enterprise and fintech clients (SAP, Oracle, Circle, Fireblocks) while maintaining a strict "Bitcoin-First" moat. This expansion allows clients largely on Ethereum and Solana to leverage Conclave's hardware-backed security.
 
 ## 1. Tier 1 Chain Families (CON-789)
-The Conclave SDK prioritizes three primary chain families as its Tier 1 set for Nexus and Gateway execution:
+The Conxius Enclave SDK prioritizes three primary chain families as its Tier 1 set for Nexus and Gateway execution:
 - **Bitcoin/UTXO**: Native Bitcoin (L1), Stacks (L2), Liquid (Sidechain), Rootstock, BOB, Mezo, Babylon, Botanix, Citrea.
 - **EVM**: Ethereum, Arbitrum, Base, Optimism, Polygon, BSC, Linea, Scroll, ZKsync, Celo.
 - **Solana/SVM**: Native Solana and SVM-compatible environments.

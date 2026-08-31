@@ -1,4 +1,4 @@
-# Conclave SDK: Improvement Proposals (v2.0.7)
+# Conxius Enclave SDK: Improvement Proposals (v2.0.7)
 
 > **Historical proposal archive:** The protocol implementation statements below
 > describe earlier structural work. Current FROST, Fedimint, Ark, and BitVM2

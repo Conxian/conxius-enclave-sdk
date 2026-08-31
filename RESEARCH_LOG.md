@@ -1,4 +1,4 @@
-# Conclave SDK Research Log
+# Conxius Enclave SDK Research Log
 
 > External research findings, technology monitoring, and industry analysis
 > **Version**: v1.3.0 | **Last Updated**: 2026-08-31
@@ -7,7 +7,7 @@
 
 ## Overview
 
-This document captures external research findings relevant to the Conclave SDK's development trajectory. Each entry includes source links and applicability notes for future reference.
+This document captures external research findings relevant to the Conxius Enclave SDK's development trajectory. Each entry includes source links and applicability notes for future reference.
 
 ## Session 64 — Org-wide audit + research expansion (2026-08-31)
 

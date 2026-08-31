@@ -11,7 +11,7 @@
 ## Strategic Alignment
 As of August 2026, Conxian has pivoted to an **SDK-first GTM strategy**.
 
-- **Primary Goal**: Empower developers to build secure, native Bitcoin applications using the Conclave SDK.
+- **Primary Goal**: Empower developers to build secure, native Bitcoin applications using the Conxius Enclave SDK.
 - **Industrial Intent (x402)**: Expanding into autonomous B2B payments by bridging ERP systems (SAP, Oracle) directly to Bitcoin settlement.
 - **Reference Application**: The `conxius-wallet` is demoted to a reference client for developer validation.
 
