@@ -45,7 +45,7 @@ The current implementation and acceptance backlog spans GitHub issues across mul
 | [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) | Independent security review and release acceptance | P0 | Blocked |
 | [#271](https://github.com/Conxian/conxius-enclave-sdk/issues/271) | Lightning LDK payment execution | P1 | Open (route-finding + channel state machine done; expanding research: BOLT12/BIP-353/trampoline/splicing/MPP + mainnet proofing) |
 | [#320](https://github.com/Conxian/conxius-enclave-sdk/issues/320) | secp256k1 0.32.0-beta.2 yanked | P0 | ✅ Resolved (PR #321 merged 2026-08-30: `bitcoin 0.32.102` + `secp256k1 0.33.1`, yanked crate removed) |
-| [conxian-nexus #251](https://github.com/Conxian/conxian-nexus/issues/251) | Wire IdempotencyStore to Neon + live-DB conformance suite | P1 | Open (cross-repo; PR #250 was closed not merged; dependency fix #255 merged) |
+| [conxian-nexus #251](https://github.com/Conxian/conxian-nexus/issues/251) | Wire IdempotencyStore to Neon + live-DB conformance suite | P1 | Open (cross-repo; PR #250 merged 2026-08-29; dependency fix #255 merged) |
 | [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200) | WASM secret boundary and runtime/platform evidence | P1 | In Progress (boundary hardened) |
 | [#272](https://github.com/Conxian/conxius-enclave-sdk/issues/272) | BitVM SNARK proof validation | P2 | Closed |
 

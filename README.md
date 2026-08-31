@@ -13,14 +13,14 @@ The SDK provides a high-integrity root of trust for security-sensitive wallet, s
 
 **Beta / conditional.** The 2.x line exposes the interfaces needed for development and integration work, but the [2026-07-20 production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) found P0 evidence gaps. Do **not** enable value-bearing production signing or settlement from this tree.
 
-The latest visible GitHub release/tag is `v2.0.16` as of 2026-08-05. `Cargo.toml` declares package version `2.0.16`, aligned with the latest release tag. Review the [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) for the boundary of each surface.
+The latest visible GitHub release/tag is `v2.0.17` as of 2026-08-30. `Cargo.toml` declares package version `2.0.17`, aligned with the latest release tag. Review the [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) for the boundary of each surface.
 
 ## Quick Start
 
 ```bash
 # Pin a reviewed 2.x artifact only after checking its release evidence.
 [dependencies]
-conxius-enclave-sdk = { git = "https://github.com/Conxian/conxius-enclave-sdk", tag = "v2.0.16" }
+conxius-enclave-sdk = { git = "https://github.com/Conxian/conxius-enclave-sdk", tag = "v2.0.17" }
 ```
 
 ## Purpose
@@ -55,7 +55,7 @@ This repository does **not** act as a complete wallet, DAO-facing governance sur
 | Ark / BitVM2 | Typed foundation; quarantined | Provider-owned Ark selection and legacy WASM BitVM challenge signing/aggregation fail closed; key derivation, recovery, tree/transaction construction, challenge, and settlement remain unsupported |
 | CCTP / account abstraction | API present; placeholder behavior | Production protocol integrations are not established |
 | Ethereum / Taproot / BIP-322 | Scoped canonical verification/derivation | BIP-340/BIP-341/BIP-86, Ethereum address/message/signature validation, and native P2WPKH/P2TR key-path Simple verification are implemented in scope; broader script formats, Ethereum transaction construction, provider evidence, and production gates remain open |
-| 30+ Chains | Registry surface present | Address provenance and integration evidence are incomplete |
+| 42 Chains | Registry surface present | Address provenance and integration evidence are incomplete |
 | WASM | Boundary hardened; runtime support unsupported | Private-key export and software defaults are removed; browser/Node/bundler/worker and provider evidence remain open |
 
 ## Development

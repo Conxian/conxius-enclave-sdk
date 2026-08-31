@@ -40,7 +40,7 @@ Before a release tag is pushed:
 2. `CHANGELOG.md` must include a version section for that release (not only `[Unreleased]`).
 3. Release tags must use `vX.Y.Z` format and map to the same Cargo version.
 4. `Cargo.lock` must be committed and pass `cargo metadata --locked`.
-5. The supported dependency MSRV is Rust `1.94.1`; CI and release jobs use the pinned Rust `1.97.1` toolchain.
+5. The supported dependency MSRV is Rust `1.97.1` (CI and release jobs use the same pinned toolchain).
 
 These checks are enforced by CI and release workflows.
 
@@ -127,7 +127,7 @@ cargo publish --locked --dry-run
 .github/scripts/verify-registry-artifact.sh X.Y.Z <crate> <checksum> <output-json>
 ```
 
-The current repository metadata is at `2.0.16`, aligned with the latest visible release/tag `v2.0.16`. Release controls and SBOM infrastructure are in place via `release-strict.yml`; issue #199 (tagged release with SBOM + provenance) remains open pending live Nitro deployment evidence.
+The current repository metadata is at `2.0.17`, aligned with the latest visible release/tag `v2.0.17`. Release controls and SBOM infrastructure are in place via `release-strict.yml`; issue #199 (tagged release with SBOM + provenance) remains open pending live Nitro deployment evidence.
 
 ## Mainnet Readiness and Security
 

@@ -1,9 +1,9 @@
 # Production Enablement Checklist
 
 > This is a gated checklist, not a production-readiness claim.
-> Status: Beta / conditional | Last Updated: 2026-08-05
+> Status: Beta / conditional | Last Updated: 2026-08-31
 
-The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), [machine-readable evidence](./docs/architecture/capability-evidence.json), [trust/replay foundation](./docs/architecture/TRUST_REPLAY_FOUNDATION.md), [public operations runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md), [release recovery runbook](./docs/operations/RELEASE_RECOVERY_RUNBOOK.md), and [protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) as the canonical evidence record. The latest visible GitHub release is `v2.0.15`; `Cargo.toml` and the git tag are at `2.0.16` (crates.io `v2.0.16` published).
+The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), [machine-readable evidence](./docs/architecture/capability-evidence.json), [trust/replay foundation](./docs/architecture/TRUST_REPLAY_FOUNDATION.md), [public operations runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md), [release recovery runbook](./docs/operations/RELEASE_RECOVERY_RUNBOOK.md), and [protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) as the canonical evidence record. The latest visible GitHub release is `v2.0.17`; `Cargo.toml` and the git tag are at `2.0.17` (crates.io `v2.0.17` published).
 
 Merged PR [#205](https://github.com/Conxian/conxius-enclave-sdk/pull/205), merged PR [#216](https://github.com/Conxian/conxius-enclave-sdk/pull/216), and the typed-settlement follow-up code checkpoint are containment and evidence-boundary work only. They make missing provider evidence fail closed and preserve signer-identity binding; they do not establish real hardware/provider integration, distributed replay, runtime support, independent review, release artifacts, or production readiness. Issue [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) remains open.
 
@@ -88,7 +88,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 
 - [x] Dependencies are declared in Cargo.toml
 - [x] Cargo.lock and the release dependency graph are committed and checked with `--locked` (implementation evidence; release acceptance remains open)
-- [x] Toolchain/MSRV is pinned and compatible with the resolved graph (Rust 1.94.1 MSRV / Rust 1.97.1 CI pin)
+- [x] Toolchain/MSRV is pinned and compatible with the resolved graph (Rust 1.97.1 MSRV, CI-pinned)
 - [ ] Unmaintained and security-sensitive dependency review (P1/P2)
 
 ### 🌐 Platform Integration
@@ -112,7 +112,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 
 ### 🚀 Release Process
 
-- [ ] Reconcile package metadata with a verified release tag (latest GitHub release: `v2.0.15`; Cargo.toml/git tag: `2.0.16` — aligned)
+- [ ] Reconcile package metadata with a verified release tag (latest GitHub release: `v2.0.17`; Cargo.toml/git tag: `2.0.17` — aligned)
 - [x] Select one authoritative release/publish workflow (`release-strict.yml`; one automatic tag publisher with manual recovery)
 - [ ] Verify the exact tagged registry artifact and retain all release-gate results for that artifact
 - [ ] Attach registry, SBOM, provenance, lockfile, checksum, and release-note evidence from a live tagged run
@@ -147,8 +147,9 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 | Version | Status | Notes |
 |---------|--------|-------|
 | 2.x line | Beta / conditional | Production enablement remains blocked by CON-1506 P0/P1 gates and protocol roadmap milestones |
-| v2.0.16 | Cargo.toml + git tag (2026-08-07) | crates.io published; PR #321 (secp256k1 unblock) landed on this line |
-| v2.0.15 | Latest GitHub Release | Prior release; superseded by v2.0.16 metadata |
+| v2.0.17 | Cargo.toml + git tag (2026-08-30) | crates.io published; first tag free of the yanked `secp256k1`; GitHub Releases v2.0.16 + v2.0.17 backfilled |
+| v2.0.16 | Cargo.toml + git tag (2026-08-07) | crates.io published; PR #321 (secp256k1 unblock) landed on this line; superseded by v2.0.17 |
+| v2.0.15 | Prior release | Superseded by v2.0.16 metadata |
 | v2.0.14 | Git tag / Cargo metadata | Superseded (Session 57 alignment point) |
 | v2.0.11 | Older GitHub release/tag | Superseded; refer to v2.0.15+ |
 | 2.0.12 | Cargo metadata only at the 2026-07-21 review | Superseded; no matching tag was found |

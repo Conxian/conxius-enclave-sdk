@@ -1,7 +1,7 @@
 # `conxius-enclave-sdk` Repository Analysis
 
 > Comprehensive analysis of capabilities, gaps, and implementation roadmap
-> Generated: 2026-07-14 | Updated: 2026-08-30 | Package metadata: 2.0.16; latest visible release/tag: v2.0.16
+> Generated: 2026-07-14 | Updated: 2026-08-31 | Package metadata: 2.0.17; latest visible release/tag: v2.0.17
 
 ---
 
@@ -173,7 +173,7 @@ From `conxius-platform#1136`:
    - Follow the runtime testing and secret-boundary requirements without treating build success as support
 
 3. **Review Unmaintained Dependencies**
-   - Address DEP-002 exceptions in audit.toml/deny.toml
+   - Address DEP-002 exceptions in `.cargo/audit.toml`/`deny.toml`
    - Document rationale for exceptions
 
 ### Medium-term Actions (P3)
