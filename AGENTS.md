@@ -19,7 +19,7 @@
 - All new protocol modules implement `EnclaveManager::initialize()` (and `UniversalChainSigner::initialize()` for signing surfaces) for runtime state setup.
 - Value-bearing crypto is feature-gated and fails closed without the feature: `groth16` (BLS12-381 pairings), `frost-crypto` (ZF FROST v3), `cryptoki` (PKCS#11), `webauthn` (FIDO2), `fedimint-crypto` (BLS12-381 e-cash blinding + DLEQ).
 
-## Protocol Module Catalog — 50 Modules (25 blockchain + 25 infrastructure)
+## Protocol Module Catalog — 43 Modules (25 blockchain + 18 infrastructure)
 
 ### Blockchain Protocols
 `bitcoin`, `bip322`, `bitvm`, `bitvm2`, `dlc`, `frost` (real ZF v3.0.0 backend), `frost_crypto`, `lightning` (BOLT 12/BIP-353), `lightning_channel`, `musig2`, `stacks` (Nakamoto), `covenant` (OP_CAT), `ark`, `cctp`, `mmr`, `ethereum` (EIP-1559), `solana`, `statechain` (Spark), `sidl`, `credit`, `fiat`, `asset` (42 chains), `bip110`, `babylon` (SDK-005), `rgb` (SDK-006)
@@ -33,16 +33,14 @@
 > Full module paths and status in archive.
 
 ## Directory Map
-- `src/protocol/` — 50 protocol modules (source of truth)
+- `src/protocol/` — 43 protocol modules (source of truth)
 - `src/signing/` — UCS trait, algorithm registry, BIP-110 preflight
 - `src/enclave/` — EnclaveManager, attestation, Nitro integration
 - `src/lib.rs` — Public re-export surface (`pub mod` + per-module `pub use`)
-- `enclave-poc/` — AWS Nitro Enclave signing demo
 
 ## Testing
 ```bash
 cargo test --locked                    # All 629 tests
-cargo test -p enclave-poc -- --test-threads=1  # Nitro POC (requires AWS)
 ```
 
 ## CI & Build Conventions

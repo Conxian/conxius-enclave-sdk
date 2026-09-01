@@ -4,8 +4,20 @@
 > **Context**: Continuing Conxius Enclave SDK v2.0.17 development
 > **Priority Order**: Remaining P0 gates â†’ P1 â†’ P2
 > **Knowledge Base**: v0.7.0 (Session 62, Aug 2026)
-> **Last Session**: Session 64 — KB audit + live verification + crates.io cleanup
+> **Last Session**: Session 65 — doc-vs-code audit (module count + MSRV) remediation
 
+
+## Session 65 Completed (2026-09-01) — doc-vs-code audit (module count + MSRV) remediation
+
+### ✅ Protocol module recount (SDK + core)
+- Recounted `src/protocol/mod.rs` (43 non-test `pub mod` declarations): **43 protocol modules = 25 blockchain + 18 infrastructure**.
+- Corrected `AGENTS.md` header (was "50 Modules (25 + 25)"; infrastructure list actually has 18, not 25), `Directory Map` ("50" → "43"), and removed the `enclave-poc/` references (Nitro POC lives in `lib-conxian-core`, not this repo).
+- Corrected `lib-conxian-core/AGENTS.md` cross-reference ("52 (24 + 28)" → "43 (25 + 18)").
+
+### ✅ MSRV regression fixed (core)
+- `lib-conxian-core/Cargo.toml` `rust-version` was `1.94.0`, contradicting the v0.3.0 CHANGELOG ("Raised the package MSRV to Rust 1.97.1"), all docs (README/COMPATIBILITY/RELEASE_PROCESS/COVERAGE), and every sub-crate (tests + addons at `1.97.1`). Restored to `1.97.1`.
+
+---
 
 ## Session 64 Completed (2026-08-31) — KB audit + live verification + crates.io cleanup
 
