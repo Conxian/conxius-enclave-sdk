@@ -334,7 +334,8 @@ mod tests {
             "Unverified runtime errors must yield stable UNSUPPORTED_RUNTIME error code"
         );
         assert!(
-            err.to_string().contains("has no verified WASM runtime/provider evidence"),
+            err.to_string()
+                .contains("has no verified WASM runtime/provider evidence"),
             "Rejection message must explain missing evidence"
         );
     }
