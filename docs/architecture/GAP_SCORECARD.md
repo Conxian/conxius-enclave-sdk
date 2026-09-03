@@ -261,4 +261,7 @@ The Ark, Fedimint, and related BitVM entries below record API/structural impleme
 
 
 ### Session 67 Resolution (2026-09-03)
-- **#271 Lightning BOLT12 & BIP-353 Integration**: Added  and  in . Supports parsing and validating reusable  BOLT12 offer strings with SHA-256 offer ID derivation, and DNS-based human-readable payment addresses () per BIP-353.
+- **#271 Lightning BOLT12 & BIP-353 Integration**: Added `Bolt12Offer` and `Bip353PaymentAddress` in `src/protocol/lightning.rs`. Supports parsing and validating reusable `lno1` BOLT12 offer strings with SHA-256 offer ID derivation, and DNS-based human-readable payment addresses (`user@domain`) per BIP-353.
+
+### Session 68 Resolution (2026-09-03)
+- **#242 AWS Nitro Attestation & KMS Release Key Binding**: Hardened `AwsNitroVerifier` in `src/enclave/verifiers/nitro_verifier.rs` with `with_kms_key_identifier_hash` builder method for binding explicit KMS key hashes into Nitro release authorization bindings. Verified certificate chain linkage and root CA fingerprint.
