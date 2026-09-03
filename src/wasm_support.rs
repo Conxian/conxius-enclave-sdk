@@ -315,4 +315,27 @@ mod tests {
         assert!(!source.contains("\"blinding_factors\": bf"));
         assert!(!source.contains("serde_wasm_bindgen::to_value(&ecash)"));
     }
+    #[test]
+    fn test_wasm_runtime_unapproved_provider_error_code_stability() {
+        let err = reject_unapproved_provider("untrusted-provider").unwrap_err();
+        assert_eq!(
+            wasm_error_code(&err),
+            "UNSUPPORTED_PROVIDER",
+            "Unapproved provider errors must yield stable UNSUPPORTED_PROVIDER error code"
+        );
+    }
+
+    #[test]
+    fn test_wasm_unverified_runtime_rejection_message() {
+        let err = reject_unverified_runtime(WasmRuntime::Browser).unwrap_err();
+        assert_eq!(
+            wasm_error_code(&err),
+            "UNSUPPORTED_RUNTIME",
+            "Unverified runtime errors must yield stable UNSUPPORTED_RUNTIME error code"
+        );
+        assert!(
+            err.to_string().contains("has no verified WASM runtime/provider evidence"),
+            "Rejection message must explain missing evidence"
+        );
+    }
 }
