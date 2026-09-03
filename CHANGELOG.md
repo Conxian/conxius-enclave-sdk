@@ -18,6 +18,7 @@
 - Migrated the `bitcoin` 0.33 modular API (`ScriptPubKeyBuf`/`ScriptSigBuf`/`TapScript*`, `Transaction { input, output }` + `TxOut.value`, `Witness::nth`, `Version::non_standard`, `XOnlyPublicKey::from_slice`/`to_byte_array`) to 0.32-compatible forms across `src/protocol/`, `src/signing/`, and `src/enclave/` (#320).
 
 ### Security & Governance
+- Removed tracked root operational artifacts (`.audit_report_session57.md`, root `pre_commit_review.json`) from git, updated `.gitignore`, and hardened `.github/workflows/hygiene.yml` CI checks.
 - `.github/workflows/hygiene.yml`: Hardened repository hygiene CI check to verify no tracked test-results, playwright-reports, coverage output, release evidence, or sensitive credentials/config files exist in git.
 
 ## [v2.0.16] - 2026-08-07
