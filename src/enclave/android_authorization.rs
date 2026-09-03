@@ -1169,4 +1169,67 @@ mod tests {
             Err(ConclaveError::Unsupported(_))
         ));
     }
+
+    #[test]
+    fn play_integrity_evidence_version_and_bounds_validation() {
+        let invalid_version = AndroidPlayIntegrityEvidence {
+            version: ANDROID_AUTHORIZATION_VERSION + 1,
+            opaque_evidence: b"synthetic-play-integrity-evidence".to_vec(),
+        };
+        assert!(invalid_version.validate().is_err());
+
+        let empty_evidence = AndroidPlayIntegrityEvidence {
+            version: ANDROID_AUTHORIZATION_VERSION,
+            opaque_evidence: vec![],
+        };
+        assert!(empty_evidence.validate().is_err());
+
+        let oversized_evidence = AndroidPlayIntegrityEvidence {
+            version: ANDROID_AUTHORIZATION_VERSION,
+            opaque_evidence: vec![0u8; MAX_PLAY_INTEGRITY_EVIDENCE_BYTES + 1],
+        };
+        assert!(oversized_evidence.validate().is_err());
+    }
+
+    #[test]
+    fn certificate_chain_byte_and_length_limits() {
+        let mut evidence_chain = evidence(AndroidReportedTier::StrongBox);
+
+        // Exceed total byte limit across multiple valid certificates
+        evidence_chain.certificate_chain = vec![
+            vec![1u8; MAX_ANDROID_DER_CERTIFICATE_BYTES],
+            vec![1u8; MAX_ANDROID_DER_CERTIFICATE_BYTES],
+            vec![1u8; MAX_ANDROID_DER_CERTIFICATE_BYTES],
+            vec![1u8; MAX_ANDROID_DER_CERTIFICATE_BYTES],
+            vec![1u8; MAX_ANDROID_DER_CERTIFICATE_BYTES],
+        ];
+        // 5 * 16KB = 80KB > MAX_ANDROID_DER_CHAIN_BYTES (64KB)
+        assert!(evidence_chain.validate().is_err());
+
+        // Exceed chain length count limit
+        evidence_chain.certificate_chain = vec![vec![1u8; 10]; MAX_ANDROID_DER_CHAIN_LENGTH + 1];
+        assert!(evidence_chain.validate().is_err());
+    }
+
+    #[test]
+    fn timestamp_lifetime_and_future_skew_boundaries() {
+        let request = request(AndroidSecurityPolicy::StrongBoxRequired);
+
+        // Test lifetime limit exceeding max lifetime
+        let mut evidence_lifetime = evidence(AndroidReportedTier::StrongBox);
+        evidence_lifetime.issued_at = NOW;
+        evidence_lifetime.expires_at = NOW + MAX_ANDROID_AUTHORIZATION_LIFETIME_SECS + 1;
+        assert!(evidence_lifetime.validate().is_err());
+
+        // Test exact future skew tolerance
+        let mut evidence_skew = evidence(AndroidReportedTier::StrongBox);
+        evidence_skew.issued_at = NOW + MAX_ANDROID_AUTHORIZATION_FUTURE_SKEW_SECS;
+        evidence_skew.expires_at = evidence_skew.issued_at + 60;
+        assert!(request.binding_digest_at(&evidence_skew, NOW).is_ok());
+
+        // Test one second past future skew tolerance
+        evidence_skew.issued_at = NOW + MAX_ANDROID_AUTHORIZATION_FUTURE_SKEW_SECS + 1;
+        evidence_skew.expires_at = evidence_skew.issued_at + 60;
+        assert!(request.binding_digest_at(&evidence_skew, NOW).is_err());
+    }
 }
