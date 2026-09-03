@@ -29,6 +29,7 @@ pub struct AwsNitroVerifier {
     trust_boundary: AwsNitroTrustBoundary,
     root_ca_der: Vec<u8>,
     verifier_id: String,
+    kms_key_identifier_hash: [u8; 32],
     #[allow(dead_code)]
     max_age_ms: u64,
 }
@@ -45,8 +46,20 @@ impl AwsNitroVerifier {
             trust_boundary: AwsNitroTrustBoundary::new(),
             root_ca_der: Self::embedded_root_ca(),
             verifier_id: "conxian.trust.aws.nitro.v1".into(),
+            kms_key_identifier_hash: [0u8; 32],
             max_age_ms: 300_000,
         })
+    }
+
+    /// Configure explicit KMS key identifier hash for release key authorization binding.
+    pub fn with_kms_key_identifier_hash(mut self, hash: [u8; 32]) -> Self {
+        self.kms_key_identifier_hash = hash;
+        self
+    }
+
+    /// Returns configured KMS key identifier hash.
+    pub fn kms_key_identifier_hash(&self) -> &[u8; 32] {
+        &self.kms_key_identifier_hash
     }
 
     pub fn verify_root_ca_fingerprint(&self) -> ConclaveResult<()> {
@@ -97,8 +110,8 @@ impl ProofVerifier for AwsNitroVerifier {
         let release_binding = NitroReleaseBinding::new(
             context.operation_digest,
             context.purpose.clone(),
-            [0u8; 32], // kms_key_identifier_hash — no KMS key binding
-            1,         // policy_version
+            self.kms_key_identifier_hash,
+            1, // policy_version
             Sha256::digest(b"aws-nitro-v1").into(),
             now_ms + max_age_ms,
             Sha256::digest(&context.nonce).into(),
@@ -132,6 +145,18 @@ mod tests {
         assert_eq!(v.status(), ProofVerifierStatus::Available);
         assert_eq!(v.kind(), ProofKind::Tee);
         assert_eq!(v.verifier_id(), "conxian.trust.aws.nitro.v1");
+        assert_eq!(v.kms_key_identifier_hash(), &[0u8; 32]);
+    }
+
+    #[test]
+    fn nitro_verifier_binds_kms_key_hash() {
+        let pcr0_val = [0xABu8; 48];
+        let v_default = AwsNitroVerifier::new(vec![(0u8, pcr0_val)]).expect("verifier constructs");
+        assert_eq!(v_default.kms_key_identifier_hash(), &[0u8; 32]);
+
+        let custom_hash = [0x42u8; 32];
+        let v_custom = v_default.with_kms_key_identifier_hash(custom_hash);
+        assert_eq!(v_custom.kms_key_identifier_hash(), &custom_hash);
     }
 
     #[test]
