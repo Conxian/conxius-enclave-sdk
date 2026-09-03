@@ -79,3 +79,7 @@ pkg/
 *.swp
 *.swo
 release-evidence/
+
+# Operational & Session Artifacts
+.audit_report_*
+/pre_commit_review.json
