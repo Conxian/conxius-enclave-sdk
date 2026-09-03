@@ -7,6 +7,15 @@
 > **Last Session**: Session 65 — doc-vs-code audit (module count + MSRV) remediation
 
 
+## Session 66 Completed (2026-09-03) — Fedimint DLEQ proof integration (PROTO-001)
+
+### ✅ Fedimint DLEQ proof wiring
+- Wired `DleqProof::verify`, `FedimintAdapter::create_dleq_proof`, and `FedimintAdapter::create_blind_signature_request` in `src/protocol/nexus/fedimint.rs` to the real BLS12-381 `fedimint_crypto` backend under `#[cfg(feature = "fedimint-crypto")]`.
+- Enforced fail-closed `ProtocolUnsupported` behavior when `fedimint-crypto` is disabled.
+- Unit tests added for genuine proof verification, tampered proof rejection, and feature-gated fallback.
+
+---
+
 ## Session 65 Completed (2026-09-01) — doc-vs-code audit (module count + MSRV) remediation
 
 ### ✅ Protocol module recount (SDK + core)

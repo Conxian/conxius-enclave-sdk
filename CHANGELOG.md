@@ -11,6 +11,7 @@
 - `src/protocol/ark.rs`: Removed residual fail-open/panic paths in `construct_vtxo_tree` — it no longer silently substitutes empty/zero txids (`unwrap_or_default`/zero-txid fallback) or panics on `.unwrap()`/`.expect()`; it now fails closed via `ConclaveError::InvalidConfiguration` (port of unmerged `c47b23fd`).
 - `.gitignore`: Added explicit ignore rules for generated test and runtime artifacts (`test-results/`, `playwright-report/`, `coverage/`, `.nyc_output/`, `*.log`, `*.tmp`, `tmp/`, `.tmp/`, `.cache/`, `dist/`, `build/`).
 - `src/protocol/nexus/fedimint_crypto.rs`: Added real BLS12-381 Fedimint e-cash primitives behind the `fedimint-crypto` feature — `FedimintG1Point`/`FedimintScalar` typed wrappers, `blind_message`/`unblind_signature`, and Chaum-Pedersen `FedimintDleqProof` generation + fail-closed verification with an RFC 6979-style deterministic nonce (PROTO-001).
+- `src/protocol/nexus/fedimint.rs`: Wired `DleqProof::verify`, `FedimintAdapter::create_dleq_proof`, and `FedimintAdapter::create_blind_signature_request` to the real BLS12-381 `fedimint-crypto` backend under `#[cfg(feature = "fedimint-crypto")]`, ensuring fail-closed `ProtocolUnsupported` behavior when the feature is disabled (PROTO-001).
 
 ### Changed
 - `Cargo.toml` / `Cargo.lock`: Downgraded the direct `bitcoin 0.33.0-beta` → `0.32.102` (converging on the stable `bdk_wallet` line) and bumped `secp256k1 0.32.0-beta.2` → `0.33.1`, fully removing the yanked `secp256k1 0.32.0-beta.2` from the dependency graph (#320).
