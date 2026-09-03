@@ -1,6 +1,6 @@
 # Conxius Enclave SDK Issues Index
 
-> Auto-generated from GitHub. Last sync: 2026-08-31T09:51:15Z
+> Auto-generated from GitHub. Last sync: 2026-09-03T10:00:00Z
 
 > **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 

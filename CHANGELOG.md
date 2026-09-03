@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `src/wasm_support.rs`: Added `test_wasm_runtime_unapproved_provider_error_code_stability` and `test_wasm_unverified_runtime_rejection_message` to harden WASM secret boundary enforcement and verify stable typed error codes (`UNSUPPORTED_PROVIDER`, `UNSUPPORTED_RUNTIME`) (#200).
+- Knowledge Base & System Audit: Verified 70 capability evidence items, scored roadmap candidates via 75-point formula, and synchronized issue tracking indexes.
+
 ## [2.0.17]
 
 ### Added
