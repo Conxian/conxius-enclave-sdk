@@ -9,6 +9,13 @@
 
 This document captures external research findings relevant to the Conxius Enclave SDK's development trajectory. Each entry includes source links and applicability notes for future reference.
 
+## Session 70 — FROST RFC 9591 DKG Verification & Candidate Hardening (2026-09-03)
+
+Focused research and cryptographic implementation on FROST (Flexible Round-Optimized Schnorr Threshold Signatures, RFC 9591) DKG verification:
+- **Round 1 Proof-of-Knowledge & Commitments**: In ZF FROST DKG, each participant generates a secret polynomial $f_i(x) = a_{i,0} + a_{i,1}x + \dots + a_{i,t-1}x^{t-1}$ and publishes commitments $A_{i,k} = a_{i,k} \cdot G$ alongside a Schnorr proof of knowledge for $a_{i,0}$.
+- **Round 2 Share Verification**: Participant $i$ sends secret share $f_i(j)$ to participant $j$. Participant $j$ verifies $f_i(j) \cdot G == \sum_{k=0}^{t-1} j^k \cdot A_{i,k}$.
+- **SDK Hardening**: Integrated real cryptographic verification in `src/protocol/frost_crypto.rs` and `src/protocol/frost.rs` under `#[cfg(feature = "frost-crypto")]`, removing structural placeholders for DKG Round 1 & Round 2 share checks.
+
 ## Session 64 — Org-wide audit + research expansion (2026-08-31)
 
 Full KB → code → CI → cross-repo audit plus fresh external research on the three

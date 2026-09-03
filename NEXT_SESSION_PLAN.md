@@ -1,5 +1,14 @@
 # Next Session Plan
 
+## Session 70 Completed (2026-09-03) — FROST DKG Round 1/2 Cryptographic Verification & Audit Sync
+
+### ✅ FROST DKG Cryptographic Share & Commitment Verification
+- Hardened `verify_dkg_round1` and `verify_received_share` in `src/protocol/frost.rs` and `src/protocol/frost_crypto.rs` with real ZF FROST polynomial evaluation and proof-of-knowledge checks under `#[cfg(feature = "frost-crypto")]`.
+- Verified participant ID alignment and Round 1 commitment polynomial consistency during Round 2 encrypted share reception.
+- Added comprehensive unit tests in `src/protocol/frost.rs` covering genuine share verification, tampered share rejection, mismatched signer ID rejection, and fail-closed behavior when `frost-crypto` is disabled.
+
+---
+
 ## Session 69 Completed (2026-09-03) — Android Authorization Qualification & Evidence Verification (#241)
 
 ### ✅ Android Authorization Qualification Unit Tests

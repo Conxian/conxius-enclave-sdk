@@ -265,3 +265,6 @@ The Ark, Fedimint, and related BitVM entries below record API/structural impleme
 
 ### Session 68 Resolution (2026-09-03)
 - **#242 AWS Nitro Attestation & KMS Release Key Binding**: Hardened `AwsNitroVerifier` in `src/enclave/verifiers/nitro_verifier.rs` with `with_kms_key_identifier_hash` builder method for binding explicit KMS key hashes into Nitro release authorization bindings. Verified certificate chain linkage and root CA fingerprint.
+
+### Session 70 Resolution (2026-09-03)
+- **FROST DKG Cryptographic Verification**: Hardened `verify_dkg_round1` and `verify_received_share` in `src/protocol/frost.rs` and `src/protocol/frost_crypto.rs` under `#[cfg(feature = "frost-crypto")]`. Round 1 packages now cryptographically verify proof-of-knowledge signatures and commitments; Round 2 share verification evaluates received secret shares against Round 1 polynomial commitments.
