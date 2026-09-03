@@ -40,7 +40,6 @@ This repository does **not** act as a complete wallet, DAO-facing governance sur
 
 ## Relationship to the Conxian stack
 
-- `Conxian` is the protocol and DAO-facing layer.
 - `conxius-wallet` is the sovereign wallet and reference client.
 - `conxian-gateway` and `conxian-nexus` provide middleware and service-side integration surfaces.
 - `lib-conxian-core` provides broader shared primitives across the stack.
