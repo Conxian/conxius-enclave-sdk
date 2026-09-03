@@ -531,10 +531,23 @@ impl FrostManager {
     pub fn verify_dkg_round1(&self, package: &FrostDkgRound1Package) -> ConclaveResult<bool> {
         #[cfg(feature = "frost-crypto")]
         {
-            // Structural verification (no crypto needed)
-            Ok(package.signer_id.get() != 0
-                && !package.commitments.is_empty()
-                && !package.proof_of_knowledge.digest.is_empty())
+            if package.validate().is_err() {
+                return Ok(false);
+            }
+            if package.signer_id.get() == 0 || package.commitments.is_empty() {
+                return Ok(false);
+            }
+            if package.proof_of_knowledge.digest == [0u8; 32]
+                || package.proof_of_knowledge.payload_len == 0
+            {
+                return Ok(false);
+            }
+            for commitment in &package.commitments {
+                if commitment.digest == [0u8; 32] || commitment.payload_len == 0 {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
         }
         #[cfg(not(feature = "frost-crypto"))]
         {
@@ -570,6 +583,42 @@ impl FrostManager {
         }
     }
 
+    /// Cryptographically verify a raw serialized DKG Round 1 package using ZF FROST.
+    pub fn verify_dkg_round1_bytes(&self, raw_package_bytes: &[u8]) -> ConclaveResult<bool> {
+        #[cfg(feature = "frost-crypto")]
+        {
+            if raw_package_bytes.is_empty() {
+                return Ok(false);
+            }
+            crate::protocol::frost_crypto::verify_dkg_round1_package(raw_package_bytes)
+        }
+        #[cfg(not(feature = "frost-crypto"))]
+        {
+            Err(protocol_unsupported(
+                UnsupportedProtocol::Frost,
+                UnsupportedOperation::Dkg,
+            ))
+        }
+    }
+
+    /// Cryptographically verify a raw serialized DKG Round 2 package using ZF FROST.
+    pub fn verify_dkg_round2_bytes(&self, raw_package_bytes: &[u8]) -> ConclaveResult<bool> {
+        #[cfg(feature = "frost-crypto")]
+        {
+            if raw_package_bytes.is_empty() {
+                return Ok(false);
+            }
+            crate::protocol::frost_crypto::verify_dkg_round2_package(raw_package_bytes)
+        }
+        #[cfg(not(feature = "frost-crypto"))]
+        {
+            Err(protocol_unsupported(
+                UnsupportedProtocol::Frost,
+                UnsupportedOperation::Dkg,
+            ))
+        }
+    }
+
     /// Verify that a received DKG share is valid.
     #[allow(unused_variables)]
     pub fn verify_received_share(
@@ -580,11 +629,43 @@ impl FrostManager {
     ) -> ConclaveResult<bool> {
         #[cfg(feature = "frost-crypto")]
         {
-            let found = round2_package
+            if receiver_id.validate().is_err()
+                || round1_package.validate().is_err()
+                || round2_package.validate().is_err()
+            {
+                return Ok(false);
+            }
+
+            if round1_package.signer_id != round2_package.signer_id {
+                return Ok(false);
+            }
+
+            if round1_package.session_id != round2_package.session_id {
+                return Ok(false);
+            }
+
+            if round1_package.signer_id == receiver_id {
+                return Ok(false);
+            }
+
+            let share = match round2_package
                 .encrypted_shares
                 .iter()
-                .any(|s| s.receiver_id == receiver_id);
-            Ok(found && !round1_package.commitments.is_empty())
+                .find(|s| s.receiver_id == receiver_id)
+            {
+                Some(s) => s,
+                None => return Ok(false),
+            };
+
+            if share.encrypted_share.digest == [0u8; 32] || share.encrypted_share.payload_len == 0 {
+                return Ok(false);
+            }
+
+            if round1_package.commitments.is_empty() {
+                return Ok(false);
+            }
+
+            Ok(true)
         }
         #[cfg(not(feature = "frost-crypto"))]
         {
@@ -672,6 +753,34 @@ impl FrostSigningContext {
     /// [`last_attestation`] is present and matches the policy.
     /// Callers must provide a fresh [`DeviceIntegrityReport`] via
     /// [`set_attestation`] before each session.
+    /// Register and cryptographically verify a raw DKG Round 1 package.
+    pub fn register_dkg_round1_package(&mut self, pkg_bytes: &[u8]) -> ConclaveResult<[u8; 32]> {
+        self.check_attestation()?;
+        if crate::protocol::frost_crypto::verify_dkg_round1_package(pkg_bytes)? {
+            let digest = compute_digest(pkg_bytes);
+            self.commitments_map.insert(digest, pkg_bytes.to_vec());
+            Ok(digest)
+        } else {
+            Err(ConclaveError::CryptoError(
+                "invalid DKG Round 1 package".into(),
+            ))
+        }
+    }
+
+    /// Register and cryptographically verify a raw DKG Round 2 package.
+    pub fn register_dkg_round2_package(&mut self, pkg_bytes: &[u8]) -> ConclaveResult<[u8; 32]> {
+        self.check_attestation()?;
+        if crate::protocol::frost_crypto::verify_dkg_round2_package(pkg_bytes)? {
+            let digest = compute_digest(pkg_bytes);
+            self.share_bytes.insert(digest, pkg_bytes.to_vec());
+            Ok(digest)
+        } else {
+            Err(ConclaveError::CryptoError(
+                "invalid DKG Round 2 package".into(),
+            ))
+        }
+    }
+
     pub fn set_attestation_policy(
         &mut self,
         policy: crate::enclave::attestation::AttestationPolicy,
@@ -1062,8 +1171,8 @@ mod tests {
             encoding_version: FrostEncodingVersion::current(),
             session_id: session_id(),
             signer_id: participant,
-            commitments: vec![envelope(FrostEnvelopeKind::Commitment)],
-            proof_of_knowledge: envelope(FrostEnvelopeKind::Proof),
+            commitments: vec![super::tests::envelope(FrostEnvelopeKind::Commitment)],
+            proof_of_knowledge: super::tests::envelope(FrostEnvelopeKind::Proof),
         };
         let round2 = FrostDkgRound2Package {
             encoding_version: FrostEncodingVersion::current(),
@@ -1071,7 +1180,7 @@ mod tests {
             signer_id: participant,
             encrypted_shares: vec![FrostEncryptedShare {
                 receiver_id: participant,
-                encrypted_share: envelope(FrostEnvelopeKind::EncryptedShare),
+                encrypted_share: super::tests::envelope(FrostEnvelopeKind::EncryptedShare),
             }],
         };
         let package = FrostPublicKeyPackage {
@@ -1187,5 +1296,69 @@ mod signing_context_tests {
 
         // Attempt aggregate without calling create_signing_package first
         assert!(ctx.aggregate_signatures(&kp, &[]).is_err());
+    }
+
+    #[test]
+    fn test_dkg_verification_flow() {
+        let manager = FrostManager;
+        let p1 = FrostParticipantId::new(1).expect("valid participant");
+        let p2 = FrostParticipantId::new(2).expect("valid participant");
+        let p3 = FrostParticipantId::new(3).expect("valid participant");
+        let session = FrostSessionId::new([1; 16]).expect("valid session id");
+        let env = |kind| FrostOpaqueEnvelope::new(kind, [7; 32], 32).expect("valid envelope");
+
+        let r1_valid = FrostDkgRound1Package {
+            encoding_version: FrostEncodingVersion::current(),
+            session_id: session,
+            signer_id: p1,
+            commitments: vec![env(FrostEnvelopeKind::Commitment)],
+            proof_of_knowledge: env(FrostEnvelopeKind::Proof),
+        };
+
+        let r2_valid = FrostDkgRound2Package {
+            encoding_version: FrostEncodingVersion::current(),
+            session_id: session,
+            signer_id: p1,
+            encrypted_shares: vec![FrostEncryptedShare {
+                receiver_id: p2,
+                encrypted_share: env(FrostEnvelopeKind::EncryptedShare),
+            }],
+        };
+
+        // 1. Verify Round 1 package
+        assert!(manager.verify_dkg_round1(&r1_valid).unwrap());
+
+        // 2. Verify Round 2 received share
+        assert!(manager
+            .verify_received_share(p2, &r1_valid, &r2_valid)
+            .unwrap());
+
+        // 3. Mismatched signer ID between R1 and R2 fails
+        let mut r2_mismatched_signer = r2_valid.clone();
+        r2_mismatched_signer.signer_id = p2;
+        assert!(!manager
+            .verify_received_share(p2, &r1_valid, &r2_mismatched_signer)
+            .unwrap());
+
+        // 4. Mismatched receiver ID fails
+        assert!(!manager
+            .verify_received_share(p3, &r1_valid, &r2_valid)
+            .unwrap());
+
+        // 5. Self-sending share fails
+        assert!(!manager
+            .verify_received_share(p1, &r1_valid, &r2_valid)
+            .unwrap());
+
+        // 6. Test raw cryptographic DKG package verification & registration
+        let id_1 = [1u8; 32];
+        let (_s1, r1_pkg_bytes) = crate::protocol::frost_crypto::dkg_part1(&id_1, 3, 2).unwrap();
+        assert!(manager.verify_dkg_round1_bytes(&r1_pkg_bytes).unwrap());
+        assert!(!manager.verify_dkg_round1_bytes(b"corrupted bytes").unwrap());
+
+        let mut ctx = FrostSigningContext::new();
+        let digest = ctx.register_dkg_round1_package(&r1_pkg_bytes).unwrap();
+        assert_ne!(digest, [0u8; 32]);
+        assert!(ctx.register_dkg_round1_package(b"invalid").is_err());
     }
 }

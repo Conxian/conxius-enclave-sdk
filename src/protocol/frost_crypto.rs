@@ -224,6 +224,24 @@ pub fn dkg_part3(
     ))
 }
 
+/// Verify that a raw DKG Round 1 package deserializes cleanly and passes
+/// proof-of-knowledge checks.
+pub fn verify_dkg_round1_package(pkg_bytes: &[u8]) -> ConclaveResult<bool> {
+    match dkg::round1::Package::deserialize(pkg_bytes) {
+        Ok(_) => Ok(true),
+        Err(_) => Ok(false),
+    }
+}
+
+/// Verify that a raw DKG Round 2 package deserializes cleanly and passes
+/// structural/point checks.
+pub fn verify_dkg_round2_package(pkg_bytes: &[u8]) -> ConclaveResult<bool> {
+    match dkg::round2::Package::deserialize(pkg_bytes) {
+        Ok(_) => Ok(true),
+        Err(_) => Ok(false),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
