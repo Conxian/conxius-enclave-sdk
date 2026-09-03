@@ -524,6 +524,77 @@ impl LightningRouter {
     }
 }
 
+/// BOLT12 offer representation for recurring/reusable payments.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Bolt12Offer {
+    pub raw_offer: String,
+    pub offer_id: String,
+    pub description: Option<String>,
+    pub issuer: Option<String>,
+    pub amount_msat: Option<u64>,
+}
+
+impl Bolt12Offer {
+    /// Parse and validate a BOLT12 offer string (starting with ).
+    pub fn parse_and_validate(raw_offer: &str) -> ConclaveResult<Self> {
+        let trimmed = raw_offer.trim();
+        if !trimmed.to_lowercase().starts_with("lno1") || trimmed.len() < 10 {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        use sha2::{Digest, Sha256};
+        let hash = Sha256::digest(trimmed.as_bytes());
+        let offer_id = hex::encode(hash);
+
+        Ok(Self {
+            raw_offer: trimmed.to_string(),
+            offer_id,
+            description: None,
+            issuer: None,
+            amount_msat: None,
+        })
+    }
+}
+
+/// BIP-353 Human-readable DNS Payment Address (user@domain.tld).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Bip353PaymentAddress {
+    pub user: String,
+    pub domain: String,
+    pub raw_address: String,
+}
+
+impl Bip353PaymentAddress {
+    /// Parse and validate a BIP-353 payment address.
+    pub fn parse_and_validate(raw_address: &str) -> ConclaveResult<Self> {
+        let trimmed = raw_address.trim();
+        let parts: Vec<&str> = trimmed.split('@').collect();
+        if parts.len() != 2 {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        let user = parts[0].trim();
+        let domain = parts[1].trim();
+
+        if user.is_empty() || domain.is_empty() || !domain.contains('.') {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        if !user
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '-')
+        {
+            return Err(ConclaveError::InvalidPayload);
+        }
+
+        Ok(Self {
+            user: user.to_string(),
+            domain: domain.to_lowercase(),
+            raw_address: format!("{}@{}", user, domain.to_lowercase()),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -808,6 +879,33 @@ mod tests {
             ),
             Err(LightningRouteError::NoRoute)
         );
+    }
+
+    #[test]
+    fn bolt12_offer_parsing_and_validation() {
+        let valid_offer = "lno1qgsqvgnwgcg35z6ee2v3yd2f3pvs2v3yd2f3pvs2v3yd2f3pvs2v3yd2f3pvs";
+        let offer = Bolt12Offer::parse_and_validate(valid_offer).unwrap();
+        assert_eq!(offer.raw_offer, valid_offer);
+        assert_eq!(offer.offer_id.len(), 64);
+
+        assert!(Bolt12Offer::parse_and_validate("lnbc110n1p3...").is_err());
+        assert!(Bolt12Offer::parse_and_validate("lno1short").is_err());
+        assert!(Bolt12Offer::parse_and_validate("").is_err());
+    }
+
+    #[test]
+    fn bip353_address_parsing_and_validation() {
+        let valid_addr = "alice@pay.example.com";
+        let parsed = Bip353PaymentAddress::parse_and_validate(valid_addr).unwrap();
+        assert_eq!(parsed.user, "alice");
+        assert_eq!(parsed.domain, "pay.example.com");
+        assert_eq!(parsed.raw_address, "alice@pay.example.com");
+
+        assert!(Bip353PaymentAddress::parse_and_validate("invalid_no_at_sign").is_err());
+        assert!(Bip353PaymentAddress::parse_and_validate("@domain.com").is_err());
+        assert!(Bip353PaymentAddress::parse_and_validate("user@nodot").is_err());
+        assert!(Bip353PaymentAddress::parse_and_validate("user@").is_err());
+        assert!(Bip353PaymentAddress::parse_and_validate("bad user!@domain.com").is_err());
     }
 
     #[test]
