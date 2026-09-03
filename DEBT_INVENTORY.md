@@ -55,7 +55,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
   - **DLC**: ✅ Oracle attestation verification + CET template construction (#279).
   - **CCTP**: ✅ ECDSA attestation verification via k256 (#277).
   - **Covenant**: ✅ BIP-119 CTV and BIP-118 APO patterns (#276).
-  - **Fedimint**: ✅ Real BLS12-381 e-cash blinding + Chaum-Pedersen DLEQ verification implemented in `src/protocol/nexus/fedimint_crypto.rs` (gated `fedimint-crypto`, Session 63). The opaque boundary in `fedimint.rs` remains structural; full threshold mint/network integration is provider-gated.
+  - **Fedimint**: ✅ Real BLS12-381 e-cash blinding + Chaum-Pedersen DLEQ verification implemented in `src/protocol/nexus/fedimint_crypto.rs` and wired in `src/protocol/nexus/fedimint.rs` (`DleqProof::verify`, `create_dleq_proof`, `create_blind_signature_request` gated behind `fedimint-crypto`). Full threshold mint/network integration is provider-gated.
 - **Risk**: Fedimint full threshold mint/network integration remains provider-gated. Groth16 verifier now has a real BLS12-381 pairing backend (`groth16` feature, Session 61), but BitVM2 protocol-conformance/live-bridge/review evidence remains open.
 - **Recommendation**: Fedimint DLEQ + blinding crypto is now real (`fedimint-crypto`, Session 63). The remaining full threshold mint (guardian partial-signature aggregation + network) is deferred to provider integration.
 - **Status**: Active; FROST/Ark/CCTP/DLC/Covenant production support `No` pending independent review. Fedimint crypto layer real, threshold mint provider-gated.
