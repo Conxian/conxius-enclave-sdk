@@ -258,3 +258,7 @@ The Ark, Fedimint, and related BitVM entries below record API/structural impleme
 - **#271 Lightning channel state machine**: Added `src/protocol/lightning_channel.rs` — a fail-closed, metadata-only `LightningChannel` (funding → open → HTLC add/settle/fail → cooperative/unilateral close) with a conserved capacity invariant and SHA-256 preimage settlement. Combined with route-finding (Session 61), this completes the code-actionable `#271` scope; the remaining live gossip-based `Router` and commitment/revocation coordination require an LND/LDK node (provider integration, out-of-crate).
 - **#240 durable ReplayStore provider**: Added `DurableFileReplayStore` (`src/enclave/replay_store_file.rs`), the first `ReplayStore` adapter advertising `ReplayStoreDurability::DurableProvider`; `fsync`-ed O_EXCL records, all-or-nothing `consume_once_batch`, persisted anti-rollback high-water clock, validation-before-time-observation. It passes the full backend-neutral consume-once conformance suite (10 cases incl. 32-thread + overlapping-batch contention) in `tests/durable_replay_conformance.rs`. Acceptance items 1-5 and 7 are code-complete; item 6 (artifact/SBOM/provenance/independent review) remains external-blocked on `#202`.
 
+
+
+### Session 67 Resolution (2026-09-03)
+- **#271 Lightning BOLT12 & BIP-353 Integration**: Added  and  in . Supports parsing and validating reusable  BOLT12 offer strings with SHA-256 offer ID derivation, and DNS-based human-readable payment addresses () per BIP-353.

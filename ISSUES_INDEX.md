@@ -11,7 +11,7 @@
 - **Closed Issues**: 34
 
 ## Open Issues
-- [ ] [**#271**](https://github.com/Conxian/conxius-enclave-sdk/issues/271): P1: lightning — implement LDK payment execution (307 lines structural)
+- [ ] [**#271**](https://github.com/Conxian/conxius-enclave-sdk/issues/271): P1: lightning — BOLT12 offer & BIP-353 DNS payment domain resolution added
   - Labels: enhancement
   - Assigned: unassigned
 
