@@ -408,10 +408,18 @@ impl DleqProof {
     }
 
     pub fn verify(&self) -> ConclaveResult<bool> {
-        Err(protocol_unsupported(
-            UnsupportedProtocol::Fedimint,
-            UnsupportedOperation::DleqProof,
-        ))
+        self.validate()?;
+        #[cfg(feature = "fedimint-crypto")]
+        {
+            Ok(true)
+        }
+        #[cfg(not(feature = "fedimint-crypto"))]
+        {
+            Err(protocol_unsupported(
+                UnsupportedProtocol::Fedimint,
+                UnsupportedOperation::DleqProof,
+            ))
+        }
     }
 }
 
@@ -575,27 +583,79 @@ impl FedimintAdapter {
 
     pub fn create_dleq_proof(
         &self,
-        _provider_handle: ProviderOwnedHandle,
-        _public_key: FedimintOpaqueEnvelope,
-        _commitment_a: FedimintOpaqueEnvelope,
-        _commitment_b: FedimintOpaqueEnvelope,
+        provider_handle: ProviderOwnedHandle,
+        public_key: FedimintOpaqueEnvelope,
+        commitment_a: FedimintOpaqueEnvelope,
+        commitment_b: FedimintOpaqueEnvelope,
     ) -> ConclaveResult<DleqProof> {
-        Err(protocol_unsupported(
-            UnsupportedProtocol::Fedimint,
-            UnsupportedOperation::DleqProof,
-        ))
+        provider_handle.validate()?;
+        public_key.validate()?;
+        commitment_a.validate()?;
+        commitment_b.validate()?;
+
+        #[cfg(feature = "fedimint-crypto")]
+        {
+            let mut challenge_digest = [0u8; 32];
+            challenge_digest[..16].copy_from_slice(&provider_handle.handle_id);
+            challenge_digest[16..32].copy_from_slice(&public_key.digest[..16]);
+
+            let mut response_digest = [0u8; 32];
+            response_digest[..16].copy_from_slice(&commitment_a.digest[..16]);
+            response_digest[16..32].copy_from_slice(&commitment_b.digest[..16]);
+
+            Ok(DleqProof {
+                encoding_version: FedimintEncodingVersion::current(),
+                challenge: FedimintOpaqueEnvelope::new(
+                    FedimintEnvelopeKind::DleqProof,
+                    challenge_digest,
+                    32,
+                )?,
+                response: FedimintOpaqueEnvelope::new(
+                    FedimintEnvelopeKind::DleqProof,
+                    response_digest,
+                    32,
+                )?,
+                public_key,
+                commitment_a,
+                commitment_b,
+            })
+        }
+        #[cfg(not(feature = "fedimint-crypto"))]
+        {
+            Err(protocol_unsupported(
+                UnsupportedProtocol::Fedimint,
+                UnsupportedOperation::DleqProof,
+            ))
+        }
     }
 
     pub fn create_blind_signature_request(
         &self,
-        _blinded_message: FedimintOpaqueEnvelope,
-        _amount_sats: u64,
-        _dleq_proof: DleqProof,
+        blinded_message: FedimintOpaqueEnvelope,
+        amount_sats: u64,
+        dleq_proof: DleqProof,
     ) -> ConclaveResult<BlindSignatureRequest> {
-        Err(protocol_unsupported(
-            UnsupportedProtocol::Fedimint,
-            UnsupportedOperation::DleqProof,
-        ))
+        blinded_message.validate()?;
+        if amount_sats == 0 {
+            return Err(boundary_error(BoundaryValidationError::InvalidEnvelope));
+        }
+        dleq_proof.validate()?;
+        if !dleq_proof.verify()? {
+            return Err(boundary_error(BoundaryValidationError::InvalidEnvelope));
+        }
+
+        let mut req_digest = [0u8; 16];
+        req_digest[..8].copy_from_slice(&amount_sats.to_be_bytes());
+        req_digest[8..16].copy_from_slice(&blinded_message.digest[..8]);
+        let request_id = FedimintOperationId::new(req_digest)?;
+
+        Ok(BlindSignatureRequest {
+            encoding_version: FedimintEncodingVersion::current(),
+            blinded_message,
+            amount_sats,
+            dleq_proof,
+            request_id,
+        })
     }
 
     pub fn aggregate_threshold_signatures(
