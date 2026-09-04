@@ -1,5 +1,21 @@
 # Next Session Plan
 
+## Session 71 Completed (2026-09-04) — Repository Audit, Gap Mapping & Scoring Synthesis
+
+### ✅ Repository Audit & Codebase Fixes
+- Fixed compiler warnings in `src/protocol/frost.rs` by properly handling unused `raw_package_bytes` parameters in `#[cfg(not(feature = "frost-crypto"))]` blocks.
+- Verified 100% test pass rate (629+ tests) and zero clippy warnings across default and `--all-features` configurations.
+
+### ✅ Candidate Scoring Synthesis & Gap Mapping
+- Evaluated all open GitHub issues (#271, #242, #241, #240, #202, #200) and technical debt items.
+- Updated 75-point candidate scoring matrix in `DEBT_INVENTORY.md` and `GAP_SCORECARD.md`.
+- Initialized `#200 WASM Secret Isolation & Runtime Evidence` (61/75) as top actionable non-external candidate following completed `#267` (73/75) and `#271` (71/75).
+
+### ✅ Knowledge Base & Documentation Sync
+- Updated `ISSUES_INDEX.md`, `PRS_INDEX.md`, `DEBT_INVENTORY.md`, `GAP_SCORECARD.md`, `RESEARCH_LOG.md`, `CHANGELOG.md`, and `NEXT_SESSION_PLAN.md` with complete audit and candidate status.
+
+---
+
 ## Session 70 Completed (2026-09-03) — FROST DKG Round 1/2 Cryptographic Verification & Audit Sync
 
 ### ✅ FROST DKG Cryptographic Share & Commitment Verification

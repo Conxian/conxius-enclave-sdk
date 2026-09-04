@@ -1224,3 +1224,21 @@ Sources: [Bitcoin Optech "Waiting for confirmation"](https://bitcoinops.org/en/b
 - **Configurable KMS Release Key Binding**: Added `with_kms_key_identifier_hash` to `AwsNitroVerifier` in `src/enclave/verifiers/nitro_verifier.rs` to allow callers and verifier registries to dynamically bind a 32-byte KMS key identifier hash for release key authorization instead of defaulting to `[0u8; 32]`.
 - **Certificate Path & Fingerprint Verification**: Validated embedded AWS Nitro Root CA G1 fingerprint (`AwsNitroTrustBoundary::ROOT_CA_FINGERPRINT`) and structural leaf-to-root certificate chain linkage.
 - **Verification**: Added unit tests in `src/enclave/verifiers/nitro_verifier.rs`; all workspace unit and integration tests pass cleanly.
+
+
+## Session 71 — Repository Audit, Gap Scorecard & Scoring Synthesis (2026-09-04)
+
+### Candidate Scoring Formula Synthesis (75-Point Scale)
+Applying our 8-factor weighted rubric (Security: 3x, Blocker: 3x, Unlock: 2x, Evidence: 2x, Confidence: 2x, Efficiency: 1x, External: 1x, Doc Risk: 1x):
+1. `#267` Groth16 Real Pairing Verification (73/75) — ✅ Code Complete (Session 61)
+2. `#271` Lightning LDK Engine, BOLT12 & BIP-353 (71/75) — ✅ Code Complete (Sessions 60, 62, 67)
+3. `G240-RP` Durable Replay Store Reference Backend (66/75) — ✅ Code Complete (Session 62)
+4. `#200` WASM Secret Isolation & Runtime Evidence (61/75) — 🎯 Top Actionable Software Target
+5. `#241` Android KeyMint/StrongBox Authorization (59/75) — Unit qualification complete; device hardware blocked
+6. `#242` AWS Nitro Attestation & KMS Release Key (56/75) — KMS builder complete; EC2 enclave blocked
+7. `#202` Independent Security Review & Release Acceptance (44/75) — External audit blocked
+
+### Audit Outcomes
+- All 629+ unit and integration tests passing (`cargo test --locked`).
+- Zero clippy warnings (`cargo clippy --all-targets --all-features -- -D warnings`).
+- Unused parameter compiler warnings in `src/protocol/frost.rs` resolved.

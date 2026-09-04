@@ -292,3 +292,23 @@ In accordance with the 75-point weighted gap scoring rubric (Security: 3x, Block
   - `#242` AWS Nitro live attestation (56/75) — external-blocked (AWS deployment).
   - `#241` Android KeyMint/StrongBox (59/75) — external-blocked (real device).
   - `#202` independent review + release acceptance (44/75) — external-blocked (reviewer).
+
+## Session 71 — Candidate 75-Point Scoring Matrix & End-to-End Gap Mapping (2026-09-04)
+
+### Scored Candidates Rubric & Synthesis
+Applying the 75-point weighted gap scoring rubric (Security: 3x, Blocker: 3x, Unlock: 2x, Evidence: 2x, Confidence: 2x, Efficiency: 1x, External: 1x, Doc Risk: 1x):
+
+| Gap / Candidate | Sec | Blocker | Unlock | Evidence | Confidence | Efficiency | External | Doc Risk | Formula Score | Status |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `#267` BitVM2 Groth16 Real Pairing Verification | 5 | 5 | 4 | 5 | 5 | 4 | 5 | 5 | **73 / 75** | ✅ Resolved (Session 61) |
+| `#271` Lightning LDK Engine, BOLT12 & BIP-353 | 5 | 5 | 4 | 5 | 4 | 4 | 5 | 5 | **71 / 75** | ✅ Resolved (Session 60, 62, 67) |
+| `G240-RP` Durable Replay Store Reference Backend | 5 | 5 | 4 | 4 | 4 | 4 | 4 | 4 | **66 / 75** | ✅ Resolved (Session 62) |
+| `#200` WASM Secret Isolation & Runtime Evidence | 4 | 5 | 4 | 3 | 4 | 4 | 4 | 4 | **61 / 75** | 🎯 **Top Actionable Software Target** |
+| `#241` Android KeyMint/StrongBox Authorization | 5 | 4 | 4 | 2 | 4 | 4 | 4 | 4 | **59 / 75** | In Progress — Unit tests complete (Session 69); hardware device blocked |
+| `#242` AWS Nitro Attestation & KMS Release Key | 5 | 4 | 4 | 2 | 3 | 3 | 4 | 4 | **56 / 75** | In Progress — KMS builder complete (Session 68); EC2 enclave deployment blocked |
+| `#202` Independent Security Review & Release Acceptance | 4 | 4 | 3 | 1 | 2 | 3 | 2 | 3 | **44 / 75** | External Auditor Blocked |
+
+### Gap Resolution & Execution Strategy
+1. **Completed Code Candidates**: `#267` (Groth16 real pairing), `#271` (LDK Payment Engine, BOLT12 offer parsing & BIP-353 resolution), `G240-RP` (`DurableFileReplayStore`), and Session 70 FROST DKG Round 1/2 cryptographic share verification are code-complete and tested with 629 passing unit/integration tests.
+2. **Initialized Top Candidate**: `#200 WASM Secret Isolation & Runtime Evidence` (61/75) is selected as the top actionable non-external target to harden secret zeroization boundaries and browser/Node.js WASM execution evidence.
+3. **External Provider Targets**: `#241` (Android), `#242` (Nitro), and `#202` (External Audit) remain tracked with full qualification unit tests and builder interfaces.
