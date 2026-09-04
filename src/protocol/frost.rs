@@ -1365,7 +1365,9 @@ mod signing_context_tests {
 
         // 7. Test raw cryptographic DKG Round 2 verification & registration
         assert!(!manager.verify_dkg_round2_bytes(&[]).unwrap());
-        assert!(!manager.verify_dkg_round2_bytes(b"corrupted round2 bytes").unwrap());
+        assert!(!manager
+            .verify_dkg_round2_bytes(b"corrupted round2 bytes")
+            .unwrap());
 
         let mut ctx2 = FrostSigningContext::new();
         assert!(ctx2.register_dkg_round2_package(b"invalid_round2").is_err());
