@@ -268,3 +268,8 @@ The Ark, Fedimint, and related BitVM entries below record API/structural impleme
 
 ### Session 70 Resolution (2026-09-03)
 - **FROST DKG Cryptographic Verification**: Hardened `verify_dkg_round1` and `verify_received_share` in `src/protocol/frost.rs` and `src/protocol/frost_crypto.rs` under `#[cfg(feature = "frost-crypto")]`. Round 1 packages now cryptographically verify proof-of-knowledge signatures and commitments; Round 2 share verification evaluates received secret shares against Round 1 polynomial commitments.
+
+
+### Session 71 Resolution & Candidate Selection (2026-09-04)
+- **#200 WASM Secret Isolation & Runtime Evidence (61/75)**: Selected as the top actionable non-external candidate behind `#267` (73/75, completed) and `#271` (71/75, completed). All secret zeroization error stability tests and WASM binding surfaces are verified fail-closed.
+- **FROST DKG Round 1 & 2 Cryptographic Verification**: Completed in Session 70 in `src/protocol/frost.rs` and `src/protocol/frost_crypto.rs`. Fixed `_raw_package_bytes` parameter warnings in Session 71 for non-crypto build configurations.

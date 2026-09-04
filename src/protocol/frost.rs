@@ -594,6 +594,7 @@ impl FrostManager {
         }
         #[cfg(not(feature = "frost-crypto"))]
         {
+            let _ = raw_package_bytes;
             Err(protocol_unsupported(
                 UnsupportedProtocol::Frost,
                 UnsupportedOperation::Dkg,
@@ -612,6 +613,7 @@ impl FrostManager {
         }
         #[cfg(not(feature = "frost-crypto"))]
         {
+            let _ = raw_package_bytes;
             Err(protocol_unsupported(
                 UnsupportedProtocol::Frost,
                 UnsupportedOperation::Dkg,

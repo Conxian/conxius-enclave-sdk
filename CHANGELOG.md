@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Added
+- `src/protocol/frost.rs`: Fixed unused parameter warnings in non-frost-crypto build configurations for `verify_dkg_round1_bytes` and `verify_dkg_round2_bytes`.
+- Candidate Scoring & Audit Sync: Evaluated all 6 open GitHub issues and updated 75-point candidate matrix in `DEBT_INVENTORY.md` and `GAP_SCORECARD.md` establishing `#200 WASM Secret Isolation` (61/75) as top actionable non-external candidate.
 - `src/enclave/android_authorization.rs`: Added comprehensive unit tests for `AndroidAuthorizationEvidence` validation, including Play Integrity evidence version/bounds checking, certificate chain size/byte limits, and timestamp lifetime/future-skew boundary verification (#241).
 - `src/wasm_support.rs`: Added `test_wasm_runtime_unapproved_provider_error_code_stability` and `test_wasm_unverified_runtime_rejection_message` to harden WASM secret boundary enforcement and verify stable typed error codes (`UNSUPPORTED_PROVIDER`, `UNSUPPORTED_RUNTIME`) (#200).
 - Knowledge Base & System Audit: Verified 70 capability evidence items, scored roadmap candidates via 75-point formula, and synchronized issue tracking indexes.
