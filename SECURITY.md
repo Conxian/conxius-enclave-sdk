@@ -33,3 +33,4 @@ Report privately using one of these channels:
 3. Simulated, mock, software-only, and placeholder drivers must not be treated as production-grade security controls.
 4. Missing evidence must fail closed rather than being interpreted as support.
 5. Public documentation must remain ZSE-safe: do not publish credentials, private endpoints, privileged identifiers, custody procedures, key-recovery details, or incident secrets.
+6. Public/Private repository boundaries must be strictly enforced: client SDK repositories must not contain internal infrastructure deployment workflows, database provisioning scripts (such as Neon database branching workflows), or backend infrastructure secret requirements.
