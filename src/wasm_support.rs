@@ -9,7 +9,6 @@ use crate::{protocol_unsupported, UnsupportedOperation, UnsupportedProtocol};
 use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 
-
 use zeroize::Zeroize;
 
 /// Opaque zeroizing buffer for WASM memory security.
@@ -396,5 +395,4 @@ mod tests {
         buf.zeroize();
         assert_eq!(buf.as_slice(), &[0u8; 32][..]);
     }
-
 }
