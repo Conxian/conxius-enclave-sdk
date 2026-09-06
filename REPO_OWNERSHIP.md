@@ -17,10 +17,11 @@
 - application orchestration
 - wallet UX
 - general platform runtime concerns
+- backend database infrastructure, database branching, or database migration workflows (e.g., Neon DB)
 
 ## Boundary rule
 
-If the concern is about secure signing, device trust, or controlled key use, it belongs here. If it is about layer-specific broadcast, observation, or application behavior, it belongs elsewhere.
+If the concern is about secure signing, device trust, or controlled key use, it belongs here. If it is about layer-specific broadcast, observation, database provisioning, or application behavior, it belongs elsewhere. Public client SDK repositories must not include internal infrastructure deployment workflows or internal backend database secret triggers.
 
 ## Operational role model
 
