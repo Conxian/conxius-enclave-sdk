@@ -1,0 +1,43 @@
+name: cargo-audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  cargo-audit:
+    name: Cargo Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: 1.97.1
+
+      - name: Install cargo-audit
+        run: |
+          rustup component add rustfmt || true
+          cargo install cargo-audit --version 0.18.0 --force || true
+
+      - name: Run cargo-audit
+        run: |
+          cargo audit --json > audit.json || true
+          jq . < audit.json > audit.pretty.json || true
+          cat audit.pretty.json
+
+      - name: Fail on high/critical advisories
+        run: |
+          # Exit non-zero if any advisory has severity HIGH or CRITICAL
+          cat audit.json | jq -r '.vulnerabilities.list[]?.advisory | "\(.id) \(.title) \(.cvss) \(.id)"' >/dev/null 2>&1 || true
+          CRIT=$(jq '.vulnerabilities.list[]?.advisory.severity' audit.json | grep -E '"Critical"' || true)
+          HIGH=$(jq '.vulnerabilities.list[]?.advisory.severity' audit.json | grep -E '"High"' || true)
+          if [ -n "$CRIT" ] || [ -n "$HIGH" ]; then
+            echo "Failing CI due to HIGH/CRITICAL advisories"
+            exit 1
+          fi
