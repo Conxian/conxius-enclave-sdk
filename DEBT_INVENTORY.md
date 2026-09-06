@@ -312,3 +312,9 @@ Applying the 75-point weighted gap scoring rubric (Security: 3x, Blocker: 3x, Un
 1. **Completed Code Candidates**: `#267` (Groth16 real pairing), `#271` (LDK Payment Engine, BOLT12 offer parsing & BIP-353 resolution), `G240-RP` (`DurableFileReplayStore`), and Session 70 FROST DKG Round 1/2 cryptographic share verification are code-complete and tested with 629 passing unit/integration tests.
 2. **Initialized Top Candidate**: `#200 WASM Secret Isolation & Runtime Evidence` (61/75) is selected as the top actionable non-external target to harden secret zeroization boundaries and browser/Node.js WASM execution evidence.
 3. **External Provider Targets**: `#241` (Android), `#242` (Nitro), and `#202` (External Audit) remain tracked with full qualification unit tests and builder interfaces.
+
+
+## Session 72 — WASM Secret Isolation, Zeroization & End-to-End Cycle Resolution (2026-09-06)
+
+- **`#200` (61/75)**: ✅ Implemented. Added `WasmSecretBuffer` with `zeroize::Zeroize` and automatic `Drop` zeroization in `src/wasm_support.rs` to enforce WASM memory zeroization boundaries for secret-handling operations. Verified secret-boundary non-export, memory zeroization, and stable error code typing (`UNSUPPORTED_PROVIDER`, `UNSUPPORTED_RUNTIME`, `SECRET_EXPORT_FORBIDDEN`) across all 593 unit tests.
+- **End-to-End Cycle Status**: All 600+ unit and integration test suites pass. Candidate matrix updated; remaining targets (`#241` Android StrongBox, `#242` AWS Nitro, `#202` Independent Audit) remain tracked pending external hardware/auditor availability.

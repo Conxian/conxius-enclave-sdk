@@ -9,6 +9,51 @@ use crate::{protocol_unsupported, UnsupportedOperation, UnsupportedProtocol};
 use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 
+
+use zeroize::Zeroize;
+
+/// Opaque zeroizing buffer for WASM memory security.
+/// Ensures secret bytes held during WASM operations are explicitly overwritten
+/// in memory upon drop or completion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WasmSecretBuffer {
+    inner: Vec<u8>,
+}
+
+impl WasmSecretBuffer {
+    /// Create a new secret buffer wrapping the provided bytes.
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self { inner: bytes }
+    }
+
+    /// Access the underlying secret bytes.
+    pub fn as_slice(&self) -> &[u8] {
+        &self.inner
+    }
+
+    /// Return the length of the secret buffer.
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    /// Check if the secret buffer is empty.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+}
+
+impl Zeroize for WasmSecretBuffer {
+    fn zeroize(&mut self) {
+        self.inner.as_mut_slice().zeroize();
+    }
+}
+
+impl Drop for WasmSecretBuffer {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
 /// Runtime labels used by the public WASM support matrix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WasmRuntime {
@@ -339,4 +384,17 @@ mod tests {
             "Rejection message must explain missing evidence"
         );
     }
+
+    #[test]
+    fn test_wasm_secret_buffer_zeroization_and_bounds() {
+        let secret_data = vec![0x42; 32];
+        let mut buf = WasmSecretBuffer::new(secret_data.clone());
+        assert_eq!(buf.len(), 32);
+        assert!(!buf.is_empty());
+        assert_eq!(buf.as_slice(), &secret_data[..]);
+
+        buf.zeroize();
+        assert_eq!(buf.as_slice(), &[0u8; 32][..]);
+    }
+
 }
