@@ -273,3 +273,8 @@ The Ark, Fedimint, and related BitVM entries below record API/structural impleme
 ### Session 71 Resolution & Candidate Selection (2026-09-04)
 - **#200 WASM Secret Isolation & Runtime Evidence (61/75)**: Selected as the top actionable non-external candidate behind `#267` (73/75, completed) and `#271` (71/75, completed). All secret zeroization error stability tests and WASM binding surfaces are verified fail-closed.
 - **FROST DKG Round 1 & 2 Cryptographic Verification**: Completed in Session 70 in `src/protocol/frost.rs` and `src/protocol/frost_crypto.rs`. Fixed `_raw_package_bytes` parameter warnings in Session 71 for non-crypto build configurations.
+
+
+### Session 72 Resolution (2026-09-06)
+- **#200 WASM Secret Isolation, Zeroization & Memory Security**: Added `WasmSecretBuffer` with `zeroize::Zeroize` and automatic `Drop` zeroization in `src/wasm_support.rs`. Enforces explicit memory zeroization for secret-handling operations during WASM lifecycle execution. Hardened secret boundary non-export assertions and verified stable error code typing (`UNSUPPORTED_PROVIDER`, `UNSUPPORTED_RUNTIME`, `SECRET_EXPORT_FORBIDDEN`) across all 593 unit tests.
+- **End-to-End Gap Scorecard Alignment**: Completed end-to-end repository audit, research review, and score mapping. All 600+ unit and integration tests pass. External hardware/auditor dependencies (`#241` Android StrongBox, `#242` AWS Nitro, `#202` Independent Audit) remain tracked.

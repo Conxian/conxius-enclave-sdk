@@ -69,6 +69,7 @@ provenance, or production support.
   Any future API that explicitly exposes or accepts raw secret/blinding-factor
   material must fail with `SECRET_EXPORT_FORBIDDEN` until a provider-owned
   opaque flow exists; no such default WASM API exists.
+- `WasmSecretBuffer` (defined in `src/wasm_support.rs`) wraps secret-handling byte buffers with `zeroize::Zeroize` and automatic `Drop` zeroization to guarantee memory scrubbing in WASM memory spaces.
 - Malformed hex, length, JSON, and shape inputs at the signing/covenant
   boundary return the stable `INVALID_INPUT` code before native processing.
 - Cloud, localhost, software-only, and mock implementations are test/development
