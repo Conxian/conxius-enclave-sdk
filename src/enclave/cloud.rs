@@ -198,14 +198,11 @@ impl EnclaveManager for CloudEnclave {
     }
 
     fn sign(&self, request: SignRequest) -> ConclaveResult<SignResponse> {
-        let public_key_hex: String;
-        let signature_hex: String;
-
-        match request.algorithm {
+        let (public_key_hex, signature_hex) = match request.algorithm {
             SigningAlgorithm::EcdsaSecp256k1 => {
                 let secret_key = self.get_active_secp_key()?;
                 let public_key = secret_key.public_key();
-                public_key_hex = hex::encode(public_key.serialize());
+                let public_key_hex = hex::encode(public_key.serialize());
                 let message_bytes: [u8; 32] = request
                     .message_hash
                     .clone()
@@ -213,7 +210,7 @@ impl EnclaveManager for CloudEnclave {
                     .map_err(|_| ConclaveError::InvalidPayload)?;
                 let message = Message::from_digest(message_bytes);
                 let sig = secp256k1::ecdsa::sign(message, &secret_key);
-                signature_hex = hex::encode(sig.serialize_compact());
+                (public_key_hex, hex::encode(sig.serialize_compact()))
             }
             SigningAlgorithm::SchnorrSecp256k1 => {
                 return Err(ConclaveError::Unsupported(
@@ -224,9 +221,9 @@ impl EnclaveManager for CloudEnclave {
             SigningAlgorithm::Ed25519 => {
                 let key_bytes = self.get_active_key_bytes();
                 let signing_key = SigningKey::from_bytes(key_bytes);
-                public_key_hex = hex::encode(signing_key.verifying_key().to_bytes());
+                let public_key_hex = hex::encode(signing_key.verifying_key().to_bytes());
                 let sig = signing_key.sign(&request.message_hash);
-                signature_hex = hex::encode(sig.to_bytes());
+                (public_key_hex, hex::encode(sig.to_bytes()))
             }
         };
 
