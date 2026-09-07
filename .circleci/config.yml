@@ -19,10 +19,10 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install Rust 1.97.1
+          name: Install Rust 1.98.0
           command: |
-            rustup toolchain install 1.97.1
-            rustup default 1.97.1
+            rustup toolchain install 1.98.0
+            rustup default 1.98.0
       - run:
           name: Run tests
           command: cargo test --locked --all-features --verbose
@@ -34,10 +34,10 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install Rust 1.97.1 and components
+          name: Install Rust 1.98.0 and components
           command: |
-            rustup toolchain install 1.97.1
-            rustup default 1.97.1
+            rustup toolchain install 1.98.0
+            rustup default 1.98.0
             rustup component add rustfmt clippy
       - run:
           name: Check formatting
@@ -55,8 +55,8 @@ jobs:
       - run:
           name: Install wasm32 target and wasm-pack
           command: |
-            rustup toolchain install 1.97.1
-            rustup default 1.97.1
+            rustup toolchain install 1.98.0
+            rustup default 1.98.0
             rustup target add wasm32-unknown-unknown
             curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - run:
@@ -114,10 +114,10 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install Rust 1.97.1
+          name: Install Rust 1.98.0
           command: |
-            rustup toolchain install 1.97.1
-            rustup default 1.97.1
+            rustup toolchain install 1.98.0
+            rustup default 1.98.0
       - run:
           name: Install cargo-audit and cargo-deny
           command: |
