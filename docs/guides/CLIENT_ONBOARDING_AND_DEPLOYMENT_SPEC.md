@@ -14,11 +14,18 @@ Conxian provides a hardware-backed, protocol-first, multi-chain settlement and s
 2. License Key & License Attestation: Client is issued an asymmetric signed License Token (`.conxian-license`) binding Organization ID, allowed features (`groth16`, `fedimint-crypto`, `frost-crypto`), and signing volume quotas.
 
 ### Step 2: Client Required Inputs & Environment Configuration
-- AWS Nitro Enclave (if AWS Enterprise): AWS KMS Key ARN, KMS Key Identifier Hash (SHA-256 of ARN: `3023bd69185b63a2d3e28853def2a77f50fc11cf0ab7698c546716fbc86771e7`), EIF Enclave Measurements (PCR0, PCR1, PCR2).
-- Android StrongBox (if Mobile/Android Enterprise): Play Integrity API Key and Service Account JSON, Certificate Chain Attestation Roots.
-- Database Connection String: Neon PostgreSQL connection string (`postgres://user:pass@ep-xyz.neon.tech/neondb?sslmode=require`).
-- Idempotency & Replay Cache: Redis URI (`redis://:pass@redis.client-domain.com:6379/0`).
-- Blockchain RPC Endpoints: Bitcoin L1 RPC/Electrum/Esplora, Ethereum/EVM JSON-RPC, Solana RPC, Stacks RPC, Lightning LND/LDK endpoint.
+- **AWS Nitro Enclave (if AWS Enterprise)**:
+  - AWS KMS Key ARN & Key Identifier Hash (SHA-256 of ARN: `3023bd69185b63a2d3e28853def2a77f50fc11cf0ab7698c546716fbc86771e7`).
+  - EIF Enclave Image Format Measurements (`PCR0`, `PCR1`, `PCR2`).
+- **Android StrongBox (if Mobile/Android Enterprise)**:
+  - Play Integrity API Key and Service Account JSON credentials.
+  - Certificate Chain Attestation Roots and hardware KeyMint authorization policies.
+- **Database Connection String**:
+  - Neon PostgreSQL connection string (`postgres://user:pass@ep-xyz.neon.tech/neondb?sslmode=require`).
+- **Idempotency & Replay Cache**:
+  - Redis URI (`redis://:pass@redis.client-domain.com:6379/0`).
+- **Blockchain RPC Endpoints**:
+  - Bitcoin L1 RPC/Electrum/Esplora, Ethereum/EVM JSON-RPC, Solana RPC, Stacks RPC, Lightning LND/LDK endpoint.
 
 ## 3. Installed System Components & Architecture
 - `conxius-enclave-sdk`: Core Rust library / C-FFI / WASM binding providing Universal Chain Signer (UCS), hardware attestation verification, zeroized secret buffers (`WasmSecretBuffer`), and cryptographic primitives (ZF FROST, BLS12-381 DLEQ proofs, Groth16 verifier).
@@ -27,18 +34,18 @@ Conxian provides a hardware-backed, protocol-first, multi-chain settlement and s
 
 ## 4. Cross-Asset Connectivity & Deployment Verification
 Using the 4-layer connection graph (Attestation -> Identity -> Storage -> Settlement), clients verify connectivity across all 42 supported asset types:
-- Bitcoin / L2s: Bitcoin Mainnet (SegWit/Taproot), Lightning (BOLT11/BOLT12/BIP-353), Stacks (Nakamoto), Liquid, Ark, BitVM2.
-- EVM Chains: Ethereum, Arbitrum, Base, Polygon, BSC, Avalanche, Optimism.
-- Dynamic L1s: Solana Native & SPL Tokens, Stellar (StrKey G-prefixed), XRP Ledger (Base58Check), Cosmos Hub (Bech32).
+- **Bitcoin / L2s**: Bitcoin Mainnet (SegWit/Taproot), Lightning (BOLT11/BOLT12/BIP-353), Stacks (Nakamoto), Liquid, Ark, BitVM2.
+- **EVM Chains**: Ethereum, Arbitrum, Base, Polygon, BSC, Avalanche, Optimism.
+- **Dynamic L1s**: Solana Native & SPL Tokens, Stellar (StrKey G-prefixed), XRP Ledger (Base58Check), Cosmos Hub (Bech32).
 
 ## 5. Unified Installer & Management CLI Design (`conxius-ctl`)
 Complete client onboarding 4-step command walkthrough:
-1. `conxius-ctl doctor` (verify prerequisites, Docker, Nitro CLI, Neon DB)
-2. `conxius-ctl auth login --license-file .conxian-license --org-id org_client_12345`
-3. `conxius-ctl deploy --lane enterprise --database-url postgres://...`
-4. `conxius-ctl test-connectivity --all-chains`
+1. `conxius-ctl doctor`: Verify system prerequisites, Docker runtime, Nitro CLI, AWS KMS connectivity, and Neon DB access.
+2. `conxius-ctl auth login --license-file .conxian-license --org-id org_client_12345`: Authenticate license token and validate entitlement claims.
+3. `conxius-ctl deploy --lane enterprise --database-url postgres://...`: Deploy containerized enclave binaries and run migrations.
+4. `conxius-ctl test-connectivity --all-chains`: Run end-to-end multi-chain ping and dry-run attestation checks across all 42 asset types.
 
 ## 6. Recommendations & Next Steps
-1. Publish IaC Blueprints: Provide Terraform and AWS CDK templates in `conxius-platform`.
-2. Integrate `conxius-ctl`: Develop `conxius-ctl` as a standalone Rust crate in `conxius-platform`.
-3. Automate Health Monitoring: Embed Prometheus metrics and OpenTelemetry tracing endpoints in `conxian-nexus` and `conxian-gateway`.
+1. **Publish IaC Blueprints**: Provide Terraform and AWS CDK templates in `conxius-platform` for automated AWS Nitro EC2 & Enclave provisioning.
+2. **Integrate `conxius-ctl`**: Develop `conxius-ctl` as a standalone Rust CLI tool within `conxius-platform` for streamlined client installation.
+3. **Automate Health Monitoring**: Embed Prometheus metrics and OpenTelemetry tracing endpoints in `conxian-nexus` and `conxian-gateway`.
