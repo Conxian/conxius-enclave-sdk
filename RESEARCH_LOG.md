@@ -1242,3 +1242,9 @@ Applying our 8-factor weighted rubric (Security: 3x, Blocker: 3x, Unlock: 2x, Ev
 - All 629+ unit and integration tests passing (`cargo test --locked`).
 - Zero clippy warnings (`cargo clippy --all-targets --all-features -- -D warnings`).
 - Unused parameter compiler warnings in `src/protocol/frost.rs` resolved.
+
+
+### Session 72 — Org-Wide Ecosystem Installation, Client Onboarding & Gap Review (2026-09-09)
+- **Ecosystem Architecture Review**: Analyzed 15 Conxian ecosystem repositories (`conxius-enclave-sdk`, `conxian-nexus`, `conxian-gateway`, `conxian-business`, `lib-conxian-core`, `conxius-wallet`). Reviewed client purchasing pathways (Enterprise Vault License, Managed Settlement Gateway, Operator Threshold Signer), components installed, data inputs (AWS KMS keys, Android StrongBox Play Integrity, Neon PostgreSQL connection strings, Redis, ISO 20022 endpoints), and cross-asset connectivity.
+- **Client Onboarding Specification**: Created `docs/guides/CLIENT_ONBOARDING_AND_DEPLOYMENT_SPEC.md` documenting the complete client purchasing and onboarding workflow, required inputs, 4-layer connectivity graph, and unified CLI installer (`conxius-ctl`) design.
+- **75-Point Candidate Matrix & Debt Audit**: Re-audited all open GitHub issues (#271, #242, #241, #240, #200) and verified candidate rankings. Code-actionable software tasks (#200 WASM secret isolation, #271 Lightning, #267 Groth16, FROST DKG verification) are completed and verified fail-closed. External hardware/auditor gates (#241, #242, #202) remain tracked.
