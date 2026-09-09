@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Added
+- `docs/guides/CLIENT_ONBOARDING_AND_DEPLOYMENT_SPEC.md`: Created comprehensive client installation, onboarding, purchasing, and deployment specification. Details Enterprise Vault, Managed Gateway, and Operator Signer tiers, configuration inputs (AWS Nitro KMS keys, Android StrongBox, Neon PostgreSQL, Redis), 4-layer connectivity graph, and unified CLI installer (`conxius-ctl`) design.
+- `docs/architecture/GAP_SCORECARD.md` & `DEBT_INVENTORY.md`: Completed full-repo research synthesis and candidate scoring across all open GitHub issues (#271, #242, #241, #240, #200).
+- Fixed compiler warnings in `src/protocol/frost.rs` non-crypto build configurations for unused `_raw_package_bytes` parameters.
+
+### Added
 - `src/protocol/frost.rs`: Fixed unused parameter warnings in non-frost-crypto build configurations for `verify_dkg_round1_bytes` and `verify_dkg_round2_bytes`.
 - Candidate Scoring & Audit Sync: Evaluated all 6 open GitHub issues and updated 75-point candidate matrix in `DEBT_INVENTORY.md` and `GAP_SCORECARD.md` establishing `#200 WASM Secret Isolation` (61/75) as top actionable non-external candidate.
 - `src/enclave/android_authorization.rs`: Added comprehensive unit tests for `AndroidAuthorizationEvidence` validation, including Play Integrity evidence version/bounds checking, certificate chain size/byte limits, and timestamp lifetime/future-skew boundary verification (#241).
