@@ -318,3 +318,9 @@ Applying the 75-point weighted gap scoring rubric (Security: 3x, Blocker: 3x, Un
 
 - **`#200` (61/75)**: ✅ Implemented. Added `WasmSecretBuffer` with `zeroize::Zeroize` and automatic `Drop` zeroization in `src/wasm_support.rs` to enforce WASM memory zeroization boundaries for secret-handling operations. Verified secret-boundary non-export, memory zeroization, and stable error code typing (`UNSUPPORTED_PROVIDER`, `UNSUPPORTED_RUNTIME`, `SECRET_EXPORT_FORBIDDEN`) across all 593 unit tests.
 - **End-to-End Cycle Status**: All 600+ unit and integration test suites pass. Candidate matrix updated; remaining targets (`#241` Android StrongBox, `#242` AWS Nitro, `#202` Independent Audit) remain tracked pending external hardware/auditor availability.
+
+## Session 73 — Babylon EOTS & RGB Blinded Seal Protocol Hardening (2026-09-10)
+
+- **`SDK-005` Babylon BTC Staking Protocol Hardening**: ✅ Implemented. Added Extractable One-Time Signatures (EOTS) commitments (`BabylonEotsCommitment`), vote signature verification (`BabylonEotsSignature::verify`), double-signing detection at identical height and round, and algebraic slashing secret key extraction (`extract_slashing_key`) in `src/protocol/babylon.rs`.
+- **`SDK-006` RGB Client-Side Validated Asset Protocol Hardening**: ✅ Implemented. Added blinded single-use seals (`RgbBlindedSeal`) computed via SHA-256 tagged hash $H(\text{txid} \parallel \text{vout} \parallel \text{blinding\_factor})$, seal unblinded verification (`verify`), asset allocation commitments (`RgbAssetAllocation`), and batch asset transfer transition signing through UCS (`RgbBatchTransition`) in `src/protocol/rgb.rs`.
+- **End-to-End Cycle Status**: All 600 unit tests and 4 integration test suites pass with 0 warnings or failures.
