@@ -3,8 +3,10 @@
 ## [Unreleased]
 
 ### Added
+- `src/protocol/babylon.rs`: Hardened Babylon BTC Staking protocol with Extractable One-Time Signatures (EOTS) primitives — added `BabylonEotsCommitment` hash computation, `BabylonEotsSignature` verification, double-signing detection at identical height/round, and algebraic slashing secret key extraction (`extract_slashing_key`) (SDK-005).
+- `src/protocol/rgb.rs`: Hardened RGB Client-Side Validated Asset protocol with blinded single-use seals (`RgbBlindedSeal`), UTXO blinding factor verification (`verify`), asset allocation assignments (`RgbAssetAllocation`), and batch transition signing through UCS (`RgbBatchTransition`) (SDK-006).
+- `docs/architecture/GAP_SCORECARD.md` & `DEBT_INVENTORY.md`: Updated Session 73/74 gap research synthesis, candidate evaluation rubric, and verified end-to-end multi-chain protocol support status.
 - `docs/guides/CLIENT_ONBOARDING_AND_DEPLOYMENT_SPEC.md`: Created comprehensive client installation, onboarding, purchasing, and deployment specification. Details Enterprise Vault, Managed Gateway, and Operator Signer tiers, configuration inputs (AWS Nitro KMS keys, Android StrongBox, Neon PostgreSQL, Redis), 4-layer connectivity graph, and unified CLI installer (`conxius-ctl`) design.
-- `docs/architecture/GAP_SCORECARD.md` & `DEBT_INVENTORY.md`: Completed full-repo research synthesis and candidate scoring across all open GitHub issues (#271, #242, #241, #240, #200).
 - Fixed compiler warnings in `src/protocol/frost.rs` non-crypto build configurations for unused `_raw_package_bytes` parameters.
 
 ### Added
@@ -34,14 +36,3 @@
 ### Security & Governance
 - Removed tracked root operational artifacts (`.audit_report_session57.md`, root `pre_commit_review.json`) from git, updated `.gitignore`, and hardened `.github/workflows/hygiene.yml` CI checks.
 - `.github/workflows/hygiene.yml`: Hardened repository hygiene CI check to verify no tracked test-results, playwright-reports, coverage output, release evidence, or sensitive credentials/config files exist in git.
-
-## [v2.0.16] - 2026-08-07
-
-### Fixed
-- Cargo.lock: root version synced to 2.0.15 (was 2.0.14), re-locked for CI Strict
-- Cargo fmt: trailing blank lines removed from P1 cleanup (5 files)
-- CI: all 10 workflow checks green after lockfile + format fixes
-- Version bump to 2.0.16 for crates.io publish (v2.0.15 tag protected)
-- DeepSeek CI review: JS template literals replaced with array concat (YAML parse fix)
-
-## [v2.0.15] - 2026-08-05 (unreleased; version reverted to 2.0.14 for release alignment)
