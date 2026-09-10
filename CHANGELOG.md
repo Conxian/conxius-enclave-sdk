@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- `src/enclave/verifiers/nitro_verifier.rs`: Hardened AWS Nitro attestation verifier with unit tests for invalid evidence parsing failures (`ConclaveError::Attestation`), corrupted Root CA fingerprint mismatch fail-closed behavior, custom KMS key identifier hash bindings, and `ProofVerifier` trait execution (#242).
 - `src/protocol/rails/x402.rs`: Hardened x402 Autonomous Machine Payment Protocol for HTTP 402 / ERP machine-to-machine payment intent settlement. Added `X402Scheme` (Bitcoin, Lightning, EVM), `X402Header` (HTTP 402 `WWW-Authenticate: X402-Payment` header parsing, serialization, and expiration checks), `X402PaymentRequest` (canonical request hash derivation), and `X402PaymentProof` (multi-scheme verification for Bitcoin BIP-322, Lightning SHA-256 preimages, and EVM EIP-712 signatures). Re-exported x402 types in `src/protocol/rails/mod.rs`.
 - `src/protocol/babylon.rs`: Hardened Babylon BTC Staking protocol with Extractable One-Time Signatures (EOTS) primitives — added `BabylonEotsCommitment` hash computation, `BabylonEotsSignature` verification, double-signing detection at identical height/round, and algebraic slashing secret key extraction (`extract_slashing_key`) (SDK-005).
 - `src/protocol/rgb.rs`: Hardened RGB Client-Side Validated Asset protocol with blinded single-use seals (`RgbBlindedSeal`), UTXO blinding factor verification (`verify`), asset allocation assignments (`RgbAssetAllocation`), and batch transition signing through UCS (`RgbBatchTransition`) (SDK-006).

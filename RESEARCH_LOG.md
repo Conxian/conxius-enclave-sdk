@@ -9,6 +9,12 @@
 
 This document captures external research findings relevant to the Conxius Enclave SDK's development trajectory. Each entry includes source links and applicability notes for future reference.
 
+## Session 75 — AWS Nitro & Android StrongBox Hardware Qualification & KB Audit (2026-09-11)
+
+Conducted end-to-end repository sync, GitHub issue audit, open PR review, and candidate scoring across open issues:
+- **75-Point Candidate Matrix Evaluation**: Evaluated candidate issues against 8 weighted criteria (Security 3x, Blocker 3x, Unlock 2x, Evidence 2x, Confidence 2x, Efficiency 1x, External 1x, Doc Risk 1x). Ranked Candidate 1 (#242 AWS Nitro Attestation - 65/75), Candidate 2 (#241 Android KeyMint/StrongBox - 65/75), Candidate 3 (#200 WASM Secret Isolation - 63/75).
+- **AWS Nitro Verifier Hardening**: Expanded `AwsNitroVerifier` test suite in `src/enclave/verifiers/nitro_verifier.rs` covering invalid CBOR attestation parsing failure, corrupted Root CA fingerprint mismatch fail-closed security, custom KMS key hash bindings, and `ProofVerifier` trait execution.
+
 ## Session 70 — FROST RFC 9591 DKG Verification & Candidate Hardening (2026-09-03)
 
 Focused research and cryptographic implementation on FROST (Flexible Round-Optimized Schnorr Threshold Signatures, RFC 9591) DKG verification:

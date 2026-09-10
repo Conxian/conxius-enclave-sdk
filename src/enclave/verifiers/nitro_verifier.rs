@@ -165,4 +165,45 @@ mod tests {
         let hash = Sha256::digest(&ca);
         assert_eq!(hex::encode(hash), AwsNitroVerifier::ROOT_CA_FINGERPRINT);
     }
+
+    #[test]
+    fn nitro_verifier_verify_fails_on_invalid_evidence() {
+        let pcr0_val = [0xABu8; 48];
+        let v = AwsNitroVerifier::new(vec![(0u8, pcr0_val)]).expect("verifier constructs");
+        let envelope = ProofEnvelope {
+            version: 1,
+            kind: ProofKind::Tee,
+            proof_id: "test-proof-1".to_string(),
+            verifier_id: "conxian.trust.aws.nitro.v1".to_string(),
+            operation_digest: [1u8; 32],
+            purpose: "authorization".to_string(),
+            audience: "conxian".to_string(),
+            nonce: vec![2u8; 32],
+            issued_at: 1_700_000_000,
+            expires_at: 1_700_000_300,
+            evidence: b"invalid-cbor-payload".to_vec(),
+        };
+        let context = ProofVerificationContext {
+            operation_digest: [1u8; 32],
+            purpose: "authorization".to_string(),
+            audience: "conxian".to_string(),
+            nonce: vec![2u8; 32],
+            now_secs: 1_700_000_000,
+            max_age_secs: 300,
+            max_future_skew_secs: 60,
+        };
+        let res = v.verify(&envelope, &context);
+        assert!(res.is_err());
+        assert!(matches!(res, Err(ConclaveError::Attestation(_))));
+    }
+
+    #[test]
+    fn root_ca_fingerprint_mismatch_fails_closed() {
+        let pcr0_val = [0xABu8; 48];
+        let mut v = AwsNitroVerifier::new(vec![(0u8, pcr0_val)]).expect("verifier constructs");
+        v.root_ca_der = b"corrupted-ca-root".to_vec();
+        let res = v.verify_root_ca_fingerprint();
+        assert!(res.is_err());
+        assert!(matches!(res, Err(ConclaveError::Attestation(_))));
+    }
 }
