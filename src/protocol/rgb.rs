@@ -280,8 +280,18 @@ mod tests {
             blinded_seal: blinded,
         }];
 
-        let h1 = RgbTransitionBuilder::<crate::signing::ucs::EnclaveUniversalSigner>::compute_batch_hash(&cid, &inputs, &allocations);
-        let h2 = RgbTransitionBuilder::<crate::signing::ucs::EnclaveUniversalSigner>::compute_batch_hash(&cid, &inputs, &allocations);
+        let h1 =
+            RgbTransitionBuilder::<crate::signing::ucs::EnclaveUniversalSigner>::compute_batch_hash(
+                &cid,
+                &inputs,
+                &allocations,
+            );
+        let h2 =
+            RgbTransitionBuilder::<crate::signing::ucs::EnclaveUniversalSigner>::compute_batch_hash(
+                &cid,
+                &inputs,
+                &allocations,
+            );
         assert_eq!(h1, h2);
         assert_ne!(h1, [0u8; 32]);
     }
