@@ -3,7 +3,8 @@ pub(crate) mod boltz;
 pub(crate) mod changelly;
 pub(crate) mod ntt;
 pub(crate) mod wormhole;
-pub(crate) mod x402;
+pub mod x402;
+pub use x402::{X402Header, X402PaymentProof, X402PaymentRequest, X402Scheme};
 
 use crate::enclave::attestation::{AttestationPolicy, DeviceIntegrityReport};
 #[cfg(test)]
