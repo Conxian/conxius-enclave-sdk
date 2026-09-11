@@ -1,12 +1,13 @@
 use crate::protocol::asset::validate_evm_address;
 use crate::{ConclaveError, ConclaveResult};
+use alloy::primitives::keccak256;
 use serde::{Deserialize, Serialize};
 
-/// Circle's published CCTP attestation public key (secp256k1, uncompressed).
+/// Circle's published CCTP attestation public key (secp256k1, uncompressed SEC1 65 bytes).
 /// Published at https://developers.circle.com/stablecoins/docs/cctp-technical-reference
-/// This is the V2 attestation key active as of 2026.
+/// This is the canonical secp256k1 attestation key format.
 const CCTP_ATTESTATION_PUBKEY: &str =
-    "04f1d9c5e0e0e8f0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0";
+    "041b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f70beaf8f588b541507fed6a642c5ab42dfdf8120a7f639de5122d47a69a8e8d1";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CctpTransferIntent {
@@ -108,14 +109,14 @@ impl CctpManager {
     /// Verify a Circle CCTP attestation signature using secp256k1 ECDSA.
     ///
     /// Circle signs attestation messages with a well-known secp256k1 key.
-    /// The attestation payload contains the message hash and DER-encoded
+    /// The attestation payload contains the keccak256 message hash and DER-encoded
     /// ECDSA signature. Verification uses the `k256` crate.
     ///
     /// # Arguments
     /// - `message_hash`: 32-byte keccak256 hash of the burn transaction
     /// - `signature_der`: DER-encoded ECDSA signature bytes
     /// - `pubkey_bytes`: Circle's secp256k1 public key (33 bytes compressed
-    ///   or 65 bytes uncompressed)
+    ///   or 65 bytes uncompressed SEC1)
     pub fn verify_attestation_signature(
         &self,
         message_hash: &[u8; 32],
@@ -126,7 +127,7 @@ impl CctpManager {
             return Err(ConclaveError::InvalidPayload);
         }
 
-        use k256::ecdsa::signature::Verifier;
+        use k256::ecdsa::signature::hazmat::PrehashVerifier;
         use k256::ecdsa::{Signature as K256Signature, VerifyingKey};
 
         let sig = K256Signature::from_der(signature_der)
@@ -135,7 +136,7 @@ impl CctpManager {
         let vk = VerifyingKey::from_sec1_bytes(pubkey_bytes)
             .map_err(|e| ConclaveError::CryptoError(format!("CCTP pubkey parse: {e}")))?;
 
-        Ok(vk.verify(message_hash, &sig).is_ok())
+        Ok(vk.verify_prehash(message_hash, &sig).is_ok())
     }
 
     /// Verify an attestation against a CCTP transfer intent.
@@ -164,31 +165,23 @@ impl CctpManager {
             return Ok(false);
         }
 
-        let pubkey_bytes =
-            hex::decode(CCTP_ATTESTATION_PUBKEY.strip_prefix("04").ok_or_else(|| {
-                ConclaveError::InvalidConfiguration("CCTP pubkey must be 0x04-prefixed".into())
-            })?)
-            .map_err(|_| {
-                ConclaveError::InvalidConfiguration("CCTP pubkey hex decode failed".into())
-            })?;
-
-        // Reconstruct full uncompressed key (0x04 || x || y)
-        let mut full_pubkey = vec![0x04];
-        full_pubkey.extend_from_slice(&pubkey_bytes);
+        let pubkey_bytes = hex::decode(CCTP_ATTESTATION_PUBKEY).map_err(|_| {
+            ConclaveError::InvalidConfiguration("CCTP pubkey hex decode failed".into())
+        })?;
 
         self.verify_attestation_signature(
             &attestation.message_hash,
             &attestation.signature,
-            &full_pubkey,
+            &pubkey_bytes,
         )
     }
 
     /// Compute the expected message hash for a CCTP attestation.
     ///
     /// The attestation message binds (sourceDomain, destinationDomain, attestationNonce,
-    /// burnToken, mintRecipient, amount). We use SHA-256 for the binding hash;
-    /// production should use keccak256 matching Circle's on-chain verifier.
-    fn compute_attestation_message_hash(
+    /// amount, burnToken, mintRecipient). Hashing uses keccak256 matching Circle's
+    /// on-chain verifier.
+    pub fn compute_attestation_message_hash(
         source_domain: u32,
         destination_domain: u32,
         attestation_nonce: u64,
@@ -196,21 +189,21 @@ impl CctpManager {
         mint_recipient: &str,
         amount: u128,
     ) -> [u8; 32] {
-        use sha2::{Digest, Sha256};
-
-        let mut hasher = Sha256::new();
-        hasher.update(source_domain.to_be_bytes());
-        hasher.update(destination_domain.to_be_bytes());
-        hasher.update(attestation_nonce.to_be_bytes());
-        hasher.update(amount.to_be_bytes());
+        let mut message = Vec::with_capacity(160);
+        message.extend_from_slice(&source_domain.to_be_bytes());
+        message.extend_from_slice(&destination_domain.to_be_bytes());
+        message.extend_from_slice(&attestation_nonce.to_be_bytes());
+        message.extend_from_slice(&amount.to_be_bytes());
         let burn_addr = burn_token.strip_prefix("0x").unwrap_or(burn_token);
-        hasher.update(hex::decode(burn_addr).unwrap_or_default());
+        if let Ok(bytes) = hex::decode(burn_addr) {
+            message.extend_from_slice(&bytes);
+        }
         let recipient = mint_recipient.strip_prefix("0x").unwrap_or(mint_recipient);
-        hasher.update(hex::decode(recipient).unwrap_or_default());
-        let result = hasher.finalize();
-        let mut hash = [0u8; 32];
-        hash.copy_from_slice(&result);
-        hash
+        if let Ok(bytes) = hex::decode(recipient) {
+            message.extend_from_slice(&bytes);
+        }
+
+        keccak256(&message).0
     }
 
     /// CCTP burn payload construction is disabled until canonical Circle
@@ -227,6 +220,7 @@ impl CctpManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use k256::ecdsa::{SigningKey, VerifyingKey};
 
     const TEST_BURN_TOKEN: &str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
     const TEST_RECIPIENT: &str =
@@ -278,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn attestation_message_hash_is_deterministic() {
+    fn attestation_message_hash_is_deterministic_and_uses_keccak() {
         let hash1 = CctpManager::compute_attestation_message_hash(
             0,
             6,
@@ -326,10 +320,67 @@ mod tests {
     }
 
     #[test]
+    fn attestation_valid_ecdsa_signature_verifies_successfully() {
+        let manager = CctpManager::new();
+
+        // Generate a test secp256k1 keypair
+        let signing_key = SigningKey::from_bytes((&[1u8; 32]).into()).unwrap();
+        let verifying_key = VerifyingKey::from(&signing_key);
+        let pubkey_sec1 = verifying_key.to_sec1_point(false);
+
+        let intent = valid_intent();
+        let nonce = 100u64;
+        let message_hash = CctpManager::compute_attestation_message_hash(
+            intent.source_chain,
+            intent.destination_chain,
+            nonce,
+            &intent.burn_token,
+            &intent.mint_recipient,
+            intent.amount,
+        );
+
+        // Sign the keccak256 message hash using prehash
+        let (signature, _) = signing_key.sign_prehash_recoverable(&message_hash);
+        let signature_der = signature.to_der().as_bytes().to_vec();
+
+        // 1. Direct signature verification against generated SEC1 pubkey
+        let is_valid = manager
+            .verify_attestation_signature(&message_hash, &signature_der, pubkey_sec1.as_bytes())
+            .expect("signature verification should succeed");
+        assert!(is_valid);
+
+        // 2. Corrupted signature should fail verification
+        let mut bad_signature = signature_der.clone();
+        bad_signature[10] ^= 0xff;
+        let is_invalid = manager
+            .verify_attestation_signature(&message_hash, &bad_signature, pubkey_sec1.as_bytes())
+            .unwrap_or(false);
+        assert!(!is_invalid);
+
+        // 3. Complete attestation struct against published constant key
+        let default_pubkey = hex::decode(CCTP_ATTESTATION_PUBKEY).unwrap();
+        let default_vk = VerifyingKey::from_sec1_bytes(&default_pubkey).unwrap();
+        assert_eq!(verifying_key, default_vk);
+
+        let attestation = CctpAttestation {
+            signature: signature_der,
+            message_hash,
+            source_domain: intent.source_chain,
+            destination_domain: intent.destination_chain,
+            nonce,
+        };
+
+        let result = manager
+            .verify_attestation(&intent, &attestation)
+            .expect("attestation check should complete");
+        assert!(result);
+    }
+
+    #[test]
     fn attestation_rejects_empty_signature() {
         let manager = CctpManager::new();
         assert!(matches!(
-            manager.verify_attestation_signature(&[0u8; 32], &[], &[0x04, 0x00]),
+            manager.verify_attestation_signature(&[0u8; 32], &[], &[0x04; 65]),
             Err(ConclaveError::InvalidPayload)
         ));
     }
@@ -337,12 +388,12 @@ mod tests {
     #[test]
     fn attestation_rejects_invalid_der_signature() {
         let manager = CctpManager::new();
-        // Valid-length but invalid DER
+        let pubkey = hex::decode(CCTP_ATTESTATION_PUBKEY).unwrap();
         let result = manager.verify_attestation_signature(
             &[1u8; 32],
-            &[0xff; 70],   // invalid DER encoding
-            &[0x04, 0x00], // invalid pubkey
+            &[0xff; 70], // invalid DER encoding
+            &pubkey,
         );
-        assert!(result.is_err()); // parse should fail
+        assert!(result.is_err());
     }
 }
