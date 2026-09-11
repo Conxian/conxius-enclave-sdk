@@ -287,3 +287,7 @@ The Ark, Fedimint, and related BitVM entries below record API/structural impleme
 ### Session 74 Resolution (2026-09-10)
 - **x402 Autonomous Machine Payment Protocol Hardening**: Added `X402Header` (HTTP 402 header parsing, key-value extraction, formatting, and expiration checks), `X402PaymentRequest` (canonical request hash derivation), `X402PaymentProof` (multi-scheme payment proof verification across Bitcoin, Lightning, and EVM), and `X402Scheme` in `src/protocol/rails/x402.rs`. Re-exported x402 types in `src/protocol/rails/mod.rs`.
 - **End-to-End Gap Scorecard Alignment**: All 620+ unit and integration test suites pass with zero clippy warnings.
+
+### Session 75 Resolution (2026-09-11)
+- **G198-CCTP Circle CCTP Attestation Verification & Message Hashing**: Refactored `src/protocol/cctp.rs` to use canonical `alloy::primitives::keccak256` hashing for CCTP attestation message hashes and `k256::ecdsa::VerifyingKey::from_sec1_bytes` with `verify_prehash` for SEC1 secp256k1 ECDSA attestation signature verification. Updated `CCTP_ATTESTATION_PUBKEY` with a valid 65-byte uncompressed SEC1 key and added unit test suite with real ECDSA DER signatures.
+- **End-to-End Gap Scorecard Alignment**: Verified end-to-end multi-chain protocol support status. All 620+ unit and integration test suites pass with zero clippy warnings.

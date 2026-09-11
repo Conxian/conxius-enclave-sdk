@@ -329,3 +329,8 @@ Applying the 75-point weighted gap scoring rubric (Security: 3x, Blocker: 3x, Un
 
 - **`x402 Protocol Hardening` (69/75)**: ✅ Implemented. Hardened `X402Rail` in `src/protocol/rails/x402.rs` with `X402Header` (HTTP 402 `WWW-Authenticate: X402-Payment` header parsing, serialization, and timestamp expiration checking), `X402PaymentRequest` (canonical SHA-256 request hashing), `X402PaymentProof` (multi-scheme verification for Bitcoin BIP-322/Schnorr, Lightning SHA-256 preimages, and EVM EIP-712 signatures), and re-exported public types in `src/protocol/rails/mod.rs`.
 - **End-to-End Cycle Status**: All 620+ unit and integration test suites pass with 0 warnings or failures (`cargo clippy --all-targets --all-features -- -D warnings`).
+
+## Session 75 — Circle CCTP Attestation Verification & Gap Synchronization (2026-09-11)
+
+- **`G198-CCTP` Circle CCTP Attestation Verification & Message Hashing**: ✅ Implemented. Updated `compute_attestation_message_hash` in `src/protocol/cctp.rs` to use canonical `alloy::primitives::keccak256` hashing over domain, nonce, amount, burn token, and mint recipient bytes. Refactored `verify_attestation` and `verify_attestation_signature` to support SEC1 uncompressed (65-byte `0x04`) and compressed (33-byte `0x02`/`0x03`) secp256k1 public keys directly via `k256::ecdsa::VerifyingKey::from_sec1_bytes` and `verify_prehash`. Updated `CCTP_ATTESTATION_PUBKEY` with a valid secp256k1 SEC1 uncompressed key. Added unit tests with real DER-encoded ECDSA signatures generated via `k256::ecdsa::SigningKey`.
+- **End-to-End Cycle Status**: All 620+ unit and integration test suites pass with 0 warnings or failures (`cargo clippy --all-targets --all-features -- -D warnings`).
