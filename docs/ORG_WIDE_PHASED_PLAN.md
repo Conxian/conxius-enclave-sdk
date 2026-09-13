@@ -50,7 +50,7 @@ in `conxian-nexus`, not in the SDK library.
   and re-export metadata" — the downstream re-alignment for #321, alongside #281
   (converge on SDK v2.0.17).
 - **AWS KMS release key created + verified** (see §6): `kms:CreateKey`/`Encrypt`
-  (`RSAES_OAEP_SHA_256`) and `ec2:RunInstances` confirmed on the `botshelo` IAM user.
+  (`RSAES_OAEP_SHA_256`) and `ec2:RunInstances` confirmed on the designated IAM user.
 
 ## 4. Phased execution order
 
@@ -94,7 +94,7 @@ spend beyond the already-created KMS key.
 
 ## 6. AWS capability evidence (Session 63)
 
-- Identity: `arn:aws:iam::692112933743:user/botshelo` (account `692112933743`).
+- Identity: `arn:aws:iam::<AWS_ACCOUNT_ID>:user/<IAM_USER>` (account `<AWS_ACCOUNT_ID>`).
 - `ec2:RunInstances` ✅ (dry-run) · `ec2:DescribeImages/DescribeInstanceTypes` ✅.
 - `kms:CreateKey/CreateAlias/DescribeKey/Encrypt(RSAES_OAEP_SHA_256)/GetPublicKey` ✅ (exercised).
 - `kms:ListKeys/ListAliases` ✅ (read).

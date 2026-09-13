@@ -64,7 +64,7 @@ Full inventory + phased plan: `docs/ORG_WIDE_PHASED_PLAN.md`.
 `conxian-nexus` → `lib-conxian-core` (`full-sdk`) → `conxius-enclave-sdk` (optional `enclave` feature). The `ReplayStore` trait is in this repo; production backends belong in services, NOT this library.
 
 ### Neon projects (6) → repos
-`Conxian Nexus` (orange-paper, eu-central-1, pg17) = nexus · `conxian-core` (sparkling-sunset) = lib-conxian-core · `Software dev kit` = SDK · `Gateway` = gateway · `Business Operating System` = business · `market` = conxian_market. Managed via `NEON_API_KEY` (`https://console.neon.tech/api/v2/...`).
+`Conxian Nexus` (region: eu-central-1, pg17) = nexus · `conxian-core` = lib-conxian-core · `Software dev kit` = SDK · `Gateway` = gateway · `Business Operating System` = business · `market` = conxian_market.
 
 ### Cross-repo work state (Session 64 — post-audit)
 - **This repo (Session 64)**: KB→code→CI audit + remediation **PR #329 merged**. Live verification (Rust 1.97.1): `cargo test --locked` 629 passed / `--all-features` 645 passed; `clippy -D warnings` + `fmt` clean; `cargo audit` 0 vulns + `cargo deny` ok. crates.io cleanup: yanked `lib-conclave-sdk@2.0.8` (DEP-003 resolved) + `anya-core@1.2.0`. Dep-scan config: added `RUSTSEC-2023-0089` (atomic-polyfill) to `.cargo/audit.toml`, removed orphaned root `audit.toml`.
@@ -73,7 +73,7 @@ Full inventory + phased plan: `docs/ORG_WIDE_PHASED_PLAN.md`.
 - **lib-conxian-core**: #281 (converge on SDK v2.0.17) + #280 (align refs + `sdk-signing` feature gate + `nitro` wasm32 gate) **merged**. Yanked crate now absent from its lockfile.
 - **conxian-gateway**: dependabot 12-crate Rust group bump #350 **closed** (breaks Build/Clippy/Test/MSRV — `str`→`[u8;N]` API break). Needs a curated migration before those deps can bump.
 - **Conxian**: dependabot `@types/node` #700 **closed** (npm lock drift — `mime-db@1.52.0` missing). Needs `npm install` lockfile regen.
-- **AWS (KMS/Nitro)**: `botshelo` IAM user in account `692112933743`; `ec2:RunInstances` + `kms:CreateKey`/`Encrypt(RSAES_OAEP_SHA_256)` confirmed; KMS release key `alias/conxian-nitro-release` (RSA_2048) created. See `docs/ORG_WIDE_PHASED_PLAN.md` §6.
+- **AWS (KMS/Nitro)**: IAM user in designated AWS account; `ec2:RunInstances` + `kms:CreateKey`/`Encrypt(RSAES_OAEP_SHA_256)` confirmed; KMS release key `alias/conxian-nitro-release` (RSA_2048) created. See `docs/ORG_WIDE_PHASED_PLAN.md` §6.
 - **Neon**: `corelibs` renamed → `conxian-core` (done).
 - **Decisions**: #271 keep open (expand research + mainnet proofing); #240 item 6 / #202 independent review (external).
 
