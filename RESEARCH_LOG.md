@@ -9,6 +9,13 @@
 
 This document captures external research findings relevant to the Conxius Enclave SDK's development trajectory. Each entry includes source links and applicability notes for future reference.
 
+## Session 76 — Platform Architecture, Client Onboarding & Org-Wide Review (2026-09-15)
+
+Conducted end-to-end org-wide platform review, client purchasing & onboarding specification audit, and candidate scoring:
+- **Org-Wide System Architecture Review**: Evaluated 15-repository Conxian ecosystem, 3 deployment tiers (Enterprise Vault, Managed Settlement Gateway, Operator Threshold Signer), 4-layer asset connectivity graph across 42 supported asset types, required client inputs (AWS KMS, Android StrongBox, Neon DB, Redis, RPCs), and unified CLI installer design (`conxius-ctl`).
+- **75-Point Candidate Matrix Audit**: Evaluated open issues (#200, #202, #240, #241, #242, #271) against 8 weighted criteria (Security 3x, Blocker 3x, Unlock 2x, Evidence 2x, Confidence 2x, Efficiency 1x, External 1x, Doc Risk 1x). Ranked Top Candidate #240 (Attestation roots and durable replay boundary - 66/75) & #271 (Lightning BOLT12 / BIP-353 / LDK settlement - 65/75).
+- **Codebase & Test Verification**: Validated 100% test pass rate across enclave durable replay (`cargo test --lib enclave::durable_replay`) and Lightning protocols (`cargo test --lib protocol::lightning`).
+
 ## Session 75 — AWS Nitro & Android StrongBox Hardware Qualification & KB Audit (2026-09-11)
 
 Conducted end-to-end repository sync, GitHub issue audit, open PR review, and candidate scoring across open issues:
