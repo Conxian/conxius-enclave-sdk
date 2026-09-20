@@ -955,8 +955,8 @@ impl FrostSigningContext {
             .ok_or_else(|| ConclaveError::CryptoError("FROST: unknown key digest".into()))?;
         let nonces_bytes = self
             .nonces_map
-            .get(nonce_digest)
-            .ok_or_else(|| ConclaveError::CryptoError("FROST: unknown nonce digest".into()))?;
+            .remove(nonce_digest)
+            .ok_or_else(|| ConclaveError::CryptoError("FROST: unknown or spent nonce digest".into()))?;
         let sigpkg_bytes = self
             .signing_package
             .as_ref()
@@ -964,7 +964,7 @@ impl FrostSigningContext {
 
         let share_raw = crate::protocol::frost_crypto::create_signature_share(
             key_pkg_bytes,
-            nonces_bytes,
+            &nonces_bytes,
             sigpkg_bytes,
             message,
         )?;
@@ -1281,6 +1281,100 @@ mod signing_context_tests {
 
         assert!(!sig.is_empty());
         assert_eq!(sig.len(), 128); // 64 bytes hex-encoded = 128 chars
+    }
+
+    #[test]
+    fn single_use_nonce_prevention_rejects_reuse() {
+        let mut ctx = FrostSigningContext::new();
+        let _kp = ctx.generate_key_package(2, 2).expect("keygen");
+        let key_digest = *ctx.participant_ids.get(&FrostParticipantId::new(1).unwrap()).unwrap();
+        let nonce1 = ctx.create_nonces(&key_digest).expect("nonce");
+        let key_digest2 = *ctx.participant_ids.get(&FrostParticipantId::new(2).unwrap()).unwrap();
+        let nonce2 = ctx.create_nonces(&key_digest2).expect("nonce2");
+        let msg = b"nonce reuse test";
+        ctx.create_signing_package(msg, &[nonce1.digest, nonce2.digest]).expect("signing package");
+
+        // First use succeeds and consumes the nonce
+        let _share1 = ctx.create_signature_share(&key_digest, &nonce1.digest, msg).expect("share1 creation");
+        // share1 was expect()ed above
+
+        // Second use of the same nonce digest must fail closed
+        let share2 = ctx.create_signature_share(&key_digest, &nonce1.digest, msg);
+        assert!(share2.is_err());
+        assert!(share2.unwrap_err().to_string().contains("unknown or spent nonce digest"));
+    }
+
+    #[test]
+    fn attestation_policy_gating_enforces_freshness() {
+        use crate::enclave::attestation::{AttestationLevel, AttestationPolicy, AttestationReportType, DeviceIntegrityReport};
+
+        let mut ctx = FrostSigningContext::new();
+        let policy = AttestationPolicy::default();
+        ctx.set_attestation_policy(policy);
+
+        // Before set_attestation, keygen must be rejected
+        assert!(ctx.generate_key_package(2, 2).is_err());
+
+        // Provide valid fresh report
+        let report = DeviceIntegrityReport {
+            report_version: 1,
+            report_type: AttestationReportType::DeviceIntegrity,
+            level: AttestationLevel::Software,
+            challenge_nonce: vec![0u8; 32],
+            signature: vec![],
+            attested_operation_public_key: vec![],
+            signer_key_binding: None,
+            certificate_chain: vec![],
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            extension_data: String::new(),
+            extensions: vec![],
+        };
+        ctx.set_attestation(report);
+
+        // Keygen now succeeds
+        assert!(ctx.generate_key_package(2, 2).is_ok());
+
+        // Clear attestation -> fails closed again
+        ctx.clear_attestation();
+        assert!(ctx.generate_key_package(2, 2).is_err());
+    }
+
+    #[test]
+    fn dkg_package_registration_requires_attestation_when_policy_set() {
+        use crate::enclave::attestation::{AttestationLevel, AttestationPolicy, AttestationReportType, DeviceIntegrityReport};
+
+        let mut ctx = FrostSigningContext::new();
+        let policy = AttestationPolicy::default();
+        ctx.set_attestation_policy(policy);
+
+        assert!(ctx.register_dkg_round1_package(&[1, 2, 3]).is_err());
+        assert!(ctx.register_dkg_round2_package(&[1, 2, 3]).is_err());
+
+        let report = DeviceIntegrityReport {
+            report_version: 1,
+            report_type: AttestationReportType::DeviceIntegrity,
+            level: AttestationLevel::Software,
+            challenge_nonce: vec![0u8; 32],
+            signature: vec![],
+            attested_operation_public_key: vec![],
+            signer_key_binding: None,
+            certificate_chain: vec![],
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            extension_data: String::new(),
+            extensions: vec![],
+        };
+        ctx.set_attestation(report);
+
+        // Package registration proceeds to cryptographic verification (which fails on bad bytes, not attestation)
+        let r1_res = ctx.register_dkg_round1_package(&[1, 2, 3]);
+        assert!(r1_res.is_err());
+        assert!(r1_res.unwrap_err().to_string().contains("invalid DKG Round 1 package"));
     }
 
     #[test]
