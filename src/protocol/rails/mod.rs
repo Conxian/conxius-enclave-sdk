@@ -2984,7 +2984,7 @@ mod fdc3_integration_tests {
 
     fn setup_proxy() -> RailProxy {
         RailProxy::new(
-            "https://gateway.conxian.com".to_string(),
+            "https://gateway.conxian-labs.com".to_string(),
             reqwest::Client::new(),
             Arc::new(AssetRegistry::new()),
             Arc::new(BusinessRegistry::new()),
