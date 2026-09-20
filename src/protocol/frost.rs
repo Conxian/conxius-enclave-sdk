@@ -953,10 +953,9 @@ impl FrostSigningContext {
             .key_shares
             .get(key_digest)
             .ok_or_else(|| ConclaveError::CryptoError("FROST: unknown key digest".into()))?;
-        let nonces_bytes = self
-            .nonces_map
-            .remove(nonce_digest)
-            .ok_or_else(|| ConclaveError::CryptoError("FROST: unknown or spent nonce digest".into()))?;
+        let nonces_bytes = self.nonces_map.remove(nonce_digest).ok_or_else(|| {
+            ConclaveError::CryptoError("FROST: unknown or spent nonce digest".into())
+        })?;
         let sigpkg_bytes = self
             .signing_package
             .as_ref()
@@ -1287,26 +1286,40 @@ mod signing_context_tests {
     fn single_use_nonce_prevention_rejects_reuse() {
         let mut ctx = FrostSigningContext::new();
         let _kp = ctx.generate_key_package(2, 2).expect("keygen");
-        let key_digest = *ctx.participant_ids.get(&FrostParticipantId::new(1).unwrap()).unwrap();
+        let key_digest = *ctx
+            .participant_ids
+            .get(&FrostParticipantId::new(1).unwrap())
+            .unwrap();
         let nonce1 = ctx.create_nonces(&key_digest).expect("nonce");
-        let key_digest2 = *ctx.participant_ids.get(&FrostParticipantId::new(2).unwrap()).unwrap();
+        let key_digest2 = *ctx
+            .participant_ids
+            .get(&FrostParticipantId::new(2).unwrap())
+            .unwrap();
         let nonce2 = ctx.create_nonces(&key_digest2).expect("nonce2");
         let msg = b"nonce reuse test";
-        ctx.create_signing_package(msg, &[nonce1.digest, nonce2.digest]).expect("signing package");
+        ctx.create_signing_package(msg, &[nonce1.digest, nonce2.digest])
+            .expect("signing package");
 
         // First use succeeds and consumes the nonce
-        let _share1 = ctx.create_signature_share(&key_digest, &nonce1.digest, msg).expect("share1 creation");
+        let _share1 = ctx
+            .create_signature_share(&key_digest, &nonce1.digest, msg)
+            .expect("share1 creation");
         // share1 was expect()ed above
 
         // Second use of the same nonce digest must fail closed
         let share2 = ctx.create_signature_share(&key_digest, &nonce1.digest, msg);
         assert!(share2.is_err());
-        assert!(share2.unwrap_err().to_string().contains("unknown or spent nonce digest"));
+        assert!(share2
+            .unwrap_err()
+            .to_string()
+            .contains("unknown or spent nonce digest"));
     }
 
     #[test]
     fn attestation_policy_gating_enforces_freshness() {
-        use crate::enclave::attestation::{AttestationLevel, AttestationPolicy, AttestationReportType, DeviceIntegrityReport};
+        use crate::enclave::attestation::{
+            AttestationLevel, AttestationPolicy, AttestationReportType, DeviceIntegrityReport,
+        };
 
         let mut ctx = FrostSigningContext::new();
         let policy = AttestationPolicy::default();
@@ -1344,7 +1357,9 @@ mod signing_context_tests {
 
     #[test]
     fn dkg_package_registration_requires_attestation_when_policy_set() {
-        use crate::enclave::attestation::{AttestationLevel, AttestationPolicy, AttestationReportType, DeviceIntegrityReport};
+        use crate::enclave::attestation::{
+            AttestationLevel, AttestationPolicy, AttestationReportType, DeviceIntegrityReport,
+        };
 
         let mut ctx = FrostSigningContext::new();
         let policy = AttestationPolicy::default();
@@ -1374,7 +1389,10 @@ mod signing_context_tests {
         // Package registration proceeds to cryptographic verification (which fails on bad bytes, not attestation)
         let r1_res = ctx.register_dkg_round1_package(&[1, 2, 3]);
         assert!(r1_res.is_err());
-        assert!(r1_res.unwrap_err().to_string().contains("invalid DKG Round 1 package"));
+        assert!(r1_res
+            .unwrap_err()
+            .to_string()
+            .contains("invalid DKG Round 1 package"));
     }
 
     #[test]
