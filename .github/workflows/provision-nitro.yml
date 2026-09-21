@@ -1,0 +1,60 @@
+name: provision-nitro
+
+# Concrete Nitro enclave provisioning + attestation pipeline (#242).
+#
+# Sequence:
+#   1. Install the Nitro CLI and build the enclave image (EIF).
+#   2. Launch a Nitro-enabled instance, run the attestation probe, capture the
+#      attestation document, and tear the instance down (run-attestation.sh).
+#   3. Verify the captured document offline, fail-closed, using the SDK's
+#      AwsNitroTrustBoundary + PCR policy + release binding.
+#
+# This is a manual (workflow_dispatch) pipeline — it provisions real AWS
+# resources and is NOT run on every push. The "verify" step is the production
+# attestation gate; "provision + capture" is evidence collection only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      instance_type:
+        description: "Nitro-enabled EC2 instance type"
+        required: false
+        type: string
+        default: "m5.xlarge"
+
+permissions:
+  contents: read
+
+jobs:
+  provision-nitro:
+    runs-on: ubuntu-latest
+    env:
+      NITRO_AMI: ${{ vars.NITRO_AMI }}
+      NITRO_SUBNET_ID: ${{ vars.NITRO_SUBNET_ID }}
+      NITRO_KEY_NAME: ${{ vars.NITRO_KEY_NAME }}
+      NITRO_SG_ID: ${{ vars.NITRO_SG_ID }}
+      NITRO_INSTANCE_PROFILE: conxian-nitro-enclave-profile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (scoped conxian-sdk-signer)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+
+      - name: Install Nitro CLI and build EIF
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y aws-nitro-enclaves-cli
+          sudo systemctl enable --now nitro-enclaves-allocator.service || true
+          bash scripts/nitro/build-eif.sh
+
+      - name: Launch enclave, capture attestation document, teardown
+        env:
+          INSTANCE_TYPE: ${{ inputs.instance_type }}
+        run: bash scripts/nitro/run-attestation.sh
+
+      - name: Verify Nitro attestation document (fail-closed)
+        run: cargo run --example nitro_attest_verify -- .nitro/request.json
