@@ -43,7 +43,7 @@
 
 ### Cross-repo phase (org-wide)
 - Audited the Conxian org (15 repos) via `ECOSYSTEM_REGISTRY.json` + `SDK_OWNERSHIP_POLICY.md`; mapped the dependency chain `conxian-nexus → lib-conxian-core (full-sdk) → conxius-enclave-sdk (enclave)`.
-- Mapped all 6 Neon projects to repos; corrected a near-duplicate rename (`corelibs` ≠ nexus — the real nexus DB is `Conxian Nexus`, orange-paper).
+- Mapped all 6 Neon projects to repos; corrected a near-duplicate rename (`corelibs` ≠ nexus — the real nexus DB is `Conxian Nexus`).
 - `#271`/fail-closed hygiene: ported the unmerged `c47b23fd` Ark VTXO fail-open/panic fix (`8b447a7`); nitro/frost portions were already on main.
 - **conxian-nexus**: implemented `IdempotencyStore` (fail-closed consume-once, Postgres `ON CONFLICT DO NOTHING` + atomic batch) + migration `20260829000000_idempotency.sql`; PR #250, follow-up issue #251.
 - Cross-repo issue updates: #240/#271 comments; nexus #251 created.

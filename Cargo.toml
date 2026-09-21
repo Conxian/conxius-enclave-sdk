@@ -70,9 +70,9 @@ serde-wasm-bindgen = "0.6.5"
 serde_json = "1.0.149"
 bs58 = "0.5.1"
 sha2 = "0.11.0"
-blake2 = "0.10.6"
+blake2 = "0.11.0"
 subtle = "2.6.1"
-bls12_381 = { version = "0.8", default-features = false, features = ["alloc", "groups", "pairings"], optional = true }
+bls12_381 = { version = "0.9", default-features = false, features = ["alloc", "groups", "pairings"], optional = true }
 thiserror = "2.0.18"
 tokio = { version = "1.52.3", features = ["rt", "macros", "time"] }
 alloy = { version = "2.1.0", features = ["rpc-types", "rpc-client", "network", "signer-local", "provider-http", "pubsub"] }
