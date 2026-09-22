@@ -93,9 +93,7 @@ fn now_millis() -> u64 {
 }
 
 fn main() {
-    let path = std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| usage_and_exit());
+    let path = std::env::args().nth(1).unwrap_or_else(|| usage_and_exit());
     if let Err(err) = run(PathBuf::from(path)) {
         eprintln!("NITRO ATTESTATION REJECTED: {err}");
         std::process::exit(1);
@@ -113,8 +111,12 @@ fn run(path: PathBuf) -> Result<(), String> {
     let req: NitroVerifyRequest =
         serde_json::from_str(&raw).map_err(|e| format!("parse request: {e}"))?;
 
-    let doc_bytes = fs::read(&req.attestation_document_path)
-        .map_err(|e| format!("read attestation document {}: {e}", req.attestation_document_path))?;
+    let doc_bytes = fs::read(&req.attestation_document_path).map_err(|e| {
+        format!(
+            "read attestation document {}: {e}",
+            req.attestation_document_path
+        )
+    })?;
 
     let document = NitroAttestationDocument::parse(&doc_bytes)
         .map_err(|e: NitroError| format!("parse attestation document: {e:?}"))?;
@@ -130,8 +132,8 @@ fn run(path: PathBuf) -> Result<(), String> {
         .collect();
     let measurements = measurements?;
 
-    let pcr_policy = NitroPcrPolicy::new(measurements)
-        .map_err(|e: NitroError| format!("PCR policy: {e:?}"))?;
+    let pcr_policy =
+        NitroPcrPolicy::new(measurements).map_err(|e: NitroError| format!("PCR policy: {e:?}"))?;
     let mut policy = NitroAttestationPolicy::new(pcr_policy);
     if let Some(module_id) = &req.module_id {
         policy = policy
