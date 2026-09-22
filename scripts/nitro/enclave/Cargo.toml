@@ -1,0 +1,14 @@
+[package]
+name = "conxian-nitro-attestation-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Minimal Nitro enclave probe that requests an attestation document from the Nitro Security Module (NSM) and prints it as base64 to console. Part of the #242 provision-nitro pipeline."
+
+# DRAFT: pin the exact NSM API version against AWS's current release before use.
+[dependencies]
+aws-nitro-enclaves-nsm-api = "0.4"
+base64 = "0.22"
+
+[profile.release]
+strip = true
