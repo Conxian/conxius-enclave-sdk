@@ -1,5 +1,16 @@
 # Next Session Plan
 
+## Session 77 Completed (2026-09-25) — ReplayStore Non-zero Expiry Hardening & Gap Scorecard Sync
+
+### ✅ Candidate #240 Hardening & Validation
+- Hardened `DurableFileReplayStore` validation in `src/enclave/replay_store_file.rs` to enforce non-zero expiration timestamp checking (`retain_until == 0`).
+- Added unit test cases in `src/enclave/replay_store_file.rs` verifying zero-timestamp rejection.
+
+### ✅ Full Repository Health & Test Verification
+- Executed `cargo test --lib enclave::replay_store_file` with 100% test pass rate (4 passed).
+
+---
+
 ## Session 76 Completed (2026-09-15) — Platform Architecture, Client Onboarding & Org-Wide Review
 
 ### ✅ Org-Wide Platform Architecture & Deployment Audit

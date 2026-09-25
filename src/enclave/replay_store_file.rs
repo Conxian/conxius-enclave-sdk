@@ -133,7 +133,7 @@ impl DurableFileReplayStore {
         if invalid_key(reservation) {
             return Err(ReplayStoreError::InvalidKey);
         }
-        if reservation.retain_until() <= now_secs {
+        if reservation.retain_until() == 0 || reservation.retain_until() <= now_secs {
             return Err(ReplayStoreError::InvalidRetention);
         }
         Ok(())
@@ -385,6 +385,11 @@ mod tests {
         // Retention horizon already reached.
         assert_eq!(
             store.consume_once(&reservation(1, 10_000), 10_000),
+            Err(ReplayStoreError::InvalidRetention)
+        );
+        // Zero retain_until timestamp.
+        assert_eq!(
+            store.consume_once(&reservation(1, 0), 10_000),
             Err(ReplayStoreError::InvalidRetention)
         );
         let _ = std::fs::remove_dir_all(&dir);
