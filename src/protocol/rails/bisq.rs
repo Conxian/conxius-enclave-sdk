@@ -28,8 +28,14 @@ impl SovereignRail for BisqRail {
     }
 
     fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {
+        if request.amount == 0 {
+            return Err(ConclaveError::RailError(
+                "Bisq rail requires swap amount to be greater than zero".to_string(),
+            ));
+        }
+
         // Bisq P2P node constraints
-        if request.recipient_address.is_empty() {
+        if request.recipient_address.trim().is_empty() {
             return Err(ConclaveError::RailError(
                 "Recipient address required for Bisq P2P swap".to_string(),
             ));
@@ -67,5 +73,83 @@ impl SovereignRail for BisqRail {
             .map_err(|e| ConclaveError::CryptoError(format!("Invalid gateway response: {}", e)))?;
 
         Ok(swap_resp)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::asset::{AssetIdentifier, Chain};
+
+    fn test_bisq_rail() -> BisqRail {
+        BisqRail {
+            gateway_url: "https://gateway.conxian-labs.com".to_string(),
+            http_client: reqwest::Client::new(),
+        }
+    }
+
+    #[test]
+    fn test_bisq_validate_request_zero_amount() {
+        let rail = test_bisq_rail();
+        let request = SwapRequest {
+            from_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            to_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            amount: 0,
+            recipient_address: "bc1qtest".to_string(),
+            attribution: None,
+        };
+
+        let err = rail.validate_request(&request).unwrap_err();
+        assert!(matches!(err, ConclaveError::RailError(msg) if msg.contains("greater than zero")));
+    }
+
+    #[test]
+    fn test_bisq_validate_request_empty_recipient() {
+        let rail = test_bisq_rail();
+        let request = SwapRequest {
+            from_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            to_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            amount: 1000,
+            recipient_address: "   ".to_string(),
+            attribution: None,
+        };
+
+        let err = rail.validate_request(&request).unwrap_err();
+        assert!(
+            matches!(err, ConclaveError::RailError(msg) if msg.contains("Recipient address required"))
+        );
+    }
+
+    #[test]
+    fn test_bisq_validate_request_valid() {
+        let rail = test_bisq_rail();
+        let request = SwapRequest {
+            from_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            to_asset: AssetIdentifier {
+                chain: Chain::BITCOIN,
+                symbol: "BTC".to_string(),
+            },
+            amount: 1000,
+            recipient_address: "bc1qtest".to_string(),
+            attribution: None,
+        };
+
+        let tag = rail.validate_request(&request).unwrap().unwrap();
+        assert_eq!(tag, "BISQ_P2P_V2");
     }
 }
