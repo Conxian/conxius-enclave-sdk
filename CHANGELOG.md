@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Hardened
+- **Enclave ReplayStore Durability (#240)**: Hardened `DurableFileReplayStore` validation in `src/enclave/replay_store_file.rs` to fail closed when `retain_until` is 0 or less than `now_secs`, preventing zero-timestamp replay key ingestion.
+
 ### Added
 - `docs/guides/CLIENT_ONBOARDING_AND_DEPLOYMENT_SPEC.md` & Org Review: Completed full platform deployment review across 15 repos, 3 deployment tiers (Enterprise, Managed, Operator), 4-layer asset connectivity graph across 42 asset types, client inputs (KMS, StrongBox, Neon DB, Redis), candidate scoring (#240, #271), and `conxius-ctl` CLI installer design.
 - `src/enclave/verifiers/nitro_verifier.rs`: Hardened AWS Nitro attestation verifier with unit tests for invalid evidence parsing failures (`ConclaveError::Attestation`), corrupted Root CA fingerprint mismatch fail-closed behavior, custom KMS key identifier hash bindings, and `ProofVerifier` trait execution (#242).
