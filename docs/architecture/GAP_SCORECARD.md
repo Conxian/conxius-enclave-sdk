@@ -298,3 +298,8 @@ The Ark, Fedimint, and related BitVM entries below record API/structural impleme
 - **CCTP Attestation Validation Completed**: Completed Circle CCTP SEC1 secp256k1 ECDSA attestation signature verification and canonical alloy keccak256 message hashing in `src/protocol/cctp.rs`.
 - **WASM Runtime Evidence Completed**: Completed WASM runtime memory security and evidence with `WasmSecretBuffer` zeroization, automatic `Drop` memory scrubbing, typed error stability, and browser/Node/bundler/worker harness execution.
 - **End-to-End Gap Scorecard Alignment**: Verified capability evidence records in `docs/architecture/capability-evidence.json` and synchronized `docs/architecture/CAPABILITY_MATRIX.md`. All 600+ Rust tests and script validation tests pass.
+
+
+### Session 77 Resolution (2026-09-25)
+- **Sovereign Settlement Rail Validation Hardening**: Hardened `BoltzRail` and `BisqRail` request validation in `src/protocol/rails/boltz.rs` and `src/protocol/rails/bisq.rs` with strict zero-amount (`amount > 0`) checks, whitespace-trimmed recipient address validation, and comprehensive unit test coverage.
+- **End-to-End Gap Scorecard Alignment**: Verified multi-rail validation integrity across all 633 unit and integration test suites with zero failures and zero clippy warnings.

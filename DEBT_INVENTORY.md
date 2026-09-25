@@ -341,3 +341,9 @@ Applying the 75-point weighted gap scoring rubric (Security: 3x, Blocker: 3x, Un
 - **FROST DKG (RFC 9591) Un-quarantined & Nonce Handling**: Un-quarantined FROST DKG and completed RFC 9591 FROST DKG Round 1 & Round 2 cryptographic share verification, Proof of Knowledge verification, single-use nonce removal (`self.nonces_map.remove`), and ZF FROST threshold signing in `src/protocol/frost.rs` and `src/protocol/frost_crypto.rs`.
 - **CCTP Attestation Validation**: Completed Circle CCTP SEC1 secp256k1 ECDSA attestation signature verification and canonical alloy keccak256 message hashing in `src/protocol/cctp.rs`.
 - **WASM Runtime Evidence**: Completed WASM runtime memory security and evidence with `WasmSecretBuffer` zeroization, automatic `Drop` memory scrubbing, typed error stability, and browser/Node/bundler/worker harness execution.
+
+
+## Session 77 — Sovereign Settlement Rail Validation Hardening (2026-09-25)
+
+- **Sovereign Settlement Rail Request Validation**: ✅ Implemented. Hardened `BoltzRail` and `BisqRail` in `src/protocol/rails/boltz.rs` and `src/protocol/rails/bisq.rs` by adding strict zero-amount (`amount > 0`) checks and recipient address validation to fail closed early before processing swap intents. Added dedicated unit tests covering zero-amount and empty-recipient cases.
+- **End-to-End Cycle Status**: All 633 unit and integration test suites pass with 0 failures (`cargo test --all-targets --all-features`).
