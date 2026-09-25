@@ -140,7 +140,9 @@ mod tests {
         };
 
         let err = rail.validate_request(&request).unwrap_err();
-        assert!(matches!(err, ConclaveError::RailError(msg) if msg.contains("Recipient address required")));
+        assert!(
+            matches!(err, ConclaveError::RailError(msg) if msg.contains("Recipient address required"))
+        );
     }
 
     #[test]
