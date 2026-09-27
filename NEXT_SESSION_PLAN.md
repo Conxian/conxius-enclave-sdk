@@ -1,53 +1,32 @@
 # Next Session Plan
 
-## Session 77 Completed (2026-09-25) — ReplayStore Non-zero Expiry Hardening & Gap Scorecard Sync
+## Session 78 Completed (2026-09-27) — End-to-End Repository Recon, Gap Analysis & ATS Ledger Synchronization
 
-### ✅ Candidate #240 Hardening & Validation
-- Hardened `DurableFileReplayStore` validation in `src/enclave/replay_store_file.rs` to enforce non-zero expiration timestamp checking (`retain_until == 0`).
-- Added unit test cases in `src/enclave/replay_store_file.rs` verifying zero-timestamp rejection.
+### ✅ Session Ledger & Baseline Recovery (A0 & A1)
+- Initialized `.session/ledger.md` with baseline SHA `522b898a398e372edc376f3b4523a5caa761ef8b`, active branch `jules-4503803827327296798-bec3a18d`, UTC timestamp `2026-09-27T19:30:03Z`, clean working-tree state, and `Pin-to-Parent` submodule policy.
+- Ran normalized git sync sequence (`git fetch origin main -p --recurse-submodules`).
 
-### ✅ Full Repository Health & Test Verification
-- Executed `cargo test --lib enclave::replay_store_file` with 100% test pass rate (4 passed).
+### ✅ Codebase & GitHub Surface Recon (A2 & A3)
+- Cataloged codebase structure, package manifests (`Cargo.toml`), test harnesses, hotspot files (`frost.rs`, `attestation.rs`, `x402.rs`), and bug-magnet files (`replay_store_file.rs`, `cctp.rs`).
+- Surveyed all 6 open repository issues (#271, #242, #241, #240, #202, #200) and 0 open PRs.
+- Built comprehensive Gap Register comparing As-Is vs To-Be states.
 
----
-
-## Session 76 Completed (2026-09-15) — Platform Architecture, Client Onboarding & Org-Wide Review
-
-### ✅ Org-Wide Platform Architecture & Deployment Audit
-- Audited full 15-repo Conxian ecosystem, 3 deployment tiers (Enterprise Vault, Managed Gateway, Operator Threshold Signer), 4-layer asset connectivity graph across 42 supported asset types, required client inputs (AWS KMS, Android StrongBox, Neon DB, Redis, RPCs), and `conxius-ctl` CLI installer design.
-
-### ✅ GitHub Issues & 75-Point Candidate Matrix Audit
-- Evaluated open GitHub issues (#200, #202, #240, #241, #242, #271) against 8 weighted criteria (Security 3x, Blocker 3x, Unlock 2x, Evidence 2x, Confidence 2x, Efficiency 1x, External 1x, Doc Risk 1x).
-- Ranked top actionable candidates: #240 (66/75) and #271 (65/75).
-
-### ✅ Codebase & Test Suite Verification
-- Executed unit tests for enclave durable replay (`cargo test --lib enclave::durable_replay`) and Lightning protocols (`cargo test --lib protocol::lightning`), confirming 100% pass rate.
+### ✅ ATS 5-Factor Candidate Matrix Scoring & Selection (A4, A5 & A6)
+- Evaluated open gap candidates against the ATS weighted matrix formula (Security 30%, Cost 20%, Risk 20%, Testability 15%, Arch Alignment 15%):
+  - `#271` (Lightning BOLT12 & BIP-353): **4.60 / 5.00**
+  - `#240` (Attestation Roots & Replay Protection): **4.40 / 5.00**
+  - `#200` (WASM Secret Isolation & Memory Boundary): **4.00 / 5.00**
+  - `#241` (Android KeyMint/StrongBox): **3.70 / 5.00**
+  - `#242` (AWS Nitro Attestation & KMS Key Hash Binding): **3.70 / 5.00**
+  - `#202` (Independent Security Audit & Release Acceptance): **2.70 / 5.00**
+- Selected top candidates `#271`, `#240`, and `#200`. Confirmed code implementation and test suite green (607 passing tests, 0 clippy warnings).
 
 ---
 
-## Session 75 Completed (2026-09-11) — Hardware Enclave Attestation Hardening & Audit
+## Session 79 Planned
 
-### ✅ AWS Nitro & Android StrongBox Attestation Qualification (#242 / #241)
-- Conducted full repository sync (`git fetch origin main -p --recurse-submodules`), submodule update, GitHub issue audit across all 6 open issues (#200, #202, #240, #241, #242, #271), and open PR review (0 open PRs).
-- Applied 75-point candidate matrix formula across 8 weighted criteria to rank open issues: #242 (65/75), #241 (65/75), #200 (63/75).
-- Hardened `AwsNitroVerifier` in `src/enclave/verifiers/nitro_verifier.rs` with unit tests covering invalid CBOR attestation document parsing, corrupted root CA fingerprint mismatch fail-closed behavior, custom KMS key hash bindings, and `ProofVerifier` trait execution.
+### P0: Physical Enclave Hardware Attestation Qualification (#241 / #242)
+- Coordinate physical device evidence for Android KeyMint/StrongBox authorization (#241) and live AWS Nitro Enclave EC2 deployment (#242).
 
-### ✅ Full Repository Health & Test Verification
-- Executed `cargo clippy --all-targets --all-features -- -D warnings` with zero warnings.
-- Executed `cargo test` with 100% test pass rate across all unit and integration test suites.
-
-### ✅ Knowledge Base & Documentation Sync
-- Synchronized `CHANGELOG.md`, `RESEARCH_LOG.md`, `NEXT_SESSION_PLAN.md`, `DEBT_INVENTORY.md`, and `GAP_SCORECARD.md`.
-
----
-
-## Session 76 Planned
-
-### P0: Operationalize Attestation Roots & Distributed Replay (#240)
-- Maintain shared provider-neutral trust operations and durable replay protection across enclave backends.
-
-### P1: WASM Secret Boundary & Platform Evidence (#200)
-- Maintain zeroization bounds and runtime isolation across browser/Node WASM bindings.
-
-### P0: Independent Security Review & Release Acceptance (#202)
-- Maintain tracking for independent security auditor review evidence and release acceptance artifacts.
+### P0: Independent Security Audit & Release Acceptance (#202)
+- Maintain tracking and evidence collection for independent security auditor review and release acceptance artifacts.
