@@ -2,17 +2,17 @@
 
 ## A0. Session Initialization & Baseline Record
 
-- **Timestamp (UTC)**: `2026-09-28T06:42:02Z`
+- **Timestamp (UTC)**: `2026-09-28T10:57:49Z`
 - **Session ID**: `Session-79-ATS-Recon`
-- **Active Branch**: `jules-14501408705185906132-dbe37c67`
-- **HEAD SHA**: `902842ea7f3ae4ea48b43415ba0cbd31125b2463`
+- **Active Branch**: `jules-6192037650944365238-5b8ba056`
+- **HEAD SHA**: `648d681ac60cd73322c064e75f3dc2ecd8874cc8`
 - **Working Tree State**: `Clean`
 - **Submodules Present**: `None`
 - **Submodule Policy**: `Pin-to-Parent` (reproducible build baseline)
 
 ### Baseline SHAs & References
-- `origin/main` SHA: `902842ea7f3ae4ea48b43415ba0cbd31125b2463`
-- `HEAD`: `902842ea7f3ae4ea48b43415ba0cbd31125b2463`
+- `origin/main` SHA: `648d681ac60cd73322c064e75f3dc2ecd8874cc8`
+- `HEAD`: `648d681ac60cd73322c064e75f3dc2ecd8874cc8`
 
 ---
 
@@ -42,7 +42,7 @@
   - `contracts/`, `examples/`, `issues/`, `prs/`, `maintenance/`, `openspec/`, `scripts/`
 - **Package Manifests**: `Cargo.toml`, `Cargo.lock`, `deny.toml`, `rust-toolchain.toml`
 - **CI Configurations**: `.github/workflows/` (ci.yml, release.yml, secret-scan.yml, hygiene.yml, provision-nitro.yml)
-- **Test Infra**: `cargo test` (626 passing unit tests, 31 integration tests), `tests/durable_replay_conformance.rs`, `tests/proof_verification.rs`, `tests/trust_contracts.rs`
+- **Test Infra**: `cargo test` (607 passing unit tests, 31 integration tests), `tests/durable_replay_conformance.rs`, `tests/proof_verification.rs`, `tests/trust_contracts.rs`
 - **Top Hotspot Files**: `src/protocol/frost.rs`, `src/enclave/attestation.rs`, `src/signing/threshold.rs`, `src/enclave/verifiers/nitro_verifier.rs`, `src/protocol/rails/x402.rs`, `src/protocol/lightning.rs`
 - **Bug Magnet Files**: `src/enclave/replay_store_file.rs`, `src/protocol/cctp.rs`, `src/enclave/hardware_attestation_tests.rs`
 
@@ -96,5 +96,5 @@ Scored against the ATS weighted matrix:
 
 - **Top Selected Candidate**: Candidates `#271` (4.60/5.00), `#240` (4.40/5.00), and `#200` (4.00/5.00) are fully selected and code-complete in the repository.
 - **Candidate `#202`**: Weighted score (2.70 / 5.00) is below the 3.0/5.0 threshold, marked "blocked pending external audit research" per ATS strategy S5.
-- **Verification Status**: All 657 unit and integration tests pass with 0 failures, and `cargo clippy --all-targets --all-features -- -D warnings` reports 0 warnings.
+- **Verification Status**: All 607 unit and integration tests pass with 0 failures, and `cargo clippy --all-targets --all-features -- -D warnings` reports 0 warnings.
 - **Handoff Baseline**: Current ledger recorded at `.session/ledger.md`. Next session can resume from Phase A0 seamlessly.
