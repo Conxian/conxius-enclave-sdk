@@ -40,6 +40,12 @@ Two additive phases converging on "no single key authorizes a release".
 Trade-off: keys still live in AWS (one cloud), but no single key and no single
 IAM principal can authorize.
 
+> **Phase 1 status (2026-09-29): provisioned.** Keys `d7e45019…`
+> (`alias/conxian-release-1`), `7a2eb775…` (`alias/conxian-release-2`),
+> `3f4aa297…` (`alias/conxian-release-3`) — ECC_NIST_P256, SIGN_VERIFY.
+> Reference signing/verification: `scripts/release/quorum-sign.sh` and
+> `scripts/release/quorum-verify.sh` (2-of-3, ECDSA_SHA_256).
+
 ### Phase 2 — FROST / MuSig2 threshold (end-state)
 
 Replace the N independent KMS keys with a **single distributed key split into
@@ -56,6 +62,16 @@ t-of-n shares** held by independent, hardware-backed operators:
 - Threshold signing runs inside each participant's enclave/hardware boundary;
   the SDK's `SignerVerification::ProviderVerified` path verifies each share's
   attestation before accepting a partial signature.
+
+> **Phase 2 status (2026-09-29): crypto already implemented.** The SDK already
+> ships FROST (`src/protocol/frost.rs`, ~1488 lines), MuSig2
+> (`src/signing/musig2_signing.rs`, `src/protocol/musig2.rs`), ROAST
+> (`src/protocol/nexus/roast.rs`), and threshold (`src/signing/threshold.rs`,
+> `ThresholdSigner` + `FrostThresholdSigner`) — gated behind the `frost-crypto`
+> feature (ZF FROST `frost-secp256k1-tr` v3.0.0). Verified: `cargo test
+> --features frost-crypto --lib` = 621 passed, 0 failed; CI runs
+> `--all-features`. Remaining: (1) wire the threshold signer into an
+> `EnclaveManager` provider, (2) production DKG ceremony, (3) independent audit.
 
 ## Crypto migration (RSA → ECC)
 
