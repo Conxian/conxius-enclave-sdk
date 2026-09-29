@@ -12,6 +12,7 @@ pub mod proofs;
 pub mod replay_guard;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod replay_store_file;
+#[cfg(feature = "frost-crypto")]
 pub mod threshold;
 pub mod trust;
 pub mod trust_contracts;
