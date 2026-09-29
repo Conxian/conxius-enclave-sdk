@@ -27,6 +27,7 @@ pub enum AttestationLevel {
     TEE,
     StrongBox,
     CloudTEE,
+    Threshold,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -310,6 +311,7 @@ fn level_tag(level: AttestationLevel) -> u8 {
         AttestationLevel::TEE => 1,
         AttestationLevel::StrongBox => 2,
         AttestationLevel::CloudTEE => 3,
+        AttestationLevel::Threshold => 4,
     }
 }
 
@@ -662,6 +664,15 @@ pub struct DeviceIntegrityReport {
     /// this field and retain their historical canonical encoding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signer_key_binding: Option<SignerKeyBindingEvidence>,
+    /// Threshold M-of-N: minimum signers required. Only present when
+    /// `level == AttestationLevel::Threshold`; the total N is
+    /// `threshold_shares.len()`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold_min_signers: Option<u16>,
+    /// Per-share integrity reports from each hardware participant. Only present
+    /// for composed threshold reports.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold_shares: Option<Vec<DeviceIntegrityReport>>,
     /// Full certificate/identity chain. The first entry is the leaf public key
     /// as hex in the currently supported software/test envelope.
     pub certificate_chain: Vec<String>,
@@ -740,7 +751,64 @@ impl DeviceIntegrityReport {
         now_secs: u64,
         policy: &AttestationPolicy,
     ) -> bool {
-        self.verify_at_time_impl(expected_nonce, now_secs, policy)
+        if self.level == AttestationLevel::Threshold {
+            self.verify_threshold_composition(expected_nonce, now_secs, policy)
+        } else {
+            self.verify_at_time_impl(expected_nonce, now_secs, policy)
+        }
+    }
+
+    /// Verify a composed threshold report. A threshold report carries no single
+    /// signer envelope: instead, at least `threshold_min_signers` of its
+    /// `threshold_shares` must each pass the single-mechanism policy against the
+    /// same nonce. The composed report must also carry the expected
+    /// purpose/algorithm and a non-empty aggregated operation key.
+    fn verify_threshold_composition(
+        &self,
+        expected_nonce: &[u8],
+        now_secs: u64,
+        policy: &AttestationPolicy,
+    ) -> bool {
+        let shares = match &self.threshold_shares {
+            Some(shares) if !shares.is_empty() => shares,
+            _ => return false,
+        };
+        let min = match self.threshold_min_signers {
+            Some(m) if m > 0 && (m as usize) <= shares.len() => m as usize,
+            _ => return false,
+        };
+
+        if self.challenge_nonce != expected_nonce {
+            return false;
+        }
+        if self.attested_operation_public_key.is_empty()
+            || self.attested_operation_public_key.len() > 65
+        {
+            return false;
+        }
+
+        let valid = shares
+            .iter()
+            .filter(|share| share.verify_at_time_impl(expected_nonce, now_secs, policy))
+            .count();
+        if valid < min {
+            return false;
+        }
+
+        let purposes = self
+            .extensions
+            .iter()
+            .filter_map(AttestationExtension::purpose)
+            .collect::<Vec<_>>();
+        let algorithms = self
+            .extensions
+            .iter()
+            .filter_map(AttestationExtension::algorithm)
+            .collect::<Vec<_>>();
+        purposes.len() == 1
+            && purposes.first().copied() == Some(policy.required_purpose)
+            && algorithms.len() == 1
+            && algorithms.first().copied() == Some(policy.required_algorithm)
     }
 
     fn verify_at_time_impl(
@@ -818,6 +886,9 @@ impl DeviceIntegrityReport {
             // fixture so protocol cryptographic tests can exercise the common
             // boundary without presenting simulator evidence as hardware.
             AttestationLevel::Software => policy.is_test_fixture(),
+            // Composed threshold reports are verified by
+            // `verify_threshold_composition`, not this single-mechanism path.
+            AttestationLevel::Threshold => false,
         };
 
         let purposes = self
@@ -1001,6 +1072,8 @@ mod tests {
         let mut report = DeviceIntegrityReport {
             report_version: super::ATTESTATION_ENVELOPE_VERSION,
             report_type: AttestationReportType::DeviceIntegrity,
+            threshold_min_signers: None,
+            threshold_shares: None,
             level,
             challenge_nonce: nonce,
             signature: Vec::new(),
@@ -1049,6 +1122,56 @@ mod tests {
         let report = valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox);
 
         assert!(report.verify_at_time(&[1, 2, 3, 4], now_secs));
+    }
+
+    fn threshold_report(shares: Vec<DeviceIntegrityReport>, min: u16) -> DeviceIntegrityReport {
+        let nonce = vec![1, 2, 3, 4];
+        let extensions = parse_extension_data("PURPOSE_SIGN|ALGORITHM_ED25519").unwrap();
+        DeviceIntegrityReport {
+            report_version: super::ATTESTATION_ENVELOPE_VERSION,
+            report_type: AttestationReportType::DeviceIntegrity,
+            threshold_min_signers: Some(min),
+            threshold_shares: Some(shares),
+            level: AttestationLevel::Threshold,
+            challenge_nonce: nonce,
+            signature: Vec::new(),
+            attested_operation_public_key: vec![0xAA; 32],
+            signer_key_binding: None,
+            certificate_chain: Vec::new(),
+            timestamp: 1_000_000,
+            extension_data: "PURPOSE_SIGN|ALGORITHM_ED25519".to_string(),
+            extensions,
+        }
+    }
+
+    #[test]
+    fn verify_accepts_threshold_composition_m_of_n() {
+        let now_secs: u64 = 1_000_000;
+        let shares = vec![
+            valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox),
+            valid_report(now_secs.saturating_sub(60), AttestationLevel::CloudTEE),
+            valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox),
+        ];
+        let report = threshold_report(shares, 2);
+        let policy = AttestationPolicy::test_fixture();
+        assert!(report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
+    }
+
+    #[test]
+    fn verify_rejects_threshold_composition_below_quorum() {
+        let now_secs: u64 = 1_000_000;
+        let mut share2 = valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox);
+        let mut share3 = valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox);
+        share2.challenge_nonce = vec![9, 9, 9, 9];
+        share3.challenge_nonce = vec![9, 9, 9, 9];
+        let shares = vec![
+            valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox),
+            share2,
+            share3,
+        ];
+        let report = threshold_report(shares, 2);
+        let policy = AttestationPolicy::test_fixture();
+        assert!(!report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
     }
 
     #[test]

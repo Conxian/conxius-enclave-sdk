@@ -1332,6 +1332,8 @@ mod signing_context_tests {
         let report = DeviceIntegrityReport {
             report_version: 1,
             report_type: AttestationReportType::DeviceIntegrity,
+            threshold_min_signers: None,
+            threshold_shares: None,
             level: AttestationLevel::Software,
             challenge_nonce: vec![0u8; 32],
             signature: vec![],
@@ -1371,6 +1373,8 @@ mod signing_context_tests {
         let report = DeviceIntegrityReport {
             report_version: 1,
             report_type: AttestationReportType::DeviceIntegrity,
+            threshold_min_signers: None,
+            threshold_shares: None,
             level: AttestationLevel::Software,
             challenge_nonce: vec![0u8; 32],
             signature: vec![],
