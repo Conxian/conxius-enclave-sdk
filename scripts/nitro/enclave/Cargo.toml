@@ -7,8 +7,10 @@ description = "Minimal Nitro enclave probe that requests an attestation document
 
 # DRAFT: pin the exact NSM API version against AWS's current release before use.
 [dependencies]
-aws-nitro-enclaves-nsm-api = "0.4"
+aws-nitro-enclaves-nsm-api = { version = "0.4", features = ["nix"] }
 base64 = "0.22"
+libc = "0.2"
+serde_bytes = "0.11"
 
 [profile.release]
 strip = true

@@ -1008,12 +1008,20 @@ fn scan_cbor_item(input: &[u8]) -> Result<(), NitroError> {
     loop {
         let depth = if stack_len != 0 {
             let frame = &mut stack[stack_len - 1];
-            if frame.remaining_items == 0 {
+            if frame.remaining_items == usize::MAX {
+                if input.get(offset) == Some(&0xff) {
+                    offset += 1;
+                    stack_len -= 1;
+                    continue;
+                }
+                frame.child_depth
+            } else if frame.remaining_items == 0 {
                 stack_len -= 1;
                 continue;
+            } else {
+                frame.remaining_items -= 1;
+                frame.child_depth
             }
-            frame.remaining_items -= 1;
-            frame.child_depth
         } else if root_seen {
             return if offset == input.len() {
                 Ok(())
@@ -1028,6 +1036,55 @@ fn scan_cbor_item(input: &[u8]) -> Result<(), NitroError> {
         let initial = read_cbor_byte(input, &mut offset)?;
         let major_type = initial >> 5;
         let additional_info = initial & 0x1f;
+
+        if additional_info == 31 {
+            match major_type {
+                2 | 3 => loop {
+                    if input.get(offset) == Some(&0xff) {
+                        offset += 1;
+                        break;
+                    }
+                    let chunk_initial = read_cbor_byte(input, &mut offset)?;
+                    if chunk_initial >> 5 != major_type {
+                        return Err(NitroError::CborMalformed);
+                    }
+                    let chunk_info = chunk_initial & 0x1f;
+                    if chunk_info == 31 {
+                        return Err(NitroError::CborMalformed);
+                    }
+                    let length = cbor_argument_as_usize(read_cbor_argument(
+                        input,
+                        &mut offset,
+                        chunk_info,
+                    )?)?;
+                    let end = offset
+                        .checked_add(length)
+                        .ok_or(NitroError::CborMalformed)?;
+                    if end > input.len() {
+                        return Err(NitroError::CborMalformed);
+                    }
+                    offset = end;
+                },
+                4 => push_cbor_scan_frame(
+                    &mut stack,
+                    &mut stack_len,
+                    usize::MAX,
+                    depth,
+                    input,
+                    offset,
+                )?,
+                5 => push_cbor_scan_frame(
+                    &mut stack,
+                    &mut stack_len,
+                    usize::MAX,
+                    depth,
+                    input,
+                    offset,
+                )?,
+                _ => return Err(NitroError::CborMalformed),
+            }
+            continue;
+        }
 
         match major_type {
             0 | 1 => {
@@ -1097,7 +1154,7 @@ fn push_cbor_scan_frame(
         .len()
         .checked_sub(offset)
         .ok_or(NitroError::CborMalformed)?;
-    if remaining_items > remaining_bytes {
+    if remaining_items != usize::MAX && remaining_items > remaining_bytes {
         return Err(NitroError::CborMalformed);
     }
     stack[*stack_len] = CborScanFrame {
@@ -1978,11 +2035,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_reserved_indefinite_and_truncated_cbor_before_materialization() {
-        assert_eq!(
-            decode_one(&[0x9f, 0xff], MAX_NITRO_ATTESTATION_BYTES),
-            Err(NitroError::CborMalformed)
-        );
+    fn rejects_reserved_and_truncated_cbor_before_materialization() {
         assert_eq!(
             decode_one(&[0x1c], MAX_NITRO_ATTESTATION_BYTES),
             Err(NitroError::CborMalformed)
@@ -1997,6 +2050,19 @@ mod tests {
                 MAX_NITRO_ATTESTATION_BYTES,
             ),
             Err(NitroError::CborMalformed)
+        );
+    }
+
+    #[test]
+    fn accepts_indefinite_length_cbor_containers() {
+        assert_eq!(
+            decode_one(&[0x9f, 0xff], MAX_NITRO_ATTESTATION_BYTES),
+            Ok(Value::Array(vec![]))
+        );
+        assert!(decode_one(&[0x9f, 0x01, 0xff], MAX_NITRO_ATTESTATION_BYTES).is_ok());
+        assert!(decode_one(&[0xbf, 0x01, 0x02, 0xff], MAX_NITRO_ATTESTATION_BYTES).is_ok());
+        assert!(
+            decode_one(&[0x5f, 0x42, 0x01, 0x02, 0xff], MAX_NITRO_ATTESTATION_BYTES).is_ok()
         );
     }
 
