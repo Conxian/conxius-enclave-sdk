@@ -35,7 +35,7 @@
 ## Directory Map
 - `src/protocol/` — 43 protocol modules (source of truth)
 - `src/signing/` — UCS trait, algorithm registry, BIP-110 preflight
-- `src/enclave/` — EnclaveManager, attestation, Nitro integration
+- `src/enclave/` — EnclaveManager, attestation, threshold (`ThresholdEnclaveManager`), Nitro integration
 - `src/lib.rs` — Public re-export surface (`pub mod` + per-module `pub use`)
 
 ## Testing
