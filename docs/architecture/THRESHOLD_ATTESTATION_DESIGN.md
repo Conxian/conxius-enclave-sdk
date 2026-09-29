@@ -1,6 +1,6 @@
 # Threshold Attestation & EnclaveManager Integration Design
 
-> **Status:** design (unblocks Phase 2 provider integration). Complements
+> **Status:** implemented (steps 1–4); independent audit remains a blocking gate. Complements
 > [DECENTRALIZED_SIGNING_MIGRATION.md](DECENTRALIZED_SIGNING_MIGRATION.md).
 > The FROST/MuSig2/ROAST crypto is already implemented and tested
 > (621 tests pass with `--features frost-crypto`); this doc specifies the
@@ -68,8 +68,10 @@ aggregated key, and carry the matching `SignerKeyBindingEvidence`.
 
 ## Implementation order
 
-1. `ThresholdEnclaveManager` scaffold + raw `sign` (FROST aggregate) — no
-   attestation yet.
-2. Threshold `DeviceIntegrityReport` variant + verifier.
-3. `sign_value_bearing_provider` wiring + tests.
-4. DKG ceremony runbook + independent audit.
+1. ✅ `ThresholdEnclaveManager` scaffold + raw `sign` (FROST aggregate).
+2. ✅ Threshold `DeviceIntegrityReport` composition (`AttestationLevel::Threshold`
+   + `verify_threshold_composition`) + verifier.
+3. ✅ `sign_value_bearing_provider` wiring + round-trip test through
+   `ValueBearingSignResponse::from_provider_at_time`.
+4. ✅ DKG ceremony runbook (`docs/operations/THRESHOLD_DKG_CEREMONY.md`).
+   ⏳ Independent audit remains a blocking gate before production enablement.

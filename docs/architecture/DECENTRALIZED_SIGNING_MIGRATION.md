@@ -63,15 +63,20 @@ t-of-n shares** held by independent, hardware-backed operators:
   the SDK's `SignerVerification::ProviderVerified` path verifies each share's
   attestation before accepting a partial signature.
 
-> **Phase 2 status (2026-09-29): crypto already implemented.** The SDK already
-> ships FROST (`src/protocol/frost.rs`, ~1488 lines), MuSig2
-> (`src/signing/musig2_signing.rs`, `src/protocol/musig2.rs`), ROAST
-> (`src/protocol/nexus/roast.rs`), and threshold (`src/signing/threshold.rs`,
-> `ThresholdSigner` + `FrostThresholdSigner`) — gated behind the `frost-crypto`
-> feature (ZF FROST `frost-secp256k1-tr` v3.0.0). Verified: `cargo test
-> --features frost-crypto --lib` = 621 passed, 0 failed; CI runs
-> `--all-features`. Remaining: (1) wire the threshold signer into an
-> `EnclaveManager` provider, (2) production DKG ceremony, (3) independent audit.
+> **Phase 2 status (2026-09-29): provider wired.** The SDK ships FROST
+> (`src/protocol/frost.rs`), MuSig2 (`src/signing/musig2_signing.rs`,
+> `src/protocol/musig2.rs`), ROAST (`src/protocol/nexus/roast.rs`), and
+> threshold (`src/signing/threshold.rs`) — gated behind the `frost-crypto`
+> feature (ZF FROST `frost-secp256k1-tr` v3.0.0). The threshold signer is now
+> wired into `ThresholdEnclaveManager` (`src/enclave/threshold.rs`): raw FROST
+> aggregate `sign`, composed threshold `DeviceIntegrityReport`
+> (`AttestationLevel::Threshold` + `verify_threshold_composition`), and the
+> `sign_value_bearing_provider` value-bearing path verified end-to-end through
+> `ValueBearingSignResponse::from_provider_at_time`. Verified: `cargo test
+> --features frost-crypto --lib` = 627 passed, 0 failed; CI runs
+> `--all-features`. DKG ceremony runbook:
+> `docs/operations/THRESHOLD_DKG_CEREMONY.md`. Remaining: (1) production DKG
+> ceremony execution, (2) independent audit.
 
 ## Crypto migration (RSA → ECC)
 
