@@ -2061,9 +2061,7 @@ mod tests {
         );
         assert!(decode_one(&[0x9f, 0x01, 0xff], MAX_NITRO_ATTESTATION_BYTES).is_ok());
         assert!(decode_one(&[0xbf, 0x01, 0x02, 0xff], MAX_NITRO_ATTESTATION_BYTES).is_ok());
-        assert!(
-            decode_one(&[0x5f, 0x42, 0x01, 0x02, 0xff], MAX_NITRO_ATTESTATION_BYTES).is_ok()
-        );
+        assert!(decode_one(&[0x5f, 0x42, 0x01, 0x02, 0xff], MAX_NITRO_ATTESTATION_BYTES).is_ok());
     }
 
     #[test]
