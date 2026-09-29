@@ -203,6 +203,8 @@ impl VerifiedOperation {
                     report_version: 0,
                     report_type:
                         crate::enclave::attestation::AttestationReportType::DeviceIntegrity,
+                    threshold_min_signers: None,
+                    threshold_shares: None,
                     level: crate::enclave::attestation::AttestationLevel::TEE,
                     challenge_nonce: canonical_intent_hash.to_vec(),
                     signature: Vec::new(),
@@ -1474,6 +1476,8 @@ mod rail_proxy_tests {
         let mut report = DeviceIntegrityReport {
             report_version: ATTESTATION_ENVELOPE_VERSION,
             report_type: AttestationReportType::DeviceIntegrity,
+            threshold_min_signers: None,
+            threshold_shares: None,
             level: AttestationLevel::TEE,
             challenge_nonce: nonce,
             signature: Vec::new(),
@@ -1532,6 +1536,8 @@ mod rail_proxy_tests {
             let mut report = DeviceIntegrityReport {
                 report_version: ATTESTATION_ENVELOPE_VERSION,
                 report_type: AttestationReportType::DeviceIntegrity,
+                threshold_min_signers: None,
+                threshold_shares: None,
                 level: AttestationLevel::TEE,
                 challenge_nonce: request.message_digest().to_vec(),
                 signature: Vec::new(),
