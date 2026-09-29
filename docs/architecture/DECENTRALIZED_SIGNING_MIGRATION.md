@@ -63,6 +63,16 @@ t-of-n shares** held by independent, hardware-backed operators:
   the SDK's `SignerVerification::ProviderVerified` path verifies each share's
   attestation before accepting a partial signature.
 
+> **Phase 2 status (2026-09-29): crypto already implemented.** The SDK already
+> ships FROST (`src/protocol/frost.rs`, ~1488 lines), MuSig2
+> (`src/signing/musig2_signing.rs`, `src/protocol/musig2.rs`), ROAST
+> (`src/protocol/nexus/roast.rs`), and threshold (`src/signing/threshold.rs`,
+> `ThresholdSigner` + `FrostThresholdSigner`) — gated behind the `frost-crypto`
+> feature (ZF FROST `frost-secp256k1-tr` v3.0.0). Verified: `cargo test
+> --features frost-crypto --lib` = 621 passed, 0 failed; CI runs
+> `--all-features`. Remaining: (1) wire the threshold signer into an
+> `EnclaveManager` provider, (2) production DKG ceremony, (3) independent audit.
+
 ## Crypto migration (RSA → ECC)
 
 FROST and MuSig2 are defined over elliptic-curve groups; they cannot use the
