@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  GitHub Actions OIDC federation for conxius-enclave-sdk. Replaces long-lived
+  AWS access keys (stored in repo secrets) with short-lived, repo-scoped role
+  credentials. Creates the OIDC trust anchor and the least-privilege
+  provision-nitro role.
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Default: Conxian
+  GitHubRepo:
+    Type: String
+    Default: conxius-enclave-sdk
+  AwsAccountId:
+    Type: String
+    Default: "692112933743"
+  Region:
+    Type: String
+    Default: eu-central-1
+
+Resources:
+  GitHubActionsOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        # GitHub rotates this certificate periodically. Refresh with:
+        #   echo | openssl s_client -servername token.actions.githubusercontent.com \
+        #     -connect token.actions.githubusercontent.com:443 2>/dev/null \
+        #     | openssl x509 -fingerprint -sha1 -noout
+        - "06d927fecd0a84aeba28aad1d808139470fe95c3"
+
+  ProvisionNitroRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: github-actions-provision-nitro
+      Description: >
+        Least-privilege role for the conxius-enclave-sdk provision-nitro
+        workflow (Nitro EC2 provisioning + attestation evidence capture).
+        Assumed by GitHub Actions via OIDC; no long-lived access keys.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub "arn:aws:iam::${AwsAccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+              StringLike:
+                "token.actions.githubusercontent.com:sub": !Sub "repo:${GitHubOrg}/${GitHubRepo}:*"
+      Policies:
+        - PolicyName: provision-nitro
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: EC2RunInstances
+                Effect: Allow
+                Action:
+                  - ec2:RunInstances
+                  - ec2:CreateTags
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref Region
+                    "aws:RequestTag/conxian:role": nitro-enclave
+              - Sid: EC2TerminateInstances
+                Effect: Allow
+                Action:
+                  - ec2:TerminateInstances
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref Region
+                    "ec2:ResourceTag/conxian:role": nitro-enclave
+              - Sid: EC2NitroSetup
+                Effect: Allow
+                Action:
+                  - ec2:CreateKeyPair
+                  - ec2:CreateSecurityGroup
+                  - ec2:AuthorizeSecurityGroupIngress
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref Region
+              - Sid: EC2Describe
+                Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:DescribeImages
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeVpcs
+                  - ec2:DescribeKeyPairs
+                  - ec2:DescribeInstanceTypes
+                  - ec2:DescribeAvailabilityZones
+                  - ec2:DescribeInstanceStatus
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeLaunchTemplates
+                  - ec2:DescribeRegions
+                Resource: "*"
+              - Sid: IAMNitroRoleWiring
+                Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:CreateRole
+                  - iam:AttachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:CreateInstanceProfile
+                  - iam:AddRoleToInstanceProfile
+                  - iam:GetInstanceProfile
+                  - iam:ListRoles
+                  - iam:GetPolicy
+                Resource:
+                  - !Sub "arn:aws:iam::${AwsAccountId}:role/conxian-nitro-enclave-role"
+                  - !Sub "arn:aws:iam::${AwsAccountId}:instance-profile/conxian-nitro-enclave-profile"
+              - Sid: IAMPassRoleNitroOnly
+                Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !Sub "arn:aws:iam::${AwsAccountId}:role/conxian-nitro-enclave-role"
+              - Sid: STSIdentity
+                Effect: Allow
+                Action:
+                  - sts:GetCallerIdentity
+                Resource: "*"
+
+Outputs:
+  OidcProviderArn:
+    Description: ARN of the GitHub Actions OIDC provider
+    Value: !Ref GitHubActionsOidcProvider
+  ProvisionNitroRoleArn:
+    Description: ARN of the provision-nitro role to assume from GitHub Actions
+    Value: !GetAtt ProvisionNitroRole.Arn
