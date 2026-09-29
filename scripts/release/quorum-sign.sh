@@ -16,8 +16,8 @@ FILE="$1"
 [ -f "$FILE" ] || { echo "no such file: $FILE" >&2; exit 2; }
 
 DIGEST_BIN="$(mktemp)"; trap 'rm -f "$DIGEST_BIN"' EXIT
-sha256sum "$FILE" | cut -d' ' -f1 | xxd -r -p > "$DIGEST_BIN"
 SHA="$(sha256sum "$FILE" | cut -d' ' -f1)"
+openssl dgst -sha256 -binary "$FILE" > "$DIGEST_BIN"
 
 declare -a SIGS=()
 for KEY in "${KEYS[@]}"; do

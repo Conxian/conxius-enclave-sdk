@@ -13,8 +13,8 @@ FILE="$1"; BUNDLE="$2"
 [ -f "$BUNDLE" ] || { echo "no such bundle: $BUNDLE" >&2; exit 2; }
 
 DIGEST_BIN="$(mktemp)"; trap 'rm -f "$DIGEST_BIN"' EXIT
-sha256sum "$FILE" | cut -d' ' -f1 | xxd -r -p > "$DIGEST_BIN"
 SHA="$(sha256sum "$FILE" | cut -d' ' -f1)"
+openssl dgst -sha256 -binary "$FILE" > "$DIGEST_BIN"
 
 BUNDLE_SHA="$(awk '/^sha256:/{print $2}' "$BUNDLE")"
 [ "$SHA" = "$BUNDLE_SHA" ] || { echo "digest mismatch: bundle=$BUNDLE_SHA file=$SHA" >&2; exit 1; }
