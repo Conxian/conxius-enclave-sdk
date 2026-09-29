@@ -50,6 +50,7 @@ This repository does **not** act as a complete wallet, DAO-facing governance sur
 |---------|--------|-------------|
 | Hardware Attestation | Vendor-backed hardware attestation | AWS Nitro, Android StrongBox KeyMint, and PKCS#11 verifiers with root CA validation |
 | FROST DKG | Production RFC 9591 DKG & threshold signing | Un-quarantined RFC 9591 DKG share verification, single-use nonce lifecycle, and ZF FROST threshold signing |
+| Threshold Attestation | Threshold t-of-n signing + composed TEE attestation | `ThresholdEnclaveManager` composes M-of-N per-share TEE reports into a `DeviceIntegrityReport` and produces value-bearing FROST threshold signatures (feature-gated by `frost-crypto`) |
 | Fedimint | Typed secret-safe boundary; quarantined | Federation, mint, note, TBS/DLEQ, and threshold operations remain unsupported |
 | Ark / BitVM2 | Typed foundation; quarantined | Provider-owned Ark selection and legacy WASM BitVM challenge signing/aggregation fail closed; key derivation, recovery, tree/transaction construction, challenge, and settlement remain unsupported |
 | CCTP | Circle CCTP attestation validation | Verified canonical keccak256 message hashing and SEC1 secp256k1 ECDSA attestation signature validation |
