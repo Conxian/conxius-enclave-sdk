@@ -40,6 +40,12 @@ Two additive phases converging on "no single key authorizes a release".
 Trade-off: keys still live in AWS (one cloud), but no single key and no single
 IAM principal can authorize.
 
+> **Phase 1 status (2026-09-29): provisioned.** Keys `d7e45019…`
+> (`alias/conxian-release-1`), `7a2eb775…` (`alias/conxian-release-2`),
+> `3f4aa297…` (`alias/conxian-release-3`) — ECC_NIST_P256, SIGN_VERIFY.
+> Reference signing/verification: `scripts/release/quorum-sign.sh` and
+> `scripts/release/quorum-verify.sh` (2-of-3, ECDSA_SHA_256).
+
 ### Phase 2 — FROST / MuSig2 threshold (end-state)
 
 Replace the N independent KMS keys with a **single distributed key split into
