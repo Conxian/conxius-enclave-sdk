@@ -135,6 +135,24 @@ pub fn aggregate(
     Ok(hex::encode(sig_bytes))
 }
 
+/// Derive the aggregated Schnorr x-only public key from a serialized
+/// [`frost::keys::PublicKeyPackage`]. This is the key that the aggregated
+/// threshold signature verifies against.
+pub fn public_key_x_only(pubkey_package_bytes: &[u8]) -> ConclaveResult<Vec<u8>> {
+    let pkg = frost::keys::PublicKeyPackage::deserialize(pubkey_package_bytes)
+        .map_err(|e| ConclaveError::CryptoError(format!("pkg: {e:?}")))?;
+    let vk = pkg.verifying_key();
+    let mut key = vk
+        .serialize()
+        .map_err(|e| ConclaveError::CryptoError(format!("vk: {e:?}")))?;
+    // SEC1 compressed form (33 bytes) -> BIP-340 x-only key (32 bytes):
+    // drop the 0x02/0x03 parity prefix.
+    if key.len() == 33 {
+        key.remove(0);
+    }
+    Ok(key)
+}
+
 // ── DKG ─────────────────────────────────────────────────────────────
 
 pub fn dkg_part1(
