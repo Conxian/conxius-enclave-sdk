@@ -1,0 +1,89 @@
+name: DKG Ceremony Evidence
+
+# Always-on, recorded proof that the 2-of-3 FROST threshold path works.
+#
+# Every run executes the DKG ceremony rehearsal, emits machine-readable
+# evidence (shared public key + a threshold signature), and publishes it as a
+# build artifact and to R2 (with a stable "latest" path). Any agent/CI can
+# consume that proof instead of waiting for the real-operator ceremony.
+#
+# When real operators come online they drop their DKG round packages into
+# `ceremony/round1/` and `ceremony/round2/`. This workflow validates whatever
+# is present (`DKG_OPERATOR_DIR=ceremony`) and records the status alongside the
+# rehearsal evidence, so the ceremony is picked up automatically as it fills in.
+
+on:
+  push:
+    branches: [main, staged]
+  pull_request:
+    branches: [main, staged]
+  workflow_dispatch:
+
+concurrency:
+  group: dkg-ceremony-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_HTTP_MULTIPLEXING: false
+
+jobs:
+  rehearsal:
+    name: DKG ceremony rehearsal (2-of-3 FROST)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust 1.98.1
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # 1.98.1
+        with:
+          toolchain: 1.98.1
+
+      - name: Run ceremony rehearsal + operator pickup + emit evidence
+        env:
+          DKG_GENERATED_AT: ${{ github.run_started_at }}
+          DKG_EVIDENCE_PATH: ${{ runner.temp }}/dkg-ceremony/evidence.json
+          DKG_OPERATOR_DIR: ceremony
+        run: |
+          mkdir -p "$(dirname "$DKG_EVIDENCE_PATH")"
+          cargo run --example dkg_ceremony --features frost-crypto \
+            | tee "$(dirname "$DKG_EVIDENCE_PATH")/rehearsal.txt"
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "### DKG ceremony rehearsal"
+            echo
+            echo '```json'
+            cat "${{ runner.temp }}/dkg-ceremony/evidence.json" 2>/dev/null || echo '{"status":"NO_EVIDENCE"}'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload evidence artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dkg-ceremony-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/dkg-ceremony
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish evidence to R2
+        if: always()
+        env:
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_SOURCE_DIR: ${{ runner.temp }}/dkg-ceremony
+          S3_PREFIX: dkg-ceremony/${{ github.sha }}
+          S3_LATEST_KEY: dkg-ceremony/latest
+        run: |
+          pip install --quiet boto3
+          python3 scripts/upload_dir_to_r2.py
