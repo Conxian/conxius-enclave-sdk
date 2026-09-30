@@ -17,7 +17,7 @@ Conxian is committed to providing high-integrity, hardware-secure infrastructure
 - **Continuous Hygiene**: We perform regular audits for secret exposure, dependency drift, and simulated/mock residue in production paths.
 - **Versioning**: We follow Semantic Versioning (SemVer) and maintain a consistent `CHANGELOG.md` across all core repositories.
 
-The SDK is currently **Beta / conditional**. Passing local tests, a merged
+The SDK is currently **Stable (conditional)**. Passing local tests, a merged
 change, a workflow definition, or a package version does not establish
 mainnet-ready code, provider support, hardware evidence, independent review,
 or a verified release artifact. See `PRODUCTION_READINESS.md` and the

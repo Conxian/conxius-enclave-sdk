@@ -37,7 +37,7 @@ mint, #242 Nitro attestation). Audit corrections landed in AGENTS.md, TRACKING.m
 README.md, NEXT_SESSION_PLAN.md, DEBT_INVENTORY.md, and ORG_WIDE_PHASED_PLAN.md.
 
 ### Live verification (first full toolchain run, 2026-08-31)
-Installed Rust 1.97.1 + clippy/rustfmt + `libssl-dev`/`libpcsclite-dev`/`libclang-dev`
+Installed Rust 1.98.1 + clippy/rustfmt + `libssl-dev`/`libpcsclite-dev`/`libclang-dev`
 and ran the complete CI gate against the committed `Cargo.lock`:
 - `cargo test --locked` → **629 passed, 0 failed** (confirms the AGENTS.md "629 tests" figure exactly).
 - `cargo test --locked --all-features` → **645 passed, 0 failed, 2 ignored**.

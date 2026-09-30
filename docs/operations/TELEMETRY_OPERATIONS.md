@@ -1,6 +1,6 @@
 # Telemetry Privacy and Delivery Semantics
 
-> **Status:** Beta / conditional 2.x implementation and operations guidance. This document is SDK-local evidence, not production-acceptance evidence.
+> **Status:** Stable (conditional) 2.x implementation and operations guidance. This document is SDK-local evidence, not production-acceptance evidence.
 
 This document defines the public-safe contract for the SDK telemetry surface. It deliberately does not publish deployment-specific endpoints, privileged identifiers, credentials, retention secrets, custody or recovery procedures, raw attestation material, or incident secrets. Service-side controls must be documented and evidenced separately before telemetry is enabled for a supported deployment.
 

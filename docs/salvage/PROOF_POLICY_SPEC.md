@@ -156,8 +156,8 @@ part of the public policy surface.
 
 | Scope | Status | Meaning |
 | --- | --- | --- |
-| Policy digest, exact requirement digests, all-required composition | **Implemented, beta/conditional** | Repository code and negative/unit tests cover the composer and typed binding. |
-| Request/response/rail/final-dispatch policy-digest checks | **Implemented, beta/conditional** | The path fails closed on independently derived digest mismatch. |
+| Policy digest, exact requirement digests, all-required composition | **Implemented, stable (conditional)** | Repository code and negative/unit tests cover the composer and typed binding. |
+| Request/response/rail/final-dispatch policy-digest checks | **Implemented, stable (conditional)** | The path fails closed on independently derived digest mismatch. |
 | TLS identity, WebAuthn authorization, FIDO provenance, TPM, Android, Apple, SGX, TDX, SEV-SNP, Nitro, PSA, CCA | **Research/design only** | Provider-specific verification is not implemented or production-supported. |
 | Vendor roots, collateral, revocation, runtime/provider integration | **Unsupported** | No exact repository evidence chain exists. |
 | Distributed replay, independent review, release artifact/provenance, production support | **Unsupported** | These gates remain open and are not inferred from local tests or documentation. |

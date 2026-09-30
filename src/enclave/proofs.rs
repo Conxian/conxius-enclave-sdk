@@ -2541,6 +2541,8 @@ mod tests {
             let mut report = DeviceIntegrityReport {
                 report_version: ATTESTATION_ENVELOPE_VERSION,
                 report_type: AttestationReportType::DeviceIntegrity,
+                threshold_min_signers: None,
+                threshold_shares: None,
                 level: AttestationLevel::TEE,
                 challenge_nonce: request.message_digest().to_vec(),
                 signature: Vec::new(),

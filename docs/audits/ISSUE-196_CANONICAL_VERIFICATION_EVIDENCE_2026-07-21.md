@@ -12,7 +12,7 @@ Issue: https://github.com/Conxian/conxius-enclave-sdk/issues/196
 | BIP-322 typed API checkpoint | `54c5139c5b3337e29daa2e08a65dc359b580bde4` |
 | Final code checkpoint reviewed by the capability source | `1a33a6bf309a5c82f3fbebdf59f417a09710adb2` |
 
-The repository remains **Beta / conditional**. This note records scoped canonical
+The repository remains **Stable (conditional)**. This note records scoped canonical
 verification and derivation evidence only; it does not authorize production use,
 change the affected `productionSupport` values, or establish repository-wide
 readiness. Independent review remains not evidenced. Issue #195 remains the

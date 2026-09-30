@@ -47,7 +47,7 @@ success and failure. Set `CONXIAN_KEEP_WASM_GENERATED=1` only when retaining
 the generated package is useful for debugging.
 
 CI uses `ubuntu-24.04`, Node.js `22.23.1`, npm `11.18.0`, Rust/Cargo
-`1.97.1`, wasm-pack `0.15.0`, Chromium from the pinned Playwright lockfile,
+`1.98.1`, wasm-pack `0.15.0`, Chromium from the pinned Playwright lockfile,
 and the locked JavaScript dependencies. The script validates these versions
 in CI; local runs report mismatches without making a different developer
 toolchain needlessly unusable. Override the expected versions only for a
