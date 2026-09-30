@@ -88,7 +88,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 
 - [x] Dependencies are declared in Cargo.toml
 - [x] Cargo.lock and the release dependency graph are committed and checked with `--locked` (implementation evidence; release acceptance remains open)
-- [x] Toolchain/MSRV is pinned and compatible with the resolved graph (Rust 1.97.1 MSRV, CI-pinned)
+- [x] Toolchain/MSRV is pinned and compatible with the resolved graph (Rust 1.98.1 MSRV, CI-pinned)
 - [ ] Unmaintained and security-sensitive dependency review (P1/P2)
 
 ### 🌐 Platform Integration

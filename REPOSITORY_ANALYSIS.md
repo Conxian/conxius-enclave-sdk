@@ -33,8 +33,8 @@ The SDK (`conxius-enclave-sdk`) is a Rust-based security-primitives library for 
 | **Lightning** | 1 | BOLT11 invoice, HTLC signing, deterministic route-finding | ⚠️ Structural/local; no channel state machine or live LND/LDK integration |
 | **Ark** | 1 | vTXO tree construction, stateless recovery | ⚠️ Simulated/partial; not production-supported |
 | **BitVM2** | 1 | Optimistic challenge-response | ⚠️ Structural/partial; not production-supported |
-| **Fedimint** | 2 | Federation adapter, blinding | ⚠️ Simulated threshold path; not production-supported |
-| **FROST** | 1 | Structural/hash DKG-shaped API only; production DKG and signing are not implemented | ⚠️ Design only |
+| **Fedimint** | 2 | Federation adapter, BLS12-381 DLEQ proofs & e-cash blinding | ⚠️ Real DLEQ crypto (`fedimint-crypto`); threshold mint provider-gated |
+| **FROST** | 1 | Production RFC 9591 DKG & threshold signing (ZF FROST v3.0.0) | ⚠️ Real Round 1/2 DKG share verification, single-use nonces (`frost-crypto`) |
 | **MuSig2** | 1 | n-of-n multi-signature aggregation wrapper | ⚠️ Not a 3-of-5 threshold implementation |
 | **Settlement Rails** | 7 | x402, Wormhole, Boltz, NTT, Bisq | ⚠️ API surface; value-bearing support blocked |
 | **ZKML** | 1 | Zero-knowledge machine learning | ⚠️ API surface; independent evidence not established |
@@ -47,7 +47,8 @@ secp256k1 = "0.33.1"           # ✅ Stable (features: recovery, std)
 k256 = "0.14.0"                 # Stable dependency; release evidence is tracked separately
 alloy = "2.1.0"                # ✅ Ethereum RPC
 musig2 = "0.4.1"               # ✅ Multi-sig
-frost = "0.4.x"                 # ⚠️ Dependency present; production integration is not implemented
+frost-secp256k1-tr = "3.0.0"    # ✅ ZF FROST v3.0.0 (feature: frost-crypto)
+bls12_381 = "0.8"             # ✅ BLS12-381 pairings & G1 arithmetic (features: groth16, fedimint-crypto)
 ```
 
 ### API surface and evidence boundary
@@ -210,7 +211,7 @@ From `conxius-platform#1136`:
 - ✅ WASM API surface is present and explicitly inventoried; runtime/platform support remains open
 - ✅ Comprehensive settlement rails
 - ⚠️ FROST structural/hash placeholder validation only; production DKG, signing, share storage, and aggregation remain unimplemented
-- ✅ Comprehensive test suite (121 tests)
+- ✅ Comprehensive test suite (661 tests: 617 unit + 44 integration tests; 677 with `--all-features`)
 - ✅ Self-evolution knowledge patterns
 
 ### Areas for Improvement
