@@ -347,3 +347,9 @@ Applying the 75-point weighted gap scoring rubric (Security: 3x, Blocker: 3x, Un
 
 - **Sovereign Settlement Rail Request Validation**: ✅ Implemented. Hardened `BoltzRail` and `BisqRail` in `src/protocol/rails/boltz.rs` and `src/protocol/rails/bisq.rs` by adding strict zero-amount (`amount > 0`) checks and recipient address validation to fail closed early before processing swap intents. Added dedicated unit tests covering zero-amount and empty-recipient cases.
 - **End-to-End Cycle Status**: All 633 unit and integration test suites pass with 0 failures (`cargo test --all-targets --all-features`).
+
+## Session 81 — Repository Audit & End-to-End Capability Alignment (2026-09-30)
+
+- **Repository Synchronization & Audit**: Synchronized baseline HEAD SHA `5566f44`, validated capability evidence JSON schema against `CAPABILITY_MATRIX.md`, and passed all Python helper unit tests in `scripts/tests`.
+- **End-to-End Test Suite & Clippy Verification**: Verified all 617 Rust unit tests and 10 integration test drivers (`cargo test`) and zero clippy warnings (`cargo clippy --all-targets --all-features -- -D warnings`).
+- **Research & Gap Scorecard Alignment**: Updated candidate scoring and verified that all production code targets (WASM memory security, FROST DKG, CCTP attestation, DurableReplayStore, and Sovereign Rails) maintain 100% fail-closed compliance andZero Sensitivity Exposure (ZSE) security standards.
