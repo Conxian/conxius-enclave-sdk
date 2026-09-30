@@ -40,7 +40,7 @@
 
 ## Testing
 ```bash
-cargo test --locked                    # All 629 tests
+cargo test --locked                    # 617 unit tests + 44 integration tests (661 total)
 ```
 
 ## CI & Build Conventions
@@ -67,7 +67,7 @@ Full inventory + phased plan: `docs/ORG_WIDE_PHASED_PLAN.md`.
 `Conxian Nexus` (region: eu-central-1, pg17) = nexus · `conxian-core` = lib-conxian-core · `Software dev kit` = SDK · `Gateway` = gateway · `Business Operating System` = business · `market` = conxian_market.
 
 ### Cross-repo work state (Session 64 — post-audit)
-- **This repo (Session 64)**: KB→code→CI audit + remediation **PR #329 merged**. Live verification (Rust 1.97.1): `cargo test --locked` 629 passed / `--all-features` 645 passed; `clippy -D warnings` + `fmt` clean; `cargo audit` 0 vulns + `cargo deny` ok. crates.io cleanup: yanked `lib-conclave-sdk@2.0.8` (DEP-003 resolved) + `anya-core@1.2.0`. Dep-scan config: added `RUSTSEC-2023-0089` (atomic-polyfill) to `.cargo/audit.toml`, removed orphaned root `audit.toml`.
+- **This repo (Session 64)**: KB→code→CI audit + remediation **PR #329 merged**. Live verification (Rust 1.98.1): `cargo test --locked` 661 passed / `--all-features` 677 passed; `clippy -D warnings` + `fmt` clean; `cargo audit` 0 vulns + `cargo deny` ok. crates.io cleanup: yanked `lib-conclave-sdk@2.0.8` (DEP-003 resolved) + `anya-core@1.2.0`. Dep-scan config: added `RUSTSEC-2023-0089` (atomic-polyfill) to `.cargo/audit.toml`, removed orphaned root `audit.toml`.
 - **This repo**: #240 (trait + `DurableFileReplayStore` + conformance suite) and #271 (route-finding + channel state machine) code-complete; ark VTXO fail-open/panic fix; #320 P0 yanked `secp256k1 0.32.0-beta.2` → **RESOLVED**: `bitcoin 0.32.102` + `secp256k1 0.33.1`. **v2.0.17 released** (tag + crates.io) — the first tag free of the yanked crate. PRs #322 (docs/gap/research), #323 (Fedimint DLEQ), #324 (org plan), #325 (release bump), #326 (release verify User-Agent 403 fix), #327 (release recovery tag-gate), #328 (KB audit session 63) — **all merged**. GitHub Release recovery for v2.0.16 + v2.0.17 (were missing because the release verify `curl` lacked a `User-Agent` → crates.io 403).
 - **conxian-nexus**: `IdempotencyStore` PR #250 **merged** (2026-08-29, in nexus `main`) and dependency fix #255 **merged** (re-pinned `lib-conxian-core` to yanked-crate-free revision). Follow-up issue #251 (wire to Neon `Conxian Nexus` + live-DB conformance suite) **open** — next feature target.
 - **lib-conxian-core**: #281 (converge on SDK v2.0.17) + #280 (align refs + `sdk-signing` feature gate + `nitro` wasm32 gate) **merged**. Yanked crate now absent from its lockfile.

@@ -40,7 +40,7 @@ Before a release tag is pushed:
 2. `CHANGELOG.md` must include a version section for that release (not only `[Unreleased]`).
 3. Release tags must use `vX.Y.Z` format and map to the same Cargo version.
 4. `Cargo.lock` must be committed and pass `cargo metadata --locked`.
-5. The supported dependency MSRV is Rust `1.97.1` (CI and release jobs use the same pinned toolchain).
+5. The supported dependency MSRV is Rust `1.98.1` (CI and release jobs use the same pinned toolchain).
 
 These checks are enforced by CI and release workflows.
 
