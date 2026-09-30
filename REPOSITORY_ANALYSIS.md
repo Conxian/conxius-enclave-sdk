@@ -89,9 +89,9 @@ bls12_381 = "0.8"             # ✅ BLS12-381 pairings & G1 arithmetic (features
 
 ---
 
-## Gap Scorecard (v2.0.14+ Roadmap)
+## Gap Scorecard (v2.0.17+ Roadmap)
 
-### Completed Items (Session 57 / v2.0.14+)
+### Completed Items (Session 57 / v2.0.17+)
 
 1. ✅ **BitVM2 Static Tree Root** - Made `calculate_tree_root` method static for clarity
 
@@ -264,7 +264,7 @@ From `conxius-platform#1136`:
 
 ## Conclusion
 
-The SDK is **Beta / conditional**. The production-enablement audit found P0 blockers and P1 evidence gaps; the primary remaining items are recorded in the [audit](docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) and matrix. The previously broad completion language in this document must not be read as production-support evidence. Remaining items include:
+The SDK is **Beta / conditional**. The production-enablement audit found P0 blockers and P1 evidence gaps; the primary remaining items are recorded in the [audit](docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md) and matrix. The previously broad completion language in this document must not be read as production-support evidence. Remaining items include:
 
 1. **Dependencies**: Awaiting stable versions of critical crypto crates (DEP-001)
 2. **WASM**: explicit API rows exist; runtime/platform/secret-boundary evidence remains open (#200)

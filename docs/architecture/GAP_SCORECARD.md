@@ -1,4 +1,4 @@
-# Conxius Enclave SDK: Research & Implementation Gap Scorecard (v2.0.13)
+# Conxius Enclave SDK: Research & Implementation Gap Scorecard (v2.0.17)
 
 ## Overview
 This document tracks the resolution of production-path logic, architectural gaps, and research requirements for the Conxius Enclave SDK.
@@ -121,17 +121,17 @@ deployment → exact artifact/review → scoped support decision**.
 - **Resolution**: Hardened  and  in  with certificate chain length checks, timestamp freshness, challenge binding, and fail-closed error propagation. Added explicit policy verification unit tests in .
 - **Status**: Code & unit verification completed (v2.0.14); live Android KeyMint / Nitro hardware attestation evidence remains open in #195 and #202.
 
-## Technical Resolutions (v2.0.16)
+## Technical Resolutions (v2.0.17)
 
 ### 1. Fedimint: Ecash Note & Threshold Signature Validation
 - **Resolution**: Extended `FedimintAdapter` in `src/protocol/nexus/fedimint.rs` to validate e-cash note signatures, provider handles, and threshold signatures against active registered federation configurations.
-- **Status**: Structural/API validation completed (v2.0.16); live BLS12-381 threshold blinding, provider interoperability, independent review, and production support remain open in #197 and #202.
+- **Status**: Structural/API validation completed (v2.0.17); live BLS12-381 threshold blinding, provider interoperability, independent review, and production support remain open in #197 and #202.
 
-## Technical Resolutions (v2.0.13)
+## Technical Resolutions (v2.0.17)
 
 ### 1. BIP-110: Compliance & Alignment (Issue #179)
 - **Resolution**: Fully implemented the `bip110_compliant` feature flag, integrated BIP-110 validation rules into the BIP-322 construct-to-sign flow, hardened serialization with standard compact size (VarInt) encoding to prevent raw truncation hazards, and added compliance tests verifying Ark/BitVM2 commitment segmentation.
-- **Status**: API/structural implementation recorded (v2.0.13); canonical Bitcoin verification, integration, review, and artifact evidence remain open in #196 and #202.
+- **Status**: API/structural implementation recorded (v2.0.17); canonical Bitcoin verification, integration, review, and artifact evidence remain open in #196 and #202.
 
 ## Technical Resolutions (v2.0.12)
 
@@ -198,7 +198,7 @@ The Ark, Fedimint, and related BitVM entries below record API/structural impleme
 - **Resolution**: Implemented safety boundaries, gap limit validation, and improved error handling for stateless V-UTXO scans in `ArkManager`.
 - **Status**: Completed (v2.0.6)
 
-## Active Gaps & Research (v2.0.13+ Roadmap)
+## Active Gaps & Research (v2.0.17+ Roadmap)
 
 ### 7. Fedimint: Direct fedimint-client-wasm crate integration
 - **Gaps**: Adding the actual crate dependency and bridging the Wasm client to the Nexus adapter.

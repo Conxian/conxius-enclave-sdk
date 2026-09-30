@@ -9,7 +9,7 @@ This document provides a comprehensive overview of the repository status, includ
 | Document | Purpose |
 |----------|---------|
 | [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) | **Release checklist** |
-| [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) | Findings, gates, unknowns, and public-safe evidence |
+| [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md) | Findings, gates, unknowns, and public-safe evidence |
 | [Capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) | API, implementation, integration, review, and support status |
 | [Capability evidence JSON](./docs/architecture/capability-evidence.json) | Canonical machine-readable capability inventory and evidence chain |
 | [REPOSITORY_ANALYSIS.md](./REPOSITORY_ANALYSIS.md) | Capabilities, gaps, roadmap |

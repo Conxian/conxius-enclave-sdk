@@ -31,15 +31,15 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Priority**: P1 - Critical
 - **Description**: `Cargo.toml` pinned `secp256k1 = "0.32.0-beta.2"` (a hard, non-optional dependency), which is **yanked** from crates.io. Any fresh dependency resolution (`cargo generate-lockfile`, downstream `cargo add`) failed, blocking `conxian-nexus` CI and merge of nexus PR #250.
 - **Tracking**: [#320](https://github.com/Conxian/conxius-enclave-sdk/issues/320)
-- **Resolution**: `bitcoin 0.33.0-beta` → `0.32.102` (converging on the stable `bdk_wallet` line) and `secp256k1 0.32.0-beta.2` → `0.33.1` (`recovery`,`std`). The yanked crate is fully removed from the lockfile; `frost-crypto` is unaffected (ZF FROST uses `k256`, not `secp256k1`). **Complete (2026-08-30)**: v2.0.17 released to crates.io, `lib-conxian-core` converged (#281/#280 merged), `conxian-nexus` re-pinned (#255), GitHub Releases backfilled for v2.0.16 + v2.0.17.
+- **Resolution**: `bitcoin 0.33.0-beta` → `0.32.102` (converging on the stable `bdk_wallet` line) and `secp256k1 0.32.0-beta.2` → `0.33.1` (`recovery`,`std`). The yanked crate is fully removed from the lockfile; `frost-crypto` is unaffected (ZF FROST uses `k256`, not `secp256k1`). **Complete (2026-08-30)**: v2.0.17 released to crates.io, `lib-conxian-core` converged (#281/#280 merged), `conxian-nexus` re-pinned (#255), GitHub Releases backfilled for v2.0.17 + v2.0.17.
 
 
 #### CI-004: crates.io release verification 403 + recovery tag gate
 - **Category**: CI/CD / Release
 - **Priority**: P1 - Critical
-- **Description**: `verify-registry-artifact.sh` `curl`ed the published `.crate` from crates.io **without a `User-Agent`**, so crates.io returned HTTP 403 and every release since v2.0.16 failed `Publish to crates.io` → no GitHub Release was created (crate was still published). Secondary: the recovery mode (`recover_existing_registry`) hard-required `GITHUB_REF_TYPE=tag`, so it could never run on `main` (where the fixed script lives).
+- **Description**: `verify-registry-artifact.sh` `curl`ed the published `.crate` from crates.io **without a `User-Agent`**, so crates.io returned HTTP 403 and every release since v2.0.17 failed `Publish to crates.io` → no GitHub Release was created (crate was still published). Secondary: the recovery mode (`recover_existing_registry`) hard-required `GITHUB_REF_TYPE=tag`, so it could never run on `main` (where the fixed script lives).
 - **Tracking**: PR #326 (User-Agent) + PR #327 (recovery tag gate)
-- **Resolution**: #326 merged — `curl` now sends a `User-Agent`; #327 **merged** (skips the tag gate in recovery mode; approved by `admin-conxian-labs` 2026-08-30). GitHub Releases for v2.0.16 + v2.0.17 were backfilled manually in the interim (without SBOM/provenance assets, which the automated recovery will add on next run).
+- **Resolution**: #326 merged — `curl` now sends a `User-Agent`; #327 **merged** (skips the tag gate in recovery mode; approved by `admin-conxian-labs` 2026-08-30). GitHub Releases for v2.0.17 + v2.0.17 were backfilled manually in the interim (without SBOM/provenance assets, which the automated recovery will add on next run).
 
 
 #### PROTO-001: Protocol implementation boundaries and evidence
@@ -194,7 +194,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Current Practice**: `Cargo.lock` is tracked and all CI/release dependency commands use `--locked`
 - **Impact**: Resolved for the committed dependency graph; release acceptance still requires exact-artifact evidence
 - **Recommendation**: Keep the lockfile synchronized with intentional dependency changes and review lockfile diffs
-- **Status**: ✅ RESOLVED (2026-07-20; issue #199 hardening)
+- **Status**: ✅ RESOLVED (2026-09-29; issue #199 hardening)
 
 #### DOC-003: CHANGELOG Formatting
 - **Category**: Documentation
@@ -234,14 +234,14 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 | DEP-001 | 2026-07-08 | Next stable deps | ✅ Resolved (2026-08-30) — bitcoin 0.32.102 + secp256k1 0.33.1 | 2026-08-30 |
 | DOC-001 | 2026-07-08 | v2.0.7 release | ✅ Resolved | 2026-07-14 |
 | DEP-002 | 2026-07-08 | Q3 2026 | Planned | 2026-07-14 |
-| TEST-001 | 2026-07-08 | Hardware/provider evidence | Reclassified — simulation/unit evidence only; #195 open | 2026-07-20 |
+| TEST-001 | 2026-07-08 | Hardware/provider evidence | Reclassified — simulation/unit evidence only; #195 open | 2026-09-29 |
 | SEC-002 | 2026-07-21 | Real provider verifier/signer | In Progress — 4 backends wired (Nitro, PKCS#11, WebAuthn, OIDC); blocked on live Nitro deployment evidence (P0), core adapter integration (P0) | 2026-08-05 |
 | SEC-003 | 2026-07-21 | Distributed replay authorization | In Progress — design planned for Session 58; backend selection pending (DynamoDB vs PostgreSQL) | 2026-08-05 |
 | SEC-004 | 2026-07-21 | Provider-specific proof verification | In Progress — 4 backends wired; blocked on live Nitro deployment evidence (P0), independent review (#202) | 2026-08-05 |
 | EVID-001 | 2026-07-21 | Provider/runtime/artifact evidence | In Progress — Phase 3 verifier framework built (4 backends, 14 tests); real provider/runtime evidence still open; #200/#202 open | 2026-08-05 |
-| SEC-001 | 2026-07-12 | Structural FROST validation | ✅ Resolved (structural validation only; production cryptography open) | 2026-07-20 |
+| SEC-001 | 2026-07-12 | Structural FROST validation | ✅ Resolved (structural validation only; production cryptography open) | 2026-09-29 |
 | DOC-003 | 2026-07-08 | CHANGELOG [Unreleased] | ✅ Resolved | 2026-07-14 |
-| ARCH-001 | 2026-07-14 | Runtime/platform/secret boundary | Reclassified — API inventory only; #200 open | 2026-07-20 |
+| ARCH-001 | 2026-07-14 | Runtime/platform/secret boundary | Reclassified — API inventory only; #200 open | 2026-09-29 |
 | DOC-002 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
 | CI-001 | 2026-07-14 | v2.0.11 | ✅ Resolved | 2026-07-15 |
 | PROTO-001 | 2026-07-08 | FROST/BitVM2/DLC/CCTP/Covenant hardened; Fedimint real crypto | ✅ Resolved — 7/7 crypto sub-items (Fedimint DLEQ + blinding real via `fedimint-crypto`); full threshold mint remains provider-gated | 2026-08-30 |

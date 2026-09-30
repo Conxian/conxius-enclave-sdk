@@ -1,6 +1,6 @@
 # Capability and Evidence Matrix
 
-> **Canonical status:** Beta / conditional as of 2026-07-20.
+> **Canonical status:** Beta / conditional as of 2026-09-29.
 >
 > [`capability-evidence.json`](./capability-evidence.json) is the canonical machine-readable source. This Markdown table is generated from it and must not be edited inside the generated markers.
 

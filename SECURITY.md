@@ -4,7 +4,7 @@
 
 The 2.x line is **Beta / conditional**. The repository contains security-sensitive APIs, but the production-enablement audit found simulated signers, incomplete attestation enforcement, placeholder protocol behavior, and missing independent/release evidence. Do not use this status page as approval for value-bearing production signing or settlement.
 
-- [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md)
+- [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md)
 - [Capability and evidence matrix](./docs/architecture/CAPABILITY_MATRIX.md)
 - [Public operations and incident runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md)
 

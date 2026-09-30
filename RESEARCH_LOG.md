@@ -1,7 +1,7 @@
 # Conxius Enclave SDK Research Log
 
 > External research findings, technology monitoring, and industry analysis
-> **Version**: v1.3.0 | **Last Updated**: 2026-08-31
+> **Version**: v2.0.17 | **Last Updated**: 2026-08-31
 
 ---
 

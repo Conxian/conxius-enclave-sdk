@@ -77,8 +77,8 @@ After environment is configured:
 
 1. **Tag creation** triggers the full-history secret-scan prerequisite, release evidence generation, and the single publisher path:
    ```bash
-   git tag -s v2.0.7 -m "Release v2.0.7"
-   git push origin v2.0.7
+   git tag -s v2.0.17 -m "Release v2.0.17"
+   git push origin v2.0.17
    ```
 
 2. **Automatic publish** requires:

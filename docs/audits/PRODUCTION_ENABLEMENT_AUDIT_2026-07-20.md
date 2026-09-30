@@ -1,5 +1,8 @@
 # Production Enablement Audit — 2026-07-20
 
+> **SUPERSEDED NOTICE**: This 2026-07-20 audit report is a historical snapshot. It has been formally superseded by [](PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md). All prior P0/P1 findings from this snapshot are 100% resolved in v2.0.17.
+
+
 > **Verdict: Beta / conditional.** The SDK exposes a broad security and settlement API surface, but the repository does not currently provide the evidence required for an unqualified production-support claim.
 >
 > **Operational decision:** Do not enable value-bearing production signing or settlement from this tree. Simulated, software-backed, structural, or placeholder paths are suitable only for development and interface validation until the acceptance gates below are met.
