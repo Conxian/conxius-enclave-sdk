@@ -8,7 +8,7 @@ This document records the safe portion of [Linear CON-1543](https://linear.app/c
 The contracts provide reviewable requirement-to-code-to-test seams. They do
 not establish a production provider, import trust roots, authenticate vendor
 collateral, select an authority, provide distributed storage, or change the
-repository's Beta / conditional support posture.
+repository's Stable (conditional) support posture.
 
 ## Collateral metadata
 

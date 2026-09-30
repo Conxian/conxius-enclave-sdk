@@ -1,6 +1,6 @@
 # WASM Runtime and Provider Support Matrix
 
-> **Status:** Beta / conditional. This document records support boundaries; it
+> **Status:** Stable (conditional). This document records support boundaries; it
 > does not promote any WASM lane to production support.
 
 Compilation and generated bindings are not runtime, provider, hardware,
@@ -107,7 +107,7 @@ the production attestation or hardware policy. They are containment and test
 evidence only.
 
 Until then, the matrix remains explicitly unsupported and the repository's
-beta/conditional posture is unchanged. See [issue #200](https://github.com/Conxian/conxius-enclave-sdk/issues/200).
+stable (conditional) posture is unchanged. See [issue #200](https://github.com/Conxian/conxius-enclave-sdk/issues/200).
 
 > **Evidence-path note:** The repository currently has separate WASM workflow
 > and Playwright/runtime evidence paths. They are intentionally noted here but

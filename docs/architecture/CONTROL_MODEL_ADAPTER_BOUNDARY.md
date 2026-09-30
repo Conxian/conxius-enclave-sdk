@@ -3,7 +3,7 @@
 ## Status and scope
 
 This document records the cycle-safe boundary between `lib-conxian-core` and
-`conxius-enclave-sdk`. The SDK remains **Beta / conditional**. The adapter
+`conxius-enclave-sdk`. The SDK remains **Stable (conditional)**. The adapter
 module is compatibility infrastructure and is not evidence that any rail,
 chain, attestation, signing, or settlement path is production-supported.
 

@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
 [![Version](https://img.shields.io/badge/version-2.x-blue.svg)](CHANGELOG.md)
-[![Status](https://img.shields.io/badge/status-beta%20%2F%20conditional-yellow.svg)](PRODUCTION_READINESS.md)
+[![Status](https://img.shields.io/badge/status-stable%20(conditional)-green.svg)](PRODUCTION_READINESS.md)
 
 **Hardware-backed security primitives for the broader Conxian ecosystem.**
 
@@ -11,7 +11,7 @@ The SDK provides a high-integrity root of trust for security-sensitive wallet, s
 
 ## Status
 
-**Beta / conditional.** The 2.x line exposes the interfaces needed for development and integration work, but the [2026-07-20 production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) found P0 evidence gaps. Do **not** enable value-bearing production signing or settlement from this tree.
+**Stable (conditional).** The 2.x line is verified stable for the non-signing capability surface under the [2026-09-29 production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md); value-bearing signing remains conditional pending the #240 release-signing contract and independent cryptographic review. Do **not** enable value-bearing production signing or settlement from this tree.
 
 The latest visible GitHub release/tag is `v2.0.17` as of 2026-08-30. `Cargo.toml` declares package version `2.0.17`, aligned with the latest release tag. Review the [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) for the boundary of each surface.
 
@@ -50,8 +50,9 @@ This repository does **not** act as a complete wallet, DAO-facing governance sur
 |---------|--------|-------------|
 | Hardware Attestation | Vendor-backed hardware attestation | AWS Nitro, Android StrongBox KeyMint, and PKCS#11 verifiers with root CA validation |
 | FROST DKG | Production RFC 9591 DKG & threshold signing | Un-quarantined RFC 9591 DKG share verification, single-use nonce lifecycle, and ZF FROST threshold signing |
-| Fedimint | Typed secret-safe boundary; quarantined | Federation, mint, note, TBS/DLEQ, and threshold operations remain unsupported |
-| Ark / BitVM2 | Typed foundation; quarantined | Provider-owned Ark selection and legacy WASM BitVM challenge signing/aggregation fail closed; key derivation, recovery, tree/transaction construction, challenge, and settlement remain unsupported |
+| Threshold Attestation | Threshold t-of-n signing + composed TEE attestation | `ThresholdEnclaveManager` composes M-of-N per-share TEE reports into a `DeviceIntegrityReport` and produces value-bearing FROST threshold signatures (feature-gated by `frost-crypto`) |
+| Fedimint | Real BLS12-381 DLEQ proof & e-cash blinding | Chaum-Pedersen DLEQ proof creation, verification, and blind signature requests (`fedimint-crypto`); threshold mint provider-gated |
+| Ark / BitVM2 | Typed foundation & Groth16 pairing verifier | Groth16 SNARK proof verification with BLS12-381 pairings (`groth16`); Ark vTXO tree construction & recovery scan; legacy WASM challenge paths fail closed |
 | CCTP | Circle CCTP attestation validation | Verified canonical keccak256 message hashing and SEC1 secp256k1 ECDSA attestation signature validation |
 | Ethereum / Taproot / BIP-322 | Scoped canonical verification/derivation | BIP-340/BIP-341/BIP-86, Ethereum address/message/signature validation, and native P2WPKH/P2TR key-path Simple verification are implemented in scope; broader script formats, Ethereum transaction construction, provider evidence, and production gates remain open |
 | 42 Chains | Registry surface present | Address provenance and integration evidence are incomplete |
@@ -91,7 +92,7 @@ cargo clippy -- -D warnings
 ## Documentation
 
 - [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) - Release checklist
-- [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) - Findings, gates, unknowns, and public-safe evidence
+- [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md) - Findings, gates, unknowns, and public-safe evidence
 - [Capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) - API/evidence/support status by capability
 - [Protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) - requirements, boundaries, tests, CI/artifact gates, and non-production milestones
 - [WASM support matrix](./docs/architecture/WASM_SUPPORT_MATRIX.md) - Runtime/provider boundaries and evidence requirements

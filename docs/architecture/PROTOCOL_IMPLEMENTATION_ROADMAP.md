@@ -31,7 +31,7 @@ quarantined to conditionally usable:
 - a reviewed tag, CI run, SBOM/provenance, artifact digest, and explicit support
   decision for the exact target/runtime/hardware scope.
 
-The repository remains **Beta / conditional**. No milestone below authorizes
+The repository remains **Stable (conditional)**. No milestone below authorizes
 production signing, custody, settlement, federation operation, or bridge use by
 itself.
 

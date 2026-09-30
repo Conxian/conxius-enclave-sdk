@@ -1,6 +1,6 @@
 # Trust and Replay Foundation
 
-> **Status:** Beta / conditional. This document records provider-neutral
+> **Status:** Stable (conditional). This document records provider-neutral
 > contract foundations and local negative tests. It does **not** establish
 > provider support, production readiness, distributed durability, or a release
 > decision.

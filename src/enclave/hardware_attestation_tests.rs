@@ -48,6 +48,7 @@ impl MockAttestationGenerator {
             AttestationLevel::Software => {
                 extension_data.push_str("|SIMULATED");
             }
+            AttestationLevel::Threshold => {}
         }
 
         let extensions = parse_extension_data(&extension_data).expect("valid extensions");
@@ -57,11 +58,14 @@ impl MockAttestationGenerator {
             AttestationLevel::StrongBox => "GOOGLE_STRONGBOX_ROOT_V1".to_string(),
             AttestationLevel::TEE => "CONCLAVE_ROOT_CA_V1".to_string(),
             AttestationLevel::Software => "CONCLAVE_SIM_ROOT_V1".to_string(),
+            AttestationLevel::Threshold => "CONCLAVE_THRESHOLD_ROOT_V1".to_string(),
         };
 
         let mut report = DeviceIntegrityReport {
             report_version: ATTESTATION_ENVELOPE_VERSION,
             report_type: AttestationReportType::DeviceIntegrity,
+            threshold_min_signers: None,
+            threshold_shares: None,
             level: self.level,
             challenge_nonce: nonce.to_vec(),
             signature: Vec::new(),
@@ -511,6 +515,8 @@ mod edge_case_tests {
         let report = DeviceIntegrityReport {
             report_version: ATTESTATION_ENVELOPE_VERSION,
             report_type: AttestationReportType::DeviceIntegrity,
+            threshold_min_signers: None,
+            threshold_shares: None,
             level: AttestationLevel::TEE,
             challenge_nonce: nonce.to_vec(),
             signature: vec![], // Empty signature

@@ -3,7 +3,7 @@
 **Access date:** 2026-07-22
 **Scope:** proof-policy hardening, provider capability research, and public
 evidence boundaries for `conxius-enclave-sdk`
-**Support decision:** beta / conditional; no provider or production-support
+**Support decision:** stable (conditional); no provider or production-support
 claim is made
 
 This audit separates repository implementation evidence from external research.
@@ -15,7 +15,7 @@ tests, reviews, releases, or supports those providers.
 
 | Requirement | Code evidence | Test evidence | CI evidence | Artifact / support decision |
 | --- | --- | --- | --- | --- |
-| Commit the complete exact proof policy, not only `policy_id` | `src/enclave/proof.rs`: versioned `CONXIAN-PROOF-POLICY/v1`, policy-mode tag, operation/purpose/challenge/replay/freshness fields, canonical requirement digests, private `VerifiedProofSet` policy digest | `policy_digest_binds_exact_fields_and_requirement_order_is_canonical`; duplicate, type-substitution, stale, future, malformed, and fixture-exclusion tests | Required local gates: `cargo fmt --all -- --check`; locked all-target/all-feature clippy; unit/all-feature/doc tests | No release artifact or independent review is established by this change; `proof-composition` remains beta/conditional and production-unsupported |
+| Commit the complete exact proof policy, not only `policy_id` | `src/enclave/proof.rs`: versioned `CONXIAN-PROOF-POLICY/v1`, policy-mode tag, operation/purpose/challenge/replay/freshness fields, canonical requirement digests, private `VerifiedProofSet` policy digest | `policy_digest_binds_exact_fields_and_requirement_order_is_canonical`; duplicate, type-substitution, stale, future, malformed, and fixture-exclusion tests | Required local gates: `cargo fmt --all -- --check`; locked all-target/all-feature clippy; unit/all-feature/doc tests | No release artifact or independent review is established by this change; `proof-composition` remains stable (conditional) and production-unsupported |
 | Carry the expected digest from request-side policy through authorization | `src/enclave/mod.rs`: request-side derivation and response storage; `src/protocol/rails/mod.rs`: independent expected/verified digest fields | `typed_settlement_authorization_rejects_same_id_weaker_policy_digest`; complete fixture authorization remains covered | Same required Rust gates | The branch contains containment code only; no provider/runtime artifact is claimed |
 | Recheck policy integrity at final dispatch | `src/protocol/rails/mod.rs`: final dispatch rejects zero or unequal expected/verified digests before rail lookup/execution | `typed_settlement_dispatch_rechecks_expected_and_verified_policy_digest`; existing replay and downstream-failure tests remain | Same required Rust gates | No live rail, distributed replay, or release-support evidence |
 | Refactor test fixtures without weakening coverage | `RawProofEvidence::test_fixture(TestProofEvidenceInput)` and private builder input under `cfg(test)` | Existing proof negative tests plus clippy `too_many_arguments` regression | `cargo clippy --locked --all-targets --all-features -- -D warnings` | Test fixtures cannot satisfy production policy |
@@ -51,7 +51,7 @@ Nitro row records `api: yes` and `implementation: partial` only for the
 native-only offline structural boundary; it keeps `integration: no`,
 `independentReview: not-evidenced`, and `productionSupport: unsupported`. This
 does not promote the parser or its test fixtures to a provider verifier. The
-existing `proof-composition` row remains unchanged at beta/conditional maturity
+existing `proof-composition` row remains unchanged at stable (conditional) maturity
 with production support unsupported.
 
 ## Primary sources
