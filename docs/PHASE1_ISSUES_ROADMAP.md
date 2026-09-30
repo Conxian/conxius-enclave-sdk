@@ -11,7 +11,7 @@ This document tracks Phase 1 issues for the Enclave SDK. Focuses on **UCS implem
 ## Pre-Init Alignment (2026-08-03)
 - [x] Branches: `main` ↔ `staged` synced via merge
 - [x] Dependabot: routes to `staged` (branch promotion standard)
-- [x] MSRV: 1.97.1 (matches CI toolchain)
+- [x] MSRV: 1.98.1 (matches CI toolchain)
 - [x] 540 tests pass, 0 clippy warnings, cargo-deny clean
 - [x] Stale branches cleaned, remote auth fixed
 

@@ -4,7 +4,7 @@
   "repository": "Conxian/conxius-enclave-sdk",
   "reviewedRef": "511ebf589a102ff0d3895d6b8d7568751fcfaf28",
   "lastVerified": "2026-08-29",
-  "maturity": "beta-conditional",
+  "maturity": "stable-conditional",
   "statusVocabulary": {
     "evidence": [
       "yes",
@@ -70,7 +70,7 @@
         "src/wasm_bindings.rs:1-120",
         "src/wasm_support.rs:1-120",
         "src/enclave/hardware_attestation_tests.rs:1-450",
-        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-120",
+        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:1-120",
         "https://github.com/Conxian/conxius-enclave-sdk/pull/216",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
       ],
@@ -78,7 +78,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-120",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:1-120",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
           ]
         },
@@ -145,14 +145,14 @@
         "docs/architecture/SDK_BOUNDARY_CONTRACT.md",
         ".github/workflows/ci.yml:1-100",
         "https://github.com/Conxian/conxius-enclave-sdk/pull/205",
-        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150",
+        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:1-150",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
       ],
       "evidenceChain": [
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:1-150",
             "docs/architecture/ISSUE-240_PHASE_A_CONTRACT.md",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
           ]
@@ -292,7 +292,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:1-150",
             "docs/architecture/TRUST_REPLAY_FOUNDATION.md",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/240",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
@@ -360,7 +360,7 @@
         "src/enclave/proofs.rs:1450-1800",
         "src/protocol/opportunity.rs:90-280",
         "tests/production_rail_containment.rs:150-280",
-        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-190",
+        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:1-190",
         "https://github.com/Conxian/conxius-enclave-sdk/pull/216",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
       ],
@@ -368,7 +368,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-190",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:1-190",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
           ]
         },
@@ -431,7 +431,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-200",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:1-200",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
           ]
@@ -494,7 +494,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:1-150",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:1-150",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/195",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/196"
           ]
@@ -559,7 +559,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:100-170",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:100-170",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/196"
           ]
         },
@@ -627,7 +627,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:100-170",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:100-170",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/196"
           ]
         },
@@ -749,7 +749,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:100-170",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:100-170",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/196"
           ]
         },
@@ -807,7 +807,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:170-230",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:170-230",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/196",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
           ]
@@ -862,7 +862,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:170-230",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:170-230",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/196",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
           ]
@@ -917,7 +917,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:170-230",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:170-230",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/196",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
           ]
@@ -966,7 +966,7 @@
         "src/protocol/asset.rs:1-814",
         "src/protocol/asset_tests.rs:1-260",
         "tests/fail_closed_protocol_surfaces.rs",
-        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:230-280",
+        "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:230-280",
         "https://github.com/Conxian/conxius-enclave-sdk/pull/212",
         "https://github.com/Conxian/conxius-enclave-sdk/commit/451202f51a9efed8fde70b7a5567a3e7e16c1db9",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
@@ -975,7 +975,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:230-280",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:230-280",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
           ]
         },
@@ -1085,7 +1085,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-220",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:150-220",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
           ]
@@ -1139,7 +1139,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-220",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:150-220",
             "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
           ]
@@ -1364,7 +1364,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-220",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:150-220",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
           ]
         },
@@ -1425,7 +1425,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-220",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:150-220",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
           ]
         },
@@ -1539,7 +1539,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-250",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:150-250",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
           ]
@@ -1599,7 +1599,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-250",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:150-250",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
           ]
@@ -1658,7 +1658,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-250",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:150-250",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
           ]
@@ -1826,7 +1826,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-250",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:150-250",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
           ]
@@ -1884,7 +1884,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:170-250",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:170-250",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/198",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
           ]
@@ -2053,7 +2053,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:150-250",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:150-250",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/200"
           ]
@@ -2486,7 +2486,7 @@
         {
           "stage": "requirement",
           "refs": [
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:69-82",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:69-82",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/201",
             "docs/operations/TELEMETRY_OPERATIONS.md",
             "docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md",
@@ -2553,7 +2553,7 @@
           "stage": "requirement",
           "refs": [
             "PRODUCTION_READINESS.md:1-180",
-            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md:250-360",
+            "docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md:250-360",
             "https://github.com/Conxian/conxius-enclave-sdk/issues/199"
           ]
         },

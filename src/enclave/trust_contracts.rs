@@ -124,6 +124,7 @@ impl AttestationProvider {
         match level {
             AttestationLevel::StrongBox => Some(Self::AndroidKeyMintStrongBox),
             AttestationLevel::Software | AttestationLevel::TEE | AttestationLevel::CloudTEE => None,
+            AttestationLevel::Threshold => None,
         }
     }
 
