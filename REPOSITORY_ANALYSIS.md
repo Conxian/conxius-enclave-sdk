@@ -12,7 +12,7 @@ The SDK (`conxius-enclave-sdk`) is a Rust-based security-primitives library for 
 > The inventory labels below are historical implementation notes. They do not override the capability matrix, the production-enablement audit, or the requirement for independent evidence for production support.
 
 ### Repository Status
-- **Maturity**: Beta / conditional; production enablement is blocked by CON-1506 P0/P1 gates
+- **Maturity**: Stable (conditional); production enablement is blocked by CON-1506 P0/P1 gates
 - **Tech Debt**: Material (protocol placeholders, dependency/toolchain drift, release and integration evidence gaps)
 - **Open Issues**: Production enablement issue #191 remains open
 - **Open PRs**: 0 observed at the audit baseline; this does not establish release support
@@ -264,7 +264,7 @@ From `conxius-platform#1136`:
 
 ## Conclusion
 
-The SDK is **Beta / conditional**. The production-enablement audit found P0 blockers and P1 evidence gaps; the primary remaining items are recorded in the [audit](docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) and matrix. The previously broad completion language in this document must not be read as production-support evidence. Remaining items include:
+The SDK is **Stable (conditional)**. The production-enablement audit found P0 blockers and P1 evidence gaps; the primary remaining items are recorded in the [audit](docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md) and matrix. The previously broad completion language in this document must not be read as production-support evidence. Remaining items include:
 
 1. **Dependencies**: Awaiting stable versions of critical crypto crates (DEP-001)
 2. **WASM**: explicit API rows exist; runtime/platform/secret-boundary evidence remains open (#200)

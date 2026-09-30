@@ -2,7 +2,7 @@
 
 > **Verdict: Stable (conditional) for the non-signing capability surface; value-bearing signing remains conditional pending the #240 release-signing contract and an independent cryptographic review.**
 >
-> This redo supersedes the 2026-07-20 audit (`PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md`), whose verdict was **Beta / conditional**. All P0 and required P1 findings recorded there are now resolved in code, in CI, or by newly captured hardware-attestation evidence. The only remaining production gates are the authenticated signer integration and independent review of the value-bearing signing path.
+> This redo supersedes the 2026-07-20 audit (`PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md`), whose verdict was **Stable (conditional)**. All P0 and required P1 findings recorded there are now resolved in code, in CI, or by newly captured hardware-attestation evidence. The only remaining production gates are the authenticated signer integration and independent review of the value-bearing signing path.
 
 ## Audit identity
 

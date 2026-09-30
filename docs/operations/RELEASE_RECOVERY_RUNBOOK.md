@@ -1,6 +1,6 @@
 # Release Recovery Runbook
 
-> **Status:** Beta / conditional public guidance. This runbook defines evidence and decision boundaries; it does not authorize publication, production support, or value-bearing operation.
+> **Status:** Stable (conditional) public guidance. This runbook defines evidence and decision boundaries; it does not authorize publication, production support, or value-bearing operation.
 
 Use [RELEASING.md](../../RELEASING.md) for release mechanics. This document intentionally does not duplicate credentials, private endpoint values, privileged commands, custody procedures, key-recovery details, or incident secrets.
 
@@ -8,7 +8,7 @@ Use [RELEASING.md](../../RELEASING.md) for release mechanics. This document inte
 
 Use this wording until every required gate is evidenced for the exact candidate and deployment scope:
 
-> **This candidate remains Beta / conditional. Publication, passing repository checks, or the presence of telemetry and operations documentation does not establish production support. Telemetry remains unsupported until service-side privacy/retention, monitoring, named operational assignment, independent review, rollback evidence, and exact release artifacts are verified.**
+> **This candidate remains Stable (conditional). Publication, passing repository checks, or the presence of telemetry and operations documentation does not establish production support. Telemetry remains unsupported until service-side privacy/retention, monitoring, named operational assignment, independent review, rollback evidence, and exact release artifacts are verified.**
 
 Do not describe a documentation-only or simulated/software path as production-supported. Never use simulated or software signing as a fallback for value-bearing operations.
 
@@ -98,6 +98,6 @@ No role may override a missing attestation, signer, replay, settlement, policy, 
 
 ## Completion criteria and review triggers
 
-Release recovery is complete only when the exact candidate or rollback target is verified, the hold/rollback decision is recorded, post-release checks pass, public-safe evidence is captured, private evidence remains private, and the responsible roles accept the outcome. The capability remains Beta / conditional until external evidence is independently verified.
+Release recovery is complete only when the exact candidate or rollback target is verified, the hold/rollback decision is recorded, post-release checks pass, public-safe evidence is captured, private evidence remains private, and the responsible roles accept the outcome. The capability remains Stable (conditional) until external evidence is independently verified.
 
 Review this runbook before each release and after any change to the release workflow, candidate identity rules, artifact/provenance format, telemetry contract, service retention or monitoring, named operational assignment, rollback target, security review, incident outcome, or support decision.

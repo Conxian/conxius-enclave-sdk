@@ -1,7 +1,7 @@
 # Issue #240 Phase A: Trust and Durable Replay Contract
 
 > **Status:** Contract and containment implementation only. The SDK remains
-> Beta / conditional. This document does not claim a provider, hardware,
+> Stable (conditional). This document does not claim a provider, hardware,
 > runtime, durable backend, independent review, release artifact, or production
 > support.
 

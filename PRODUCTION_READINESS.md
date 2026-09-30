@@ -1,9 +1,9 @@
 # Production Enablement Checklist
 
 > This is a gated checklist, not a production-readiness claim.
-> Status: Beta / conditional | Last Updated: 2026-08-31
+> Status: Stable (conditional) | Last Updated: 2026-09-29
 
-The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), [machine-readable evidence](./docs/architecture/capability-evidence.json), [trust/replay foundation](./docs/architecture/TRUST_REPLAY_FOUNDATION.md), [public operations runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md), [release recovery runbook](./docs/operations/RELEASE_RECOVERY_RUNBOOK.md), and [protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) as the canonical evidence record. The latest visible GitHub release is `v2.0.17`; `Cargo.toml` and the git tag are at `2.0.17` (crates.io `v2.0.17` published).
+The 2.x line is not approved for unqualified production signing or settlement. Use the [production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md), [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md), [machine-readable evidence](./docs/architecture/capability-evidence.json), [trust/replay foundation](./docs/architecture/TRUST_REPLAY_FOUNDATION.md), [public operations runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md), [release recovery runbook](./docs/operations/RELEASE_RECOVERY_RUNBOOK.md), and [protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) as the canonical evidence record. The latest visible GitHub release is `v2.0.17`; `Cargo.toml` and the git tag are at `2.0.17` (crates.io `v2.0.17` published).
 
 Merged PR [#205](https://github.com/Conxian/conxius-enclave-sdk/pull/205), merged PR [#216](https://github.com/Conxian/conxius-enclave-sdk/pull/216), and the typed-settlement follow-up code checkpoint are containment and evidence-boundary work only. They make missing provider evidence fail closed and preserve signer-identity binding; they do not establish real hardware/provider integration, distributed replay, runtime support, independent review, release artifacts, or production readiness. Issue [#195](https://github.com/Conxian/conxius-enclave-sdk/issues/195) remains open.
 
@@ -146,7 +146,7 @@ Issue #145 is a **historical CI/CD baseline**, not current release-acceptance ev
 
 | Version | Status | Notes |
 |---------|--------|-------|
-| 2.x line | Beta / conditional | Production enablement remains blocked by CON-1506 P0/P1 gates and protocol roadmap milestones |
+| 2.x line | Stable (conditional) | Production enablement remains blocked by CON-1506 P0/P1 gates and protocol roadmap milestones |
 | v2.0.17 | Cargo.toml + git tag (2026-08-30) | crates.io published; first tag free of the yanked `secp256k1`; GitHub Releases v2.0.16 + v2.0.17 backfilled |
 | v2.0.16 | Cargo.toml + git tag (2026-08-07) | crates.io published; PR #321 (secp256k1 unblock) landed on this line; superseded by v2.0.17 |
 | v2.0.15 | Prior release | Superseded by v2.0.16 metadata |

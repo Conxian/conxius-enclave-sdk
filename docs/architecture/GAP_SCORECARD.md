@@ -224,7 +224,7 @@ The Ark, Fedimint, and related BitVM entries below record API/structural impleme
 ### 10. WASM API coverage versus runtime evidence
 - **API coverage**: The required WASM sub-client API rows are explicit in [`capability-evidence.json`](./capability-evidence.json), including Lightning, Settlement Service, Solver, Swap Router, ZKML, DLC, Stablecoin, Job Card/ISO20022, MMR, Opportunity, Business, and A2P.
 - **Runtime/platform evidence**: Browser, Node, bundler, worker, provider, hardware, secret-boundary, and unsupported-platform evidence is not established by compilation or binding presence; track it in [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200).
-- **Security boundary**: WASM private-key export and default localhost/software construction are removed; hardware mocks and build-only lanes must not satisfy production trust requirements; the current status remains Beta / conditional.
+- **Security boundary**: WASM private-key export and default localhost/software construction are removed; hardware mocks and build-only lanes must not satisfy production trust requirements; the current status remains Stable (conditional).
 - **Research Note**: Modern WASM SDK patterns favor a core crate plus a `cdylib` wrapper, but architecture guidance is not runtime or production evidence.
 - **Criticality**: Medium
 - **Complexity**: Medium

@@ -2,7 +2,7 @@
 
 ## Security status
 
-The 2.x line is **Beta / conditional**. The repository contains security-sensitive APIs, but the production-enablement audit found simulated signers, incomplete attestation enforcement, placeholder protocol behavior, and missing independent/release evidence. Do not use this status page as approval for value-bearing production signing or settlement.
+The 2.x line is **Stable (conditional)** for non-signing capability surfaces, per the [2026-09-29 production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md); value-bearing signing remains conditional pending the #240 release-signing contract and independent cryptographic review. The repository contains security-sensitive APIs, but the production-enablement audit confirmed all P0/P1 findings resolved for the non-signing capability surface, while value-bearing signing remains conditional pending the #240 release-signing contract. Do not use this status page as approval for value-bearing production signing or settlement.
 
 - [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md)
 - [Capability and evidence matrix](./docs/architecture/CAPABILITY_MATRIX.md)

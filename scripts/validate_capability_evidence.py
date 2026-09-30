@@ -13,7 +13,7 @@ from typing import Any
 
 SCHEMA_VERSION = 1
 EXPECTED_REPOSITORY = "Conxian/conxius-enclave-sdk"
-EXPECTED_MATURITY = "beta-conditional"
+EXPECTED_MATURITY = "stable-conditional"
 EXPECTED_AXIS_ORDER = [
     "api",
     "implementation",

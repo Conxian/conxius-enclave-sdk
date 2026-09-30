@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
 [![Version](https://img.shields.io/badge/version-2.x-blue.svg)](CHANGELOG.md)
-[![Status](https://img.shields.io/badge/status-beta%20%2F%20conditional-yellow.svg)](PRODUCTION_READINESS.md)
+[![Status](https://img.shields.io/badge/status-stable%20(conditional)-green.svg)](PRODUCTION_READINESS.md)
 
 **Hardware-backed security primitives for the broader Conxian ecosystem.**
 
@@ -11,7 +11,7 @@ The SDK provides a high-integrity root of trust for security-sensitive wallet, s
 
 ## Status
 
-**Beta / conditional.** The 2.x line exposes the interfaces needed for development and integration work, but the [2026-07-20 production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) found P0 evidence gaps. Do **not** enable value-bearing production signing or settlement from this tree.
+**Stable (conditional).** The 2.x line is verified stable for the non-signing capability surface under the [2026-09-29 production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md); value-bearing signing remains conditional pending the #240 release-signing contract and independent cryptographic review. Do **not** enable value-bearing production signing or settlement from this tree.
 
 The latest visible GitHub release/tag is `v2.0.17` as of 2026-08-30. `Cargo.toml` declares package version `2.0.17`, aligned with the latest release tag. Review the [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) for the boundary of each surface.
 
@@ -92,7 +92,7 @@ cargo clippy -- -D warnings
 ## Documentation
 
 - [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) - Release checklist
-- [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) - Findings, gates, unknowns, and public-safe evidence
+- [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md) - Findings, gates, unknowns, and public-safe evidence
 - [Capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) - API/evidence/support status by capability
 - [Protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) - requirements, boundaries, tests, CI/artifact gates, and non-production milestones
 - [WASM support matrix](./docs/architecture/WASM_SUPPORT_MATRIX.md) - Runtime/provider boundaries and evidence requirements
