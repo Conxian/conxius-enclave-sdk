@@ -12,9 +12,9 @@
 #[cfg(feature = "frost-crypto")]
 fn main() {
     use conxius_enclave_sdk::protocol::frost_crypto::{
-        aggregate, create_nonces_and_commitments, create_signature_share,
-        create_signing_package, dkg_part1, dkg_part2, dkg_part3, public_key_x_only,
-        verify_dkg_round1_package, verify_dkg_round2_package,
+        aggregate, create_nonces_and_commitments, create_signature_share, create_signing_package,
+        dkg_part1, dkg_part2, dkg_part3, public_key_x_only, verify_dkg_round1_package,
+        verify_dkg_round2_package,
     };
     use frost_secp256k1_tr::Identifier;
     use std::collections::BTreeMap;
@@ -28,6 +28,35 @@ fn main() {
         .collect();
 
     println!("DKG ceremony rehearsal: {t}-of-{n} FROST (secp256k1-tr, RFC 9591)");
+
+    // ---- Operator pickup: validate any real-operator round packages ----
+    // Real operators drop their round packages into $DKG_OPERATOR_DIR; this
+    // validates whatever is present so the ceremony status is recorded as it
+    // fills in. A rehearsal runs either way (the production ceremony is a
+    // superset of this).
+    if let Ok(dir) = std::env::var("DKG_OPERATOR_DIR") {
+        let mut found = 0usize;
+        let mut valid = 0usize;
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("pkg") {
+                    continue;
+                }
+                let bytes = std::fs::read(&path).unwrap_or_default();
+                let ok = verify_dkg_round1_package(&bytes).unwrap_or(false)
+                    || verify_dkg_round2_package(&bytes).unwrap_or(false);
+                println!(
+                    "operator package {}: {}",
+                    path.file_name().unwrap_or_default().to_string_lossy(),
+                    if ok { "VALID" } else { "INVALID" }
+                );
+                found += 1;
+                valid += usize::from(ok);
+            }
+        }
+        println!("operator pickup: {valid}/{found} package(s) valid in {dir}");
+    }
 
     // ---- Round 1: each participant publishes a commitment package ----
     let mut r1_secrets: BTreeMap<Vec<u8>, Vec<u8>> = BTreeMap::new();
@@ -103,7 +132,26 @@ fn main() {
         "threshold signature ({t}-of-{n}) over {:?}: {sig}",
         String::from_utf8_lossy(message)
     );
-    println!("shares held by: {} + {}", labels[0], labels[1]);
+    println!("signing shares used: {} + {}", labels[0], labels[1]);
+
+    // ---- Machine-readable evidence (consumed by other agents / CI) ----
+    let generated_at = std::env::var("DKG_GENERATED_AT").unwrap_or_else(|_| "unknown".to_string());
+    let git_sha = std::env::var("GITHUB_SHA").unwrap_or_else(|_| "local".to_string());
+    let evidence = format!(
+        "{{\n  \"schema\": \"conxian.dkg-ceremony.rehearsal.v1\",\n  \"mode\": \"rehearsal\",\n  \"generated_at\": \"{generated_at}\",\n  \"git_sha\": \"{git_sha}\",\n  \"curve\": \"secp256k1-tr (RFC 9591)\",\n  \"t\": {t},\n  \"n\": {n},\n  \"public_key_x_only\": \"{pubkey_hex}\",\n  \"message\": \"{message_str}\",\n  \"signature\": \"{sig}\",\n  \"status\": \"PASS\"\n}}",
+        generated_at = generated_at,
+        git_sha = git_sha,
+        t = t,
+        n = n,
+        pubkey_hex = hex::encode(&xonly),
+        message_str = String::from_utf8_lossy(message),
+        sig = sig,
+    );
+    if let Ok(path) = std::env::var("DKG_EVIDENCE_PATH") {
+        std::fs::write(&path, &evidence).expect("write evidence");
+        println!("evidence written to {path}");
+    }
+    println!("{evidence}");
     println!("CEREMONY REHEARSAL OK");
 }
 
