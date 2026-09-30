@@ -10,9 +10,9 @@ All releases must follow [Governance](GOVERNANCE.md) and [Security](SECURITY.md)
 - **Minor (`X.Y.Z` → `X.(Y+1).0`)**: Backward-compatible additive features.
 - **Patch (`X.Y.Z` → `X.Y.(Z+1)`)**: Backward-compatible bug fixes and maintenance updates.
 
-### Beta-phase note (`0.x.y`)
+### Release versioning note
 
-During beta (`0.x.y`), breaking changes may occur in minor bumps (for example `0.2.3` → `0.3.0`). Patch releases remain backward-compatible.
+During 2.x development, breaking changes follow Semantic Versioning rules (for example `0.2.3` → `0.3.0`). Patch releases remain backward-compatible.
 
 ## Required Automation and Gates
 
@@ -40,7 +40,7 @@ Before a release tag is pushed:
 2. `CHANGELOG.md` must include a version section for that release (not only `[Unreleased]`).
 3. Release tags must use `vX.Y.Z` format and map to the same Cargo version.
 4. `Cargo.lock` must be committed and pass `cargo metadata --locked`.
-5. The supported dependency MSRV is Rust `1.97.1` (CI and release jobs use the same pinned toolchain).
+5. The supported dependency MSRV is Rust `1.98.1` (CI and release jobs use the same pinned toolchain).
 
 These checks are enforced by CI and release workflows.
 

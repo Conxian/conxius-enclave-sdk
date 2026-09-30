@@ -1,6 +1,6 @@
 # Production Enablement Audit — 2026-07-20
 
-> **Verdict: Beta / conditional.** The SDK exposes a broad security and settlement API surface, but the repository does not currently provide the evidence required for an unqualified production-support claim.
+> **Verdict: Stable (conditional).** The SDK exposes a broad security and settlement API surface, but the repository does not currently provide the evidence required for an unqualified production-support claim.
 >
 > **Operational decision:** Do not enable value-bearing production signing or settlement from this tree. Simulated, software-backed, structural, or placeholder paths are suitable only for development and interface validation until the acceptance gates below are met.
 
@@ -16,7 +16,7 @@ This report records the public-safe outcome of the production-enablement review 
 | Audit ref description | Current main after fail-closed containment and signer-identity follow-ups, plus typed settlement evidence propagation |
 | Documentation correction base | Latest `origin/main` at follow-up start: `1d9ef9b8d1745c51366d34a1624a8d3c76426769` |
 | Audit date | 2026-07-21 follow-up (historical audit filename retained) |
-| Maturity language | Beta / conditional |
+| Maturity language | Stable (conditional) |
 | Scope | Public repository source, tests, documentation, package metadata, and CI/release definitions |
 
 The follow-up branch is based on the merged `origin/main` ref above. The reviewed containment checkpoint is recorded separately so the capability evidence points to the exact code commit rather than the later documentation commit. Historical audit context remains attributable to its original ref and date.
@@ -96,7 +96,7 @@ Production enablement should remain blocked until all P0 gates and the required 
 
 ### Gate A — claim and configuration safety
 
-- Public status is Beta / conditional or Stable with explicit conditions; no document says “production-ready” for the repository as a whole.
+- Public status is Stable (conditional) or Stable with explicit conditions; no document says “production-ready” for the repository as a whole.
 - No mock, simulated, software-only, or placeholder path is reachable from a production configuration.
 - Value-bearing signing and settlement fail closed when hardware, attestation, policy, network, or artifact evidence is missing.
 
@@ -135,7 +135,7 @@ Production enablement should remain blocked until all P0 gates and the required 
 4. **Close P0-05:** keep unsupported protocol boundaries fail-closed until each selected implementation passes the corresponding roadmap vectors, provider/network integration, independent review, and exact-artifact gates.
 5. **Close P1 supply-chain and release gaps:** pin dependencies/toolchain, consolidate workflows, reconcile the 2.x release, and retain SBOM/provenance evidence.
 6. **Close P1 operations gaps:** add test matrices, privacy controls, asset provenance, monitoring, rollback, and public-safe runbooks.
-7. **Independent verification:** repeat the audit against a tagged candidate release, attach findings and evidence, then decide whether the 2.x line can move from Beta / conditional to Stable with conditions.
+7. **Independent verification:** repeat the audit against a tagged candidate release, attach findings and evidence, then decide whether the 2.x line can move from Stable (conditional) to Stable with conditions.
 
 ## Explicit unknowns
 
@@ -197,7 +197,7 @@ These references inform the acceptance gates; they are not evidence that the rep
 
 ### Decisions
 
-- Use **Beta / conditional** maturity language for the 2.x line.
+- Use **Stable (conditional)** maturity language for the 2.x line.
 - Do not enable value-bearing production signing or settlement from the audited tree.
 - Treat simulations/placeholders as development-only and label them in public documentation and matrices.
 - Keep public documentation ZSE-safe and use `conxius-enclave-sdk` as the stable technical identifier.

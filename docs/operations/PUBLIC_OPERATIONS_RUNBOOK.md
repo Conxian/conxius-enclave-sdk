@@ -1,6 +1,6 @@
 # Public Operations Runbook
 
-> **Status:** Beta / conditional public guidance for SDK-local operations. This runbook is not a production-support approval and does not publish private deployment procedures.
+> **Status:** Stable (conditional) public guidance for SDK-local operations. This runbook is not a production-support approval and does not publish private deployment procedures.
 
 This runbook gives public-safe response boundaries for the opt-in telemetry surface and related release operations. It is intentionally actionable without exposing private endpoints, credentials, privileged identifiers, custody procedures, key-recovery details, raw attestation material, or incident secrets.
 
