@@ -1,6 +1,6 @@
 # Conxius Enclave SDK System Alignment Report (v2.0.3)
 
-## Status: Beta / conditional; scoped canonical verification evidence only
+## Status: Stable (conditional); scoped canonical verification evidence only
 
 ### Universal Orchestration Architecture
 1. **Multi-Chain Execution**: High-performance Rust engines using Alloy-rs and BDK for EVM and Bitcoin.
@@ -29,4 +29,4 @@
 ## Release Metadata
 - **Canonical Name**: conxius-enclave-sdk
 - **Branding**: Conxius Enclave SDK
-- **Maturity**: Beta / conditional; production support is not established.
+- **Maturity**: Stable (conditional); production support is not established.

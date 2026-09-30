@@ -10,9 +10,9 @@ All releases must follow [Governance](GOVERNANCE.md) and [Security](SECURITY.md)
 - **Minor (`X.Y.Z` → `X.(Y+1).0`)**: Backward-compatible additive features.
 - **Patch (`X.Y.Z` → `X.Y.(Z+1)`)**: Backward-compatible bug fixes and maintenance updates.
 
-### Beta-phase note (`0.x.y`)
+### Release versioning note
 
-During beta (`0.x.y`), breaking changes may occur in minor bumps (for example `0.2.3` → `0.3.0`). Patch releases remain backward-compatible.
+During 2.x development, breaking changes follow Semantic Versioning rules (for example `0.2.3` → `0.3.0`). Patch releases remain backward-compatible.
 
 ## Required Automation and Gates
 

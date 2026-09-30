@@ -1,6 +1,6 @@
 # CON-625: Mainnet Readiness Audit (Fail-Open & Simulated Behavior)
 
-> **Historical record.** The current repository-wide production-enablement status is **Beta / conditional**. See [PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md](./PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md) and [CAPABILITY_MATRIX.md](../architecture/CAPABILITY_MATRIX.md). The earlier conditional “GO” below must not be treated as current approval.
+> **Historical record.** The current repository-wide production-enablement status is **Stable (conditional)**. See [PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md](./PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md) and [CAPABILITY_MATRIX.md](../architecture/CAPABILITY_MATRIX.md). The earlier conditional “GO” below must not be treated as current approval.
 
 ## Overview
 Audit of `conxius-enclave-sdk` for fail-open logic, placeholder persistence, and simulated behavior that could compromise mainnet safety.
