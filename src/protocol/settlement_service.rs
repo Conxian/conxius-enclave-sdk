@@ -1,5 +1,5 @@
 use crate::protocol::asset::AssetRegistry;
-use crate::protocol::rails::TrustTier;
+use crate::protocol::bridges::RailTrustTier;
 use crate::protocol::settlement::{
     SettlementManager, SettlementProposal, SettlementTrigger, TriggerSource,
 };
@@ -39,11 +39,11 @@ impl ConclaveSettlementService {
 
     /// Resolves the trust tier for a given trigger source.
     /// This aligns with the approved trust-tier policy in CON-791.
-    pub fn resolve_trust_tier(&self, source: &TriggerSource) -> TrustTier {
+    pub fn resolve_trust_tier(&self, source: &TriggerSource) -> RailTrustTier {
         match source {
-            TriggerSource::Iso20022 => TrustTier::T1, // ISO 20022 is T1 (Sovereign Verified)
-            TriggerSource::Papss => TrustTier::T2,    // PAPSS is T2 (Hybrid Verified)
-            TriggerSource::Brics => TrustTier::T3,    // BRICS is T3 (Attester Network)
+            TriggerSource::Iso20022 => RailTrustTier::T1, // ISO 20022 is T1 (Sovereign Verified)
+            TriggerSource::Papss => RailTrustTier::T2,    // PAPSS is T2 (Hybrid Verified)
+            TriggerSource::Brics => RailTrustTier::T3,    // BRICS is T3 (Attester Network)
         }
     }
 }
@@ -68,7 +68,7 @@ impl SettlementService for ConclaveSettlementService {
 
         // 2. Enforce Trust-Tier Policy (CON-801)
         let tier = self.resolve_trust_tier(&trigger.source);
-        if tier == TrustTier::T4 {
+        if tier == RailTrustTier::T4 {
             return Err(crate::ConclaveError::RailError(
                 "Route trust tier T4 is forbidden in production".to_string(),
             ));
@@ -193,9 +193,9 @@ mod tests {
 
         assert_eq!(
             svc.resolve_trust_tier(&TriggerSource::Iso20022),
-            TrustTier::T1
+            RailTrustTier::T1
         );
-        assert_eq!(svc.resolve_trust_tier(&TriggerSource::Papss), TrustTier::T2);
-        assert_eq!(svc.resolve_trust_tier(&TriggerSource::Brics), TrustTier::T3);
+        assert_eq!(svc.resolve_trust_tier(&TriggerSource::Papss), RailTrustTier::T2);
+        assert_eq!(svc.resolve_trust_tier(&TriggerSource::Brics), RailTrustTier::T3);
     }
 }

@@ -42,7 +42,7 @@ mod sealed {
 
 /// Represents the level of trust and security of a settlement rail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum TrustTier {
+pub enum RailTrustTier {
     /// T1: Native & Hardware-Secure (e.g., L-BTC, sBTC with TEE/StrongBox)
     T1,
     /// T2: Managed & Attested (e.g., Industrial Gateway with device verification)
@@ -94,7 +94,7 @@ pub(crate) fn reject_builtin_adapter_dispatch() -> ConclaveResult<()> {
 #[allow(dead_code)]
 trait SovereignRail: sealed::SovereignRail + Send + Sync {
     fn name(&self) -> &'static str;
-    fn trust_tier(&self) -> TrustTier;
+    fn trust_tier(&self) -> RailTrustTier;
     fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>>;
     async fn execute_swap(&self, operation: VerifiedOperation) -> ConclaveResult<SwapResponse>;
 }
@@ -399,14 +399,14 @@ pub trait SovereignHandshake {
     ) -> ConclaveResult<SwapIntent>;
 }
 
-/// Checked dispatcher for sovereign settlement rails.
+/// Checked dispatcher for sovereign settlement bridges.
 ///
-/// Built-in rails and the internal `SovereignRail` boundary are intentionally
+/// Built-in bridges and the internal `SovereignRail` boundary are intentionally
 /// not part of the downstream API. The old raw-signature rail surface is kept
 /// only as a deprecated, fail-closed migration shim:
 ///
 /// ```compile_fail
-/// use conxius_enclave_sdk::protocol::rails::{x402::X402Rail, SovereignRail};
+/// use conxius_enclave_sdk::protocol::bridges::{x402::X402Rail, SovereignRail};
 /// fn main() {}
 /// ```
 pub struct RailProxy {
@@ -414,8 +414,8 @@ pub struct RailProxy {
     pub client: reqwest::Client,
     pub registry: Arc<AssetRegistry>,
     pub business: Arc<BusinessRegistry>,
-    rails: HashMap<String, Box<dyn SovereignRail>>,
-    min_trust_tier: TrustTier,
+    bridges: HashMap<String, Box<dyn SovereignRail>>,
+    min_trust_tier: RailTrustTier,
     attestation_policy: AttestationPolicy,
     replay_store: Option<Arc<dyn ReplayStore>>,
     #[cfg(test)]
@@ -438,23 +438,23 @@ impl RailProxy {
         registry: Arc<AssetRegistry>,
         business: Arc<BusinessRegistry>,
     ) -> Self {
-        let mut rails: HashMap<String, Box<dyn SovereignRail>> = HashMap::new();
-        // Register default industrial rails
-        rails.insert(
+        let mut bridges: HashMap<String, Box<dyn SovereignRail>> = HashMap::new();
+        // Register default industrial bridges
+        bridges.insert(
             "x402".to_string(),
             Box::new(self::x402::X402Rail {
                 gateway_url: gateway_url.clone(),
                 http_client: client.clone(),
             }),
         );
-        rails.insert(
+        bridges.insert(
             "ntt".to_string(),
             Box::new(self::ntt::NTTRail {
                 gateway_url: gateway_url.clone(),
                 http_client: client.clone(),
             }),
         );
-        rails.insert(
+        bridges.insert(
             "wormhole".to_string(),
             Box::new(self::wormhole::WormholeRail {
                 gateway_url: gateway_url.clone(),
@@ -467,8 +467,8 @@ impl RailProxy {
             client,
             registry,
             business,
-            rails,
-            min_trust_tier: TrustTier::T4,
+            bridges,
+            min_trust_tier: RailTrustTier::T4,
             attestation_policy: default_attestation_policy(),
             replay_store: None,
             #[cfg(test)]
@@ -496,12 +496,12 @@ impl RailProxy {
         Ok(())
     }
 
-    pub fn with_min_trust_tier(mut self, min_trust_tier: TrustTier) -> Self {
+    pub fn with_min_trust_tier(mut self, min_trust_tier: RailTrustTier) -> Self {
         self.min_trust_tier = min_trust_tier;
         self
     }
 
-    pub fn min_trust_tier(&self) -> TrustTier {
+    pub fn min_trust_tier(&self) -> RailTrustTier {
         self.min_trust_tier
     }
 
@@ -574,14 +574,14 @@ impl RailProxy {
 
     #[cfg(test)]
     fn register_rail(&mut self, rail: Box<dyn SovereignRail>) {
-        self.rails.insert(rail.name().to_string(), rail);
+        self.bridges.insert(rail.name().to_string(), rail);
     }
 
     pub fn discover_best_rail(&self, request: &SwapRequest) -> ConclaveResult<String> {
         self.validate_request_assets(request)?;
         let mut candidates = Vec::new();
 
-        for rail in self.rails.values() {
+        for rail in self.bridges.values() {
             if let Ok(Some(_)) = rail.validate_request(request) {
                 if rail.trust_tier() <= self.min_trust_tier {
                     candidates.push(rail);
@@ -598,9 +598,9 @@ impl RailProxy {
                 output_amount: request.amount, // Base amount
                 fee_sats: 100,
                 estimated_latency_secs: match r.trust_tier() {
-                    TrustTier::T1 => 10,
-                    TrustTier::T2 => 60,
-                    TrustTier::T3 => 300,
+                    RailTrustTier::T1 => 10,
+                    RailTrustTier::T2 => 60,
+                    RailTrustTier::T3 => 300,
                     _ => 1200,
                 },
             })
@@ -626,7 +626,7 @@ impl RailProxy {
                     .to_string(),
             ));
         }
-        if !self.rails.contains_key(&intent.rail_type) {
+        if !self.bridges.contains_key(&intent.rail_type) {
             return Err(ConclaveError::RailError(format!(
                 "Rail {} not found",
                 intent.rail_type
@@ -922,7 +922,7 @@ impl RailProxy {
         }
         let rail_name = intent.rail_type.clone();
         let rail = self
-            .rails
+            .bridges
             .get(&rail_name)
             .ok_or(ConclaveError::RailError(format!(
                 "Rail {} not found",
@@ -1039,7 +1039,7 @@ impl SovereignHandshake for RailProxy {
     ) -> ConclaveResult<SwapIntent> {
         self.validate_request_assets(&request)?;
         let rail = self
-            .rails
+            .bridges
             .get(rail_name)
             .ok_or(ConclaveError::RailError(format!(
                 "Rail {} not found",
@@ -1077,8 +1077,8 @@ impl SovereignRail for CustomRail {
     fn name(&self) -> &'static str {
         "custom_partner"
     }
-    fn trust_tier(&self) -> TrustTier {
-        TrustTier::T4
+    fn trust_tier(&self) -> RailTrustTier {
+        RailTrustTier::T4
     }
     fn validate_request(&self, _request: &SwapRequest) -> ConclaveResult<Option<String>> {
         Ok(Some("Valid partner".to_string()))
@@ -1110,8 +1110,8 @@ impl SovereignRail for CountingRail {
         "counting_partner"
     }
 
-    fn trust_tier(&self) -> TrustTier {
-        TrustTier::T4
+    fn trust_tier(&self) -> RailTrustTier {
+        RailTrustTier::T4
     }
 
     fn validate_request(&self, _request: &SwapRequest) -> ConclaveResult<Option<String>> {
@@ -1142,8 +1142,8 @@ impl SovereignRail for FailingRail {
         "failing_partner"
     }
 
-    fn trust_tier(&self) -> TrustTier {
-        TrustTier::T4
+    fn trust_tier(&self) -> RailTrustTier {
+        RailTrustTier::T4
     }
 
     fn validate_request(&self, _request: &SwapRequest) -> ConclaveResult<Option<String>> {
@@ -1407,7 +1407,7 @@ mod rail_proxy_tests {
     #[tokio::test]
     async fn missing_durable_replay_fails_before_rail_side_effect() {
         let calls = Arc::new(AtomicUsize::new(0));
-        let mut proxy = unconfigured_proxy().with_min_trust_tier(TrustTier::T4);
+        let mut proxy = unconfigured_proxy().with_min_trust_tier(RailTrustTier::T4);
         proxy.register_rail(Box::new(CountingRail {
             calls: Arc::clone(&calls),
         }));
@@ -2309,7 +2309,7 @@ mod rail_proxy_tests {
 
     #[tokio::test]
     async fn typed_settlement_authorization_replay_is_rejected() {
-        let mut proxy = test_proxy().with_min_trust_tier(TrustTier::T4);
+        let mut proxy = test_proxy().with_min_trust_tier(RailTrustTier::T4);
         proxy.register_rail(Box::new(CustomRail));
         let provider = SettlementFixtureProvider::new(VALUE_BEARING_POLICY_ID);
         let operation =
@@ -2332,7 +2332,7 @@ mod rail_proxy_tests {
         // be exercised independently after the intended 300-operation
         // settlement capacity is reached.
         let mut proxy = test_proxy()
-            .with_min_trust_tier(TrustTier::T4)
+            .with_min_trust_tier(RailTrustTier::T4)
             .with_proof_replay_guard(Arc::new(ReplayGuard::new(
                 DEFAULT_REPLAY_TTL_SECS,
                 DEFAULT_PROOF_REPLAY_MAX_ENTRIES + 2 * ProofKind::all().len(),
@@ -2405,7 +2405,7 @@ mod rail_proxy_tests {
 
     #[tokio::test]
     async fn typed_settlement_clock_failure_does_not_consume_replay_state() {
-        let mut proxy = test_proxy().with_min_trust_tier(TrustTier::T4);
+        let mut proxy = test_proxy().with_min_trust_tier(RailTrustTier::T4);
         proxy.register_rail(Box::new(CustomRail));
         let provider = SettlementFixtureProvider::new(VALUE_BEARING_POLICY_ID);
         let operation =
@@ -2432,7 +2432,7 @@ mod rail_proxy_tests {
 
     #[tokio::test]
     async fn typed_settlement_replay_is_consumed_before_downstream_failure() {
-        let mut proxy = test_proxy().with_min_trust_tier(TrustTier::T4);
+        let mut proxy = test_proxy().with_min_trust_tier(RailTrustTier::T4);
         proxy.register_rail(Box::new(FailingRail));
         let provider = SettlementFixtureProvider::new(VALUE_BEARING_POLICY_ID);
         let operation =
@@ -2455,7 +2455,7 @@ mod rail_proxy_tests {
 
     #[tokio::test]
     async fn typed_settlement_dispatch_rechecks_expected_and_verified_policy_digest() {
-        let mut proxy = test_proxy().with_min_trust_tier(TrustTier::T4);
+        let mut proxy = test_proxy().with_min_trust_tier(RailTrustTier::T4);
         proxy.register_rail(Box::new(CustomRail));
         let provider = SettlementFixtureProvider::new(VALUE_BEARING_POLICY_ID);
         let mut operation =
@@ -2794,16 +2794,16 @@ mod rail_proxy_tests {
             attribution: None,
         };
 
-        let proxy = proxy.with_min_trust_tier(TrustTier::T3);
+        let proxy = proxy.with_min_trust_tier(RailTrustTier::T3);
         assert!(proxy.prepare_intent("x402", request.clone(), None).is_ok());
 
-        let proxy = proxy.with_min_trust_tier(TrustTier::T1);
+        let proxy = proxy.with_min_trust_tier(RailTrustTier::T1);
         assert!(proxy.prepare_intent("x402", request.clone(), None).is_ok());
     }
 
     #[tokio::test]
     async fn built_in_adapter_dispatch_is_quarantined_before_network() {
-        let proxy = test_proxy().with_min_trust_tier(TrustTier::T4);
+        let proxy = test_proxy().with_min_trust_tier(RailTrustTier::T4);
         let client = reqwest::Client::new();
         let gateway_url = "http://127.0.0.1:9/should-not-connect".to_string();
         let adapters: Vec<(&str, Box<dyn SovereignRail>)> = vec![
@@ -2876,7 +2876,7 @@ mod rail_proxy_tests {
 
     #[test]
     fn test_discover_best_rail() {
-        let proxy = test_proxy().with_min_trust_tier(TrustTier::T3);
+        let proxy = test_proxy().with_min_trust_tier(RailTrustTier::T3);
 
         let request = SwapRequest {
             from_asset: AssetIdentifier {
@@ -2898,12 +2898,12 @@ mod rail_proxy_tests {
 
     #[test]
     fn default_rail_policy_and_ordering_remain_unchanged() {
-        assert!(TrustTier::T1 < TrustTier::T2);
-        assert!(TrustTier::T2 < TrustTier::T3);
-        assert!(TrustTier::T3 < TrustTier::T4);
+        assert!(RailTrustTier::T1 < RailTrustTier::T2);
+        assert!(RailTrustTier::T2 < RailTrustTier::T3);
+        assert!(RailTrustTier::T3 < RailTrustTier::T4);
 
         let proxy = test_proxy();
-        assert_eq!(proxy.min_trust_tier(), TrustTier::T4);
+        assert_eq!(proxy.min_trust_tier(), RailTrustTier::T4);
 
         let request = SwapRequest {
             from_asset: AssetIdentifier {
