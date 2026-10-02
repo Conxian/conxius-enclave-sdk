@@ -1,6 +1,6 @@
-use crate::protocol::rails::TrustTier;
-use crate::protocol::rails::VerifiedOperation;
-use crate::protocol::rails::{SovereignRail, SwapRequest, SwapResponse};
+use crate::protocol::bridges::RailTrustTier;
+use crate::protocol::bridges::VerifiedOperation;
+use crate::protocol::bridges::{SovereignRail, SwapRequest, SwapResponse};
 use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
 use serde_json::json;
@@ -17,8 +17,8 @@ impl SovereignRail for NTTRail {
     fn name(&self) -> &'static str {
         "ntt"
     }
-    fn trust_tier(&self) -> TrustTier {
-        TrustTier::T3
+    fn trust_tier(&self) -> RailTrustTier {
+        RailTrustTier::T3
     }
 
     fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {
@@ -34,7 +34,7 @@ impl SovereignRail for NTTRail {
     async fn execute_swap(&self, operation: VerifiedOperation) -> ConclaveResult<SwapResponse> {
         super::reject_builtin_adapter_dispatch()?;
         let (intent, authorization) = operation.into_parts();
-        let url = format!("{}/v1/rails/ntt/execute", self.gateway_url);
+        let url = format!("{}/v1/bridges/ntt/execute", self.gateway_url);
         let payload = json!({
             "intent": intent,
             "authorization": authorization,

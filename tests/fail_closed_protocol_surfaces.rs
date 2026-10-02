@@ -2,10 +2,10 @@ use conxius_enclave_sdk::protocol::account_abstraction::{
     ModularAccountManager, ModuleConfig, ModuleType, SmartAccountAction,
 };
 use conxius_enclave_sdk::protocol::asset::{AssetIdentifier, AssetMetadata, AssetRegistry, Chain};
+use conxius_enclave_sdk::protocol::bridges::{RailProxy, RailTrustTier};
 use conxius_enclave_sdk::protocol::business::BusinessRegistry;
 use conxius_enclave_sdk::protocol::cctp::{CctpAttestation, CctpManager, CctpTransferIntent};
 use conxius_enclave_sdk::protocol::intent::SwapRequest;
-use conxius_enclave_sdk::protocol::rails::{RailProxy, TrustTier};
 use conxius_enclave_sdk::ConclaveError;
 use std::sync::Arc;
 
@@ -42,7 +42,7 @@ fn rail_proxy(registry: Arc<AssetRegistry>) -> RailProxy {
         registry,
         Arc::new(BusinessRegistry::new()),
     )
-    .with_min_trust_tier(TrustTier::T3)
+    .with_min_trust_tier(RailTrustTier::T3)
 }
 
 fn swap_request(from_asset: AssetIdentifier, to_asset: AssetIdentifier) -> SwapRequest {

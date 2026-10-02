@@ -8,9 +8,9 @@ use crate::enclave::{
     TrustRequirement, ValueBearingPurpose, ValueBearingSignRequest, VALUE_BEARING_POLICY_ID,
 };
 use crate::protocol::asset::{AssetIdentifier, Chain};
+use crate::protocol::bridges::{RailProxy, SovereignHandshake, SETTLEMENT_OPERATION_DOMAIN};
 use crate::protocol::economy::{DualStackIntent, YieldEngine};
 use crate::protocol::intent::SwapRequest;
-use crate::protocol::rails::{RailProxy, SovereignHandshake, SETTLEMENT_OPERATION_DOMAIN};
 use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -129,7 +129,7 @@ impl<'a> OpportunityDispatcher<'a> {
         } = payload
         else {
             return Err(ConclaveError::Unsupported(
-                "canonical settlement proof authorization applies only to swap rails".to_string(),
+                "canonical settlement proof authorization applies only to swap bridges".to_string(),
             ));
         };
 
