@@ -17,7 +17,7 @@ use conxius_enclave_sdk::protocol::business::BusinessRegistry;
 use conxius_enclave_sdk::protocol::ethereum::EthereumManager;
 use conxius_enclave_sdk::protocol::intent::SwapRequest;
 use conxius_enclave_sdk::protocol::opportunity::{OpportunityDispatcher, OpportunityPayload};
-use conxius_enclave_sdk::protocol::rails::{RailProxy, SovereignHandshake, TrustTier};
+use conxius_enclave_sdk::protocol::bridges::{RailProxy, SovereignHandshake, RailTrustTier};
 use conxius_enclave_sdk::{ConclaveError, ConclaveResult};
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -153,7 +153,7 @@ fn production_default_policy_is_hardware_only_and_provider_unavailable() {
     );
 
     let rail_proxy = proxy();
-    assert_eq!(rail_proxy.min_trust_tier(), TrustTier::T4);
+    assert_eq!(rail_proxy.min_trust_tier(), RailTrustTier::T4);
     assert_eq!(
         rail_proxy.attestation_policy().provider_verifier_status(),
         ProviderVerifierStatus::Unavailable
@@ -163,18 +163,18 @@ fn production_default_policy_is_hardware_only_and_provider_unavailable() {
 #[test]
 fn every_builtin_adapter_is_gated_before_http_dispatch() {
     let adapters = [
-        ("bisq", include_str!("../src/protocol/rails/bisq.rs")),
-        ("boltz", include_str!("../src/protocol/rails/boltz.rs")),
+        ("bisq", include_str!("../src/protocol/bridges/bisq.rs")),
+        ("boltz", include_str!("../src/protocol/bridges/boltz.rs")),
         (
             "changelly",
-            include_str!("../src/protocol/rails/changelly.rs"),
+            include_str!("../src/protocol/bridges/changelly.rs"),
         ),
-        ("ntt", include_str!("../src/protocol/rails/ntt.rs")),
+        ("ntt", include_str!("../src/protocol/bridges/ntt.rs")),
         (
             "wormhole",
-            include_str!("../src/protocol/rails/wormhole.rs"),
+            include_str!("../src/protocol/bridges/wormhole.rs"),
         ),
-        ("x402", include_str!("../src/protocol/rails/x402.rs")),
+        ("x402", include_str!("../src/protocol/bridges/x402.rs")),
     ];
 
     for (name, source) in adapters {
