@@ -13,7 +13,7 @@
 
 use crate::config::Network;
 use crate::protocol::asset::Chain;
-use crate::protocol::rails::TrustTier;
+use crate::protocol::bridges::RailTrustTier;
 use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 
@@ -48,12 +48,12 @@ impl CoreTrustTier {
 /// This mapping preserves wire compatibility and does not authorize a
 /// production rail. Use [`project_production_rail_policy`] for the fallible
 /// production boundary.
-pub const fn sdk_trust_tier_to_core_representation(value: TrustTier) -> CoreTrustTier {
+pub const fn sdk_trust_tier_to_core_representation(value: RailTrustTier) -> CoreTrustTier {
     match value {
-        TrustTier::T1 => CoreTrustTier::Strict,
-        TrustTier::T2 => CoreTrustTier::Managed,
-        TrustTier::T3 => CoreTrustTier::Expedient,
-        TrustTier::T4 => CoreTrustTier::ObserverOnly,
+        RailTrustTier::T1 => CoreTrustTier::Strict,
+        RailTrustTier::T2 => CoreTrustTier::Managed,
+        RailTrustTier::T3 => CoreTrustTier::Expedient,
+        RailTrustTier::T4 => CoreTrustTier::ObserverOnly,
     }
 }
 
@@ -61,12 +61,12 @@ pub const fn sdk_trust_tier_to_core_representation(value: TrustTier) -> CoreTrus
 ///
 /// `ObserverOnly` therefore maps to SDK `T4` here by design. This is a
 /// representation round trip, not a production authorization decision.
-pub const fn core_trust_tier_to_sdk_representation(value: CoreTrustTier) -> TrustTier {
+pub const fn core_trust_tier_to_sdk_representation(value: CoreTrustTier) -> RailTrustTier {
     match value {
-        CoreTrustTier::Strict => TrustTier::T1,
-        CoreTrustTier::Managed => TrustTier::T2,
-        CoreTrustTier::Expedient => TrustTier::T3,
-        CoreTrustTier::ObserverOnly => TrustTier::T4,
+        CoreTrustTier::Strict => RailTrustTier::T1,
+        CoreTrustTier::Managed => RailTrustTier::T2,
+        CoreTrustTier::Expedient => RailTrustTier::T3,
+        CoreTrustTier::ObserverOnly => RailTrustTier::T4,
     }
 }
 
@@ -74,7 +74,7 @@ pub const fn core_trust_tier_to_sdk_representation(value: CoreTrustTier) -> Trus
 ///
 /// Unlike the representation-only mapping, this function rejects Core
 /// `ObserverOnly` before it can become SDK `T4` as a production minimum.
-pub fn core_trust_tier_to_sdk_production(value: CoreTrustTier) -> ConclaveResult<TrustTier> {
+pub fn core_trust_tier_to_sdk_production(value: CoreTrustTier) -> ConclaveResult<RailTrustTier> {
     if !value.is_production_allowed() {
         return Err(ConclaveError::Unsupported(
             "Core ObserverOnly cannot become a production SDK rail threshold".to_string(),
@@ -338,7 +338,7 @@ pub fn validate_core_trust_tier_policy(
 /// `Strict`/`LightClient` invariant, rejects SDK `T4`/Core `ObserverOnly`, and
 /// rejects Testnet, Devnet, and SDK chains without an exact Core counterpart.
 pub fn project_production_rail_policy(
-    trust_tier: TrustTier,
+    trust_tier: RailTrustTier,
     verification_class: CoreVerificationClass,
     network: Network,
     chain: Chain,
@@ -594,23 +594,23 @@ mod tests {
     #[test]
     fn sdk_trust_tier_mapping_is_explicit_and_production_rejects_t4() {
         assert_eq!(
-            sdk_trust_tier_to_core_representation(TrustTier::T1),
+            sdk_trust_tier_to_core_representation(RailTrustTier::T1),
             CoreTrustTier::Strict
         );
         assert_eq!(
-            sdk_trust_tier_to_core_representation(TrustTier::T2),
+            sdk_trust_tier_to_core_representation(RailTrustTier::T2),
             CoreTrustTier::Managed
         );
         assert_eq!(
-            sdk_trust_tier_to_core_representation(TrustTier::T3),
+            sdk_trust_tier_to_core_representation(RailTrustTier::T3),
             CoreTrustTier::Expedient
         );
         assert_eq!(
-            sdk_trust_tier_to_core_representation(TrustTier::T4),
+            sdk_trust_tier_to_core_representation(RailTrustTier::T4),
             CoreTrustTier::ObserverOnly
         );
 
-        for tier in [TrustTier::T1, TrustTier::T2, TrustTier::T3] {
+        for tier in [RailTrustTier::T1, RailTrustTier::T2, RailTrustTier::T3] {
             assert_eq!(
                 core_trust_tier_to_sdk_representation(sdk_trust_tier_to_core_representation(tier)),
                 tier
@@ -629,11 +629,11 @@ mod tests {
         }
         assert_eq!(
             core_trust_tier_to_sdk_representation(CoreTrustTier::ObserverOnly),
-            TrustTier::T4
+            RailTrustTier::T4
         );
         assert!(core_trust_tier_to_sdk_production(CoreTrustTier::ObserverOnly).is_err());
         assert!(project_production_rail_policy(
-            TrustTier::T4,
+            RailTrustTier::T4,
             CoreVerificationClass::LightClient,
             Network::Mainnet,
             Chain::BITCOIN,
@@ -679,7 +679,7 @@ mod tests {
         .is_err());
 
         let projection = project_production_rail_policy(
-            TrustTier::T1,
+            RailTrustTier::T1,
             CoreVerificationClass::LightClient,
             Network::Mainnet,
             Chain::BITCOIN,
@@ -749,7 +749,7 @@ mod tests {
             assert_eq!(sdk_chain_to_core(sdk_chain).unwrap(), core_chain);
             assert_eq!(core_chain.family(), family);
             let projection = project_production_rail_policy(
-                TrustTier::T1,
+                RailTrustTier::T1,
                 CoreVerificationClass::LightClient,
                 Network::Mainnet,
                 sdk_chain,
@@ -762,7 +762,7 @@ mod tests {
         for unsupported in [Chain::LINEA, Chain::COSMOS, Chain::BaseSepolia] {
             assert!(sdk_chain_to_core(unsupported).is_err());
             assert!(project_production_rail_policy(
-                TrustTier::T1,
+                RailTrustTier::T1,
                 CoreVerificationClass::LightClient,
                 Network::Mainnet,
                 unsupported,
@@ -777,14 +777,14 @@ mod tests {
         assert!(validate_production_network_context(Network::Testnet).is_err());
         assert!(validate_production_network_context(Network::Devnet).is_err());
         assert!(project_production_rail_policy(
-            TrustTier::T1,
+            RailTrustTier::T1,
             CoreVerificationClass::LightClient,
             Network::Testnet,
             Chain::BITCOIN,
         )
         .is_err());
         assert!(project_production_rail_policy(
-            TrustTier::T1,
+            RailTrustTier::T1,
             CoreVerificationClass::LightClient,
             Network::Devnet,
             Chain::BITCOIN,

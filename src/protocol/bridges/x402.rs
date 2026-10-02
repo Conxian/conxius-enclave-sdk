@@ -1,7 +1,7 @@
 use crate::protocol::asset::{AssetIdentifier, Chain};
-use crate::protocol::rails::TrustTier;
-use crate::protocol::rails::VerifiedOperation;
-use crate::protocol::rails::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
+use crate::protocol::bridges::RailTrustTier;
+use crate::protocol::bridges::VerifiedOperation;
+use crate::protocol::bridges::{SovereignRail, SwapIntent, SwapRequest, SwapResponse};
 use crate::{ConclaveError, ConclaveResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -246,8 +246,8 @@ impl SovereignRail for X402Rail {
     fn name(&self) -> &'static str {
         "x402"
     }
-    fn trust_tier(&self) -> TrustTier {
-        TrustTier::T1
+    fn trust_tier(&self) -> RailTrustTier {
+        RailTrustTier::T1
     }
 
     fn validate_request(&self, request: &SwapRequest) -> ConclaveResult<Option<String>> {
@@ -265,7 +265,7 @@ impl SovereignRail for X402Rail {
     async fn execute_swap(&self, operation: VerifiedOperation) -> ConclaveResult<SwapResponse> {
         super::reject_builtin_adapter_dispatch()?;
         let (intent, authorization) = operation.into_parts();
-        let url = format!("{}/v1/rails/x402/settle", self.gateway_url);
+        let url = format!("{}/v1/bridges/x402/settle", self.gateway_url);
 
         #[derive(Serialize)]
         struct X402SettleRequest {

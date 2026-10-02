@@ -2,7 +2,7 @@ use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 
 /// ERC-7683 Solver Selection & Bidding Primitives
-/// Facilitates competitive intent fulfillment across cross-chain rails.
+/// Facilitates competitive intent fulfillment across cross-chain bridges.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SolverBid {
     pub solver_id: String,
