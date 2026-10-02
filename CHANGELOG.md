@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Breaking
+- **Rail ontology rename (#422)**: `protocol::rails` → `protocol::bridges` and `rails::TrustTier` (T1–T4) → `bridges::RailTrustTier`, disambiguating the SDK rail-security tier from the core `TrustTier` (Strict/Managed/Expedient/ObserverOnly). See `docs/RAIL_ONTOLOGY.md` in lib-conxian-core.
+
 ### Hardened
 - **Enclave ReplayStore Durability (#240)**: Hardened `DurableFileReplayStore` validation in `src/enclave/replay_store_file.rs` to fail closed when `retain_until` is 0 or less than `now_secs`, preventing zero-timestamp replay key ingestion.
 

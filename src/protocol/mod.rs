@@ -33,7 +33,7 @@ pub mod mmr;
 pub mod musig2;
 pub mod nexus;
 pub mod opportunity;
-pub mod rails;
+pub mod bridges;
 pub mod rgb;
 pub mod settlement;
 pub mod settlement_service;
