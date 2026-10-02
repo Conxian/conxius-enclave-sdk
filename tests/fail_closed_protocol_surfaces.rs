@@ -2,10 +2,10 @@ use conxius_enclave_sdk::protocol::account_abstraction::{
     ModularAccountManager, ModuleConfig, ModuleType, SmartAccountAction,
 };
 use conxius_enclave_sdk::protocol::asset::{AssetIdentifier, AssetMetadata, AssetRegistry, Chain};
+use conxius_enclave_sdk::protocol::bridges::{RailProxy, RailTrustTier};
 use conxius_enclave_sdk::protocol::business::BusinessRegistry;
 use conxius_enclave_sdk::protocol::cctp::{CctpAttestation, CctpManager, CctpTransferIntent};
 use conxius_enclave_sdk::protocol::intent::SwapRequest;
-use conxius_enclave_sdk::protocol::bridges::{RailProxy, RailTrustTier};
 use conxius_enclave_sdk::ConclaveError;
 use std::sync::Arc;
 

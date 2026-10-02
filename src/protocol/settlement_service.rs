@@ -195,7 +195,13 @@ mod tests {
             svc.resolve_trust_tier(&TriggerSource::Iso20022),
             RailTrustTier::T1
         );
-        assert_eq!(svc.resolve_trust_tier(&TriggerSource::Papss), RailTrustTier::T2);
-        assert_eq!(svc.resolve_trust_tier(&TriggerSource::Brics), RailTrustTier::T3);
+        assert_eq!(
+            svc.resolve_trust_tier(&TriggerSource::Papss),
+            RailTrustTier::T2
+        );
+        assert_eq!(
+            svc.resolve_trust_tier(&TriggerSource::Brics),
+            RailTrustTier::T3
+        );
     }
 }

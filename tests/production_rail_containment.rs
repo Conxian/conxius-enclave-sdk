@@ -12,12 +12,12 @@ use conxius_enclave_sdk::enclave::{
     SignRequest, SignResponse, ValueBearingSignRequest,
 };
 use conxius_enclave_sdk::protocol::asset::{AssetIdentifier, AssetRegistry, Chain};
+use conxius_enclave_sdk::protocol::bridges::{RailProxy, RailTrustTier, SovereignHandshake};
 use conxius_enclave_sdk::protocol::business::BusinessRegistry;
 #[cfg(feature = "development-simulators")]
 use conxius_enclave_sdk::protocol::ethereum::EthereumManager;
 use conxius_enclave_sdk::protocol::intent::SwapRequest;
 use conxius_enclave_sdk::protocol::opportunity::{OpportunityDispatcher, OpportunityPayload};
-use conxius_enclave_sdk::protocol::bridges::{RailProxy, SovereignHandshake, RailTrustTier};
 use conxius_enclave_sdk::{ConclaveError, ConclaveResult};
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
