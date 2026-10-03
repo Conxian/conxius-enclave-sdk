@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Configure AWS credentials (OIDC, repo-scoped role)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::692112933743:role/github-actions-provision-nitro
           role-session-name: conxian-provision-nitro
