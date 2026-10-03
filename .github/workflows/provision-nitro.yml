@@ -36,7 +36,7 @@ jobs:
       NITRO_SG_ID: ${{ vars.NITRO_SG_ID }}
       NITRO_INSTANCE_PROFILE: conxian-nitro-enclave-profile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure AWS credentials (OIDC, repo-scoped role)
         uses: aws-actions/configure-aws-credentials@v4
