@@ -133,13 +133,8 @@ jobs:
           git branch "$PROMO_BRANCH" "$SOURCE_SHA"
           REMOTE_SHA=$(git ls-remote --heads origin "refs/heads/${PROMO_BRANCH}" | awk '{print $1}')
           if [ -n "$REMOTE_SHA" ] && [ "$REMOTE_SHA" != "$SOURCE_SHA" ]; then
-            # This step runs only when no open PR exists for this branch (the
-            # existing-PR step gates it), so a ref at a different SHA is stale
-            # residue from a previously merged/closed candidate. Delete it and
-            # republish rather than refusing, so re-promotion after a drift
-            # shift proceeds instead of deadlocking on a ghost ref.
-            echo "::notice::Stale immutable candidate ref ${PROMO_BRANCH}@${REMOTE_SHA} (no open PR); deleting and republishing at ${SOURCE_SHA}."
-            git push origin --delete "$PROMO_BRANCH"
+            echo "::error::Immutable candidate ref already exists at a different SHA. Refusing to overwrite it."
+            exit 1
           fi
           git push -u origin "$PROMO_BRANCH"
 
@@ -252,10 +247,7 @@ jobs:
         if: steps.details.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.ORG_RECONCILE_PAT }}
-          SOURCE: ${{ steps.branches.outputs.source }}
           TARGET: ${{ steps.branches.outputs.target }}
-          SOURCE_SHA: ${{ steps.details.outputs.source_sha }}
-          TARGET_SHA: ${{ steps.details.outputs.target_sha }}
           PROMO_BRANCH: ${{ steps.details.outputs.promo_branch }}
         run: |
           set -euo pipefail
@@ -270,41 +262,8 @@ jobs:
             echo "::error::Promotion PR not found for ${PROMO_BRANCH} -> ${TARGET}."
             exit 1
           fi
-
-          # Autopull: re-check the latest source/target before merging. If the
-          # source advanced, this candidate is stale and a newer promotion
-          # supersedes it; if the target advanced, pull it into the candidate.
-          git fetch --no-tags origin "$SOURCE" "$TARGET"
-          LATEST_SOURCE=$(git rev-parse "origin/${SOURCE}")
-          LATEST_TARGET=$(git rev-parse "origin/${TARGET}")
-          if [ "${LATEST_SOURCE}" != "${SOURCE_SHA}" ]; then
-            echo "::notice::Source ${SOURCE} advanced past ${SOURCE_SHA}; closing stale candidate (newer promotion supersedes it)."
-            gh pr close "$PR_NUMBER" --repo "${{ github.repository }}" --delete-branch
-            exit 0
-          fi
-          if [ "${LATEST_TARGET}" != "${TARGET_SHA}" ]; then
-            echo "::notice::Target ${TARGET} advanced past ${TARGET_SHA}; updating candidate branch before merge."
-            gh pr update-branch "$PR_NUMBER" --repo "${{ github.repository }}" || echo "::notice::Could not auto-update branch; proceeding."
-          fi
-
           gh pr ready "$PR_NUMBER" --repo "${{ github.repository }}"
-          # Required status checks (e.g. "Enforce branch promotion rules") can
-          # still be queued when the PR is brand new, which makes GitHub reject
-          # auto-merge enablement with "Repository rule violations found".
-          # Retry with backoff until the checks report a status.
-          enabled=false
-          for attempt in 1 2 3 4 5 6; do
-            if gh pr merge "$PR_NUMBER" --repo "${{ github.repository }}" --merge --auto --delete-branch; then
-              enabled=true
-              break
-            fi
-            echo "::notice::Auto-merge enable attempt ${attempt} failed (required checks may still be queued); retrying in 20s."
-            sleep 20
-          done
-          if [ "$enabled" != "true" ]; then
-            echo "::error::Could not enable auto-merge for promotion PR #${PR_NUMBER} after 6 attempts."
-            exit 1
-          fi
+          gh pr merge "$PR_NUMBER" --repo "${{ github.repository }}" --squash --auto --delete-branch
           echo "::notice::Auto-merge enabled for promotion PR #${PR_NUMBER} (merges on green required checks)."
 
       - name: Report nothing to promote
