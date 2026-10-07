@@ -1,31 +1,25 @@
 # Next Session Plan
 
-## Session 81 Completed (2026-09-30) — Repository Synchronization, Audit & End-to-End Capability Alignment
+## Session 82 Completed (2026-10-07) — CXIP Proposal Research Expansion & Capability Path Synchronization
 
-### ✅ Repository Synchronization & Submodule Verification
-- Fetched fresh code from `origin/main` at SHA `5566f44` (`feat/wasm-r2-storage` #399 merged) and initialized submodules recursively (`git submodule update --init --recursive`).
-- Verified zero working tree conflicts and clean repository state.
+### ✅ CXIP Research Expansion (Conxian Org-Wide Upgrade Proposal / Issue #1317)
+- Synthesized Gemini Strategic Analysis (`https://gemini.google.com/share/d83a833482a1`) in `RESEARCH_LOG.md` detailing 3 enclave optimization dimensions: Pre-Attested Compute Provisioning (WASM wrapping in sovereign TEE environments), Automated BitVM2/Ark Challenge Watchtowers (sub-$50 challenge execution fee baseline), and Hardware-Level Key Management as a Service (KMaaS policy enforcement via `ThresholdEnclaveManager` / `UniversalChainSigner`).
 
-### ✅ Capability Evidence Matrix & Python Helper Test Validation
-- Executed `python3 scripts/validate_capability_evidence.py --write` to update `docs/architecture/CAPABILITY_MATRIX.md` with zero capability drift.
-- Passed 100% of Python helper unit tests in `scripts/tests` (7/7 tests passed).
+### ✅ Capability Evidence Path Synchronization
+- Corrected path references (`src/protocol/rails` -> `src/protocol/bridges`) in `docs/architecture/capability-evidence.json` and regenerated `docs/architecture/CAPABILITY_MATRIX.md` via `python3 scripts/validate_capability_evidence.py --write`.
 
-### ✅ Rust Test Suite & Zero-Warning Clippy Verification
-- Executed `cargo test` verifying all 617 unit tests and 10 integration test drivers pass cleanly.
-- Executed `cargo clippy --all-targets --all-features -- -D warnings` with zero warnings or errors.
-
-### ✅ Documentation & Session Ledger Alignment
-- Synchronized `.session/ledger.md`, `DEBT_INVENTORY.md`, `docs/architecture/GAP_SCORECARD.md`, and `docs/architecture/CAPABILITY_MATRIX.md` with the codebase state.
+### ✅ Knowledge Base & Session Ledger Synchronization
+- Updated `GAP_SCORECARD.md`, `DEBT_INVENTORY.md`, `SESSION_HISTORY.md`, and `.session/ledger.md`.
 
 ---
 
-## Session 82 Planned
+## Session 83 Planned
 
-### P0: Operationalize Attestation Roots & Distributed Replay (#240)
-- Maintain shared provider-neutral trust operations and durable replay protection across enclave backends.
+### P0: Turnkey Enclave Pre-Attested WASM Execution Harness
+- Prototype turnkey pre-attestation wrapping interface for WASM execution logic (`wasm_bindings.rs`, `wasm_support.rs`) to simplify TEE deployment.
 
-### P1: WASM Secret Boundary & Platform Evidence (#200)
-- Maintain zeroization bounds and runtime isolation across browser/Node WASM bindings.
+### P1: Automated BitVM2/Ark Challenge Watchtower Mock
+- Extend `BitVm2Groth16Verifier` and `ArkClient` to support automated challenge-response transaction triggering on fraudulent state root detection.
 
 ### P0: Independent Security Review & Release Acceptance (#202)
 - Maintain tracking for independent security auditor review evidence and release acceptance artifacts.
