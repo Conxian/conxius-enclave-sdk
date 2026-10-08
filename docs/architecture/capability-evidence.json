@@ -60,7 +60,7 @@
         "src/enclave/mod.rs:1-860",
         "src/enclave/android_strongbox.rs:1-500",
         "src/enclave/cloud.rs:1-370",
-        "src/protocol/rails/mod.rs:63-260",
+        "src/protocol/bridges/mod.rs:63-260",
         "src/protocol/ark.rs:1-214",
         "src/protocol/bitvm.rs:1-80",
         "src/protocol/business.rs:1-205",
@@ -86,7 +86,7 @@
           "stage": "code",
           "refs": [
             "src/enclave/mod.rs:1-860",
-            "src/protocol/rails/mod.rs:63-260",
+            "src/protocol/bridges/mod.rs:63-260",
             "src/protocol/ark.rs:1-214",
             "src/protocol/bitvm.rs:1-80",
             "src/protocol/business.rs:1-205",
@@ -101,7 +101,7 @@
           "stage": "test",
           "refs": [
             "src/enclave/mod.rs:1000-1618",
-            "src/protocol/rails/mod.rs:900-1190",
+            "src/protocol/bridges/mod.rs:900-1190",
             "src/enclave/hardware_attestation_tests.rs:1-450",
             "src/wasm_support.rs:70-120"
           ]
@@ -138,7 +138,7 @@
         "src/enclave/attestation.rs:1-251",
         "src/enclave/trust.rs",
         "src/enclave/mod.rs:430-620",
-        "src/protocol/rails/mod.rs:450-620",
+        "src/protocol/bridges/mod.rs:450-620",
         "src/enclave/hardware_attestation_tests.rs:1-450",
         "tests/issue_240_phase_a.rs",
         "docs/architecture/ISSUE-240_PHASE_A_CONTRACT.md",
@@ -163,7 +163,7 @@
             "src/enclave/attestation.rs:1-251",
             "src/enclave/trust.rs",
             "src/enclave/mod.rs:430-620",
-            "src/protocol/rails/mod.rs:450-620"
+            "src/protocol/bridges/mod.rs:450-620"
           ]
         },
         {
@@ -173,7 +173,7 @@
             "src/enclave/trust.rs",
             "tests/issue_240_phase_a.rs",
             "src/enclave/mod.rs:1000-1618",
-            "src/protocol/rails/mod.rs:900-1190"
+            "src/protocol/bridges/mod.rs:900-1190"
           ]
         },
         {
@@ -209,10 +209,10 @@
         "src/enclave/proofs.rs:1-1800",
         "src/enclave/proof.rs:1-2015",
         "src/enclave/mod.rs:330-525",
-        "src/protocol/rails/mod.rs:75-760",
+        "src/protocol/bridges/mod.rs:75-760",
         "src/protocol/opportunity.rs:1-280",
         "src/enclave/proofs.rs:1450-1800",
-        "src/protocol/rails/mod.rs:900-2000",
+        "src/protocol/bridges/mod.rs:900-2000",
         "tests/production_rail_containment.rs:1-280",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195"
       ],
@@ -229,7 +229,7 @@
           "refs": [
             "src/enclave/proofs.rs:1-1800",
             "src/enclave/mod.rs:330-525",
-            "src/protocol/rails/mod.rs:75-760",
+            "src/protocol/bridges/mod.rs:75-760",
             "src/protocol/opportunity.rs:1-280"
           ]
         },
@@ -237,7 +237,7 @@
           "stage": "test",
           "refs": [
             "src/enclave/proofs.rs:1450-1800",
-            "src/protocol/rails/mod.rs:900-2000",
+            "src/protocol/bridges/mod.rs:900-2000",
             "tests/production_rail_containment.rs:1-280"
           ]
         },
@@ -278,7 +278,7 @@
         "src/enclave/attestation.rs:1-251",
         "src/enclave/mod.rs:700-760",
         "docs/architecture/TRUST_REPLAY_FOUNDATION.md",
-        "src/protocol/rails/mod.rs:560-620",
+        "src/protocol/bridges/mod.rs:560-620",
         "src/enclave/hardware_attestation_tests.rs:1-450",
         "tests/issue_240_phase_a.rs",
         "tests/durable_replay_conformance.rs",
@@ -308,7 +308,7 @@
             "src/enclave/proofs.rs",
             "src/enclave/attestation.rs:1-251",
             "src/enclave/mod.rs:700-760",
-            "src/protocol/rails/mod.rs:560-620"
+            "src/protocol/bridges/mod.rs:560-620"
           ]
         },
         {
@@ -323,7 +323,7 @@
             "tests/issue_240_phase_a.rs",
             "tests/durable_replay_conformance.rs",
             "src/enclave/mod.rs:1000-1618",
-            "src/protocol/rails/mod.rs:900-1190"
+            "src/protocol/bridges/mod.rs:900-1190"
           ]
         },
         {
@@ -354,8 +354,8 @@
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/protocol/rails/mod.rs:1-760",
-        "src/protocol/rails/mod.rs:900-1190",
+        "src/protocol/bridges/mod.rs:1-760",
+        "src/protocol/bridges/mod.rs:900-1190",
         "src/enclave/mod.rs:430-760",
         "src/enclave/proofs.rs:1450-1800",
         "src/protocol/opportunity.rs:90-280",
@@ -375,7 +375,7 @@
         {
           "stage": "code",
           "refs": [
-            "src/protocol/rails/mod.rs:1-760",
+            "src/protocol/bridges/mod.rs:1-760",
             "src/enclave/mod.rs:430-760",
             "src/enclave/proofs.rs:1450-1800",
             "src/protocol/opportunity.rs:90-280"
@@ -384,7 +384,7 @@
         {
           "stage": "test",
           "refs": [
-            "src/protocol/rails/mod.rs:900-2000",
+            "src/protocol/bridges/mod.rs:900-2000",
             "tests/production_rail_containment.rs:1-280"
           ]
         },
@@ -417,13 +417,13 @@
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
-        "src/protocol/rails/mod.rs:1-760",
-        "src/protocol/rails/x402.rs:1-200",
-        "src/protocol/rails/wormhole.rs:1-200",
-        "src/protocol/rails/boltz.rs:1-200",
-        "src/protocol/rails/ntt.rs:1-200",
-        "src/protocol/rails/bisq.rs:1-200",
-        "src/protocol/rails/changelly.rs:1-200",
+        "src/protocol/bridges/mod.rs:1-760",
+        "src/protocol/bridges/x402.rs:1-200",
+        "src/protocol/bridges/wormhole.rs:1-200",
+        "src/protocol/bridges/boltz.rs:1-200",
+        "src/protocol/bridges/ntt.rs:1-200",
+        "src/protocol/bridges/bisq.rs:1-200",
+        "src/protocol/bridges/changelly.rs:1-200",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/198"
       ],
@@ -439,19 +439,19 @@
         {
           "stage": "code",
           "refs": [
-            "src/protocol/rails/mod.rs:1-760",
-            "src/protocol/rails/x402.rs:1-200",
-            "src/protocol/rails/wormhole.rs:1-200",
-            "src/protocol/rails/boltz.rs:1-200",
-            "src/protocol/rails/ntt.rs:1-200",
-            "src/protocol/rails/bisq.rs:1-200",
-            "src/protocol/rails/changelly.rs:1-200"
+            "src/protocol/bridges/mod.rs:1-760",
+            "src/protocol/bridges/x402.rs:1-200",
+            "src/protocol/bridges/wormhole.rs:1-200",
+            "src/protocol/bridges/boltz.rs:1-200",
+            "src/protocol/bridges/ntt.rs:1-200",
+            "src/protocol/bridges/bisq.rs:1-200",
+            "src/protocol/bridges/changelly.rs:1-200"
           ]
         },
         {
           "stage": "test",
           "refs": [
-            "src/protocol/rails/mod.rs:450-1380",
+            "src/protocol/bridges/mod.rs:450-1380",
             "tests/production_rail_containment.rs:1-200"
           ]
         },
@@ -2474,7 +2474,7 @@
       "productionSupport": "unsupported",
       "evidenceRefs": [
         "src/telemetry.rs:1-1298",
-        "src/protocol/rails/mod.rs:1-700",
+        "src/protocol/bridges/mod.rs:1-700",
         "docs/operations/TELEMETRY_OPERATIONS.md",
         "docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md",
         "docs/operations/RELEASE_RECOVERY_RUNBOOK.md",
@@ -2497,14 +2497,14 @@
           "stage": "code",
           "refs": [
             "src/telemetry.rs:1-682",
-            "src/protocol/rails/mod.rs:1-700"
+            "src/protocol/bridges/mod.rs:1-700"
           ]
         },
         {
           "stage": "test",
           "refs": [
             "src/telemetry.rs:683-1298",
-            "src/protocol/rails/mod.rs:900-1700"
+            "src/protocol/bridges/mod.rs:900-1700"
           ]
         },
         {
