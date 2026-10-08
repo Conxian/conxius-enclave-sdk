@@ -1274,3 +1274,25 @@ Applying our 8-factor weighted rubric (Security: 3x, Blocker: 3x, Unlock: 2x, Ev
 - **Autonomous M2M Payment Request & Proof Verification**: Implemented `X402PaymentRequest` with canonical SHA-256 request hashing, `X402PaymentProof` with multi-scheme verification covering Bitcoin (BIP-322 / Schnorr 64-byte), Lightning (32-byte SHA-256 preimage verification against pay_to hash), and EVM (EIP-712 65-byte ECDSA signature).
 - **Public API Re-Exports**: Re-exported `X402Header`, `X402PaymentRequest`, `X402PaymentProof`, and `X402Scheme` in `src/protocol/rails/mod.rs` for consumption by `RailProxy`, gateway services, and enclave signers.
 - **Verification**: Added comprehensive unit tests in `src/protocol/rails/x402.rs`; verified zero clippy warnings (`cargo clippy --all-targets --all-features -- -D warnings`) and 100% test pass rate across all 620+ unit and integration tests.
+
+---
+
+## Session 82 — Conxian Org-Wide Upgrade & Refinement Proposal Research Expansion (CXIP / Issue #1317) (2026-10-07)
+
+### CXIP Strategic Analysis & Conxius Enclave SDK Optimization Dimensions
+Analyzed `https://github.com/Conxian/conxian-business/issues/1317` ("CXIP?:: Conxian org wide upgrade and refinement proposal", linking Gemini Strategic Analysis `https://gemini.google.com/share/d83a833482a1`) to expand research for `conxius-enclave-sdk` ("The Conclave"):
+
+1. **Pre-Attested Compute Provisioning (Deployment Orchestration)**:
+   - **Requirement**: Mask the severe complexities of hardware remote attestation (AWS Nitro, Intel SGX, Android StrongBox) for enterprise developers.
+   - **Architecture**: Enclave platform allows developers to upload WASM-compiled business logic (`wasm_bindings.rs`, `wasm_support.rs`), automatically wrapping code in a sovereign execution environment while managing hardware attestation proofs on the backend.
+   - **Alignment**: Builds on existing `WasmSecretBuffer` zeroization and `AwsNitroVerifier` / `AndroidStrongBox` verification layers.
+
+2. **Automated BitVM2 / Ark Challenge Watchtowers (Protocol Abstraction)**:
+   - **Requirement**: Capitalize on BitVM2's 1-of-N permissionless challenger model by abstracting the SNARK verification process.
+   - **Architecture**: Turnkey enclaves operate as background watchtowers that automatically initiate and sign challenge-response transactions—reducing optimistic challenge execution baseline costs from ~$15,000 down to sub-$50—only when the SDK mathematically detects definitively fraudulent state roots, requiring zero active monitoring by the enterprise client.
+   - **Alignment**: Aligns with `BitVm2Groth16Verifier` in `src/protocol/bitvm2.rs` and `ArkClient` in `src/protocol/ark.rs`.
+
+3. **Key Management as a Service (KMaaS - Business Logic Configuration)**:
+   - **Requirement**: Synergize Enclave SDK with `conxius-wallet` reference client to offer policy-driven enterprise key management.
+   - **Architecture**: Corporate treasurers define complex multi-signature threshold rules (FROST / MuSig2), time-locks, and spending limits via graphical interface; the Enclave enforces business rules at the absolute hardware level, securing institutional capital against external breaches and internal rogue actors.
+   - **Alignment**: Direct integration with `ThresholdEnclaveManager` in `src/enclave/threshold.rs` and `UniversalChainSigner` in `src/signing/ucs.rs`.

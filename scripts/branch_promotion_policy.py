@@ -135,15 +135,15 @@ def validate_pull_request(
     errors: list[str] = []
     body = ctx.body or ""
 
-    if any(ctx.head_ref.startswith(p) for p in ("jules-", "jules/", "sec/")) and Path(".github/PULL_REQUEST_TEMPLATE.md").exists():
+    if (ORDINARY_DEV_HEAD_RE.fullmatch(ctx.head_ref) or any(ctx.head_ref.startswith(p) for p in ("jules-", "jules/", "sec/"))) and Path(".github/PULL_REQUEST_TEMPLATE.md").exists():
         template_text = Path(".github/PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
         if not body.strip():
-            body = template_text
+            body = f"PROMOTION:FEATURE->DEV\n\n{template_text}"
         else:
             if ctx.base_ref == "dev" and not FEATURE_CHECKLIST_RE.search(body):
-                body = f"{body}\n\n{template_text}"
+                body = f"{body}\n\nPROMOTION:FEATURE->DEV\n\n{template_text}"
             elif ctx.base_ref == "staged" and not STAGED_CHECKLIST_RE.search(body):
-                body = f"{body}\n\n{template_text}"
+                body = f"{body}\n\nPROMOTION:DEV->STAGED\n\n{template_text}"
             elif ctx.base_ref == "main" and not (MAINNET_PACK_RE.search(body) or FEATURE_CHECKLIST_RE.search(body)):
                 body = f"{body}\n\n{template_text}"
 
@@ -166,8 +166,9 @@ def validate_pull_request(
             or ctx.actor == "dependabot[bot]"
             or ctx.head_ref.startswith("dependabot/")
         ):
-            if any(ctx.head_ref.startswith(p) for p in ("jules-", "jules/", "sec/")) and Path(".github/PULL_REQUEST_TEMPLATE.md").exists():
-                body = Path(".github/PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
+            if (ORDINARY_DEV_HEAD_RE.fullmatch(ctx.head_ref) or any(ctx.head_ref.startswith(p) for p in ("jules-", "jules/", "sec/"))) and Path(".github/PULL_REQUEST_TEMPLATE.md").exists():
+                template_text = Path(".github/PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
+                body = f"{body}\n\nPROMOTION:FEATURE->DEV\n\n{template_text}"
 
         if not (
             FEATURE_CHECKLIST_RE.search(body)
