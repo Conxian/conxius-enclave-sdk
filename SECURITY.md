@@ -6,6 +6,8 @@ The 2.x line is **Stable (conditional)** for non-signing capability surfaces, pe
 
 - [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-07-20.md)
 - [Capability and evidence matrix](./docs/architecture/CAPABILITY_MATRIX.md)
+- [Independent verification guide](./docs/architecture/INDEPENDENT_VERIFICATION_GUIDE.md)
+- [Independent security review RFP](./docs/audits/INDEPENDENT_SECURITY_REVIEW_RFP_2026-10-10.md)
 - [Public operations and incident runbook](./docs/operations/PUBLIC_OPERATIONS_RUNBOOK.md)
 
 ## Supported Versions
