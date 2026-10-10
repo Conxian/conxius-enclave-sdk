@@ -8,9 +8,9 @@ updates:
       codeql-action:
         patterns:
           - "github/codeql-action/*"
-    target-branch: "staged"
+    target-branch: "dev"
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
       interval: "weekly"
-    target-branch: "staged"
+    target-branch: "dev"
