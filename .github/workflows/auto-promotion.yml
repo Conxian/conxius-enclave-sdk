@@ -243,7 +243,7 @@ jobs:
             exit 1
           fi
 
-      - name: Enable auto-merge on promotion PR
+      - name: Leave promotion PR as draft for manual review
         if: steps.details.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.ORG_RECONCILE_PAT }}
@@ -262,9 +262,8 @@ jobs:
             echo "::error::Promotion PR not found for ${PROMO_BRANCH} -> ${TARGET}."
             exit 1
           fi
-          gh pr ready "$PR_NUMBER" --repo "${{ github.repository }}"
-          gh pr merge "$PR_NUMBER" --repo "${{ github.repository }}" --squash --auto --delete-branch
-          echo "::notice::Auto-merge enabled for promotion PR #${PR_NUMBER} (merges on green required checks)."
+          gh pr comment "$PR_NUMBER" --repo "${{ github.repository }}" --body "Promotion candidate left as DRAFT. Manual review required before merge: fill the evidence pack and confirm all required CI checks are green."
+          echo "::notice::Promotion PR #${PR_NUMBER} left as DRAFT for manual review (no auto-merge)."
 
       - name: Report nothing to promote
         if: steps.details.outputs.skip == 'true'
