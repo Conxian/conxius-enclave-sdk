@@ -96,7 +96,6 @@ pub const fn known_runtimes() -> [WasmRuntime; 4] {
     ]
 }
 
-
 /// Turnkey execution context for WASM pre-attested compute logic.
 /// Holds pre-attested runtime metadata and secret inputs in zeroizing memory.
 #[derive(Debug)]
@@ -114,7 +113,9 @@ impl WasmPreAttestationContext {
         secrets: Vec<u8>,
     ) -> ConclaveResult<Self> {
         if measurement == [0u8; 32] {
-            return Err(ConclaveError::BoundaryValidation(crate::BoundaryValidationError::InvalidEnvelope));
+            return Err(ConclaveError::BoundaryValidation(
+                crate::BoundaryValidationError::InvalidEnvelope,
+            ));
         }
         Ok(Self {
             runtime,
@@ -146,10 +147,7 @@ pub struct WasmExecutionHarness;
 
 impl WasmExecutionHarness {
     /// Execute a compute function within a pre-attested context, ensuring secret zeroization on completion.
-    pub fn execute_pre_attested<F, T>(
-        ctx: WasmPreAttestationContext,
-        f: F,
-    ) -> ConclaveResult<T>
+    pub fn execute_pre_attested<F, T>(ctx: WasmPreAttestationContext, f: F) -> ConclaveResult<T>
     where
         F: FnOnce(&WasmPreAttestationContext) -> ConclaveResult<T>,
     {
@@ -449,39 +447,33 @@ mod tests {
         );
     }
 
-
     #[test]
     fn test_wasm_pre_attestation_context_and_harness() {
         let measurement = [0x01; 32];
         let secrets = vec![0x10, 0x20, 0x30];
-        let ctx_res = WasmPreAttestationContext::new(
-            WasmRuntime::Browser,
-            measurement,
-            secrets.clone(),
-        );
+        let ctx_res =
+            WasmPreAttestationContext::new(WasmRuntime::Browser, measurement, secrets.clone());
         assert!(ctx_res.is_ok());
         let ctx = ctx_res.unwrap();
         assert_eq!(ctx.measurement(), &[0x01; 32]);
         assert_eq!(ctx.runtime(), WasmRuntime::Browser);
         assert_eq!(ctx.secrets().as_slice(), &secrets[..]);
 
-        let zero_res = WasmPreAttestationContext::new(
-            WasmRuntime::Browser,
-            [0u8; 32],
-            secrets,
-        );
-        assert!(matches!(zero_res, Err(ConclaveError::BoundaryValidation(_))));
+        let zero_res = WasmPreAttestationContext::new(WasmRuntime::Browser, [0u8; 32], secrets);
+        assert!(matches!(
+            zero_res,
+            Err(ConclaveError::BoundaryValidation(_))
+        ));
 
         // Test execution harness rejection on unverified runtime
-        let valid_ctx = WasmPreAttestationContext::new(
-            WasmRuntime::Browser,
-            measurement,
-            vec![0xAA; 16],
-        ).unwrap();
-        let exec_res = WasmExecutionHarness::execute_pre_attested(valid_ctx, |_ctx| {
-            Ok(42)
-        });
-        assert!(matches!(exec_res, Err(ConclaveError::UnsupportedRuntime(_))));
+        let valid_ctx =
+            WasmPreAttestationContext::new(WasmRuntime::Browser, measurement, vec![0xAA; 16])
+                .unwrap();
+        let exec_res = WasmExecutionHarness::execute_pre_attested(valid_ctx, |_ctx| Ok(42));
+        assert!(matches!(
+            exec_res,
+            Err(ConclaveError::UnsupportedRuntime(_))
+        ));
     }
 
     #[test]
