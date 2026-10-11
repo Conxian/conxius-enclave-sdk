@@ -1296,3 +1296,22 @@ Analyzed `https://github.com/Conxian/conxian-business/issues/1317` ("CXIP?:: Con
    - **Requirement**: Synergize Enclave SDK with `conxius-wallet` reference client to offer policy-driven enterprise key management.
    - **Architecture**: Corporate treasurers define complex multi-signature threshold rules (FROST / MuSig2), time-locks, and spending limits via graphical interface; the Enclave enforces business rules at the absolute hardware level, securing institutional capital against external breaches and internal rogue actors.
    - **Alignment**: Direct integration with `ThresholdEnclaveManager` in `src/enclave/threshold.rs` and `UniversalChainSigner` in `src/signing/ucs.rs`.
+
+
+## Session 83 Research Log (2026-10-11T07:16:22Z) — Turnkey Enclave Pre-Attested WASM Execution Harness Implementation
+
+### Key Technical Findings & Implementation Summary
+1. **WASM Pre-Attested Execution Context ()**:
+   - Implemented in  and re-exported in .
+   - Binds , 32-byte pre-attestation TEE measurement, and secret inputs wrapped in .
+   - Validates that attestation measurements are non-zero ( fail-closed protection).
+
+2. **Turnkey WASM Execution Harness ()**:
+   - Implemented in .
+   - Provides  method that enforces fail-closed validation () before invoking user-supplied compute closures.
+   - Guarantees automatic memory zeroization of wrapped secret inputs upon completion or drop via .
+
+3. **End-to-End Cycle Verification**:
+   - Verified 618+ Rust unit tests and 10 integration test drivers passing without errors.
+   - Zero clippy warnings ().
+   - Capability evidence validated and matrix regenerated without drift (wrote generated capability matrix: /app/docs/architecture/CAPABILITY_MATRIX.md).
