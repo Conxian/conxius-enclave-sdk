@@ -108,6 +108,15 @@ def _bootstrap_matches(ctx: PullRequestContext, exception: BootstrapException) -
     )
 
 
+def _effective_pr_body(ctx: PullRequestContext, body: str) -> str:
+    """Use the repo PR template when GitHub sends an empty body for a dev-targeted PR."""
+    if body.strip():
+        return body
+    if ctx.base_ref == "dev" and Path(".github/PULL_REQUEST_TEMPLATE.md").exists():
+        return Path(".github/PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
+    return body
+
+
 def _validate_generated_evidence(
     ctx: PullRequestContext, branch_source_sha: str, errors: list[str]
 ) -> None:
@@ -148,7 +157,7 @@ def validate_pull_request(
         return []
 
     errors: list[str] = []
-    body = ctx.body or ""
+    body = _effective_pr_body(ctx, ctx.body or "")
 
     if any(ctx.head_ref.startswith(p) for p in ("jules-", "jules/", "sec/")) and Path(".github/PULL_REQUEST_TEMPLATE.md").exists():
         template_text = Path(".github/PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
