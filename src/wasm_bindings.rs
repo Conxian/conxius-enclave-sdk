@@ -1,7 +1,7 @@
 use crate::enclave::EnclaveManager;
 use crate::protocol::ethereum::EthereumManager;
 use crate::protocol::solana::SolanaManager;
-use crate::wasm_support::{self, WasmRuntime};
+use crate::wasm_support::{self, WasmExecutionHarness, WasmPreAttestationContext, WasmRuntime, WasmSecretBuffer};
 use crate::ConclaveError;
 use hex;
 use lightning_invoice::Bolt11Invoice;
