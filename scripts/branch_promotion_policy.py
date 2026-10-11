@@ -217,11 +217,7 @@ def validate_pull_request(
             errors.append("Promotions into 'main' must come from this repository.")
 
         generated = GENERATED_STAGED_RE.fullmatch(ctx.head_ref)
-        is_allowed_head = (
-            ctx.head_ref == "staged"
-            or generated is not None
-            or any(ctx.head_ref.startswith(p) for p in ("jules-", "jules/", "sec/"))
-        )
+        is_allowed_head = ctx.head_ref == "staged" or generated is not None
         if not is_allowed_head:
             errors.append(
                 "PRs into 'main' must come from 'staged' or an exact "
@@ -234,10 +230,7 @@ def validate_pull_request(
         if generated is not None:
             _validate_generated_evidence(ctx, generated.group(1), errors)
 
-        if any(ctx.head_ref.startswith(p) for p in ("jules-", "jules/", "sec/")):
-            if not (MAINNET_PACK_RE.search(body) or FEATURE_CHECKLIST_RE.search(body)):
-                errors.append("PRs into 'main' must include a Mainnet Acceptance Evidence Pack or Feature checklist.")
-        elif not MAINNET_PACK_RE.search(body):
+        if not MAINNET_PACK_RE.search(body):
             errors.append("PRs into 'main' must include a Mainnet Acceptance Evidence Pack.")
         else:
             required_headings = (
