@@ -58,6 +58,7 @@ class PullRequestContext:
     head_repo: str | None
     body: str
     actor: str
+    draft: bool = False
 
     @property
     def same_repository(self) -> bool:
@@ -253,21 +254,22 @@ def validate_pull_request(
             missing = [heading for heading in required_headings if not _has_heading(body, heading)]
             if missing:
                 errors.append("Mainnet Acceptance Evidence Pack is missing: " + ", ".join(missing) + ".")
-            unfilled = [
-                heading
-                for heading in required_headings
-                if _has_heading(body, heading)
-                and (
-                    not _heading_content(body, heading)
-                    or EVIDENCE_PLACEHOLDER_RE.search(_heading_content(body, heading))
-                )
-            ]
-            if unfilled:
-                errors.append(
-                    "Mainnet Acceptance Evidence Pack must be completed (not placeholder) for: "
-                    + ", ".join(unfilled)
-                    + "."
-                )
+            if not ctx.draft:
+                unfilled = [
+                    heading
+                    for heading in required_headings
+                    if _has_heading(body, heading)
+                    and (
+                        not _heading_content(body, heading)
+                        or EVIDENCE_PLACEHOLDER_RE.search(_heading_content(body, heading))
+                    )
+                ]
+                if unfilled:
+                    errors.append(
+                        "Mainnet Acceptance Evidence Pack must be completed (not placeholder) for: "
+                        + ", ".join(unfilled)
+                        + "."
+                    )
         return errors
 
     errors.append("Branch Promotion Policy only accepts pull requests targeting dev, staged, or main.")
@@ -289,6 +291,7 @@ def context_from_event(event: dict[str, Any]) -> PullRequestContext:
         head_repo=pr.get("head", {}).get("repo", {}).get("full_name"),
         body=pr.get("body") or "",
         actor=pr.get("user", {}).get("login") or event.get("sender", {}).get("login", ""),
+        draft=bool(pr.get("draft", False)),
     )
 
 
