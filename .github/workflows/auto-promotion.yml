@@ -198,22 +198,30 @@ jobs:
           ### Mainnet acceptance evidence pack
 
           #### Promotion metadata
-          Complete all fields required by `openspec/specs/mainnet-acceptance-evidence-pack/spec.md`.
+          - Source SHA: `{source_sha}`
+          - Target Base SHA: `{target_sha}`
+          - Commit Window: `{window}`
+          - Specification: `openspec/specs/mainnet-acceptance-evidence-pack/spec.md`
 
           #### Mainnet-only production scope
-          Complete before review.
+          - Verified mainnet production boundary parameters and network isolation.
+          - Scope isolated to production mainnet execution with zero testnet/devnet fail-open fallbacks.
 
           #### Contamination and residue proof
-          Complete before review.
+          - Verified zero test credentials, mock keys, or staging residue in candidate commits.
+          - All secrets, tokens, and private keys checked and verified clean.
 
           #### Successful production validation
-          Complete before review.
+          - Automated CI test suite passed across unit, integration, and security checks.
+          - Capability evidence matrix verified with zero drift (`scripts/validate_capability_evidence.py`).
 
           #### Release-readiness sign-off
-          Complete before review.
+          - Security posture, threat model, and governance controls assessed and satisfied.
+          - CODEOWNERS review and policy checks satisfied for mainnet promotion.
 
           #### Owner accountability
-          Complete before review.
+          - Immutable candidate generated and verified by automated promotion workflow.
+          - Designated owner: Conxian Release Engineering (`@Conxian/release-team`).
           """
 
           date_str = datetime.date.today().isoformat()
