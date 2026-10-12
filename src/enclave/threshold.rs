@@ -36,6 +36,7 @@ pub struct ThresholdEnclaveManager {
     min_signers: u16,
     max_signers: u16,
     share_report_provider: Option<ShareReportProvider>,
+    max_value_limit: Option<u64>,
 }
 
 impl ThresholdEnclaveManager {
@@ -63,6 +64,7 @@ impl ThresholdEnclaveManager {
             min_signers,
             max_signers,
             share_report_provider: None,
+            max_value_limit: None,
         })
     }
 
@@ -82,6 +84,16 @@ impl ThresholdEnclaveManager {
     pub fn with_share_report_provider(mut self, provider: ShareReportProvider) -> Self {
         self.share_report_provider = Some(provider);
         self
+    }
+
+    /// Set a KMaaS hardware-enforced value cap (in satoshis / base units).
+    pub fn with_max_value_limit(mut self, limit_satoshis: u64) -> Self {
+        self.max_value_limit = Some(limit_satoshis);
+        self
+    }
+
+    pub fn max_value_limit(&self) -> Option<u64> {
+        self.max_value_limit
     }
 
     /// Run the full FROST signing round across all configured participants and
@@ -197,6 +209,17 @@ impl EnclaveManager for ThresholdEnclaveManager {
         &self,
         request: &ValueBearingSignRequest,
     ) -> ConclaveResult<SignResponse> {
+        if let Some(limit) = self.max_value_limit {
+            let context_bytes = request.operation_context().context();
+            if context_bytes.len() == 8 {
+                let requested_amount = u64::from_be_bytes(context_bytes.try_into().unwrap());
+                if requested_amount > limit {
+                    return Err(ConclaveError::InvalidConfiguration(
+                        format!("Requested value {} exceeds KMaaS policy limit {}", requested_amount, limit)
+                    ));
+                }
+            }
+        }
         let provider = self.share_report_provider.as_ref().ok_or_else(|| {
             ConclaveError::Unsupported(
                 "threshold value-bearing signing requires a share-report provider".to_string(),
@@ -342,5 +365,35 @@ mod tests {
             verified.is_ok(),
             "threshold value-bearing attestation failed: {verified:?}"
         );
+    }
+
+    #[test]
+    fn test_kmaas_policy_value_limit_enforcement() {
+        let manager = build_manager().with_max_value_limit(1_000_000);
+        assert_eq!(manager.max_value_limit(), Some(1_000_000));
+
+        let context = crate::enclave::OperationContext::new(
+            "test_domain",
+            crate::enclave::ValueBearingPurpose::Settlement,
+            1_500_000u64.to_be_bytes().to_vec(),
+        ).unwrap();
+
+        let key_binding = crate::enclave::SignerKeyBinding::new(
+            "key-1",
+            "m/44/0/0/0/0",
+            vec![2; 33],
+        ).unwrap();
+
+        let request = ValueBearingSignRequest::new(
+            context,
+            SigningAlgorithm::EcdsaSecp256k1,
+            crate::enclave::TrustRequirement::hardware_backed("test_policy").unwrap(),
+            [1; 32],
+            key_binding,
+            None,
+        ).unwrap();
+
+        let res = manager.sign_value_bearing_provider(&request);
+        assert!(matches!(res, Err(ConclaveError::InvalidConfiguration(_))));
     }
 }

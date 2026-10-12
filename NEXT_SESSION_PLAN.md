@@ -13,13 +13,17 @@
 
 ---
 
-## Session 84 Planned
+## Session 84 Completed (2026-10-12) — BitVM2 Watchtower Challenge & KMaaS Policy Enforcement
 
-### P0: Automated BitVM2/Ark Challenge Watchtower Mock Execution
-- Extend  and  to support automated challenge-response transaction triggering on fraudulent state root detection.
+### ✅ Automated BitVM2/Ark Challenge Watchtower Execution
+- Extended `BitVm2Orchestrator` in `src/protocol/bitvm2.rs` with `register_active_challenge` and `trigger_watchtower_challenge` methods for automated challenge-response transaction triggering on fraudulent state root commitments.
 
-### P0: Hardware Key Management as a Service (KMaaS) Policy Enforcement
-- Extend  /  to support policy-enforced Hardware KMaaS signing limits and authorization rules.
+### ✅ Hardware Key Management as a Service (KMaaS) Policy Enforcement
+- Extended `ThresholdEnclaveManager` in `src/enclave/threshold.rs` with `with_max_value_limit` and value limit policy checks in `sign_value_bearing_provider`.
+
+---
+
+## Session 85 Planned
 
 ### P0: Independent Security Review & Release Acceptance (#202)
 - Maintain tracking for independent security auditor review evidence and release acceptance artifacts.

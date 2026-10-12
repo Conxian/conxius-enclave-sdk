@@ -943,14 +943,45 @@ impl BitVm2Orchestrator {
         ))
     }
 
+    pub fn register_active_challenge(
+        &mut self,
+        commitment_id: String,
+        status: BitVm2ChallengeStatus,
+    ) -> ConclaveResult<()> {
+        status.instance_id.validate()?;
+        status.commitment_id.validate()?;
+        self.active_challenges.insert(commitment_id, status);
+        Ok(())
+    }
+
+    pub fn trigger_watchtower_challenge(
+        &mut self,
+        commitment_id: &str,
+        challenge_block: u64,
+        challenge_txid: ArkTransactionId,
+    ) -> ConclaveResult<BitVm2ChallengeStatus> {
+        let status = self
+            .active_challenges
+            .get_mut(commitment_id)
+            .ok_or_else(|| boundary_error(BoundaryValidationError::InvalidObservation))?;
+        status.phase = ChallengePhase::Challenge;
+        status.challenge_block = Some(challenge_block);
+        status.challenge_txid = Some(challenge_txid);
+        Ok(status.clone())
+    }
+
     pub fn get_challenge_status(
         &self,
-        _commitment_id: &str,
+        commitment_id: &str,
     ) -> ConclaveResult<BitVm2ChallengeStatus> {
-        Err(protocol_unsupported(
-            UnsupportedProtocol::BitVm2,
-            UnsupportedOperation::ChallengeStatus,
-        ))
+        if let Some(status) = self.active_challenges.get(commitment_id) {
+            Ok(status.clone())
+        } else {
+            Err(protocol_unsupported(
+                UnsupportedProtocol::BitVm2,
+                UnsupportedOperation::ChallengeStatus,
+            ))
+        }
     }
 
     pub fn is_within_challenge_window(
@@ -1375,5 +1406,38 @@ mod tests {
                 BoundaryValidationError::InvalidObservation
             ))
         ));
+    }
+
+    #[test]
+    fn test_orchestrator_watchtower_challenge_execution() {
+        let enclave = Arc::new(crate::enclave::cloud::CloudEnclave::new(
+            "http://localhost".to_string(),
+        ).unwrap());
+        let ark = Arc::new(crate::protocol::ark::ArkManager::new(enclave.clone()));
+        let bitvm = Arc::new(BitVmManager::new(enclave));
+        let mut orchestrator = BitVm2Orchestrator::new(ark, bitvm);
+
+        let instance_id = BitVm2InstanceId::new([1; 16]).unwrap();
+        let commitment_id = BitVm2CommitmentId::new([2; 16]).unwrap();
+        let status = BitVm2ChallengeStatus {
+            phase: ChallengePhase::Commitment,
+            instance_id,
+            commitment_id,
+            commitment_txid: Some(ArkTransactionId::new("commit-tx-1").unwrap()),
+            challenge_txid: None,
+            challenge_block: None,
+            resolution: None,
+        };
+
+        orchestrator.register_active_challenge("commit-1".to_string(), status).unwrap();
+        assert_eq!(orchestrator.get_challenge_status("commit-1").unwrap().phase, ChallengePhase::Commitment);
+
+        let challenge_tx = ArkTransactionId::new("challenge-tx-1").unwrap();
+        let updated = orchestrator.trigger_watchtower_challenge("commit-1", 105, challenge_tx.clone()).unwrap();
+        assert_eq!(updated.phase, ChallengePhase::Challenge);
+        assert_eq!(updated.challenge_block, Some(105));
+        assert_eq!(updated.challenge_txid, Some(challenge_tx));
+
+        assert!(orchestrator.trigger_watchtower_challenge("non-existent", 100, ArkTransactionId::new("tx").unwrap()).is_err());
     }
 }
