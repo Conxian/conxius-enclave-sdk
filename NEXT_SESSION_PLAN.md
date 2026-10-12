@@ -1,25 +1,24 @@
 # Next Session Plan
 
-## Session 83 Completed (2026-10-11) — Turnkey Enclave Pre-Attested WASM Execution Harness Implementation
+## Current Session Completed — Turnkey Enclave Pre-Attested WASM Execution, BitVM2 Watchtower & KMaaS Policy
 
 ### ✅ Turnkey Enclave Pre-Attested WASM Execution Harness
-- Implemented  and  in  and re-exported in .
-- Enforced fail-closed validation (,  on zero measurements) and memory zeroization of wrapped secret inputs via .
-- Added unit tests () verifying context instantiation, zero measurement rejection, runtime rejection, and secret memory access.
+- Implemented pre-attested WASM execution context and harness.
+- Enforced fail-closed validation and memory zeroization of wrapped secret inputs via `WasmSecretBuffer`.
+
+### ✅ Automated BitVM2/Ark Challenge Watchtower Mock Execution
+- Extended `BitVm2Orchestrator` in `src/protocol/bitvm2.rs` with `register_active_challenge` and `trigger_watchtower_challenge` methods.
+- Implemented challenge status tracking (`active_challenges`), challenge transaction triggers, and challenge window validation.
+
+### ✅ Hardware Key Management as a Service (KMaaS) Policy Enforcement
+- Extended `ThresholdEnclaveManager` in `src/enclave/threshold.rs` with `with_max_value_limit` and policy enforcement checking against value caps in `sign_value_bearing_provider`.
 
 ### ✅ Capability Evidence & Knowledge Base Synchronization
-- Regenerated  via wrote generated capability matrix: /app/docs/architecture/CAPABILITY_MATRIX.md.
-- Updated , , , , and .
+- Regenerated `CAPABILITY_MATRIX.md` via `python3 scripts/validate_capability_evidence.py --write`.
 
 ---
 
-## Session 84 Planned
-
-### P0: Automated BitVM2/Ark Challenge Watchtower Mock Execution
-- Extend  and  to support automated challenge-response transaction triggering on fraudulent state root detection.
-
-### P0: Hardware Key Management as a Service (KMaaS) Policy Enforcement
-- Extend  /  to support policy-enforced Hardware KMaaS signing limits and authorization rules.
+## Next Session Planned
 
 ### P0: Independent Security Review & Release Acceptance (#202)
 - Maintain tracking for independent security auditor review evidence and release acceptance artifacts.

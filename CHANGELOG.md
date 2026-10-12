@@ -20,6 +20,10 @@
 
 ### Added
 - `src/protocol/frost.rs`: Fixed unused parameter warnings in non-frost-crypto build configurations for `verify_dkg_round1_bytes` and `verify_dkg_round2_bytes`.
+### Added
+- `src/protocol/bitvm2.rs`: Added `register_active_challenge` and `trigger_watchtower_challenge` to `BitVm2Orchestrator` for automated challenge-response transaction triggering on fraudulent state root detection during chain observation.
+- `src/enclave/threshold.rs`: Added `with_max_value_limit` to `ThresholdEnclaveManager` for KMaaS hardware-enforced value caps and authorization checking during threshold value-bearing signing.
+
 - Candidate Scoring & Audit Sync: Evaluated all 6 open GitHub issues and updated 75-point candidate matrix in `DEBT_INVENTORY.md` and `GAP_SCORECARD.md` establishing `#200 WASM Secret Isolation` (61/75) as top actionable non-external candidate.
 - `src/enclave/android_authorization.rs`: Added comprehensive unit tests for `AndroidAuthorizationEvidence` validation, including Play Integrity evidence version/bounds checking, certificate chain size/byte limits, and timestamp lifetime/future-skew boundary verification (#241).
 - `src/wasm_support.rs`: Added `test_wasm_runtime_unapproved_provider_error_code_stability` and `test_wasm_unverified_runtime_rejection_message` to harden WASM secret boundary enforcement and verify stable typed error codes (`UNSUPPORTED_PROVIDER`, `UNSUPPORTED_RUNTIME`) (#200).
