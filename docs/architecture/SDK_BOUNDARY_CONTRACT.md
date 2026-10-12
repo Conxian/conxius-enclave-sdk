@@ -54,7 +54,7 @@ SDK validation only.
 - **Scope**: Key generation, derivation, signing (ECDSA/Schnorr), and hardware attestation.
 - **Interface**: `EnclaveManager` trait.
 - **Boundary**: No awareness of transaction semantics beyond signing hashes and verifying nonces.
-- **Constraint**: **Zero Secret Egress**. Private keys never leave this boundary.
+- **Constraint**: **Zero Secret Egress**. Private keys, runtime state, and signing credentials never leave this boundary or egress into corporate email streams.
 
 ### B. Routing Orchestration (Intent Layer)
 - **Scope**: Pathfinding logic, intent construction, and liquidity rail selection.
@@ -66,6 +66,12 @@ SDK validation only.
 - **Scope**: Chain-specific encoding (Bitcoin Taproot, Stacks, EVM, Solana).
 - **Interface**: `AssetRegistry`, `Chain` enum, `TaprootManager`.
 - **Boundary**: Decoupled from specific liquidity rails. Provides the "language" for cross-chain interaction.
+
+
+### D. Corporate Identity & Infrastructure Decoupling (SSO / Alert Sink)
+- **Scope**: Separation between corporate Identity Provider (Zoho Mail SSO / `conxian-labs.com`), inbound alert sinks (`security@`, `devops@`, `support@`, `info@`), and public protocol execution (`conxian.org`).
+- **Boundary**: Runtime SDK enclaves, signing keys, and public protocol services (`conxian-gateway`, `conxian-nexus`, `conxian_market`) are completely decoupled from corporate email loops.
+- **Constraint**: All backend authentication uses hardware enclave attestations, API JWTs, or secret filters. No runtime logs or user secrets ever egress to corporate email.
 
 ## 2. Interface Contracts (WASM/Binding Layer)
 

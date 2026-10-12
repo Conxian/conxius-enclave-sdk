@@ -30,7 +30,7 @@ This document provides a comprehensive overview of the repository status, includ
 | **Cargo package metadata** | 2.0.17 (aligned with release tag) |
 | **Production Status** | Stable (conditional); value-bearing enablement blocked by CON-1506 gates |
 | **Test Coverage** | Historical source count; not an independent release gate |
-| **Last Updated** | 2026-08-31 (Session 64) |
+| **Last Updated** | 2026-10-12 (Session 85) |
 
 ## Production-enablement backlog map
 

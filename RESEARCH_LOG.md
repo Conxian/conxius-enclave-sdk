@@ -1315,3 +1315,31 @@ Analyzed `https://github.com/Conxian/conxian-business/issues/1317` ("CXIP?:: Con
    - Verified 618+ Rust unit tests and 10 integration test drivers passing without errors.
    - Zero clippy warnings ().
    - Capability evidence validated and matrix regenerated without drift (wrote generated capability matrix: /app/docs/architecture/CAPABILITY_MATRIX.md).
+
+## Session 85 — Zoho Mail Identity Anchor, Centralized Alert Sink & Zero Secret Egress Research Expansion (2026-10-12)
+
+### Architectural & Operational Security Principles
+Expanded research regarding corporate identity isolation, alert routing, and zero secret egress boundaries across the Conxian ecosystem:
+
+1. **Identity Anchor (SSO / OAuth)**:
+   - Zoho Mail / Domain directory (`conxian-labs.com`) serves strictly as a centralized Single Sign-On (SSO) source for human team member logins to private operational tools (e.g., Plane, Outline, private GitHub Organization).
+   - Offboarding rule: Disabling a team member email under `@conxian-labs.com` instantly revokes access across all company platforms.
+
+2. **Centralized Alert Aliases (Inbound-Only Sink)**:
+   - Infrastructure and security notifications are routed into dedicated inbound email aliases rather than individual personal inboxes:
+     - `security@conxian-labs.com`: Gitleaks secrets scanning, GitHub vulnerability alerts, and security disclosure routing.
+     - `devops@conxian-labs.com`: Build failures, Render deployments, and Supabase/Neon database alerts.
+     - `support@conxian-labs.com` / `info@conxian-labs.com`: External operational inquiries.
+
+3. **Strict Isolation Constraints (What MUST Be Decoupled)**:
+   - **Non-Human Service Accounts**: Never tie API keys, database connections, or deployment scripts to personal employee email addresses. Use dedicated system service accounts (e.g., `bot@conxian-labs.com` / `admin-conxian-labs`) with scoped, non-human permissions.
+   - **Public Protocol & GitHub Surface (`conxian.org`)**: Public repositories, smart contracts, and decentralized services (`conxian-gateway`, `conxian-nexus`, `conxian_market`) must NEVER depend on or expose corporate Zoho Mail credentials or internal email loops. All backend authentication must use hardware enclave attestations, API JWTs (Fusion), or secret filters (Sentinel).
+   - **Zero Secret Egress Boundary**: No runtime data, user secrets, private keys, or private operational logs should ever flow into corporate email streams.
+
+4. **Recommended System Architecture Flow**:
+```text
+[ Team Members ] ──────────► [ Zoho Domain SSO ] ──────────► [ Private Tools: Plane / Outline / Private GitHub ]
+                                                                │ (Isolated Operations)
+                                                                ▼
+[ Public Ecosystem ] ──────► [ Gateway / Fusion Auth ] ───► [ Multi-Cloud: Render / Supabase / Neon ]
+```

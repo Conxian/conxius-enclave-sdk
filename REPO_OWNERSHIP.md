@@ -21,7 +21,7 @@
 
 ## Boundary rule
 
-If the concern is about secure signing, device trust, or controlled key use, it belongs here. If it is about layer-specific broadcast, observation, database provisioning, or application behavior, it belongs elsewhere. Public client SDK repositories must not include internal infrastructure deployment workflows or internal backend database secret triggers.
+If the concern is about secure signing, device trust, or controlled key use, it belongs here. If it is about layer-specific broadcast, observation, database provisioning, or application behavior, it belongs elsewhere. Public client SDK repositories must not include internal infrastructure deployment workflows or internal backend database secret triggers. Corporate email and SSO services (`conxian-labs.com` Zoho Mail) function strictly as human identity anchors and inbound alert sinks, and must remain completely decoupled from runtime SDK signing processes and public protocol workflows (`conxian.org`).
 
 ## Operational role model
 

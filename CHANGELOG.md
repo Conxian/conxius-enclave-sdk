@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Security & Governance
+- **Zoho Mail Identity Anchor & Zero Secret Egress Boundary**: Codified Security Policy Principle 9 and updated architecture boundary specifications (`SECURITY.md`, `REPO_OWNERSHIP.md`, `docs/architecture/SDK_BOUNDARY_CONTRACT.md`, `RESEARCH_LOG.md`). Enforces Zoho Mail (`conxian-labs.com`) strictly as a human Single Sign-On (SSO) identity anchor and inbound alert sink (`security@`, `devops@`, `support@`, `info@`), while completely decoupling non-human service accounts, public protocol runtime services (`conxian.org`), and guaranteeing Zero Secret Egress into corporate email streams.
+
 ### Breaking
 - **Rail ontology rename (#422)**: `protocol::rails` → `protocol::bridges` and `rails::TrustTier` (T1–T4) → `bridges::RailTrustTier`, disambiguating the SDK rail-security tier from the core `TrustTier` (Strict/Managed/Expedient/ObserverOnly). See `docs/RAIL_ONTOLOGY.md` in lib-conxian-core.
 
