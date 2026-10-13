@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "Conxian/conxius-enclave-sdk",
   "reviewedRef": "511ebf589a102ff0d3895d6b8d7568751fcfaf28",
-  "lastVerified": "2026-08-29",
+  "lastVerified": "2026-10-13",
   "maturity": "stable-conditional",
   "statusVocabulary": {
     "evidence": [
@@ -55,7 +55,7 @@
       "implementation": "partial",
       "integration": "partial",
       "independentReview": "not-evidenced",
-      "productionSupport": "conditional",
+      "productionSupport": "unsupported",
       "evidenceRefs": [
         "src/enclave/mod.rs:1-860",
         "src/enclave/android_strongbox.rs:1-500",
@@ -130,10 +130,10 @@
       "name": "Enclave hardware attestation",
       "family": "enclave",
       "api": "yes",
-      "implementation": "yes",
-      "integration": "yes",
+      "implementation": "partial",
+      "integration": "no",
       "independentReview": "not-evidenced",
-      "productionSupport": "conditional",
+      "productionSupport": "unsupported",
       "evidenceRefs": [
         "src/enclave/attestation.rs:1-251",
         "src/enclave/trust.rs",
@@ -193,8 +193,8 @@
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
       ],
-      "exclusion": null,
-      "notes": "Vendor-backed hardware attestation verifiers are integrated across AWS Nitro (with embedded AWS Nitro Root CA G1 DER certificate validation), Android StrongBox KeyMint authorization certificate chain verification, and PKCS#11 HSM verifier. Hardware-backed signing policy is enforced."
+      "exclusion": "The code contains typed, structural, and simulated foundations, but no provider path currently combines authenticated current collateral, hardware key custody, operation binding, durable replay, real-provider negative tests, independent review, and exact release evidence.",
+      "notes": "The typed policy fails closed. Android is a bounded evidence contract without KeyMint certificate-path/authorization-list or Play Integrity verification; Nitro still lacks qualified live NSM/KMS signer evidence; generic PKCS#11 operations and metadata do not prove hardware provenance. See docs/architecture/HARDWARE_SIGNING_PROVIDER_MATRIX_2026.md."
     },
     {
       "id": "proof-composition",
