@@ -26,6 +26,15 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 
 ### P1 - Critical
 
+#### SEC-006: Android StrongBox offline provider integration
+- **Category**: Security / Architecture / Testing
+- **Priority**: P1 - Critical
+- **Description**: Android authorization request/evidence types are bounded and fail closed, but the provider verifier and physical StrongBox signer adapter are unavailable. The software manager in `android_strongbox.rs` is a development fixture.
+- **Risk**: Module names or structurally valid evidence could be mistaken for proof that a key is non-exportable or that signing occurred in StrongBox.
+- **Recommendation**: Implement the provider adapter only with non-exportable key generation, offline digest signing, KeyMint extension/root/revocation/boot/patch validation, server-side Play Integrity verification, durable replay, physical-device negative tests, and independent review. Keep value-bearing support unavailable until exact evidence is attached.
+- **Related**: PR #544 is blocked because its value cap fails open on malformed operation context and its watchtower method records caller claims without execution evidence.
+- **Status**: Active; contract only. See `docs/architecture/ANDROID_STRONGBOX_OFFLINE_BOUNDARY.md`.
+
 #### DEP-001: Yanked `secp256k1 0.32.0-beta.2` dependency ✅ RESOLVED (2026-08-30)
 - **Category**: Dependency
 - **Priority**: P1 - Critical
