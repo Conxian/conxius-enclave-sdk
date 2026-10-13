@@ -1,25 +1,28 @@
 # Next Session Plan
 
-## Session 83 Completed (2026-10-11) — Turnkey Enclave Pre-Attested WASM Execution Harness Implementation
+## Session 84 Completed (2026-10-11) — Hardware Signing Chipset Drivers, HSM, Keystone, Enclave & StrongBox Research Expansion
 
-### ✅ Turnkey Enclave Pre-Attested WASM Execution Harness
-- Implemented  and  in  and re-exported in .
-- Enforced fail-closed validation (,  on zero measurements) and memory zeroization of wrapped secret inputs via .
-- Added unit tests () verifying context instantiation, zero measurement rejection, runtime rejection, and secret memory access.
+### ✅ Hardware Provider Types & Chipset Driver Classification
+- Implemented `HardwareProviderType` enum (`IntelSgx`, `AndroidStrongBox`, `AwsNitro`, `Tpm20`, `AppleSecureEnclave`, `AmdSevSnp`, `ArmTrustZone`, `Keystone`, `Pkcs11Hsm`, `WebAuthnFido2`) in `src/enclave/attestation.rs`.
+- Added helper methods for provider classification, driver interface spec resolution, default attestation level, and supported curves.
+- Extended `AttestationExtension` with 10 typed provider variants (`ProviderIntelSgx`, etc.) and mapped canonical parsing and tag numbers.
+- Added `with_hardware_provider` to `AttestationPolicy`.
+- Added `classify_hardware_module()` in `Pkcs11AttestationEvidence` and `identify_chipset_driver()` in `AndroidAuthorizationEvidence`.
 
-### ✅ Capability Evidence & Knowledge Base Synchronization
-- Regenerated  via wrote generated capability matrix: /app/docs/architecture/CAPABILITY_MATRIX.md.
-- Updated , , , , and .
+### ✅ Documentation & Knowledge Base Synchronization
+- Expanded `RESEARCH_LOG.md` with an exhaustive research section covering online specs, drivers, chipsets, attestation schemes, and security boundaries.
+- Updated `docs/architecture/SIGNER_BACKEND_POLICY_MATRIX.md` with the Hardware Chipset & Driver Technical Specifications Matrix.
+- Updated `docs/architecture/CAPABILITY_MATRIX.md`, `docs/architecture/GAP_SCORECARD.md`, `DEBT_INVENTORY.md`, `TRACKING.md`, `.session/ledger.md`, and `CHANGELOG.md`.
 
 ---
 
-## Session 84 Planned
+## Session 85 Planned
 
-### P0: Automated BitVM2/Ark Challenge Watchtower Mock Execution
-- Extend  and  to support automated challenge-response transaction triggering on fraudulent state root detection.
+### P0: Automated BitVM2/Ark Challenge Watchtower Execution
+- Extend `BitVm2Orchestrator` and `ArkClient` to support automated challenge-response transaction triggering on fraudulent state root detection.
 
 ### P0: Hardware Key Management as a Service (KMaaS) Policy Enforcement
-- Extend  /  to support policy-enforced Hardware KMaaS signing limits and authorization rules.
+- Extend `ThresholdEnclaveManager` / `UniversalChainSigner` to support policy-enforced Hardware KMaaS signing limits and authorization rules.
 
 ### P0: Independent Security Review & Release Acceptance (#202)
 - Maintain tracking for independent security auditor review evidence and release acceptance artifacts.

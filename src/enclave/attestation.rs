@@ -21,6 +21,118 @@ const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
 /// Version of the canonical signed attestation envelope.
 pub const ATTESTATION_ENVELOPE_VERSION: u16 = 2;
 
+/// Supported hardware provider types for enclave, HSM, TPM, and mobile signing backends.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum HardwareProviderType {
+    IntelSgx,
+    AndroidStrongBox,
+    AwsNitro,
+    Tpm20,
+    AppleSecureEnclave,
+    AmdSevSnp,
+    ArmTrustZone,
+    Keystone,
+    Pkcs11Hsm,
+    WebAuthnFido2,
+}
+
+impl HardwareProviderType {
+    /// Canonical string identifier for the hardware provider type.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::IntelSgx => "INTEL_SGX_DCAP",
+            Self::AndroidStrongBox => "ANDROID_STRONGBOX",
+            Self::AwsNitro => "AWS_NITRO",
+            Self::Tpm20 => "TPM_20",
+            Self::AppleSecureEnclave => "APPLE_SECURE_ENCLAVE",
+            Self::AmdSevSnp => "AMD_SEV_SNP",
+            Self::ArmTrustZone => "ARM_TRUSTZONE",
+            Self::Keystone => "KEYSTONE_RISCV",
+            Self::Pkcs11Hsm => "PKCS11_HSM",
+            Self::WebAuthnFido2 => "WEBAUTHN_FIDO2",
+        }
+    }
+
+    /// Parse provider type from canonical token string.
+    pub fn from_str_token(token: &str) -> Option<Self> {
+        match token.trim() {
+            "INTEL_SGX_DCAP" | "INTEL_SGX" | "SGX" | "TDX" => Some(Self::IntelSgx),
+            "ANDROID_STRONGBOX" | "STRONGBOX" | "KEYMINT" => Some(Self::AndroidStrongBox),
+            "AWS_NITRO" | "NITRO" => Some(Self::AwsNitro),
+            "TPM_20" | "TPM20" | "TPM" => Some(Self::Tpm20),
+            "APPLE_SECURE_ENCLAVE" | "APPLE_SE" | "SECURE_ENCLAVE" => Some(Self::AppleSecureEnclave),
+            "AMD_SEV_SNP" | "AMD_SEV" | "SEV" => Some(Self::AmdSevSnp),
+            "ARM_TRUSTZONE" | "ARM_TZ" | "TRUSTZONE" | "ARM_CCA" => Some(Self::ArmTrustZone),
+            "KEYSTONE_RISCV" | "KEYSTONE" | "RISCV_KEYSTONE" => Some(Self::Keystone),
+            "PKCS11_HSM" | "PKCS11" | "HSM" => Some(Self::Pkcs11Hsm),
+            "WEBAUTHN_FIDO2" | "WEBAUTHN" | "FIDO2" => Some(Self::WebAuthnFido2),
+            _ => None,
+        }
+    }
+
+    /// Whether the provider represents a cloud TEE (AWS Nitro, Intel SGX, AMD SEV).
+    pub fn is_cloud_tee(&self) -> bool {
+        matches!(self, Self::AwsNitro | Self::IntelSgx | Self::AmdSevSnp)
+    }
+
+    /// Whether the provider represents a mobile secure enclave (StrongBox, Apple SE).
+    pub fn is_mobile_enclave(&self) -> bool {
+        matches!(self, Self::AndroidStrongBox | Self::AppleSecureEnclave)
+    }
+
+    /// Whether the provider represents an HSM or TPM module.
+    pub fn is_hsm_or_tpm(&self) -> bool {
+        matches!(self, Self::Pkcs11Hsm | Self::Tpm20)
+    }
+
+    /// Whether the provider uses RISC-V or ARM architectures.
+    pub fn is_riscv_or_arm(&self) -> bool {
+        matches!(self, Self::Keystone | Self::ArmTrustZone)
+    }
+
+    /// Default attestation level for the provider type.
+    pub fn default_attestation_level(&self) -> AttestationLevel {
+        match self {
+            Self::AndroidStrongBox | Self::AppleSecureEnclave => AttestationLevel::StrongBox,
+            Self::AwsNitro | Self::IntelSgx | Self::AmdSevSnp => AttestationLevel::CloudTEE,
+            Self::ArmTrustZone | Self::Keystone => AttestationLevel::TEE,
+            Self::Pkcs11Hsm | Self::Tpm20 | Self::WebAuthnFido2 => AttestationLevel::StrongBox,
+        }
+    }
+
+    /// Driver interface specification reference.
+    pub fn driver_interface_spec(&self) -> &'static str {
+        match self {
+            Self::IntelSgx => "Intel SGX DCAP 1.23+ / ECDSA Quote Specification",
+            Self::AndroidStrongBox => "Android KeyMint v4 / StrongBox Keymaster SE API",
+            Self::AwsNitro => "AWS Nitro Security Module (NSM) / COSE CBOR Attestation",
+            Self::Tpm20 => "TCG TPM 2.0 Library Specification v1.85 / tpm2-pkcs11",
+            Self::AppleSecureEnclave => "Apple DeviceCheck App Attest / Secure Enclave API",
+            Self::AmdSevSnp => "AMD SEV-SNP Firmware ABI Spec / SVSM Interface",
+            Self::ArmTrustZone => "ARM PSA Attestation API 1.0.2 / CCA Realm Management",
+            Self::Keystone => "Keystone RISC-V TEE Enclave Framework / PMP Security Monitor",
+            Self::Pkcs11Hsm => "OASIS PKCS#11 v3.2 Cryptographic Token Interface",
+            Self::WebAuthnFido2 => "W3C WebAuthn Level 3 / FIDO Alliance MDS 3.1.1",
+        }
+    }
+
+    /// Supported cryptographic curves and algorithms for the provider driver.
+    pub fn supported_curves(&self) -> &'static [&'static str] {
+        match self {
+            Self::IntelSgx => &["secp256r1", "secp256k1", "rsa3048"],
+            Self::AndroidStrongBox => &["secp256r1", "secp256k1", "rsa2048", "ed25519"],
+            Self::AwsNitro => &["secp256r1", "secp384r1", "secp256k1", "ed25519"],
+            Self::Tpm20 => &["secp256r1", "rsa2048"],
+            Self::AppleSecureEnclave => &["secp256r1"],
+            Self::AmdSevSnp => &["secp256r1", "secp384r1"],
+            Self::ArmTrustZone => &["secp256r1", "ed25519"],
+            Self::Keystone => &["secp256k1", "ed25519"],
+            Self::Pkcs11Hsm => &["secp256k1", "secp256r1", "rsa2048", "rsa4096", "ed25519"],
+            Self::WebAuthnFido2 => &["secp256r1", "ed25519", "rsa2048"],
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum AttestationLevel {
     Software,
@@ -93,6 +205,16 @@ pub enum AttestationExtension {
     SimulatedSoftwareOnly,
     PlatformCloud,
     OsVersion(String),
+    ProviderIntelSgx,
+    ProviderAndroidStrongBox,
+    ProviderAwsNitro,
+    ProviderTpm20,
+    ProviderAppleSecureEnclave,
+    ProviderAmdSevSnp,
+    ProviderArmTrustZone,
+    ProviderKeystone,
+    ProviderPkcs11Hsm,
+    ProviderWebAuthnFido2,
     Opaque(String),
 }
 
@@ -115,6 +237,16 @@ impl AttestationExtension {
             "SIMULATED" => Self::Simulated,
             "SIMULATED_SOFTWARE_ONLY" => Self::SimulatedSoftwareOnly,
             "PLATFORM_CLOUD" => Self::PlatformCloud,
+            "PROVIDER_INTEL_SGX" => Self::ProviderIntelSgx,
+            "PROVIDER_ANDROID_STRONGBOX" => Self::ProviderAndroidStrongBox,
+            "PROVIDER_AWS_NITRO" => Self::ProviderAwsNitro,
+            "PROVIDER_TPM20" => Self::ProviderTpm20,
+            "PROVIDER_APPLE_SECURE_ENCLAVE" => Self::ProviderAppleSecureEnclave,
+            "PROVIDER_AMD_SEV_SNP" => Self::ProviderAmdSevSnp,
+            "PROVIDER_ARM_TRUSTZONE" => Self::ProviderArmTrustZone,
+            "PROVIDER_KEYSTONE" => Self::ProviderKeystone,
+            "PROVIDER_PKCS11_HSM" => Self::ProviderPkcs11Hsm,
+            "PROVIDER_WEBAUTHN_FIDO2" => Self::ProviderWebAuthnFido2,
             value if value.starts_with("OS_VERSION_") && value.len() > "OS_VERSION_".len() => {
                 Self::OsVersion(value["OS_VERSION_".len()..].to_string())
             }
@@ -137,6 +269,16 @@ impl AttestationExtension {
             Self::OsVersion(version) => (11, Some(version.as_str())),
             Self::AlgorithmSchnorrSecp256k1 => (12, None),
             Self::PurposeVerify => (13, None),
+            Self::ProviderIntelSgx => (20, None),
+            Self::ProviderAndroidStrongBox => (21, None),
+            Self::ProviderAwsNitro => (22, None),
+            Self::ProviderTpm20 => (23, None),
+            Self::ProviderAppleSecureEnclave => (24, None),
+            Self::ProviderAmdSevSnp => (25, None),
+            Self::ProviderArmTrustZone => (26, None),
+            Self::ProviderKeystone => (27, None),
+            Self::ProviderPkcs11Hsm => (28, None),
+            Self::ProviderWebAuthnFido2 => (29, None),
             Self::Opaque(token) => (255, Some(token.as_str())),
         }
     }
@@ -351,6 +493,7 @@ pub struct AttestationPolicy {
     required_purpose: AttestationPurpose,
     required_algorithm: AttestationAlgorithm,
     required_extensions: Vec<AttestationExtension>,
+    expected_hardware_provider: Option<HardwareProviderType>,
     provider_verifier: ProviderVerifier,
 }
 
@@ -372,6 +515,7 @@ impl AttestationPolicy {
             required_purpose: AttestationPurpose::Sign,
             required_algorithm: AttestationAlgorithm::Ed25519,
             required_extensions: vec![AttestationExtension::PurposeSign],
+            expected_hardware_provider: None,
             provider_verifier: ProviderVerifier::Unavailable,
         }
     }
@@ -390,6 +534,7 @@ impl AttestationPolicy {
             required_purpose: AttestationPurpose::Sign,
             required_algorithm: AttestationAlgorithm::Ed25519,
             required_extensions: vec![AttestationExtension::PurposeSign],
+            expected_hardware_provider: None,
             provider_verifier: ProviderVerifier::TestFixture {
                 trusted_roots: vec![
                     "CONCLAVE_ROOT_CA_V1".to_string(),
@@ -513,6 +658,17 @@ impl AttestationPolicy {
 
     pub fn required_extensions(&self) -> &[AttestationExtension] {
         &self.required_extensions
+    }
+
+    /// Binds an expected hardware provider type requirement to the policy.
+    pub fn with_hardware_provider(mut self, provider: HardwareProviderType) -> Self {
+        self.expected_hardware_provider = Some(provider);
+        self
+    }
+
+    /// Returns the expected hardware provider requirement, if configured.
+    pub fn expected_hardware_provider(&self) -> Option<HardwareProviderType> {
+        self.expected_hardware_provider
     }
 
     /// Returns the canonical digest of every attestation-policy input that
@@ -857,6 +1013,25 @@ impl DeviceIntegrityReport {
         // generic DER subject parser or string-root fallback in production.
         if !policy.verify_provider_evidence(self) {
             return false;
+        }
+
+        if let Some(expected_provider) = policy.expected_hardware_provider {
+            let matches_provider = self.extensions.iter().any(|ext| match ext {
+                AttestationExtension::ProviderIntelSgx => expected_provider == HardwareProviderType::IntelSgx,
+                AttestationExtension::ProviderAndroidStrongBox => expected_provider == HardwareProviderType::AndroidStrongBox,
+                AttestationExtension::ProviderAwsNitro => expected_provider == HardwareProviderType::AwsNitro,
+                AttestationExtension::ProviderTpm20 => expected_provider == HardwareProviderType::Tpm20,
+                AttestationExtension::ProviderAppleSecureEnclave => expected_provider == HardwareProviderType::AppleSecureEnclave,
+                AttestationExtension::ProviderAmdSevSnp => expected_provider == HardwareProviderType::AmdSevSnp,
+                AttestationExtension::ProviderArmTrustZone => expected_provider == HardwareProviderType::ArmTrustZone,
+                AttestationExtension::ProviderKeystone => expected_provider == HardwareProviderType::Keystone,
+                AttestationExtension::ProviderPkcs11Hsm => expected_provider == HardwareProviderType::Pkcs11Hsm,
+                AttestationExtension::ProviderWebAuthnFido2 => expected_provider == HardwareProviderType::WebAuthnFido2,
+                _ => false,
+            });
+            if !matches_provider {
+                return false;
+            }
         }
 
         if !policy.allowed_levels.contains(&self.level) {
