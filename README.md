@@ -27,6 +27,10 @@ conxius-enclave-sdk = { git = "https://github.com/Conxian/conxius-enclave-sdk", 
 
 Provide reusable enclave-facing primitives for signing, attestation, device trust, and hardened key handling across Conxian-aligned applications and services.
 
+The reusable contracts are part of the public `conxian.org` security surface. Commercial `conxian-labs.com` work covers provider integration, qualification, deployment support, and bespoke audits without changing the non-custodial rules. Conxian has no native token or staking asset.
+
+Android StrongBox support is currently a bounded authorization/evidence contract, not a production hardware signer. See [the offline signing boundary](./docs/architecture/ANDROID_STRONGBOX_OFFLINE_BOUNDARY.md) for the verified state and launch gates.
+
 ## Scope
 
 This repository focuses on:
