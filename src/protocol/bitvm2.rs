@@ -1410,9 +1410,9 @@ mod tests {
 
     #[test]
     fn test_orchestrator_watchtower_challenge_execution() {
-        let enclave = Arc::new(crate::enclave::cloud::CloudEnclave::new(
-            "http://localhost".to_string(),
-        ).unwrap());
+        let enclave = Arc::new(
+            crate::enclave::cloud::CloudEnclave::new("http://localhost".to_string()).unwrap(),
+        );
         let ark = Arc::new(crate::protocol::ark::ArkManager::new(enclave.clone()));
         let bitvm = Arc::new(BitVmManager::new(enclave));
         let mut orchestrator = BitVm2Orchestrator::new(ark, bitvm);
@@ -1429,15 +1429,24 @@ mod tests {
             resolution: None,
         };
 
-        orchestrator.register_active_challenge("commit-1".to_string(), status).unwrap();
-        assert_eq!(orchestrator.get_challenge_status("commit-1").unwrap().phase, ChallengePhase::Commitment);
+        orchestrator
+            .register_active_challenge("commit-1".to_string(), status)
+            .unwrap();
+        assert_eq!(
+            orchestrator.get_challenge_status("commit-1").unwrap().phase,
+            ChallengePhase::Commitment
+        );
 
         let challenge_tx = ArkTransactionId::new("challenge-tx-1").unwrap();
-        let updated = orchestrator.trigger_watchtower_challenge("commit-1", 105, challenge_tx.clone()).unwrap();
+        let updated = orchestrator
+            .trigger_watchtower_challenge("commit-1", 105, challenge_tx.clone())
+            .unwrap();
         assert_eq!(updated.phase, ChallengePhase::Challenge);
         assert_eq!(updated.challenge_block, Some(105));
         assert_eq!(updated.challenge_txid, Some(challenge_tx));
 
-        assert!(orchestrator.trigger_watchtower_challenge("non-existent", 100, ArkTransactionId::new("tx").unwrap()).is_err());
+        assert!(orchestrator
+            .trigger_watchtower_challenge("non-existent", 100, ArkTransactionId::new("tx").unwrap())
+            .is_err());
     }
 }

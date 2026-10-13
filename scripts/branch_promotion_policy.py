@@ -58,7 +58,6 @@ class PullRequestContext:
     head_repo: str | None
     body: str
     actor: str
-    draft: bool = False
 
     @property
     def same_repository(self) -> bool:
@@ -109,15 +108,6 @@ def _bootstrap_matches(ctx: PullRequestContext, exception: BootstrapException) -
     )
 
 
-def _effective_pr_body(ctx: PullRequestContext, body: str) -> str:
-    """Use the repo PR template when GitHub sends an empty body for a dev-targeted PR."""
-    if body.strip():
-        return body
-    if ctx.base_ref == "dev" and Path(".github/PULL_REQUEST_TEMPLATE.md").exists():
-        return Path(".github/PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
-    return body
-
-
 def _validate_generated_evidence(
     ctx: PullRequestContext, branch_source_sha: str, errors: list[str]
 ) -> None:
@@ -158,7 +148,7 @@ def validate_pull_request(
         return []
 
     errors: list[str] = []
-    body = _effective_pr_body(ctx, ctx.body or "")
+    body = ctx.body or ""
 
     if any(ctx.head_ref.startswith(p) for p in ("jules-", "jules/", "sec/")) and Path(".github/PULL_REQUEST_TEMPLATE.md").exists():
         template_text = Path(".github/PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
@@ -254,22 +244,21 @@ def validate_pull_request(
             missing = [heading for heading in required_headings if not _has_heading(body, heading)]
             if missing:
                 errors.append("Mainnet Acceptance Evidence Pack is missing: " + ", ".join(missing) + ".")
-            if not ctx.draft:
-                unfilled = [
-                    heading
-                    for heading in required_headings
-                    if _has_heading(body, heading)
-                    and (
-                        not _heading_content(body, heading)
-                        or EVIDENCE_PLACEHOLDER_RE.search(_heading_content(body, heading))
-                    )
-                ]
-                if unfilled:
-                    errors.append(
-                        "Mainnet Acceptance Evidence Pack must be completed (not placeholder) for: "
-                        + ", ".join(unfilled)
-                        + "."
-                    )
+            unfilled = [
+                heading
+                for heading in required_headings
+                if _has_heading(body, heading)
+                and (
+                    not _heading_content(body, heading)
+                    or EVIDENCE_PLACEHOLDER_RE.search(_heading_content(body, heading))
+                )
+            ]
+            if unfilled:
+                errors.append(
+                    "Mainnet Acceptance Evidence Pack must be completed (not placeholder) for: "
+                    + ", ".join(unfilled)
+                    + "."
+                )
         return errors
 
     errors.append("Branch Promotion Policy only accepts pull requests targeting dev, staged, or main.")
@@ -291,7 +280,6 @@ def context_from_event(event: dict[str, Any]) -> PullRequestContext:
         head_repo=pr.get("head", {}).get("repo", {}).get("full_name"),
         body=pr.get("body") or "",
         actor=pr.get("user", {}).get("login") or event.get("sender", {}).get("login", ""),
-        draft=bool(pr.get("draft", False)),
     )
 
 

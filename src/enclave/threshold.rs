@@ -214,9 +214,10 @@ impl EnclaveManager for ThresholdEnclaveManager {
             if context_bytes.len() == 8 {
                 let requested_amount = u64::from_be_bytes(context_bytes.try_into().unwrap());
                 if requested_amount > limit {
-                    return Err(ConclaveError::InvalidConfiguration(
-                        format!("Requested value {} exceeds KMaaS policy limit {}", requested_amount, limit)
-                    ));
+                    return Err(ConclaveError::InvalidConfiguration(format!(
+                        "Requested value {} exceeds KMaaS policy limit {}",
+                        requested_amount, limit
+                    )));
                 }
             }
         }
@@ -376,13 +377,11 @@ mod tests {
             "test_domain",
             crate::enclave::ValueBearingPurpose::Settlement,
             1_500_000u64.to_be_bytes().to_vec(),
-        ).unwrap();
+        )
+        .unwrap();
 
-        let key_binding = crate::enclave::SignerKeyBinding::new(
-            "key-1",
-            "m/44/0/0/0/0",
-            vec![2; 33],
-        ).unwrap();
+        let key_binding =
+            crate::enclave::SignerKeyBinding::new("key-1", "m/44/0/0/0/0", vec![2; 33]).unwrap();
 
         let request = ValueBearingSignRequest::new(
             context,
@@ -391,7 +390,8 @@ mod tests {
             [1; 32],
             key_binding,
             None,
-        ).unwrap();
+        )
+        .unwrap();
 
         let res = manager.sign_value_bearing_provider(&request);
         assert!(matches!(res, Err(ConclaveError::InvalidConfiguration(_))));
