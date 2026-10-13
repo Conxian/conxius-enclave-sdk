@@ -21,7 +21,10 @@ const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
 /// Version of the canonical signed attestation envelope.
 pub const ATTESTATION_ENVELOPE_VERSION: u16 = 2;
 
-/// Supported hardware provider types for enclave, HSM, TPM, and mobile signing backends.
+/// Provider identifiers understood by the attestation contract.
+///
+/// A variant means the SDK can name and policy-bind the provider. It does not
+/// mean that a production verifier or signer for that provider is available.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum HardwareProviderType {
     IntelSgx,
@@ -90,47 +93,39 @@ impl HardwareProviderType {
         matches!(self, Self::Keystone | Self::ArmTrustZone)
     }
 
-    /// Default attestation level for the provider type.
-    pub fn default_attestation_level(&self) -> AttestationLevel {
+    /// Claimed attestation tier used for policy construction and test fixtures.
+    ///
+    /// The provider verifier must independently establish this tier from
+    /// authentic evidence before any report is accepted.
+    pub fn policy_level_hint(&self) -> Option<AttestationLevel> {
         match self {
-            Self::AndroidStrongBox | Self::AppleSecureEnclave => AttestationLevel::StrongBox,
-            Self::AwsNitro | Self::IntelSgx | Self::AmdSevSnp => AttestationLevel::CloudTEE,
-            Self::ArmTrustZone | Self::Keystone => AttestationLevel::TEE,
-            Self::Pkcs11Hsm | Self::Tpm20 | Self::WebAuthnFido2 => AttestationLevel::StrongBox,
+            Self::AndroidStrongBox | Self::AppleSecureEnclave => {
+                Some(AttestationLevel::StrongBox)
+            }
+            Self::AwsNitro | Self::IntelSgx | Self::AmdSevSnp => {
+                Some(AttestationLevel::CloudTEE)
+            }
+            Self::ArmTrustZone | Self::Keystone => Some(AttestationLevel::TEE),
+            Self::Pkcs11Hsm | Self::Tpm20 | Self::WebAuthnFido2 => None,
         }
     }
 
     /// Driver interface specification reference.
     pub fn driver_interface_spec(&self) -> &'static str {
         match self {
-            Self::IntelSgx => "Intel SGX DCAP 1.23+ / ECDSA Quote Specification",
+            Self::IntelSgx => "Intel SGX DCAP / ECDSA Quote Specification",
             Self::AndroidStrongBox => "Android KeyMint v4 / StrongBox Keymaster SE API",
             Self::AwsNitro => "AWS Nitro Security Module (NSM) / COSE CBOR Attestation",
             Self::Tpm20 => "TCG TPM 2.0 Library Specification v1.85 / tpm2-pkcs11",
             Self::AppleSecureEnclave => "Apple DeviceCheck App Attest / Secure Enclave API",
             Self::AmdSevSnp => "AMD SEV-SNP Firmware ABI Spec / SVSM Interface",
-            Self::ArmTrustZone => "ARM PSA Attestation API 1.0.2 / CCA Realm Management",
+            Self::ArmTrustZone => "Arm PSA Initial Attestation / TrustZone integration profile",
             Self::Keystone => "Keystone RISC-V TEE Enclave Framework / PMP Security Monitor",
             Self::Pkcs11Hsm => "OASIS PKCS#11 v3.2 Cryptographic Token Interface",
             Self::WebAuthnFido2 => "W3C WebAuthn Level 3 / FIDO Alliance MDS 3.1.1",
         }
     }
 
-    /// Supported cryptographic curves and algorithms for the provider driver.
-    pub fn supported_curves(&self) -> &'static [&'static str] {
-        match self {
-            Self::IntelSgx => &["secp256r1", "secp256k1", "rsa3048"],
-            Self::AndroidStrongBox => &["secp256r1", "secp256k1", "rsa2048", "ed25519"],
-            Self::AwsNitro => &["secp256r1", "secp384r1", "secp256k1", "ed25519"],
-            Self::Tpm20 => &["secp256r1", "rsa2048"],
-            Self::AppleSecureEnclave => &["secp256r1"],
-            Self::AmdSevSnp => &["secp256r1", "secp384r1"],
-            Self::ArmTrustZone => &["secp256r1", "ed25519"],
-            Self::Keystone => &["secp256k1", "ed25519"],
-            Self::Pkcs11Hsm => &["secp256k1", "secp256r1", "rsa2048", "rsa4096", "ed25519"],
-            Self::WebAuthnFido2 => &["secp256r1", "ed25519", "rsa2048"],
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -457,6 +452,43 @@ fn level_tag(level: AttestationLevel) -> u8 {
     }
 }
 
+fn hardware_provider_tag(provider: HardwareProviderType) -> u8 {
+    match provider {
+        HardwareProviderType::IntelSgx => 1,
+        HardwareProviderType::AndroidStrongBox => 2,
+        HardwareProviderType::AwsNitro => 3,
+        HardwareProviderType::Tpm20 => 4,
+        HardwareProviderType::AppleSecureEnclave => 5,
+        HardwareProviderType::AmdSevSnp => 6,
+        HardwareProviderType::ArmTrustZone => 7,
+        HardwareProviderType::Keystone => 8,
+        HardwareProviderType::Pkcs11Hsm => 9,
+        HardwareProviderType::WebAuthnFido2 => 10,
+    }
+}
+
+fn attestation_extension_provider(
+    extension: &AttestationExtension,
+) -> Option<HardwareProviderType> {
+    match extension {
+        AttestationExtension::ProviderIntelSgx => Some(HardwareProviderType::IntelSgx),
+        AttestationExtension::ProviderAndroidStrongBox => {
+            Some(HardwareProviderType::AndroidStrongBox)
+        }
+        AttestationExtension::ProviderAwsNitro => Some(HardwareProviderType::AwsNitro),
+        AttestationExtension::ProviderTpm20 => Some(HardwareProviderType::Tpm20),
+        AttestationExtension::ProviderAppleSecureEnclave => {
+            Some(HardwareProviderType::AppleSecureEnclave)
+        }
+        AttestationExtension::ProviderAmdSevSnp => Some(HardwareProviderType::AmdSevSnp),
+        AttestationExtension::ProviderArmTrustZone => Some(HardwareProviderType::ArmTrustZone),
+        AttestationExtension::ProviderKeystone => Some(HardwareProviderType::Keystone),
+        AttestationExtension::ProviderPkcs11Hsm => Some(HardwareProviderType::Pkcs11Hsm),
+        AttestationExtension::ProviderWebAuthnFido2 => Some(HardwareProviderType::WebAuthnFido2),
+        _ => None,
+    }
+}
+
 /// Status of the provider-specific verifier behind an attestation policy.
 ///
 /// `Unavailable` is the only production status in this release. Real Android,
@@ -712,6 +744,12 @@ impl AttestationPolicy {
         for extension in required_extensions {
             append_digest_component(&mut canonical, &extension)?;
         }
+
+        canonical.push(
+            self.expected_hardware_provider
+                .map(hardware_provider_tag)
+                .unwrap_or(0),
+        );
 
         match &self.provider_verifier {
             ProviderVerifier::Unavailable => canonical.push(0),
@@ -1016,20 +1054,12 @@ impl DeviceIntegrityReport {
         }
 
         if let Some(expected_provider) = policy.expected_hardware_provider {
-            let matches_provider = self.extensions.iter().any(|ext| match ext {
-                AttestationExtension::ProviderIntelSgx => expected_provider == HardwareProviderType::IntelSgx,
-                AttestationExtension::ProviderAndroidStrongBox => expected_provider == HardwareProviderType::AndroidStrongBox,
-                AttestationExtension::ProviderAwsNitro => expected_provider == HardwareProviderType::AwsNitro,
-                AttestationExtension::ProviderTpm20 => expected_provider == HardwareProviderType::Tpm20,
-                AttestationExtension::ProviderAppleSecureEnclave => expected_provider == HardwareProviderType::AppleSecureEnclave,
-                AttestationExtension::ProviderAmdSevSnp => expected_provider == HardwareProviderType::AmdSevSnp,
-                AttestationExtension::ProviderArmTrustZone => expected_provider == HardwareProviderType::ArmTrustZone,
-                AttestationExtension::ProviderKeystone => expected_provider == HardwareProviderType::Keystone,
-                AttestationExtension::ProviderPkcs11Hsm => expected_provider == HardwareProviderType::Pkcs11Hsm,
-                AttestationExtension::ProviderWebAuthnFido2 => expected_provider == HardwareProviderType::WebAuthnFido2,
-                _ => false,
-            });
-            if !matches_provider {
+            let providers = self
+                .extensions
+                .iter()
+                .filter_map(attestation_extension_provider)
+                .collect::<Vec<_>>();
+            if providers.as_slice() != [expected_provider] {
                 return false;
             }
         }
