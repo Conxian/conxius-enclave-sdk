@@ -31,7 +31,7 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 - **Priority**: P1 - Critical
 - **Description**: Android StrongBox, Nitro, PKCS#11/HSM, TPM, Intel/AMD confidential-computing, Apple Secure Enclave, cloud HSM, and Keystone surfaces do not yet have complete provider-issued signer plus verifier paths. Generic metadata, simulators, platform names, and chip/SoC names cannot establish hardware provenance.
 - **Risk**: A structural adapter or vendor label could be upgraded into a false non-exportability, attestation, Bitcoin-signing, or production-support claim.
-- **Remediation**: Execute HS-001 through HS-012 in [`docs/architecture/HARDWARE_SIGNING_PROVIDER_MATRIX_2026.md`](docs/architecture/HARDWARE_SIGNING_PROVIDER_MATRIX_2026.md). Require runtime discovery, current roots/collateral/TCB policy, key-to-operation binding, durable replay, real-device negative tests, independent review, and exact release evidence.
+- **Remediation**: Execute HS-001 through HS-013 in [`docs/architecture/HARDWARE_SIGNING_PROVIDER_MATRIX_2026.md`](docs/architecture/HARDWARE_SIGNING_PROVIDER_MATRIX_2026.md). Require runtime discovery, current roots/collateral/TCB policy, key-to-operation binding, durable replay, real-device negative tests, independent review, and exact release evidence.
 - **Status**: Active. Generic PKCS#11 fallbacks and metadata-based hardware detection were changed to fail closed on 2026-10-13; all provider support decisions remain unsupported pending qualification.
 
 #### DEP-001: Yanked `secp256k1 0.32.0-beta.2` dependency ✅ RESOLVED (2026-08-30)
