@@ -1,5 +1,7 @@
 # conxius-enclave-sdk
 
+Bitcoin-rooted universal-chain capability truth is recorded in the support inventory and [hardware driver research](docs/architecture/HARDWARE_DRIVER_QUALIFICATION_2026_10_14.md). Driver availability, signature validity, independent custody, and production qualification require separate evidence.
+
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
 [![Version](https://img.shields.io/badge/version-2.x-blue.svg)](CHANGELOG.md)
