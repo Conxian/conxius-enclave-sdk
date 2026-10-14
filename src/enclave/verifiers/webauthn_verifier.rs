@@ -18,8 +18,8 @@
 //! - FIDO2 Attestation: https://fidoalliance.org/specs/
 //! - webauthn-rs crate: https://docs.rs/webauthn-rs/
 
-use crate::{ConclaveError, ConclaveResult};
 use crate::enclave::attestation::HardwareProviderType;
+use crate::{ConclaveError, ConclaveResult};
 #[cfg(feature = "webauthn")]
 use sha2::{Digest, Sha256};
 
@@ -384,7 +384,10 @@ mod tests {
             user_verified: true,
             attestation_trusted: true,
         };
-        assert_eq!(cred.hardware_provider(), HardwareProviderType::AppleSecureEnclave);
+        assert_eq!(
+            cred.hardware_provider(),
+            HardwareProviderType::AppleSecureEnclave
+        );
 
         let config = WebauthnConfig {
             rp_id: "test.local".into(),
@@ -394,6 +397,9 @@ mod tests {
             trusted_attestation_cas: vec![],
         };
         let verifier = WebauthnVerifier::new(config);
-        assert_eq!(verifier.provider_type(&cred), HardwareProviderType::AppleSecureEnclave);
+        assert_eq!(
+            verifier.provider_type(&cred),
+            HardwareProviderType::AppleSecureEnclave
+        );
     }
 }

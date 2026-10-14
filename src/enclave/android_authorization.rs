@@ -7,8 +7,8 @@
 //! Android KeyMint ASN.1 authorization lists, trust Google roots, validate
 //! Play Integrity server-side, or provide durable replay protection.
 
-use crate::{ConclaveError, ConclaveResult};
 use crate::enclave::attestation::HardwareProviderType;
+use crate::{ConclaveError, ConclaveResult};
 use serde::de::{self, Deserializer, Error as DeError, SeqAccess, Visitor};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

@@ -848,21 +848,31 @@ impl DeviceIntegrityReport {
     pub fn hardware_provider(&self) -> Option<HardwareProviderType> {
         for ext in &self.extensions {
             match ext {
-                AttestationExtension::ProviderIntelSgx => return Some(HardwareProviderType::IntelSgx),
+                AttestationExtension::ProviderIntelSgx => {
+                    return Some(HardwareProviderType::IntelSgx)
+                }
                 AttestationExtension::ProviderAndroidStrongBox => {
                     return Some(HardwareProviderType::AndroidStrongBox)
                 }
-                AttestationExtension::ProviderAwsNitro => return Some(HardwareProviderType::AwsNitro),
+                AttestationExtension::ProviderAwsNitro => {
+                    return Some(HardwareProviderType::AwsNitro)
+                }
                 AttestationExtension::ProviderTpm20 => return Some(HardwareProviderType::Tpm20),
                 AttestationExtension::ProviderAppleSecureEnclave => {
                     return Some(HardwareProviderType::AppleSecureEnclave)
                 }
-                AttestationExtension::ProviderAmdSevSnp => return Some(HardwareProviderType::AmdSevSnp),
+                AttestationExtension::ProviderAmdSevSnp => {
+                    return Some(HardwareProviderType::AmdSevSnp)
+                }
                 AttestationExtension::ProviderArmTrustZone => {
                     return Some(HardwareProviderType::ArmTrustZone)
                 }
-                AttestationExtension::ProviderKeystone => return Some(HardwareProviderType::Keystone),
-                AttestationExtension::ProviderPkcs11Hsm => return Some(HardwareProviderType::Pkcs11Hsm),
+                AttestationExtension::ProviderKeystone => {
+                    return Some(HardwareProviderType::Keystone)
+                }
+                AttestationExtension::ProviderPkcs11Hsm => {
+                    return Some(HardwareProviderType::Pkcs11Hsm)
+                }
                 AttestationExtension::ProviderWebAuthnFido2 => {
                     return Some(HardwareProviderType::WebAuthnFido2)
                 }

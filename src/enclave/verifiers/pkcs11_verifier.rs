@@ -13,8 +13,8 @@
 //! - rust-cryptoki: https://github.com/parallaxsecond/rust-cryptoki
 //! - tpm2-pkcs11: https://github.com/tpm2-software/tpm2-pkcs11
 
-use crate::{ConclaveError, ConclaveResult};
 use crate::enclave::attestation::HardwareProviderType;
+use crate::{ConclaveError, ConclaveResult};
 
 #[cfg(feature = "cryptoki")]
 use {

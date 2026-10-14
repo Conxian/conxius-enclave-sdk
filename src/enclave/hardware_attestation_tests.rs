@@ -859,8 +859,13 @@ mod edge_case_tests {
 
         assert_eq!(report.hardware_provider(), None);
 
-        report.extensions.push(AttestationExtension::ProviderAwsNitro);
-        assert_eq!(report.hardware_provider(), Some(HardwareProviderType::AwsNitro));
+        report
+            .extensions
+            .push(AttestationExtension::ProviderAwsNitro);
+        assert_eq!(
+            report.hardware_provider(),
+            Some(HardwareProviderType::AwsNitro)
+        );
 
         let pkcs11_tpm = Pkcs11AttestationEvidence {
             module_path: "/usr/lib/libtpm2_pkcs11.so".into(),
@@ -890,6 +895,9 @@ mod edge_case_tests {
             certificate_chain: vec![vec![1, 2, 3]],
             play_integrity_evidence: None,
         };
-        assert_eq!(android_strongbox.hardware_provider(), HardwareProviderType::AndroidStrongBox);
+        assert_eq!(
+            android_strongbox.hardware_provider(),
+            HardwareProviderType::AndroidStrongBox
+        );
     }
 }
