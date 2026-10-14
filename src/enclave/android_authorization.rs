@@ -573,6 +573,30 @@ impl fmt::Debug for AndroidAuthorizationEvidence {
 }
 
 impl AndroidAuthorizationEvidence {
+    /// Identifies the hardware chipset and secure element tier based on reported tier and attestation metadata.
+    pub fn identify_chipset_driver(&self) -> &'static str {
+        match self.actual_tier {
+            AndroidReportedTier::StrongBox => {
+                if self.package_name.contains("pixel") || self.key_id.contains("titan") {
+                    "Google Titan M2 / KeyMint SE Driver"
+                } else if self.package_name.contains("samsung") || self.key_id.contains("knox") {
+                    "Samsung Knox Vault / StrongBox SE Driver"
+                } else if self.key_id.contains("qsee") || self.key_id.contains("spu") {
+                    "Qualcomm SPU / QSEE StrongBox Driver"
+                } else {
+                    "Android StrongBox KeyMint Hardware SE Driver"
+                }
+            }
+            AndroidReportedTier::AndroidTee => {
+                if self.key_id.contains("trustzone") || self.package_name.contains("arm") {
+                    "ARM TrustZone TEE Driver"
+                } else {
+                    "Android TEE Keymaster Driver"
+                }
+            }
+            AndroidReportedTier::Software => "Software Keymaster Simulator",
+        }
+    }
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         actual_tier: AndroidReportedTier,

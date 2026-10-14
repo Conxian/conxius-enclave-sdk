@@ -26,13 +26,14 @@ The [capability evidence JSON](docs/architecture/capability-evidence.json) is th
 
 ### P1 - Critical
 
-#### SEC-006: Hardware signer/provider qualification matrix
+#### SEC-006: Android StrongBox offline provider integration
 - **Category**: Security / Architecture / Testing
 - **Priority**: P1 - Critical
-- **Description**: Android StrongBox, Nitro, PKCS#11/HSM, TPM, Intel/AMD confidential-computing, Apple Secure Enclave, cloud HSM, and Keystone surfaces do not yet have complete provider-issued signer plus verifier paths. Generic metadata, simulators, platform names, and chip/SoC names cannot establish hardware provenance.
-- **Risk**: A structural adapter or vendor label could be upgraded into a false non-exportability, attestation, Bitcoin-signing, or production-support claim.
-- **Remediation**: Execute HS-001 through HS-013 in [`docs/architecture/HARDWARE_SIGNING_PROVIDER_MATRIX_2026.md`](docs/architecture/HARDWARE_SIGNING_PROVIDER_MATRIX_2026.md). Require runtime discovery, current roots/collateral/TCB policy, key-to-operation binding, durable replay, real-device negative tests, independent review, and exact release evidence.
-- **Status**: Active. Generic PKCS#11 fallbacks and metadata-based hardware detection were changed to fail closed on 2026-10-13; all provider support decisions remain unsupported pending qualification.
+- **Description**: Android authorization request/evidence types are bounded and fail closed, but the provider verifier and physical StrongBox signer adapter are unavailable. The software manager in `android_strongbox.rs` is a development fixture.
+- **Risk**: Module names or structurally valid evidence could be mistaken for proof that a key is non-exportable or that signing occurred in StrongBox.
+- **Recommendation**: Implement the provider adapter only with non-exportable key generation, offline digest signing, KeyMint extension/root/revocation/boot/patch validation, server-side Play Integrity verification, durable replay, physical-device negative tests, and independent review. Keep value-bearing support unavailable until exact evidence is attached.
+- **Related**: PR #544 is blocked because its value cap fails open on malformed operation context and its watchtower method records caller claims without execution evidence.
+- **Status**: Active; contract only. See `docs/architecture/ANDROID_STRONGBOX_OFFLINE_BOUNDARY.md`.
 
 #### DEP-001: Yanked `secp256k1 0.32.0-beta.2` dependency ✅ RESOLVED (2026-08-30)
 - **Category**: Dependency
