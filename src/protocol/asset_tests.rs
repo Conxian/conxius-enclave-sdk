@@ -20,10 +20,7 @@ mod tests {
         assert_eq!(assets.len(), BUILTIN_ASSET_RECORD_COUNT);
         assert_eq!(active, BUILTIN_ACTIVE_ASSET_RECORD_COUNT);
 
-        let mut chain_names = ALL_CHAINS
-            .iter()
-            .map(Chain::as_str)
-            .collect::<Vec<_>>();
+        let mut chain_names = ALL_CHAINS.iter().map(Chain::as_str).collect::<Vec<_>>();
         chain_names.sort_unstable();
         chain_names.dedup();
         assert_eq!(chain_names.len(), ALL_CHAINS.len());
