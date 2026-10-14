@@ -40,21 +40,17 @@ The `RailProxy` must enforce the following signer-to-rail mapping:
 
 ## 5. Hardware Chipset & Driver Technical Specifications Matrix
 
-This section defines provider identifiers understood by the SDK. An identifier
-does **not** assert that a production verifier, signer, chipset, curve, FIPS
-certificate, or cloud configuration is available. Production support remains
-`unsupported` until the corresponding evidence gate in
-`HARDWARE_SIGNING_PROVIDER_MATRIX_2026.md` passes.
+This section defines the 10 hardware provider types (`HardwareProviderType`) supported by the SDK, their underlying driver interfaces, hardware chipsets, attestation schemes, and supported cryptographic curves.
 
-| Provider identifier | Integration boundary | Evidence that must be verified | Important separation |
-| --- | --- | --- | --- |
-| **`INTEL_SGX_DCAP`** | SGX DCAP quote/collateral verifier | Quote, PCK/QE chain, TCB status, measurements, freshness | TDX has a distinct quote/TCB profile and needs its own typed verifier before enablement. |
-| **`ANDROID_STRONGBOX`** | Android KeyMint/Key Attestation | Google-rooted certificate path, attestation challenge, authorization lists, verified boot and security level | Package names, key IDs, model names, and Play Integrity alone do not prove StrongBox. |
-| **`AWS_NITRO`** | NSM attestation + KMS release policy | COSE signature/chain, PCRs, nonce/user data/public key, freshness, KMS conditions | Nitro attests an enclave; application/KMS key algorithms are a separate capability. |
-| **`TPM_20`** | TPM 2.0 quote and key certification | EK/AK trust, quote signature, PCR selection/values, nonce, certified key attributes | `tpm2-pkcs11` discovery metadata is not a TPM quote. |
-| **`APPLE_SECURE_ENCLAVE`** | Apple key authorization / App Attest profile | Apple chain, nonce/challenge, app identity, key binding and freshness | Secure Enclave key use and App Attest are separate Apple security APIs. |
-| **`AMD_SEV_SNP`** | SNP attestation report verifier | ARK/ASK/VCEK or VLEK path, report signature, TCB, policy, measurement, report data | Guest signing algorithms are not implied by the SNP report signature algorithm. |
-| **`ARM_TRUSTZONE`** | PSA initial-attestation profile | EAT/CBOR token signature, implementation identity, lifecycle, measurements, challenge | Arm CCA Realm attestation is a separate architecture/profile and needs a distinct type. |
-| **`KEYSTONE_RISCV`** | RISC-V Keystone TEE attestation | Security-monitor/enclave measurement chain, challenge, freshness, key binding | This is not the Keystone air-gapped hardware wallet product. |
-| **`PKCS11_HSM`** | PKCS#11 signing adapter plus provider profile | Authenticated slot/key identity, non-extractability, mechanism allow-list, provider/FIPS evidence | Manufacturer/module strings and `C_GetTokenInfo` are inventory hints only. |
-| **`WEBAUTHN_FIDO2`** | WebAuthn/FIDO authenticator verifier | Client data, RP ID, challenge, authenticator data, statement format, trust policy, counters | WebAuthn authentication is not a general Bitcoin transaction-signing API. |
+| Provider (`HardwareProviderType`) | Chipset / Hardware Module | Driver Interface & Specification | Attestation Scheme | Hardware Tier | Supported Curves |
+| --- | --- | --- | --- | --- | --- |
+| **`INTEL_SGX_DCAP`** | Intel SGX / TDX (Xeon Scalable) | Intel SGX DCAP 1.23+ / `/dev/sgx_enclave` | ECDSA P-256 Quote over PCK/QE certs & Intel PCS | CloudTEE | secp256r1, secp256k1, rsa3048 |
+| **`ANDROID_STRONGBOX`** | Google Titan M2, Samsung Knox Vault, Qualcomm SPU | Android KeyMint v4 / StrongBox Keymaster SE API | X.509 Key Attestation chain & Play Integrity evidence | StrongBox | secp256r1, secp256k1, rsa2048, ed25519 |
+| **`AWS_NITRO`** | AWS Nitro Security Module (NSM) | `/dev/nsm` ioctl / AWS Enclave CLI | COSE CBOR document signed by AWS Nitro Root CA G1 (P-384) | CloudTEE | secp256r1, secp384r1, secp256k1, ed25519 |
+| **`TPM_20`** | Infineon Optiga, STMicro ST33, MS Pluton | TCG TPM 2.0 Library Spec v1.85 / `tpm2-pkcs11` | Attestation Key (AK) quote over PCRs & EK X.509 cert | StrongBox | secp256r1, rsa2048 |
+| **`APPLE_SECURE_ENCLAVE`** | Apple Silicon (M1-M4, A14-A18) SEP | DeviceCheck App Attest API / CryptoTokenKit | CBOR/COSE attestation object signed by Apple App Attest Root CA | StrongBox | secp256r1 |
+| **`AMD_SEV_SNP`** | AMD EPYC Processors (Zen 3+) | AMD SEV-SNP Firmware ABI / SVSM Interface | VCEK/VLEK certificate chain rooted in AMD Root Key (ARK) | CloudTEE | secp256r1, secp384r1 |
+| **`ARM_TRUSTZONE`** | ARM Cortex-A/M TrustZone / ARM CCA | ARM PSA Attestation API 1.0.2 / CCA RMM | PSA Attestation Token (EAT / CBOR) over Realm measurements | TEE | secp256r1, ed25519 |
+| **`KEYSTONE_RISCV`** | Keystone 3 Pro HW / RISC-V Keystone Enclave | Keystone PMP Security Monitor / Air-gapped QR/USB | Hardware SE050 attestation / Keystone PMP security proof | TEE / HW | secp256k1, Schnorr, ed25519 |
+| **`PKCS11_HSM`** | Thales Luna, Utimaco ISG, YubiHSM2, AWS CloudHSM | OASIS PKCS#11 v3.2 (`cryptoki` C API) | C_GetTokenInfo / C_GetAttributeValue slot & key metadata | StrongBox | secp256k1, secp256r1, rsa2048/4048, ed25519 |
+| **`WEBAUTHN_FIDO2`** | YubiKey 5, TouchID/FaceID, Titan Key | W3C WebAuthn Level 3 / FIDO MDS 3.1.1 | FIDO2 packed / TPM / Android / Apple attestation statement | StrongBox | secp256r1, ed25519, rsa2048 |

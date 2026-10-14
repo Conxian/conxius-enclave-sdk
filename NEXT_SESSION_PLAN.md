@@ -2,22 +2,6 @@
 
 ## Session 84 Completed (2026-10-11) — Hardware Signing Chipset Drivers, HSM, Keystone, Enclave & StrongBox Research Expansion
 
-Provider identifiers and policy bindings were added as an inventory and
-verification contract. They do not grant production support by themselves.
-
-## Hardware signing expansion added (2026-10-13)
-
-The verified provider matrix and implementation queue are maintained in
-[`docs/architecture/HARDWARE_SIGNING_PROVIDER_MATRIX_2026.md`](docs/architecture/HARDWARE_SIGNING_PROVIDER_MATRIX_2026.md).
-The immediate order is HS-001/002 (Android verifier + signer), HS-003 (Nitro
-NSM/KMS signer), HS-004/005 (PKCS#11 provider policy + correct capability
-discovery), and HS-012 (qualification harness). TPM, DCAP, SEV-SNP, Keystone,
-Apple authorization, YubiHSM, and cloud-HSM profiles remain explicitly
-unsupported until their listed evidence gates pass.
-
-This queue preserves the Bitcoin L1, zero-native-token boundary. Vendor and
-chipset names are inventory metadata, never proof of hardware signing.
-
 ### ✅ Hardware Provider Types & Chipset Driver Classification
 - Implemented `HardwareProviderType` enum (`IntelSgx`, `AndroidStrongBox`, `AwsNitro`, `Tpm20`, `AppleSecureEnclave`, `AmdSevSnp`, `ArmTrustZone`, `Keystone`, `Pkcs11Hsm`, `WebAuthnFido2`) in `src/enclave/attestation.rs`.
 - Added helper methods for provider classification, driver interface spec resolution, default attestation level, and supported curves.

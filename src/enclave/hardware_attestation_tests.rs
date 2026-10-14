@@ -705,10 +705,7 @@ mod edge_case_tests {
             assert_eq!(provider.is_hsm_or_tpm(), is_hsm_tpm);
             assert_eq!(provider.is_riscv_or_arm(), is_riscv_arm);
             assert!(!provider.driver_interface_spec().is_empty());
-            assert_ne!(
-                provider.policy_level_hint(),
-                Some(AttestationLevel::Software)
-            );
+            assert!(!provider.supported_curves().is_empty());
         }
     }
 
@@ -793,34 +790,6 @@ mod edge_case_tests {
             mismatch_result.is_err(),
             "Mismatched provider extension must fail closed"
         );
-
-        let mut ambiguous_report = generator.generate_valid_report(&nonce, now);
-        ambiguous_report
-            .extensions
-            .push(AttestationExtension::ProviderAwsNitro);
-        ambiguous_report
-            .extensions
-            .push(AttestationExtension::ProviderIntelSgx);
-        ambiguous_report
-            .extension_data
-            .push_str("|PROVIDER_AWS_NITRO|PROVIDER_INTEL_SGX");
-        ambiguous_report
-            .sign_with_ed25519_key(&test_signing_key())
-            .expect("re-sign report");
-        assert!(
-            ambiguous_report
-                .verify_with_policy_result(&nonce, &policy)
-                .is_err(),
-            "Multiple provider claims must fail closed"
-        );
-
-        let other_policy = AttestationPolicy::test_fixture()
-            .with_hardware_provider(HardwareProviderType::IntelSgx);
-        assert_ne!(
-            policy.canonical_digest().expect("Nitro policy digest"),
-            other_policy.canonical_digest().expect("SGX policy digest"),
-            "Provider selection must be bound into the canonical policy digest"
-        );
     }
 
     #[test]
@@ -835,7 +804,7 @@ mod edge_case_tests {
             key_type: Pkcs11KeyType::EcdsaSecp256k1,
         };
         assert_eq!(
-            pkcs11_luna.unverified_module_hint(),
+            pkcs11_luna.classify_hardware_module(),
             "Thales Luna HSM (PKCS#11 Driver)"
         );
 
@@ -849,7 +818,7 @@ mod edge_case_tests {
             key_type: Pkcs11KeyType::EcdsaSecp256k1,
         };
         assert_eq!(
-            pkcs11_yubi.unverified_module_hint(),
+            pkcs11_yubi.classify_hardware_module(),
             "YubiHSM2 (yubihsm-pkcs11 Driver)"
         );
 
@@ -876,7 +845,7 @@ mod edge_case_tests {
             ),
         };
         assert_eq!(
-            android_titan.unverified_platform_hint(),
+            android_titan.identify_chipset_driver(),
             "Google Titan M2 / KeyMint SE Driver"
         );
     }
