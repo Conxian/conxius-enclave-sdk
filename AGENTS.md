@@ -19,6 +19,28 @@
 - All new protocol modules implement `EnclaveManager::initialize()` (and `UniversalChainSigner::initialize()` for signing surfaces) for runtime state setup.
 - Value-bearing crypto is feature-gated and fails closed without the feature: `groth16` (BLS12-381 pairings), `frost-crypto` (ZF FROST v3), `cryptoki` (PKCS#11), `webauthn` (FIDO2), `fedimint-crypto` (BLS12-381 e-cash blinding + DLEQ).
 
+## Verified support measures (2026-10-14)
+
+Do not compress different support axes into one marketing number. The checked-in
+[`support-inventory.json`](docs/architecture/support-inventory.json) and its
+validator currently establish: 42 SDK-local chain/network/layer identifiers,
+52 built-in chain-and-symbol asset records (30 active), 43 non-test protocol
+modules, 70 capability-evidence records, 19 exact SDK-to-Core chain projections,
+and zero production-supported capability-evidence records. A capability row is
+not a connection, and registration is not live adapter or SLA evidence.
+
+The system is universal-chain with Bitcoin L1 as its canonical trust/finality
+root. The zero-token policy prohibits a native Conxian token, tokenomics, and
+Conxian staking incentives; it does not prohibit external assets, chains,
+layers, or independently evidenced staking adapters.
+
+Signing claims follow the same evidence rule. A verified signature does not by
+itself establish threshold execution, independent custody, decentralized
+administration, or production qualification. The checked-in
+[`decentralized-signing-inventory.json`](docs/architecture/decentralized-signing-inventory.json)
+is the current claim boundary; the public conformance artifact must remain
+verifiable without privileged cloud access.
+
 ## Protocol Module Catalog — 43 Modules (25 blockchain + 18 infrastructure)
 
 ### Blockchain Protocols

@@ -573,8 +573,11 @@ impl fmt::Debug for AndroidAuthorizationEvidence {
 }
 
 impl AndroidAuthorizationEvidence {
-    /// Identifies the hardware chipset and secure element tier based on reported tier and attestation metadata.
-    pub fn identify_chipset_driver(&self) -> &'static str {
+    /// Returns an unverified platform hint from caller-controlled identifiers.
+    ///
+    /// Only certificate-chain and authorization-list verification may establish
+    /// the Android security level. This hint must not influence trust decisions.
+    pub fn unverified_platform_hint(&self) -> &'static str {
         match self.actual_tier {
             AndroidReportedTier::StrongBox => {
                 if self.package_name.contains("pixel") || self.key_id.contains("titan") {

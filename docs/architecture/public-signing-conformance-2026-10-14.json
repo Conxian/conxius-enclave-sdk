@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-14",
+  "purpose": "non-release public signing conformance test",
+  "repository": "Conxian/conxius-enclave-sdk",
+  "provider": "AWS KMS",
+  "region": "eu-central-1",
+  "challenge": "CONXIAN_PUBLIC_SIGNING_CONFORMANCE_V1\nrepository=Conxian/conxius-enclave-sdk\ndate=2026-10-14\npurpose=non-release-test\n",
+  "challengeSha256": "db585c4f74c0f47dacab3331caa1bf051d9f0e3e90c686f6cf4c6f88611d32a4",
+  "request": {
+    "messageType": "RAW",
+    "signingAlgorithm": "ECDSA_SHA_256"
+  },
+  "proofs": [
+    {
+      "alias": "alias/conxian-release-1",
+      "keySpec": "ECC_NIST_P256",
+      "publicKeySpkiDerBase64": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEJi9MoSaDeHzzuoRQ9y+TliRkg6Zzij6QyfSOm1nlSSq/zBiGhKM6SgnH7qpRljk32L7caF6ggFZI5KXbYlKODQ==",
+      "signatureDerBase64": "MEUCIQCCuHJQmfW73OhSq4qt5bU5DddWkXdeblAIbw7MgyClDQIgY4AyyuXDOEggL2Oq0mw69TfKIY+26eZ54Qw0nSkcYPA="
+    },
+    {
+      "alias": "alias/conxian-release-2",
+      "keySpec": "ECC_NIST_P256",
+      "publicKeySpkiDerBase64": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE4SJhYFLIe39Px26N/4ePRKlv7pcMDKxollJoEspd9eKlw0Id5LLuWAL9zYN44qv8XEBD2hDHM3njY+3hu7mHag==",
+      "signatureDerBase64": "MEYCIQDIlpbaaGGKrPJAyNUMKzNQMReJHC2Iycu/5FsDm7qD8QIhAPdWn/GDPZVW9tUIk6nbS870IJfzZiYMkhO1cbnEr7Ka"
+    },
+    {
+      "alias": "alias/conxian-release-3",
+      "keySpec": "ECC_NIST_P256",
+      "publicKeySpkiDerBase64": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEIWrSWcnDLTctRCCA6Omny84SfpVi7sMAVY5sJcW24ktS9bvx0KZD1PvIan0j1JUHbFfj0YnV/aSX3h0/sxNEKQ==",
+      "signatureDerBase64": "MEYCIQDXLhucZwO3JOGIKGRuw5mIMXM8xl/42GOxmmKxfZUrtAIhAJ3uhYbL8k8Bo6bC3z5aePOrTNUVeQk4BowL5SG4lIBd"
+    }
+  ],
+  "claims": [
+    "Three configured AWS KMS keys produced independently verifiable signatures over the same domain-separated, non-release challenge."
+  ],
+  "nonClaims": [
+    "This does not prove independent administrative control, multi-account or multi-provider decentralization, threshold cryptography, Bitcoin secp256k1 or BIP-340 signing, Nitro enclave key custody, release authorization, or production readiness.",
+    "All three keys are in one AWS account and one region, use NIST P-256, and were reachable through an account-root integration identity; this is a centralization and access-control blocker."
+  ]
+}
