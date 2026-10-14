@@ -17,7 +17,7 @@
     },
     "builtinAssetRecords": {
       "count": 52,
-      "activeCount": 30,
+      "activeCount": 29,
       "source": "src/protocol/asset.rs::AssetRegistry::new",
       "meaning": "Unique built-in chain-and-symbol records; inactive records are inventory-only and fail closed"
     },

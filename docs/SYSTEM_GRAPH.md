@@ -3,7 +3,7 @@
 ## Core Infrastructure
 - **Nexus OS**: The heart of the middleware, managing universal state and orchestration.
 - **RailProxy**: Security enforcement layer with TEE-backed attestation gates.
-- **AssetRegistry**: SDK-local registry with 52 built-in chain-and-symbol records; 30 are active under canonical metadata validation. This is not the organization-wide chain authority or a live-connection count.
+- **AssetRegistry**: SDK-local registry with 52 built-in chain-and-symbol records; 29 are active under canonical metadata validation. This is not the organization-wide chain authority or a live-connection count.
 
 ## Universal Payment Lifecycle
 [User / Retailer]

@@ -36,6 +36,6 @@
   ],
   "nonClaims": [
     "This does not prove independent administrative control, multi-account or multi-provider decentralization, threshold cryptography, Bitcoin secp256k1 or BIP-340 signing, Nitro enclave key custody, release authorization, or production readiness.",
-    "All three keys are in one AWS account and one region, use NIST P-256, and were reachable through an account-root integration identity; this is a centralization and access-control blocker."
+    "All three keys are in one AWS account and one region and use NIST P-256; correlated control is a decentralization blocker."
   ]
 }

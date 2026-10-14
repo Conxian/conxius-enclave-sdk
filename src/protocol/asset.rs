@@ -107,7 +107,7 @@ pub const BUILTIN_ASSET_RECORD_COUNT: usize = 52;
 
 /// Built-in records that pass the reviewed canonical metadata gate. Remaining
 /// built-ins are inventory-only and fail closed for value-bearing use.
-pub const BUILTIN_ACTIVE_ASSET_RECORD_COUNT: usize = 30;
+pub const BUILTIN_ACTIVE_ASSET_RECORD_COUNT: usize = 29;
 
 impl Chain {
     pub fn as_str(&self) -> &'static str {
