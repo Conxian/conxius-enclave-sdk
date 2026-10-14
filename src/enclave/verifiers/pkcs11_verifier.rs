@@ -14,6 +14,7 @@
 //! - tpm2-pkcs11: https://github.com/tpm2-software/tpm2-pkcs11
 
 use crate::{ConclaveError, ConclaveResult};
+use crate::enclave::attestation::HardwareProviderType;
 
 #[cfg(feature = "cryptoki")]
 use {
@@ -373,6 +374,40 @@ pub struct Pkcs11AttestationEvidence {
 }
 
 impl Pkcs11AttestationEvidence {
+    /// Returns the corresponding [`HardwareProviderType`] for this PKCS#11 evidence.
+    pub fn hardware_provider(&self) -> HardwareProviderType {
+        let classified = self.classify_hardware_module();
+        if classified.contains("TPM") {
+            HardwareProviderType::Tpm20
+        } else {
+            HardwareProviderType::Pkcs11Hsm
+        }
+    }
+
+    /// Classifies the hardware module vendor and driver interface based on slot and key metadata.
+    pub fn classify_hardware_module(&self) -> &'static str {
+        let path = self.module_path.to_lowercase();
+        let manufacturer = self.manufacturer.to_lowercase();
+        if path.contains("luna") || manufacturer.contains("thales") {
+            "Thales Luna HSM (PKCS#11 Driver)"
+        } else if path.contains("utimaco") || manufacturer.contains("utimaco") {
+            "Utimaco ISG CryptoServer HSM (PKCS#11 Driver)"
+        } else if path.contains("yubihsm") || manufacturer.contains("yubico") {
+            "YubiHSM2 (yubihsm-pkcs11 Driver)"
+        } else if path.contains("cloudhsm")
+            || manufacturer.contains("amazon")
+            || manufacturer.contains("aws")
+        {
+            "AWS CloudHSM (libcloudhsm_pkcs11 Driver)"
+        } else if path.contains("tpm2") || manufacturer.contains("tpm") {
+            "TPM 2.0 Module (tpm2-pkcs11 Driver)"
+        } else if path.contains("softhsm") || path.contains("kryoptic") {
+            "SoftHSM2 Simulator Token"
+        } else {
+            "Generic PKCS#11 Hardware Security Module"
+        }
+    }
+
     /// Build evidence from slot and key metadata.
     pub fn from_slot_and_key(_slot: &Pkcs11Slot, _key: &Pkcs11Key, _module_path: &str) -> Self {
         Self {

@@ -19,6 +19,7 @@
 //! - webauthn-rs crate: https://docs.rs/webauthn-rs/
 
 use crate::{ConclaveError, ConclaveResult};
+use crate::enclave::attestation::HardwareProviderType;
 #[cfg(feature = "webauthn")]
 use sha2::{Digest, Sha256};
 
@@ -57,6 +58,21 @@ pub struct WebauthnCredential {
     pub attestation_trusted: bool,
 }
 
+impl WebauthnCredential {
+    /// Returns the corresponding [`HardwareProviderType`] for this WebAuthn credential.
+    pub fn hardware_provider(&self) -> HardwareProviderType {
+        match self.attestation_format {
+            AttestationFormat::Apple => HardwareProviderType::AppleSecureEnclave,
+            AttestationFormat::AndroidKey | AttestationFormat::AndroidSafetyNet => {
+                HardwareProviderType::AndroidStrongBox
+            }
+            AttestationFormat::Tpm => HardwareProviderType::Tpm20,
+            AttestationFormat::Packed => HardwareProviderType::WebAuthnFido2,
+            AttestationFormat::None_ => HardwareProviderType::WebAuthnFido2,
+        }
+    }
+}
+
 /// WebAuthn verifier configuration.
 #[derive(Debug, Clone)]
 pub struct WebauthnConfig {
@@ -83,6 +99,11 @@ pub struct WebauthnVerifier {
 }
 
 impl WebauthnVerifier {
+    /// Returns the corresponding [`HardwareProviderType`] for a WebAuthn credential.
+    pub fn provider_type(&self, credential: &WebauthnCredential) -> HardwareProviderType {
+        credential.hardware_provider()
+    }
+
     pub fn new(config: WebauthnConfig) -> Self {
         Self { config }
     }
@@ -350,5 +371,29 @@ mod tests {
             "webauthn.create",
         );
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_webauthn_hardware_provider_mapping() {
+        let cred = WebauthnCredential {
+            credential_id: vec![1, 2, 3],
+            public_key: vec![],
+            attestation_format: AttestationFormat::Apple,
+            aaguid: [0; 16],
+            sign_count: 1,
+            user_verified: true,
+            attestation_trusted: true,
+        };
+        assert_eq!(cred.hardware_provider(), HardwareProviderType::AppleSecureEnclave);
+
+        let config = WebauthnConfig {
+            rp_id: "test.local".into(),
+            rp_name: "Test".into(),
+            allowed_credentials: vec![],
+            require_attestation: false,
+            trusted_attestation_cas: vec![],
+        };
+        let verifier = WebauthnVerifier::new(config);
+        assert_eq!(verifier.provider_type(&cred), HardwareProviderType::AppleSecureEnclave);
     }
 }

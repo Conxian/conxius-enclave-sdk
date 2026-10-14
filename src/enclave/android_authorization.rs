@@ -8,6 +8,7 @@
 //! Play Integrity server-side, or provide durable replay protection.
 
 use crate::{ConclaveError, ConclaveResult};
+use crate::enclave::attestation::HardwareProviderType;
 use serde::de::{self, Deserializer, Error as DeError, SeqAccess, Visitor};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -573,6 +574,39 @@ impl fmt::Debug for AndroidAuthorizationEvidence {
 }
 
 impl AndroidAuthorizationEvidence {
+    /// Returns the corresponding [`HardwareProviderType`] for this Android authorization evidence.
+    pub fn hardware_provider(&self) -> HardwareProviderType {
+        match self.actual_tier {
+            AndroidReportedTier::StrongBox => HardwareProviderType::AndroidStrongBox,
+            AndroidReportedTier::AndroidTee => HardwareProviderType::ArmTrustZone,
+            AndroidReportedTier::Software => HardwareProviderType::AndroidStrongBox,
+        }
+    }
+
+    /// Identifies the hardware chipset and secure element tier based on reported tier and attestation metadata.
+    pub fn identify_chipset_driver(&self) -> &'static str {
+        match self.actual_tier {
+            AndroidReportedTier::StrongBox => {
+                if self.package_name.contains("pixel") || self.key_id.contains("titan") {
+                    "Google Titan M2 / KeyMint SE Driver"
+                } else if self.package_name.contains("samsung") || self.key_id.contains("knox") {
+                    "Samsung Knox Vault / StrongBox SE Driver"
+                } else if self.key_id.contains("qsee") || self.key_id.contains("spu") {
+                    "Qualcomm SPU / QSEE StrongBox Driver"
+                } else {
+                    "Android StrongBox KeyMint Hardware SE Driver"
+                }
+            }
+            AndroidReportedTier::AndroidTee => {
+                if self.key_id.contains("trustzone") || self.package_name.contains("arm") {
+                    "ARM TrustZone TEE Driver"
+                } else {
+                    "Android TEE Keymaster Driver"
+                }
+            }
+            AndroidReportedTier::Software => "Software Keymaster Simulator",
+        }
+    }
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         actual_tier: AndroidReportedTier,
