@@ -53,6 +53,62 @@ pub enum Chain {
     BaseSepolia,
 }
 
+/// SDK-local chain/network/layer identifiers accepted by the asset and routing
+/// boundary. This is an inventory surface, not a claim that every identifier
+/// has a live adapter, integration evidence, or production support.
+pub const ALL_CHAINS: &[Chain] = &[
+    Chain::BITCOIN,
+    Chain::ETHEREUM,
+    Chain::STACKS,
+    Chain::LIQUID,
+    Chain::SOLANA,
+    Chain::ARBITRUM,
+    Chain::BASE,
+    Chain::OPTIMISM,
+    Chain::LINEA,
+    Chain::LIGHTNING,
+    Chain::SPARK,
+    Chain::ROOTSTOCK,
+    Chain::BOB,
+    Chain::POLYGON,
+    Chain::BSC,
+    Chain::MEZO,
+    Chain::BABYLON,
+    Chain::BOTANIX,
+    Chain::CITREA,
+    Chain::AVALANCHE,
+    Chain::STELLAR,
+    Chain::CELO,
+    Chain::XrpLedger,
+    Chain::NEAR,
+    Chain::TRON,
+    Chain::COSMOS,
+    Chain::FANTOM,
+    Chain::CRONOS,
+    Chain::KAVA,
+    Chain::GNOSIS,
+    Chain::MANTLE,
+    Chain::ZKSYNC,
+    Chain::SCROLL,
+    Chain::STARKNET,
+    Chain::BERACHAIN,
+    Chain::MONAD,
+    Chain::SEI,
+    Chain::SUI,
+    Chain::APTOS,
+    Chain::TAIKO,
+    Chain::BLAST,
+    Chain::BaseSepolia,
+];
+
+/// Number of unique built-in `(chain, symbol)` records created by
+/// [`AssetRegistry::new`]. Runtime registration may add more records.
+pub const BUILTIN_ASSET_RECORD_COUNT: usize = 52;
+
+/// Built-in records that pass the reviewed canonical metadata gate. Remaining
+/// built-ins are inventory-only and fail closed for value-bearing use.
+pub const BUILTIN_ACTIVE_ASSET_RECORD_COUNT: usize = 29;
+
 impl Chain {
     pub fn as_str(&self) -> &'static str {
         match self {

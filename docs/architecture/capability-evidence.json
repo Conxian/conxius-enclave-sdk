@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "repository": "Conxian/conxius-enclave-sdk",
   "reviewedRef": "511ebf589a102ff0d3895d6b8d7568751fcfaf28",
-  "lastVerified": "2026-08-29",
+  "lastVerified": "2026-10-13",
   "maturity": "stable-conditional",
   "statusVocabulary": {
     "evidence": [
@@ -55,7 +55,7 @@
       "implementation": "partial",
       "integration": "partial",
       "independentReview": "not-evidenced",
-      "productionSupport": "conditional",
+      "productionSupport": "unsupported",
       "evidenceRefs": [
         "src/enclave/mod.rs:1-860",
         "src/enclave/android_strongbox.rs:1-500",
@@ -130,10 +130,10 @@
       "name": "Enclave hardware attestation",
       "family": "enclave",
       "api": "yes",
-      "implementation": "yes",
-      "integration": "yes",
+      "implementation": "partial",
+      "integration": "no",
       "independentReview": "not-evidenced",
-      "productionSupport": "conditional",
+      "productionSupport": "unsupported",
       "evidenceRefs": [
         "src/enclave/attestation.rs:1-251",
         "src/enclave/trust.rs",
@@ -193,8 +193,8 @@
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
       ],
-      "exclusion": null,
-      "notes": "Vendor-backed hardware attestation verifiers are integrated across AWS Nitro (with embedded AWS Nitro Root CA G1 DER certificate validation), Android StrongBox KeyMint authorization certificate chain verification, and PKCS#11 HSM verifier. Hardware-backed signing policy is enforced."
+      "exclusion": "The code contains typed, structural, and simulated foundations, but no provider path currently combines authenticated current collateral, hardware key custody, operation binding, durable replay, real-provider negative tests, independent review, and exact release evidence.",
+      "notes": "The typed policy fails closed. Android is a bounded evidence contract without KeyMint certificate-path/authorization-list or Play Integrity verification; Nitro still lacks qualified live NSM/KMS signer evidence; generic PKCS#11 operations and metadata do not prove hardware provenance. See docs/architecture/HARDWARE_SIGNING_PROVIDER_MATRIX_2026.md."
     },
     {
       "id": "proof-composition",
@@ -1063,8 +1063,8 @@
         "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
       ],
-      "exclusion": null,
-      "notes": "RFC 9591 FROST DKG Round 1 and Round 2 cryptographic share verification, Proof of Knowledge verification, single-use nonce lifecycle enforcement, and ZF FROST secp256k1 threshold signing are implemented in src/protocol/frost.rs and src/protocol/frost_crypto.rs."
+      "exclusion": "Local and in-process feature-gated execution does not establish independently administered participants, authenticated distributed DKG transport, durable nonce coordination, qualified share custody, independent review, or release authorization.",
+      "notes": "RFC 9591 FROST DKG Round 1 and Round 2 cryptographic share verification, Proof of Knowledge verification, single-use nonce lifecycle enforcement, and ZF FROST secp256k1 threshold signing are implemented in src/protocol/frost.rs and src/protocol/frost_crypto.rs. This is cryptographic implementation evidence, not production decentralization evidence."
     },
     {
       "id": "musig2",
@@ -1125,12 +1125,13 @@
       "name": "Fedimint and Nexus federation adapter",
       "family": "federation",
       "api": "yes",
-      "implementation": "no",
+      "implementation": "partial",
       "integration": "no",
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
         "src/protocol/nexus/fedimint.rs:1-766",
+        "src/protocol/nexus/fedimint_crypto.rs:1-320",
         "src/protocol/nexus/mod.rs:1-100",
         "docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md:1-234",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/197"
@@ -1148,13 +1149,15 @@
           "stage": "code",
           "refs": [
             "src/protocol/nexus/fedimint.rs:1-540",
+            "src/protocol/nexus/fedimint_crypto.rs:1-238",
             "src/protocol/nexus/mod.rs:1-100"
           ]
         },
         {
           "stage": "test",
           "refs": [
-            "src/protocol/nexus/fedimint.rs:541-766"
+            "src/protocol/nexus/fedimint.rs:541-766",
+            "src/protocol/nexus/fedimint_crypto.rs:239-320"
           ]
         },
         {
@@ -1172,8 +1175,8 @@
         "https://github.com/Conxian/conxius-enclave-sdk/issues/197",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
       ],
-      "exclusion": "Provider-owned handles, federation schemas, operation ledgers, and quarantine tests are not production Fedimint cryptographic, database, or federation evidence.",
-      "notes": "PR #209 removes the public serialized note secret and establishes typed/provider/persistence boundaries. DLEQ is not asserted as inherent to every current canonical issuance path; implementation, share verification, backup, and artifact gates remain open."
+      "exclusion": "BLS12-381 blinding/DLEQ primitives, provider-owned handles, federation schemas, operation ledgers, and quarantine tests do not establish a live guardian federation, threshold share verification, consensus/database integration, backup recovery, or production custody.",
+      "notes": "The repository now contains tested BLS12-381 message blinding, unblinding, and DLEQ proof primitives in fedimint_crypto.rs, so implementation is partial. PR #209 removes the public serialized note secret and establishes typed/provider/persistence boundaries; federation integration and production evidence remain absent."
     },
     {
       "id": "ark",
@@ -3490,8 +3493,8 @@
       "name": "Android StrongBox key operation",
       "family": "attestation-research",
       "api": "yes",
-      "implementation": "yes",
-      "integration": "yes",
+      "implementation": "partial",
+      "integration": "no",
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
@@ -3527,8 +3530,8 @@
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
       ],
-      "exclusion": null,
-      "notes": "Android KeyMint/StrongBox authorization evidence verifier with certificate chain size/byte limits, version/bounds checking, and timestamp lifetime verification is implemented in src/enclave/android_authorization.rs."
+      "exclusion": "A bounded authorization-evidence parser is not an Android KeyMint certificate-chain verifier, Google attestation-status check, root-of-trust/verified-boot validation, real-device StrongBox test, or provider-backed signing integration. Android StrongBox also does not generally provide Bitcoin secp256k1/BIP340 signing.",
+      "notes": "The current code provides a bounded, fail-closed authorization-evidence contract only. Hardware provenance and signing support remain unproven until the full KeyMint certificate and authorization-list evidence chain is implemented and exercised on qualified devices."
     },
     {
       "id": "apple-app-attest",
@@ -3761,8 +3764,8 @@
       "name": "AWS Nitro attestation",
       "family": "attestation-research",
       "api": "yes",
-      "implementation": "yes",
-      "integration": "yes",
+      "implementation": "partial",
+      "integration": "no",
       "independentReview": "not-evidenced",
       "productionSupport": "unsupported",
       "evidenceRefs": [
@@ -3817,8 +3820,8 @@
         "https://github.com/Conxian/conxius-enclave-sdk/issues/195",
         "https://github.com/Conxian/conxius-enclave-sdk/issues/202"
       ],
-      "exclusion": null,
-      "notes": "AWS Nitro verifier with embedded root CA (aws_nitro_root_g1.der), COSE sign1 P-384 signature verification, and KMS key identifier hash binding is implemented in src/enclave/verifiers/nitro_verifier.rs."
+      "exclusion": "Structural/offline verifier code and AWS KMS signing connectivity do not prove live NSM document acquisition, production enclave measurements, attested KMS recipient flow, negative-policy testing on a Nitro instance, release binding, or decentralized key custody.",
+      "notes": "The repository contains an offline Nitro attestation verifier foundation with embedded root CA, COSE Sign1 P-384 verification, and KMS key-identifier binding. The 2026-10-14 AWS audit found no EC2/Nitro instances in the inspected regions, so runtime integration remains unproven."
     },
     {
       "id": "arm-psa",
