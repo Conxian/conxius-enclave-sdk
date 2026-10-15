@@ -23,6 +23,10 @@
 
 If the concern is about secure signing, device trust, or controlled key use, it belongs here. If it is about layer-specific broadcast, observation, database provisioning, or application behavior, it belongs elsewhere. Public client SDK repositories must not include internal infrastructure deployment workflows or internal backend database secret triggers.
 
+## Corporate identity and alert boundary
+
+Corporate human accounts may administer external services through scoped roles. Mail delivery, identity federation, account provisioning and session/token revocation require separate per-service evidence. These controls remain outside SDK signing, custody and release authorization; an email domain grants no SDK trust. See `docs/architecture/SDK_BOUNDARY_CONTRACT.md`.
+
 ## Operational role model
 
 The repository uses named roles rather than unverifiable individual names. Role assignment for a deployment is private operational evidence and is not implied by this table.
