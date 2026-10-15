@@ -5,3 +5,5 @@ Read `docs/architecture/ATTESTATION_POLICY_V2.md` before changing policy encodin
 PKCS#11 key classes do not identify a curve or RSA size. Read exact public parameters and leave unavailable/unsupported parameters Unknown. Metadata, named curves and mechanism discovery do not prove hardware custody, non-exportability or production support. Keep missing-feature operations fail closed.
 
 Conxian remains universal-chain and Bitcoin-rooted. Classification must preserve supported algorithms accurately without inventing Bitcoin signing or hardware qualification. Validate all-feature and feature-disabled paths, strict Clippy, format, capability inventories and public conformance proof before publication.
+
+Read `docs/architecture/PROVIDER_IDENTITY_DISAMBIGUATION_2026_10_15.md` before adding provider aliases or diagnostic mappings. Distinct technologies cannot be treated as interchangeable. A report's `claimed_hardware_provider` is unverified metadata; ambiguous declarations must remain indeterminate and cannot authorize operations.
