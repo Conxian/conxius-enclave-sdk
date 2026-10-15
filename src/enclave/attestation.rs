@@ -60,20 +60,21 @@ impl HardwareProviderType {
         }
     }
 
-    /// Parse provider type from canonical token string.
+    /// Parse an exact provider identifier or an unambiguous legacy alias.
+    ///
+    /// Different attestation technologies and generic API/vendor labels cannot
+    /// identify a provider. Parsing is inventory classification, not evidence.
     pub fn from_str_token(token: &str) -> Option<Self> {
         match token.trim() {
-            "INTEL_SGX_DCAP" | "INTEL_SGX" | "SGX" | "TDX" => Some(Self::IntelSgx),
-            "ANDROID_STRONGBOX" | "STRONGBOX" | "KEYMINT" => Some(Self::AndroidStrongBox),
+            "INTEL_SGX_DCAP" | "INTEL_SGX" | "SGX" => Some(Self::IntelSgx),
+            "ANDROID_STRONGBOX" | "STRONGBOX" => Some(Self::AndroidStrongBox),
             "AWS_NITRO" | "NITRO" => Some(Self::AwsNitro),
             "TPM_20" | "TPM20" | "TPM" => Some(Self::Tpm20),
-            "APPLE_SECURE_ENCLAVE" | "APPLE_SE" | "SECURE_ENCLAVE" => {
-                Some(Self::AppleSecureEnclave)
-            }
-            "AMD_SEV_SNP" | "AMD_SEV" | "SEV" => Some(Self::AmdSevSnp),
-            "ARM_TRUSTZONE" | "ARM_TZ" | "TRUSTZONE" | "ARM_CCA" => Some(Self::ArmTrustZone),
-            "KEYSTONE_RISCV" | "KEYSTONE" | "RISCV_KEYSTONE" => Some(Self::Keystone),
-            "PKCS11_HSM" | "PKCS11" | "HSM" => Some(Self::Pkcs11Hsm),
+            "APPLE_SECURE_ENCLAVE" | "APPLE_SE" => Some(Self::AppleSecureEnclave),
+            "AMD_SEV_SNP" => Some(Self::AmdSevSnp),
+            "ARM_TRUSTZONE" | "ARM_TZ" | "TRUSTZONE" => Some(Self::ArmTrustZone),
+            "KEYSTONE_RISCV" | "RISCV_KEYSTONE" => Some(Self::Keystone),
+            "PKCS11_HSM" | "PKCS11" => Some(Self::Pkcs11Hsm),
             "WEBAUTHN_FIDO2" | "WEBAUTHN" | "FIDO2" => Some(Self::WebAuthnFido2),
             _ => None,
         }
@@ -881,6 +882,22 @@ pub struct DeviceIntegrityReport {
 }
 
 impl DeviceIntegrityReport {
+    /// Returns a single provider claim from unverified report metadata.
+    ///
+    /// This does not validate the report or establish hardware provenance.
+    /// Missing, duplicate and conflicting declarations remain indeterminate.
+    pub fn claimed_hardware_provider(&self) -> Option<HardwareProviderType> {
+        let mut providers = self
+            .extensions
+            .iter()
+            .filter_map(attestation_extension_provider);
+        let provider = providers.next()?;
+        if providers.next().is_some() {
+            return None;
+        }
+        Some(provider)
+    }
+
     /// Verifies the integrity report with the production policy.
     pub fn verify(&self, expected_nonce: &[u8]) -> bool {
         self.verify_with_policy(expected_nonce, &AttestationPolicy::production())
