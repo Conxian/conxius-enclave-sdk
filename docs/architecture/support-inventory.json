@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schemaVersion": 1,
+  "repository": "Conxian/conxius-enclave-sdk",
+  "lastVerified": "2026-10-14",
+  "trustModel": {
+    "root": "bitcoin-l1",
+    "scope": "universal-chain",
+    "nativeConxianToken": false,
+    "note": "Bitcoin L1 is the canonical trust/finality root. External chains, networks, layers, assets, and staking adapters remain valid when independently evidenced."
+  },
+  "measures": {
+    "sdkChainIdentifiers": {
+      "count": 42,
+      "source": "src/protocol/asset.rs::ALL_CHAINS",
+      "meaning": "SDK-local chain/network/layer identifiers; not a live-adapter or production-support count"
+    },
+    "builtinAssetRecords": {
+      "count": 52,
+      "activeCount": 29,
+      "source": "src/protocol/asset.rs::AssetRegistry::new",
+      "meaning": "Unique built-in chain-and-symbol records; inactive records are inventory-only and fail closed"
+    },
+    "protocolModules": {
+      "count": 43,
+      "source": "src/protocol/mod.rs",
+      "meaning": "Non-test protocol modules, including infrastructure and integration modules"
+    },
+    "capabilityEvidenceRecords": {
+      "count": 70,
+      "productionSupportedCount": 0,
+      "source": "docs/architecture/capability-evidence.json",
+      "meaning": "Evidence ledger rows across protocol, WASM, operations, release, identity, and attestation research; not 70 chains"
+    },
+    "exactCoreChainProjections": {
+      "count": 19,
+      "source": "src/protocol/control_model_adapter.rs::sdk_chain_to_core",
+      "meaning": "SDK identifiers that map exactly to the mirrored Core concrete-chain taxonomy without family collapse"
+    }
+  },
+  "claimRules": [
+    "Never publish capability-evidence row totals as chain, network, layer, asset, or connector totals.",
+    "Known, implemented, integrated, independently reviewed, and production-supported are separate states.",
+    "A registered asset or chain identifier does not prove a live observer, router, signer, verifier, RPC connection, or production SLA.",
+    "Downstream consumers must negotiate exact capability identifiers and evidence status instead of relying on aggregate counts."
+  ]
+}

@@ -21,6 +21,114 @@ const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
 /// Version of the canonical signed attestation envelope.
 pub const ATTESTATION_ENVELOPE_VERSION: u16 = 2;
 
+/// Provider-bound policy encoding. v1 digests are not accepted as v2 aliases.
+pub const ATTESTATION_POLICY_DIGEST_VERSION: u16 = 2;
+pub const ATTESTATION_POLICY_DIGEST_DOMAIN: &str = "CONXIAN-ATTESTATION-POLICY/v2";
+
+/// Provider identifiers understood by the attestation contract.
+///
+/// A variant means the SDK can name and policy-bind the provider. It does not
+/// mean that a production verifier or signer for that provider is available.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum HardwareProviderType {
+    IntelSgx,
+    AndroidStrongBox,
+    AwsNitro,
+    Tpm20,
+    AppleSecureEnclave,
+    AmdSevSnp,
+    ArmTrustZone,
+    Keystone,
+    Pkcs11Hsm,
+    WebAuthnFido2,
+}
+
+impl HardwareProviderType {
+    /// Canonical string identifier for the hardware provider type.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::IntelSgx => "INTEL_SGX_DCAP",
+            Self::AndroidStrongBox => "ANDROID_STRONGBOX",
+            Self::AwsNitro => "AWS_NITRO",
+            Self::Tpm20 => "TPM_20",
+            Self::AppleSecureEnclave => "APPLE_SECURE_ENCLAVE",
+            Self::AmdSevSnp => "AMD_SEV_SNP",
+            Self::ArmTrustZone => "ARM_TRUSTZONE",
+            Self::Keystone => "KEYSTONE_RISCV",
+            Self::Pkcs11Hsm => "PKCS11_HSM",
+            Self::WebAuthnFido2 => "WEBAUTHN_FIDO2",
+        }
+    }
+
+    /// Parse provider type from canonical token string.
+    pub fn from_str_token(token: &str) -> Option<Self> {
+        match token.trim() {
+            "INTEL_SGX_DCAP" | "INTEL_SGX" | "SGX" | "TDX" => Some(Self::IntelSgx),
+            "ANDROID_STRONGBOX" | "STRONGBOX" | "KEYMINT" => Some(Self::AndroidStrongBox),
+            "AWS_NITRO" | "NITRO" => Some(Self::AwsNitro),
+            "TPM_20" | "TPM20" | "TPM" => Some(Self::Tpm20),
+            "APPLE_SECURE_ENCLAVE" | "APPLE_SE" | "SECURE_ENCLAVE" => {
+                Some(Self::AppleSecureEnclave)
+            }
+            "AMD_SEV_SNP" | "AMD_SEV" | "SEV" => Some(Self::AmdSevSnp),
+            "ARM_TRUSTZONE" | "ARM_TZ" | "TRUSTZONE" | "ARM_CCA" => Some(Self::ArmTrustZone),
+            "KEYSTONE_RISCV" | "KEYSTONE" | "RISCV_KEYSTONE" => Some(Self::Keystone),
+            "PKCS11_HSM" | "PKCS11" | "HSM" => Some(Self::Pkcs11Hsm),
+            "WEBAUTHN_FIDO2" | "WEBAUTHN" | "FIDO2" => Some(Self::WebAuthnFido2),
+            _ => None,
+        }
+    }
+
+    /// Whether the provider represents a cloud TEE (AWS Nitro, Intel SGX, AMD SEV).
+    pub fn is_cloud_tee(&self) -> bool {
+        matches!(self, Self::AwsNitro | Self::IntelSgx | Self::AmdSevSnp)
+    }
+
+    /// Whether the provider represents a mobile secure enclave (StrongBox, Apple SE).
+    pub fn is_mobile_enclave(&self) -> bool {
+        matches!(self, Self::AndroidStrongBox | Self::AppleSecureEnclave)
+    }
+
+    /// Whether the provider represents an HSM or TPM module.
+    pub fn is_hsm_or_tpm(&self) -> bool {
+        matches!(self, Self::Pkcs11Hsm | Self::Tpm20)
+    }
+
+    /// Whether the provider uses RISC-V or ARM architectures.
+    pub fn is_riscv_or_arm(&self) -> bool {
+        matches!(self, Self::Keystone | Self::ArmTrustZone)
+    }
+
+    /// Claimed attestation tier used for policy construction and test fixtures.
+    ///
+    /// The provider verifier must independently establish this tier from
+    /// authentic evidence before any report is accepted.
+    pub fn policy_level_hint(&self) -> Option<AttestationLevel> {
+        match self {
+            Self::AndroidStrongBox | Self::AppleSecureEnclave => Some(AttestationLevel::StrongBox),
+            Self::AwsNitro | Self::IntelSgx | Self::AmdSevSnp => Some(AttestationLevel::CloudTEE),
+            Self::ArmTrustZone | Self::Keystone => Some(AttestationLevel::TEE),
+            Self::Pkcs11Hsm | Self::Tpm20 | Self::WebAuthnFido2 => None,
+        }
+    }
+
+    /// Driver interface specification reference.
+    pub fn driver_interface_spec(&self) -> &'static str {
+        match self {
+            Self::IntelSgx => "Intel SGX DCAP / ECDSA Quote Specification",
+            Self::AndroidStrongBox => "Android KeyMint v4 / StrongBox Keymaster SE API",
+            Self::AwsNitro => "AWS Nitro Security Module (NSM) / COSE CBOR Attestation",
+            Self::Tpm20 => "TCG TPM 2.0 Library Specification v1.85 / tpm2-pkcs11",
+            Self::AppleSecureEnclave => "Apple DeviceCheck App Attest / Secure Enclave API",
+            Self::AmdSevSnp => "AMD SEV-SNP Firmware ABI Spec / SVSM Interface",
+            Self::ArmTrustZone => "Arm PSA Initial Attestation / TrustZone integration profile",
+            Self::Keystone => "Keystone RISC-V TEE Enclave Framework / PMP Security Monitor",
+            Self::Pkcs11Hsm => "OASIS PKCS#11 v3.2 Cryptographic Token Interface",
+            Self::WebAuthnFido2 => "W3C WebAuthn Level 3 / FIDO Alliance MDS 3.1.1",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum AttestationLevel {
     Software,
@@ -93,6 +201,16 @@ pub enum AttestationExtension {
     SimulatedSoftwareOnly,
     PlatformCloud,
     OsVersion(String),
+    ProviderIntelSgx,
+    ProviderAndroidStrongBox,
+    ProviderAwsNitro,
+    ProviderTpm20,
+    ProviderAppleSecureEnclave,
+    ProviderAmdSevSnp,
+    ProviderArmTrustZone,
+    ProviderKeystone,
+    ProviderPkcs11Hsm,
+    ProviderWebAuthnFido2,
     Opaque(String),
 }
 
@@ -115,6 +233,16 @@ impl AttestationExtension {
             "SIMULATED" => Self::Simulated,
             "SIMULATED_SOFTWARE_ONLY" => Self::SimulatedSoftwareOnly,
             "PLATFORM_CLOUD" => Self::PlatformCloud,
+            "PROVIDER_INTEL_SGX" => Self::ProviderIntelSgx,
+            "PROVIDER_ANDROID_STRONGBOX" => Self::ProviderAndroidStrongBox,
+            "PROVIDER_AWS_NITRO" => Self::ProviderAwsNitro,
+            "PROVIDER_TPM20" => Self::ProviderTpm20,
+            "PROVIDER_APPLE_SECURE_ENCLAVE" => Self::ProviderAppleSecureEnclave,
+            "PROVIDER_AMD_SEV_SNP" => Self::ProviderAmdSevSnp,
+            "PROVIDER_ARM_TRUSTZONE" => Self::ProviderArmTrustZone,
+            "PROVIDER_KEYSTONE" => Self::ProviderKeystone,
+            "PROVIDER_PKCS11_HSM" => Self::ProviderPkcs11Hsm,
+            "PROVIDER_WEBAUTHN_FIDO2" => Self::ProviderWebAuthnFido2,
             value if value.starts_with("OS_VERSION_") && value.len() > "OS_VERSION_".len() => {
                 Self::OsVersion(value["OS_VERSION_".len()..].to_string())
             }
@@ -137,6 +265,16 @@ impl AttestationExtension {
             Self::OsVersion(version) => (11, Some(version.as_str())),
             Self::AlgorithmSchnorrSecp256k1 => (12, None),
             Self::PurposeVerify => (13, None),
+            Self::ProviderIntelSgx => (20, None),
+            Self::ProviderAndroidStrongBox => (21, None),
+            Self::ProviderAwsNitro => (22, None),
+            Self::ProviderTpm20 => (23, None),
+            Self::ProviderAppleSecureEnclave => (24, None),
+            Self::ProviderAmdSevSnp => (25, None),
+            Self::ProviderArmTrustZone => (26, None),
+            Self::ProviderKeystone => (27, None),
+            Self::ProviderPkcs11Hsm => (28, None),
+            Self::ProviderWebAuthnFido2 => (29, None),
             Self::Opaque(token) => (255, Some(token.as_str())),
         }
     }
@@ -315,6 +453,43 @@ fn level_tag(level: AttestationLevel) -> u8 {
     }
 }
 
+fn hardware_provider_tag(provider: HardwareProviderType) -> u8 {
+    match provider {
+        HardwareProviderType::IntelSgx => 1,
+        HardwareProviderType::AndroidStrongBox => 2,
+        HardwareProviderType::AwsNitro => 3,
+        HardwareProviderType::Tpm20 => 4,
+        HardwareProviderType::AppleSecureEnclave => 5,
+        HardwareProviderType::AmdSevSnp => 6,
+        HardwareProviderType::ArmTrustZone => 7,
+        HardwareProviderType::Keystone => 8,
+        HardwareProviderType::Pkcs11Hsm => 9,
+        HardwareProviderType::WebAuthnFido2 => 10,
+    }
+}
+
+fn attestation_extension_provider(
+    extension: &AttestationExtension,
+) -> Option<HardwareProviderType> {
+    match extension {
+        AttestationExtension::ProviderIntelSgx => Some(HardwareProviderType::IntelSgx),
+        AttestationExtension::ProviderAndroidStrongBox => {
+            Some(HardwareProviderType::AndroidStrongBox)
+        }
+        AttestationExtension::ProviderAwsNitro => Some(HardwareProviderType::AwsNitro),
+        AttestationExtension::ProviderTpm20 => Some(HardwareProviderType::Tpm20),
+        AttestationExtension::ProviderAppleSecureEnclave => {
+            Some(HardwareProviderType::AppleSecureEnclave)
+        }
+        AttestationExtension::ProviderAmdSevSnp => Some(HardwareProviderType::AmdSevSnp),
+        AttestationExtension::ProviderArmTrustZone => Some(HardwareProviderType::ArmTrustZone),
+        AttestationExtension::ProviderKeystone => Some(HardwareProviderType::Keystone),
+        AttestationExtension::ProviderPkcs11Hsm => Some(HardwareProviderType::Pkcs11Hsm),
+        AttestationExtension::ProviderWebAuthnFido2 => Some(HardwareProviderType::WebAuthnFido2),
+        _ => None,
+    }
+}
+
 /// Status of the provider-specific verifier behind an attestation policy.
 ///
 /// `Unavailable` is the only production status in this release. Real Android,
@@ -351,6 +526,7 @@ pub struct AttestationPolicy {
     required_purpose: AttestationPurpose,
     required_algorithm: AttestationAlgorithm,
     required_extensions: Vec<AttestationExtension>,
+    expected_hardware_provider: Option<HardwareProviderType>,
     provider_verifier: ProviderVerifier,
 }
 
@@ -372,6 +548,7 @@ impl AttestationPolicy {
             required_purpose: AttestationPurpose::Sign,
             required_algorithm: AttestationAlgorithm::Ed25519,
             required_extensions: vec![AttestationExtension::PurposeSign],
+            expected_hardware_provider: None,
             provider_verifier: ProviderVerifier::Unavailable,
         }
     }
@@ -390,6 +567,7 @@ impl AttestationPolicy {
             required_purpose: AttestationPurpose::Sign,
             required_algorithm: AttestationAlgorithm::Ed25519,
             required_extensions: vec![AttestationExtension::PurposeSign],
+            expected_hardware_provider: None,
             provider_verifier: ProviderVerifier::TestFixture {
                 trusted_roots: vec![
                     "CONCLAVE_ROOT_CA_V1".to_string(),
@@ -515,13 +693,24 @@ impl AttestationPolicy {
         &self.required_extensions
     }
 
+    /// Binds an expected hardware provider type requirement to the policy.
+    pub fn with_hardware_provider(mut self, provider: HardwareProviderType) -> Self {
+        self.expected_hardware_provider = Some(provider);
+        self
+    }
+
+    /// Returns the expected hardware provider requirement, if configured.
+    pub fn expected_hardware_provider(&self) -> Option<HardwareProviderType> {
+        self.expected_hardware_provider
+    }
+
     /// Returns the canonical digest of every attestation-policy input that
     /// affects verification. Rail replay reservations retain only this digest,
     /// never the policy contents or provider evidence.
     pub(crate) fn canonical_digest(&self) -> ConclaveResult<[u8; 32]> {
         let mut canonical = Vec::new();
-        canonical.extend_from_slice(b"CONXIAN-ATTESTATION-POLICY/v1");
-        canonical.extend_from_slice(&1u16.to_be_bytes());
+        canonical.extend_from_slice(ATTESTATION_POLICY_DIGEST_DOMAIN.as_bytes());
+        canonical.extend_from_slice(&ATTESTATION_POLICY_DIGEST_VERSION.to_be_bytes());
 
         let mut allowed_levels = self
             .allowed_levels
@@ -556,6 +745,12 @@ impl AttestationPolicy {
         for extension in required_extensions {
             append_digest_component(&mut canonical, &extension)?;
         }
+
+        canonical.push(
+            self.expected_hardware_provider
+                .map(hardware_provider_tag)
+                .unwrap_or(0),
+        );
 
         match &self.provider_verifier {
             ProviderVerifier::Unavailable => canonical.push(0),
@@ -859,6 +1054,17 @@ impl DeviceIntegrityReport {
             return false;
         }
 
+        if let Some(expected_provider) = policy.expected_hardware_provider {
+            let providers = self
+                .extensions
+                .iter()
+                .filter_map(attestation_extension_provider)
+                .collect::<Vec<_>>();
+            if providers.as_slice() != [expected_provider] {
+                return false;
+            }
+        }
+
         if !policy.allowed_levels.contains(&self.level) {
             return false;
         }
@@ -1058,6 +1264,28 @@ mod tests {
     };
     use ed25519_dalek::SigningKey;
     use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn production_policy_digest_uses_v2_known_vector() {
+        assert_eq!(super::ATTESTATION_POLICY_DIGEST_VERSION, 2);
+        assert_eq!(
+            super::ATTESTATION_POLICY_DIGEST_DOMAIN,
+            "CONXIAN-ATTESTATION-POLICY/v2"
+        );
+        let actual = hex::encode(
+            AttestationPolicy::production()
+                .canonical_digest()
+                .expect("policy digest"),
+        );
+        assert_eq!(
+            actual,
+            "a70ee922a269eebb7b4aea95199c0f5b2ddfbe83d7014d425f178b53a33c252a"
+        );
+        assert_ne!(
+            actual, "b40365a05a2a11c791c57ff78deddf7565456f820c45ea73f1839257529e1465",
+            "legacy v1 must not alias provider-bound v2"
+        );
+    }
 
     fn valid_report(timestamp: u64, level: AttestationLevel) -> DeviceIntegrityReport {
         let signing_key = test_signing_key();

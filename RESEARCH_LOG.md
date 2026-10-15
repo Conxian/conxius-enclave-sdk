@@ -1296,3 +1296,59 @@ Analyzed `https://github.com/Conxian/conxian-business/issues/1317` ("CXIP?:: Con
    - **Requirement**: Synergize Enclave SDK with `conxius-wallet` reference client to offer policy-driven enterprise key management.
    - **Architecture**: Corporate treasurers define complex multi-signature threshold rules (FROST / MuSig2), time-locks, and spending limits via graphical interface; the Enclave enforces business rules at the absolute hardware level, securing institutional capital against external breaches and internal rogue actors.
    - **Alignment**: Direct integration with `ThresholdEnclaveManager` in `src/enclave/threshold.rs` and `UniversalChainSigner` in `src/signing/ucs.rs`.
+
+
+## Session 83 Research Log (2026-10-11T07:16:22Z) — Turnkey Enclave Pre-Attested WASM Execution Harness Implementation
+
+### Key Technical Findings & Implementation Summary
+1. **WASM Pre-Attested Execution Context ()**:
+   - Implemented in  and re-exported in .
+   - Binds , 32-byte pre-attestation TEE measurement, and secret inputs wrapped in .
+   - Validates that attestation measurements are non-zero ( fail-closed protection).
+
+2. **Turnkey WASM Execution Harness ()**:
+   - Implemented in .
+   - Provides  method that enforces fail-closed validation () before invoking user-supplied compute closures.
+   - Guarantees automatic memory zeroization of wrapped secret inputs upon completion or drop via .
+
+3. **End-to-End Cycle Verification**:
+   - Verified 618+ Rust unit tests and 10 integration test drivers passing without errors.
+   - Zero clippy warnings ().
+   - Capability evidence validated and matrix regenerated without drift (wrote generated capability matrix: /app/docs/architecture/CAPABILITY_MATRIX.md).
+
+
+---
+
+## Session 84 Research Log (2026-10-11) — Hardware Signing Chipset Drivers, HSM, Keystone, Enclave & StrongBox Research Expansion
+
+### 1. Overview & Objective
+Expanded research and SDK contract work across hardware provider families used by enterprise signing. The provider list is an inventory and policy vocabulary, not a production-support claim. Each provider still requires current vendor documentation, genuine evidence fixtures, negative tests, operational key binding, and independent acceptance.
+
+### 2. Hardware Signing Chipset Drivers & Backends Technical Matrix
+
+| Provider / Backend | Chipset / Hardware Module | Driver Interface & API | Attestation Scheme | Hardware Isolation Tier | Algorithm boundary |
+| --- | --- | --- | --- | --- | --- |
+| **AWS Nitro Enclaves** | AWS Nitro Security Module (NSM) | `/dev/nsm` ioctl / AWS Enclave CLI | COSE CBOR document signed by an AWS Nitro attestation certificate chain | Cloud TEE | Attestation algorithms do not prove the algorithm or custody of a workload signing key; qualify the signer separately |
+| **Android KeyMint / StrongBox** | Android Ready SE / vendor StrongBox implementations | KeyMint / StrongBox Keymaster API | X.509 Key Attestation certificate chain; Play Integrity is a separate signal | Mobile Enclave (StrongBox SE / TEE) | Standard Android Keystore EC support is NIST-curve based; do not claim Bitcoin `secp256k1` signing from StrongBox |
+| **Apple Secure Enclave** | Apple Silicon (M1-M4, A14-A18) SEP / Secure Element | DeviceCheck App Attest API / CryptoTokenKit | CBOR/COSE attestation object signed by Apple App Attest Root CA | Mobile Enclave | ECDSA secp256r1 |
+| **Intel SGX DCAP & TDX** | Intel SGX / TDX platforms | DCAP quoting/verification interfaces | Quote and provider collateral/TCB evidence | Cloud TEE | Quote algorithms do not establish workload signer algorithms or key non-exportability |
+| **AMD SEV-SNP** | AMD EPYC Processors (Zen 3+) | SVSM Firmware ABI / `SNP_GUEST_REQUEST` ioctl to PSP | VCEK/VLEK certificate chain rooted in AMD SEV Root Key (ARK) | Cloud TEE | ECDSA secp256r1, secp384r1 |
+| **RISC-V Keystone Enclave** | RISC-V Keystone TEE | PMP security monitor and enclave runtime | Security-monitor/enclave measurement evidence; qualification pending | RISC-V TEE | Signing capability must be qualified separately |
+| **Keystone hardware wallet** | Air-gapped consumer hardware wallet | QR/USB wallet protocols | Device/firmware provenance and transaction-verification workflow; no SDK provider yet | External hardware signer | Bitcoin capabilities depend on supported firmware/protocol |
+| **ARM TrustZone & CCA** | ARM Cortex-A/M TrustZone / ARM CCA Realm | ARM PSA Attestation API 1.0.2 / CCA RMM interface | PSA Attestation Token (EAT / CBOR) over Realm measurements | ARM TEE / CCA Realm | ECDSA secp256r1, Ed25519 |
+| **TPM 2.0** | Infineon Optiga, STMicroelectronics ST33, Microsoft Pluton | TCG TPM 2.0 Library Spec v1.85 / `tpm2-pkcs11` / TSS2 | Attestation Key (AK) quote over PCRs, EK X.509 certificate | TPM Hardware Module | ECDSA secp256r1, RSA-2048 |
+| **PKCS#11 HSMs** | Thales Luna, Utimaco, YubiHSM 2, AWS CloudHSM, and other modules | OASIS PKCS#11 v3.2 (`cryptoki` C API) | Generic token/key attributes are inventory metadata, not hardware attestation | Provider-specific | Read `CKA_EC_PARAMS`, modulus size, and mechanism lists; then apply a provider-specific profile and evidence policy |
+| **WebAuthn / FIDO2** | YubiKey 5 Series, TouchID/FaceID, Google Titan Key | W3C WebAuthn Level 3 / FIDO Alliance MDS 3.1.1 | FIDO2 packed / TPM / Android / Apple attestation statement | Authenticator Hardware | ECDSA secp256r1, Ed25519, RSA-2048 |
+
+### 3. SDK Code Implementation & Verification
+1. **`HardwareProviderType` Enum Integration (`src/enclave/attestation.rs`)**:
+   - Added `HardwareProviderType` enum covering `IntelSgx`, `AndroidStrongBox`, `AwsNitro`, `Tpm20`, `AppleSecureEnclave`, `AmdSevSnp`, `ArmTrustZone`, `Keystone`, `Pkcs11Hsm`, `WebAuthnFido2`.
+   - Implemented identifier, family, claimed-tier, and interface-reference helpers. Claimed tiers are never accepted without provider verification; blanket curve claims were removed because attestation capability and signing capability are different facts.
+2. **Provider Extensions & Attestation Policy (`src/enclave/attestation.rs`)**:
+   - Extended `AttestationExtension` enum with 10 typed provider variants (`ProviderIntelSgx`, etc.) and mapped token parsing (`PROVIDER_INTEL_SGX`, etc.) and canonical tags (20..29).
+   - Added `with_hardware_provider` and `expected_hardware_provider` methods to `AttestationPolicy`.
+3. **Hardware Driver Classification Helpers**:
+   - Added explicitly unverified inventory hints for PKCS#11 and Android metadata. These strings are prohibited from affecting trust decisions.
+4. **Unit Test Verification**:
+   - Added 4 comprehensive unit tests in `src/enclave/hardware_attestation_tests.rs` covering enum classification, driver spec resolution, token parsing, policy binding, and fail-closed validation.
+   - Verified 100% test pass rate across all 30 hardware attestation unit tests and workspace test suite.

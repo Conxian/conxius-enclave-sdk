@@ -2,9 +2,29 @@
 mod tests {
     use crate::config::Network;
     use crate::protocol::asset::{
-        validate_evm_address, AssetIdentifier, AssetMetadata, AssetRegistry, Chain,
+        validate_evm_address, AssetIdentifier, AssetMetadata, AssetRegistry, Chain, ALL_CHAINS,
+        BUILTIN_ACTIVE_ASSET_RECORD_COUNT, BUILTIN_ASSET_RECORD_COUNT,
     };
     use crate::ConclaveError;
+
+    #[test]
+    fn support_inventory_counts_are_derived_from_runtime_state() {
+        let registry = AssetRegistry::new();
+        let assets = registry.list_assets();
+        let active = assets
+            .iter()
+            .filter(|(_, metadata)| metadata.active)
+            .count();
+
+        assert_eq!(ALL_CHAINS.len(), 42);
+        assert_eq!(assets.len(), BUILTIN_ASSET_RECORD_COUNT);
+        assert_eq!(active, BUILTIN_ACTIVE_ASSET_RECORD_COUNT);
+
+        let mut chain_names = ALL_CHAINS.iter().map(Chain::as_str).collect::<Vec<_>>();
+        chain_names.sort_unstable();
+        chain_names.dedup();
+        assert_eq!(chain_names.len(), ALL_CHAINS.len());
+    }
 
     #[test]
     fn test_rsk_bob_registration() {

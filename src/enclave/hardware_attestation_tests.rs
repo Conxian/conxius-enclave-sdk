@@ -10,11 +10,14 @@
 //! - T2 (TEE): Software simulation with attestation structure
 //! - T3 (Software): Development only, blocked for production
 
+use crate::enclave::android_authorization::{AndroidAuthorizationEvidence, AndroidReportedTier};
 use crate::enclave::attestation::{
     parse_extension_data, test_signing_key, AttestationLevel, AttestationReportType,
     DeviceIntegrityReport, ATTESTATION_ENVELOPE_VERSION,
 };
+use crate::enclave::attestation::{AttestationExtension, HardwareProviderType};
 use crate::enclave::replay_guard::ReplayGuard;
+use crate::enclave::verifiers::pkcs11_verifier::{Pkcs11AttestationEvidence, Pkcs11KeyType};
 
 fn random_nonce() -> [u8; 4] {
     rand::random()
@@ -607,5 +610,274 @@ mod edge_case_tests {
         } else {
             panic!("Expected ConclaveError::Unsupported");
         }
+    }
+
+    #[test]
+    fn test_hardware_provider_type_classification_and_specs() {
+        let providers = [
+            (
+                HardwareProviderType::IntelSgx,
+                "INTEL_SGX_DCAP",
+                true,
+                false,
+                false,
+                false,
+            ),
+            (
+                HardwareProviderType::AndroidStrongBox,
+                "ANDROID_STRONGBOX",
+                false,
+                true,
+                false,
+                false,
+            ),
+            (
+                HardwareProviderType::AwsNitro,
+                "AWS_NITRO",
+                true,
+                false,
+                false,
+                false,
+            ),
+            (
+                HardwareProviderType::Tpm20,
+                "TPM_20",
+                false,
+                false,
+                true,
+                false,
+            ),
+            (
+                HardwareProviderType::AppleSecureEnclave,
+                "APPLE_SECURE_ENCLAVE",
+                false,
+                true,
+                false,
+                false,
+            ),
+            (
+                HardwareProviderType::AmdSevSnp,
+                "AMD_SEV_SNP",
+                true,
+                false,
+                false,
+                false,
+            ),
+            (
+                HardwareProviderType::ArmTrustZone,
+                "ARM_TRUSTZONE",
+                false,
+                false,
+                false,
+                true,
+            ),
+            (
+                HardwareProviderType::Keystone,
+                "KEYSTONE_RISCV",
+                false,
+                false,
+                false,
+                true,
+            ),
+            (
+                HardwareProviderType::Pkcs11Hsm,
+                "PKCS11_HSM",
+                false,
+                false,
+                true,
+                false,
+            ),
+            (
+                HardwareProviderType::WebAuthnFido2,
+                "WEBAUTHN_FIDO2",
+                false,
+                false,
+                false,
+                false,
+            ),
+        ];
+
+        for (provider, token, is_cloud, is_mobile, is_hsm_tpm, is_riscv_arm) in providers {
+            assert_eq!(provider.as_str(), token);
+            assert_eq!(HardwareProviderType::from_str_token(token), Some(provider));
+            assert_eq!(provider.is_cloud_tee(), is_cloud);
+            assert_eq!(provider.is_mobile_enclave(), is_mobile);
+            assert_eq!(provider.is_hsm_or_tpm(), is_hsm_tpm);
+            assert_eq!(provider.is_riscv_or_arm(), is_riscv_arm);
+            assert!(!provider.driver_interface_spec().is_empty());
+            assert_ne!(
+                provider.policy_level_hint(),
+                Some(AttestationLevel::Software)
+            );
+        }
+    }
+
+    #[test]
+    fn test_attestation_extension_provider_tokens() {
+        let extension_tokens = [
+            ("PROVIDER_INTEL_SGX", AttestationExtension::ProviderIntelSgx),
+            (
+                "PROVIDER_ANDROID_STRONGBOX",
+                AttestationExtension::ProviderAndroidStrongBox,
+            ),
+            ("PROVIDER_AWS_NITRO", AttestationExtension::ProviderAwsNitro),
+            ("PROVIDER_TPM20", AttestationExtension::ProviderTpm20),
+            (
+                "PROVIDER_APPLE_SECURE_ENCLAVE",
+                AttestationExtension::ProviderAppleSecureEnclave,
+            ),
+            (
+                "PROVIDER_AMD_SEV_SNP",
+                AttestationExtension::ProviderAmdSevSnp,
+            ),
+            (
+                "PROVIDER_ARM_TRUSTZONE",
+                AttestationExtension::ProviderArmTrustZone,
+            ),
+            ("PROVIDER_KEYSTONE", AttestationExtension::ProviderKeystone),
+            (
+                "PROVIDER_PKCS11_HSM",
+                AttestationExtension::ProviderPkcs11Hsm,
+            ),
+            (
+                "PROVIDER_WEBAUTHN_FIDO2",
+                AttestationExtension::ProviderWebAuthnFido2,
+            ),
+        ];
+
+        for (token, expected_ext) in extension_tokens {
+            let parsed = AttestationExtension::from(token);
+            assert_eq!(parsed, expected_ext);
+        }
+    }
+
+    #[test]
+    fn test_attestation_policy_hardware_provider_binding() {
+        let policy = AttestationPolicy::test_fixture()
+            .with_hardware_provider(HardwareProviderType::AwsNitro);
+        assert_eq!(
+            policy.expected_hardware_provider(),
+            Some(HardwareProviderType::AwsNitro)
+        );
+
+        let generator = MockAttestationGenerator::new(AttestationLevel::CloudTEE);
+        let nonce: [u8; 4] = random();
+        let now = crate::enclave::trusted_unix_time_secs().unwrap();
+        let mut report = generator.generate_valid_report(&nonce, now);
+        report
+            .extensions
+            .push(AttestationExtension::ProviderAwsNitro);
+        report.extension_data.push_str("|PROVIDER_AWS_NITRO");
+        report
+            .sign_with_ed25519_key(&test_signing_key())
+            .expect("re-sign report");
+
+        let result = report.verify_with_policy_result(&nonce, &policy);
+        assert!(
+            result.is_ok(),
+            "Matching provider extension should pass verification"
+        );
+
+        let mut mismatched_report = generator.generate_valid_report(&nonce, now);
+        mismatched_report
+            .extensions
+            .push(AttestationExtension::ProviderIntelSgx);
+        mismatched_report
+            .extension_data
+            .push_str("|PROVIDER_INTEL_SGX");
+        mismatched_report
+            .sign_with_ed25519_key(&test_signing_key())
+            .expect("re-sign report");
+        let mismatch_result = mismatched_report.verify_with_policy_result(&nonce, &policy);
+        assert!(
+            mismatch_result.is_err(),
+            "Mismatched provider extension must fail closed"
+        );
+
+        let mut ambiguous_report = generator.generate_valid_report(&nonce, now);
+        ambiguous_report
+            .extensions
+            .push(AttestationExtension::ProviderAwsNitro);
+        ambiguous_report
+            .extensions
+            .push(AttestationExtension::ProviderIntelSgx);
+        ambiguous_report
+            .extension_data
+            .push_str("|PROVIDER_AWS_NITRO|PROVIDER_INTEL_SGX");
+        ambiguous_report
+            .sign_with_ed25519_key(&test_signing_key())
+            .expect("re-sign report");
+        assert!(
+            ambiguous_report
+                .verify_with_policy_result(&nonce, &policy)
+                .is_err(),
+            "Multiple provider claims must fail closed"
+        );
+
+        let other_policy = AttestationPolicy::test_fixture()
+            .with_hardware_provider(HardwareProviderType::IntelSgx);
+        assert_ne!(
+            policy.canonical_digest().expect("Nitro policy digest"),
+            other_policy.canonical_digest().expect("SGX policy digest"),
+            "Provider selection must be bound into the canonical policy digest"
+        );
+    }
+
+    #[test]
+    fn test_pkcs11_and_android_driver_classification() {
+        let pkcs11_luna = Pkcs11AttestationEvidence {
+            module_path: "/usr/lib/libLuna.so".into(),
+            manufacturer: "Thales".into(),
+            firmware_version: "7.7.0".into(),
+            fips_certified: true,
+            slot_label: "Slot 1".into(),
+            key_label: "Key 1".into(),
+            key_type: Pkcs11KeyType::EcdsaSecp256k1,
+        };
+        assert_eq!(
+            pkcs11_luna.unverified_module_hint(),
+            "Thales Luna HSM (PKCS#11 Driver)"
+        );
+
+        let pkcs11_yubi = Pkcs11AttestationEvidence {
+            module_path: "/usr/lib/yubihsm_pkcs11.so".into(),
+            manufacturer: "Yubico".into(),
+            firmware_version: "2.2.0".into(),
+            fips_certified: true,
+            slot_label: "YubiHSM".into(),
+            key_label: "Key 2".into(),
+            key_type: Pkcs11KeyType::EcdsaSecp256k1,
+        };
+        assert_eq!(
+            pkcs11_yubi.unverified_module_hint(),
+            "YubiHSM2 (yubihsm-pkcs11 Driver)"
+        );
+
+        let android_titan = AndroidAuthorizationEvidence {
+            version: 1,
+            actual_tier: AndroidReportedTier::StrongBox,
+            key_id: "titan-key-1".into(),
+            public_key_digest: [1; 32],
+            package_name: "com.google.android.pixel".into(),
+            signing_certificate_digest: [2; 32],
+            nonce: vec![1, 2, 3],
+            challenge: vec![4, 5, 6],
+            operation_digest: [3; 32],
+            key_purpose: crate::enclave::android_authorization::AndroidKeyPurpose::Sign,
+            key_algorithm: crate::enclave::android_authorization::AndroidKeyAlgorithm::EcP256,
+            issued_at: 100,
+            expires_at: 200,
+            certificate_chain: vec![vec![1, 2, 3]],
+            play_integrity_evidence: Some(
+                crate::enclave::android_authorization::AndroidPlayIntegrityEvidence {
+                    version: 1,
+                    opaque_evidence: vec![1, 2, 3],
+                },
+            ),
+        };
+        assert_eq!(
+            android_titan.unverified_platform_hint(),
+            "Google Titan M2 / KeyMint SE Driver"
+        );
     }
 }
