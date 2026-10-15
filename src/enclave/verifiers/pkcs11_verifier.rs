@@ -73,6 +73,49 @@ pub enum Pkcs11KeyType {
     Unknown(String),
 }
 
+/// Classifies public key parameters only; this is never hardware provenance.
+#[cfg(feature = "cryptoki")]
+fn classify_key_attributes(kind: Option<CkKeyType>, attributes: &[Attribute]) -> Pkcs11KeyType {
+    let ec_params = attributes.iter().find_map(|attr| match attr {
+        Attribute::EcParams(value) => Some(value.as_slice()),
+        _ => None,
+    });
+    match kind {
+        Some(CkKeyType::EC) => match ec_params {
+            // Exact DER named-curve OIDs; unknown/explicit/malformed curves
+            // must never be silently classified as P-256 or secp256k1.
+            Some([0x06, 0x05, 0x2b, 0x81, 0x04, 0x00, 0x0a]) => Pkcs11KeyType::EcdsaSecp256k1,
+            Some([0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07]) => {
+                Pkcs11KeyType::EcdsaSecp256r1
+            }
+            _ => Pkcs11KeyType::Unknown("EC parameters unavailable or unsupported".into()),
+        },
+        Some(CkKeyType::EC_EDWARDS) => match ec_params {
+            Some([0x06, 0x03, 0x2b, 0x65, 0x70]) => Pkcs11KeyType::Ed25519,
+            _ => Pkcs11KeyType::Unknown("Edwards parameters unavailable or unsupported".into()),
+        },
+        Some(CkKeyType::RSA) => {
+            let modulus = attributes
+                .iter()
+                .find_map(|attr| match attr {
+                    Attribute::Modulus(value) => Some(value.as_slice()),
+                    _ => None,
+                })
+                .unwrap_or_default();
+            let bits = modulus.iter().position(|byte| *byte != 0).map(|offset| {
+                (modulus.len() - offset - 1) * 8 + (8 - modulus[offset].leading_zeros() as usize)
+            });
+            match bits {
+                Some(2048) => Pkcs11KeyType::Rsa2048,
+                Some(4096) => Pkcs11KeyType::Rsa4096,
+                _ => Pkcs11KeyType::Unknown("RSA modulus unavailable or unsupported size".into()),
+            }
+        }
+        Some(other) => Pkcs11KeyType::Unknown(format!("{other:?}")),
+        None => Pkcs11KeyType::Unknown("Key type unavailable".into()),
+    }
+}
+
 /// PKCS#11 provider configuration.
 #[derive(Debug, Clone)]
 pub struct Pkcs11Config {
@@ -184,20 +227,36 @@ impl Pkcs11Verifier {
                     ],
                 )
                 .map_err(to_conclave_err)?;
-            let key_id = match attrs.first() {
-                Some(Attribute::Id(bytes)) => bytes.clone(),
-                _ => Vec::new(),
-            };
-            let label = match attrs.get(1) {
-                Some(Attribute::Label(bytes)) => String::from_utf8_lossy(bytes).into(),
-                _ => String::new(),
-            };
-            let key_type = match attrs.get(2) {
-                Some(Attribute::KeyType(CkKeyType::EC)) => Pkcs11KeyType::EcdsaSecp256r1,
-                Some(Attribute::KeyType(CkKeyType::RSA)) => Pkcs11KeyType::Rsa2048,
-                Some(Attribute::KeyType(kt)) => Pkcs11KeyType::Unknown(format!("{kt:?}")),
-                _ => Pkcs11KeyType::Unknown(String::new()),
-            };
+            let key_id = attrs
+                .iter()
+                .find_map(|attr| match attr {
+                    Attribute::Id(value) => Some(value.clone()),
+                    _ => None,
+                })
+                .unwrap_or_default();
+            let label = attrs
+                .iter()
+                .find_map(|attr| match attr {
+                    Attribute::Label(value) => Some(String::from_utf8_lossy(value).into_owned()),
+                    _ => None,
+                })
+                .unwrap_or_default();
+            let kind = attrs.iter().find_map(|attr| match attr {
+                Attribute::KeyType(value) => Some(*value),
+                _ => None,
+            });
+            // Query only the public algorithm parameters applicable to this
+            // private key. CKA_MODULUS_BITS belongs to RSA public-key templates;
+            // derive the actual RSA size from the unsigned public modulus.
+            let parameters = match kind {
+                Some(CkKeyType::EC | CkKeyType::EC_EDWARDS) => {
+                    session.get_attributes(*h, &[AttributeType::EcParams]).ok()
+                }
+                Some(CkKeyType::RSA) => session.get_attributes(*h, &[AttributeType::Modulus]).ok(),
+                _ => None,
+            }
+            .unwrap_or_default();
+            let key_type = classify_key_attributes(kind, &parameters);
             result.push(Pkcs11Key {
                 key_id,
                 label,
@@ -450,6 +509,92 @@ mod tests {
         assert!(matches!(
             v.is_hardware_backed(0),
             Err(ConclaveError::Unsupported(_))
+        ));
+    }
+
+    #[test]
+    #[cfg(feature = "cryptoki")]
+    fn classifies_exact_named_curves_only() {
+        for (oid, expected) in [
+            (
+                vec![0x06, 0x05, 0x2b, 0x81, 0x04, 0x00, 0x0a],
+                Pkcs11KeyType::EcdsaSecp256k1,
+            ),
+            (
+                vec![0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07],
+                Pkcs11KeyType::EcdsaSecp256r1,
+            ),
+        ] {
+            assert_eq!(
+                classify_key_attributes(Some(CkKeyType::EC), &[Attribute::EcParams(oid)]),
+                expected
+            );
+        }
+        for oid in [
+            vec![],
+            vec![0x06, 0x03, 0x2b, 0x65, 0x70],
+            vec![0x06, 0x05, 0x2b, 0x81, 0x04, 0x00, 0x22],
+        ] {
+            assert!(matches!(
+                classify_key_attributes(Some(CkKeyType::EC), &[Attribute::EcParams(oid)]),
+                Pkcs11KeyType::Unknown(_)
+            ));
+        }
+        assert!(matches!(
+            classify_key_attributes(Some(CkKeyType::EC), &[]),
+            Pkcs11KeyType::Unknown(_)
+        ));
+        assert_eq!(
+            classify_key_attributes(
+                Some(CkKeyType::EC_EDWARDS),
+                &[Attribute::EcParams(vec![0x06, 0x03, 0x2b, 0x65, 0x70])]
+            ),
+            Pkcs11KeyType::Ed25519
+        );
+        assert!(matches!(
+            classify_key_attributes(
+                Some(CkKeyType::EC_EDWARDS),
+                &[Attribute::EcParams(vec![0x06, 0x03, 0x2b, 0x65, 0x71])]
+            ),
+            Pkcs11KeyType::Unknown(_)
+        ));
+    }
+
+    #[test]
+    #[cfg(feature = "cryptoki")]
+    fn rsa_size_uses_actual_modulus_not_key_class() {
+        for (bytes, expected) in [(256, Pkcs11KeyType::Rsa2048), (512, Pkcs11KeyType::Rsa4096)] {
+            let mut modulus = vec![0; bytes];
+            modulus[0] = 0x80;
+            assert_eq!(
+                classify_key_attributes(
+                    Some(CkKeyType::RSA),
+                    &[Attribute::Modulus(modulus.clone())]
+                ),
+                expected
+            );
+            modulus.insert(0, 0);
+            assert_eq!(
+                classify_key_attributes(Some(CkKeyType::RSA), &[Attribute::Modulus(modulus)]),
+                expected
+            );
+        }
+        for mut modulus in [vec![], vec![0; 256], vec![0xff; 384], vec![0x7f; 256]] {
+            assert!(matches!(
+                classify_key_attributes(
+                    Some(CkKeyType::RSA),
+                    &[Attribute::Modulus(std::mem::take(&mut modulus))]
+                ),
+                Pkcs11KeyType::Unknown(_)
+            ));
+        }
+        assert!(matches!(
+            classify_key_attributes(Some(CkKeyType::RSA), &[]),
+            Pkcs11KeyType::Unknown(_)
+        ));
+        assert!(matches!(
+            classify_key_attributes(None, &[]),
+            Pkcs11KeyType::Unknown(_)
         ));
     }
 

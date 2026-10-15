@@ -21,6 +21,10 @@ const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
 /// Version of the canonical signed attestation envelope.
 pub const ATTESTATION_ENVELOPE_VERSION: u16 = 2;
 
+/// Provider-bound policy encoding. v1 digests are not accepted as v2 aliases.
+pub const ATTESTATION_POLICY_DIGEST_VERSION: u16 = 2;
+pub const ATTESTATION_POLICY_DIGEST_DOMAIN: &str = "CONXIAN-ATTESTATION-POLICY/v2";
+
 /// Provider identifiers understood by the attestation contract.
 ///
 /// A variant means the SDK can name and policy-bind the provider. It does not
@@ -705,8 +709,8 @@ impl AttestationPolicy {
     /// never the policy contents or provider evidence.
     pub(crate) fn canonical_digest(&self) -> ConclaveResult<[u8; 32]> {
         let mut canonical = Vec::new();
-        canonical.extend_from_slice(b"CONXIAN-ATTESTATION-POLICY/v1");
-        canonical.extend_from_slice(&1u16.to_be_bytes());
+        canonical.extend_from_slice(ATTESTATION_POLICY_DIGEST_DOMAIN.as_bytes());
+        canonical.extend_from_slice(&ATTESTATION_POLICY_DIGEST_VERSION.to_be_bytes());
 
         let mut allowed_levels = self
             .allowed_levels
@@ -1260,6 +1264,28 @@ mod tests {
     };
     use ed25519_dalek::SigningKey;
     use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn production_policy_digest_uses_v2_known_vector() {
+        assert_eq!(super::ATTESTATION_POLICY_DIGEST_VERSION, 2);
+        assert_eq!(
+            super::ATTESTATION_POLICY_DIGEST_DOMAIN,
+            "CONXIAN-ATTESTATION-POLICY/v2"
+        );
+        let actual = hex::encode(
+            AttestationPolicy::production()
+                .canonical_digest()
+                .expect("policy digest"),
+        );
+        assert_eq!(
+            actual,
+            "a70ee922a269eebb7b4aea95199c0f5b2ddfbe83d7014d425f178b53a33c252a"
+        );
+        assert_ne!(
+            actual, "b40365a05a2a11c791c57ff78deddf7565456f820c45ea73f1839257529e1465",
+            "legacy v1 must not alias provider-bound v2"
+        );
+    }
 
     fn valid_report(timestamp: u64, level: AttestationLevel) -> DeviceIntegrityReport {
         let signing_key = test_signing_key();
