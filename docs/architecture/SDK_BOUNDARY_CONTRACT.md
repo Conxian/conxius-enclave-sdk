@@ -54,7 +54,7 @@ SDK validation only.
 - **Scope**: Key generation, derivation, signing (ECDSA/Schnorr), and hardware attestation.
 - **Interface**: `EnclaveManager` trait.
 - **Boundary**: No awareness of transaction semantics beyond signing hashes and verifying nonces.
-- **Constraint**: **Zero Secret Egress**. Private keys, runtime state, and signing credentials never leave this boundary or egress into corporate email streams.
+- **Constraint**: **Zero Secret Egress**. Private keys never leave this boundary.
 
 ### B. Routing Orchestration (Intent Layer)
 - **Scope**: Pathfinding logic, intent construction, and liquidity rail selection.
@@ -67,11 +67,13 @@ SDK validation only.
 - **Interface**: `AssetRegistry`, `Chain` enum, `TaprootManager`.
 - **Boundary**: Decoupled from specific liquidity rails. Provides the "language" for cross-chain interaction.
 
+### D. Corporate identity and alert boundary
 
-### D. Corporate Identity & Infrastructure Decoupling (SSO / Alert Sink)
-- **Scope**: Separation between corporate Identity Provider (Zoho Mail SSO / `conxian-labs.com`), inbound alert sinks (`security@`, `devops@`, `support@`, `info@`), and public protocol execution (`conxian.org`).
-- **Boundary**: Runtime SDK enclaves, signing keys, and public protocol services (`conxian-gateway`, `conxian-nexus`, `conxian_market`) are completely decoupled from corporate email loops.
-- **Constraint**: All backend authentication uses hardware enclave attestations, API JWTs, or secret filters. No runtime logs or user secrets ever egress to corporate email.
+- **Communication:** Corporate mail, including Zoho Mail where configured, may receive sanitized operational alerts. A mailbox is not itself evidence of SSO, provisioning or offboarding enforcement.
+- **Administration:** Scoped human roles may administer corporate cloud services. Workload/service identities and signing authorization must remain separately authenticated and authorized.
+- **Trust:** SDK authorization continues to depend on its verified request, policy, key, proof and attestation contracts; corporate email addresses or domain membership supply none of these proofs.
+- **Offboarding:** Record identity-provider, application provisioning, active-session and token-revocation evidence separately for each service. Do not claim instant organization-wide revocation without those observations.
+- **Data:** Never include signing secrets or credentials in alerts. Sanitization, access controls and delivery review are required deployment controls; this documentation does not implement or certify them.
 
 ## 2. Interface Contracts (WASM/Binding Layer)
 

@@ -2,8 +2,9 @@
 
 ## [Unreleased]
 
-### Security & Governance
-- **Zoho Mail Identity Anchor & Zero Secret Egress Boundary**: Codified Security Policy Principle 9 and updated architecture boundary specifications (`SECURITY.md`, `REPO_OWNERSHIP.md`, `docs/architecture/SDK_BOUNDARY_CONTRACT.md`, `RESEARCH_LOG.md`). Enforces Zoho Mail (`conxian-labs.com`) strictly as a human Single Sign-On (SSO) identity anchor and inbound alert sink (`security@`, `devops@`, `support@`, `info@`), while completely decoupling non-human service accounts, public protocol runtime services (`conxian.org`), and guaranteeing Zero Secret Egress into corporate email streams.
+### Documentation
+- Preserve the proposed watchtower/spending-policy work as explicit acceptance requirements (#544); existing source and evidence gates are retained without enabling challenge execution or claiming hardware spending limits.
+- Clarify corporate mail, identity federation, alert sanitization and SDK authorization as separate evidence boundaries (#545). This documentation adds no tenant configuration, runtime enforcement or custody authority.
 
 ### Breaking
 - **Rail ontology rename (#422)**: `protocol::rails` → `protocol::bridges` and `rails::TrustTier` (T1–T4) → `bridges::RailTrustTier`, disambiguating the SDK rail-security tier from the core `TrustTier` (Strict/Managed/Expedient/ObserverOnly). See `docs/RAIL_ONTOLOGY.md` in lib-conxian-core.
@@ -12,6 +13,7 @@
 - **Enclave ReplayStore Durability (#240)**: Hardened `DurableFileReplayStore` validation in `src/enclave/replay_store_file.rs` to fail closed when `retain_until` is 0 or less than `now_secs`, preventing zero-timestamp replay key ingestion.
 
 ### Added
+- **Hardware Signing Chipset Drivers & Backends (`HardwareProviderType`)**: Implemented `HardwareProviderType` enum (`IntelSgx`, `AndroidStrongBox`, `AwsNitro`, `Tpm20`, `AppleSecureEnclave`, `AmdSevSnp`, `ArmTrustZone`, `Keystone`, `Pkcs11Hsm`, `WebAuthnFido2`) and helper classification methods in `src/enclave/attestation.rs`. Extended `AttestationExtension` with 10 typed provider variants, added `with_hardware_provider` to `AttestationPolicy`, added driver classification in `Pkcs11AttestationEvidence` and `AndroidAuthorizationEvidence`, added unit tests in `src/enclave/hardware_attestation_tests.rs`, and documented the Hardware Chipset & Driver Technical Specifications Matrix in `docs/architecture/SIGNER_BACKEND_POLICY_MATRIX.md` and `RESEARCH_LOG.md`.
 - `docs/guides/CLIENT_ONBOARDING_AND_DEPLOYMENT_SPEC.md` & Org Review: Completed full platform deployment review across 15 repos, 3 deployment tiers (Enterprise, Managed, Operator), 4-layer asset connectivity graph across 42 asset types, client inputs (KMS, StrongBox, Neon DB, Redis), candidate scoring (#240, #271), and `conxius-ctl` CLI installer design.
 - `src/enclave/verifiers/nitro_verifier.rs`: Hardened AWS Nitro attestation verifier with unit tests for invalid evidence parsing failures (`ConclaveError::Attestation`), corrupted Root CA fingerprint mismatch fail-closed behavior, custom KMS key identifier hash bindings, and `ProofVerifier` trait execution (#242).
 - `src/protocol/rails/x402.rs`: Hardened x402 Autonomous Machine Payment Protocol for HTTP 402 / ERP machine-to-machine payment intent settlement. Added `X402Scheme` (Bitcoin, Lightning, EVM), `X402Header` (HTTP 402 `WWW-Authenticate: X402-Payment` header parsing, serialization, and expiration checks), `X402PaymentRequest` (canonical request hash derivation), and `X402PaymentProof` (multi-scheme verification for Bitcoin BIP-322, Lightning SHA-256 preimages, and EVM EIP-712 signatures). Re-exported x402 types in `src/protocol/rails/mod.rs`.

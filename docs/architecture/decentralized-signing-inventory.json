@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "asOf": "2026-10-14",
+  "claimPolicy": {
+    "verifiedSignature": "A signature was independently checked against its public key and exact challenge bytes.",
+    "thresholdCryptography": "A threshold or aggregate cryptographic construction executes in code and tests.",
+    "decentralizedCustody": "Signing shares or keys are controlled by independently administered failure and authorization domains.",
+    "productionQualified": "Runtime, custody, ceremony, recovery, review, monitoring, and release evidence all pass policy."
+  },
+  "systems": [
+    {
+      "id": "aws-kms-release-set",
+      "kind": "release-signing",
+      "implementation": "verified",
+      "integration": "connected",
+      "decentralizedCustody": "no",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidence": [
+        "docs/architecture/public-signing-conformance-2026-10-14.json",
+        "scripts/verify_public_signing_proof.py"
+      ],
+      "reason": "Three P-256 KMS signatures verify, but all keys share one AWS account, one region, and one provider control plane. This is neither threshold signing nor decentralized custody."
+    },
+    {
+      "id": "frost-secp256k1",
+      "kind": "threshold-signing",
+      "implementation": "implemented-local",
+      "integration": "in-process",
+      "decentralizedCustody": "not-evidenced",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidence": [
+        "src/protocol/frost.rs",
+        "src/protocol/frost_crypto.rs",
+        "src/enclave/threshold.rs"
+      ],
+      "reason": "Real secp256k1 FROST primitives and local composition exist; independent operators, authenticated DKG transport, custody, recovery, and release ceremonies are not evidenced."
+    },
+    {
+      "id": "roast-frost-coordinator",
+      "kind": "threshold-orchestration",
+      "implementation": "implemented-local",
+      "integration": "in-process",
+      "decentralizedCustody": "not-evidenced",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidence": ["src/protocol/nexus/roast.rs"],
+      "reason": "Coordinator state, exclusions, blame, and aggregation paths exist, but no distributed participant transport or independently controlled signer fleet is evidenced."
+    },
+    {
+      "id": "musig2-secp256k1",
+      "kind": "aggregate-signing",
+      "implementation": "partial",
+      "integration": "none",
+      "decentralizedCustody": "not-evidenced",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidence": ["src/protocol/musig2.rs"],
+      "reason": "Key aggregation, nonce generation, partial signing, and aggregation wrappers exist without a qualified multi-party session, durable nonce lifecycle, or release integration."
+    },
+    {
+      "id": "fedimint-guardian",
+      "kind": "federated-signing",
+      "implementation": "partial",
+      "integration": "none",
+      "decentralizedCustody": "not-evidenced",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidence": [
+        "src/protocol/nexus/fedimint.rs",
+        "src/protocol/nexus/fedimint_crypto.rs"
+      ],
+      "reason": "BLS12-381 blinding and DLEQ primitives exist; a live guardian federation, consensus, share custody, database recovery, and end-to-end issuance are absent."
+    },
+    {
+      "id": "spark-statechain",
+      "kind": "distributed-custody-protocol",
+      "implementation": "partial",
+      "integration": "none",
+      "decentralizedCustody": "not-evidenced",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidence": ["src/protocol/statechain.rs"],
+      "reason": "Typed operator and transfer models exist, while value-bearing DKG, signing, rotation, recovery, and operator deployment remain gated."
+    },
+    {
+      "id": "bitcoin-multisig-and-hardware",
+      "kind": "multi-party-hardware-signing",
+      "implementation": "partial",
+      "integration": "none",
+      "decentralizedCustody": "not-evidenced",
+      "independentReview": "not-evidenced",
+      "productionSupport": "unsupported",
+      "evidence": [
+        "docs/architecture/HARDWARE_SIGNING_PROVIDER_MATRIX_2026.md",
+        "docs/architecture/SIGNER_BACKEND_POLICY_MATRIX.md"
+      ],
+      "reason": "Provider boundaries and policy are documented, but no independently controlled HSM, Keystone, StrongBox, Secure Enclave, Nitro, or PKCS#11 signer set has complete runtime and release evidence."
+    }
+  ]
+}
