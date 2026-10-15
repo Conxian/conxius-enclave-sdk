@@ -1,5 +1,7 @@
 # conxius-enclave-sdk
 
+Bitcoin-rooted universal-chain capability truth is recorded in the support inventory and [hardware driver research](docs/architecture/HARDWARE_DRIVER_QUALIFICATION_2026_10_14.md). Driver availability, signature validity, independent custody, and production qualification require separate evidence.
+
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
 [![Version](https://img.shields.io/badge/version-2.x-blue.svg)](CHANGELOG.md)
@@ -13,7 +15,7 @@ The SDK provides a high-integrity root of trust for security-sensitive wallet, s
 
 **Stable (conditional).** The 2.x line is verified stable for the non-signing capability surface under the [2026-09-29 production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md); value-bearing signing remains conditional pending the #240 release-signing contract and independent cryptographic review. Do **not** enable value-bearing production signing or settlement from this tree.
 
-The latest visible GitHub release/tag is `v2.0.17` as of 2026-08-30. `Cargo.toml` declares package version `2.0.17`, aligned with the latest release tag. Review the [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) for the boundary of each surface.
+The latest visible GitHub release/tag is `v2.0.17` as of 2026-08-30. `Cargo.toml` declares package version `2.0.17`, aligned with the latest release tag. Review the [support inventory](./docs/architecture/support-inventory.json) for exact, non-interchangeable counts and the [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) for the evidence boundary of each surface.
 
 ## Quick Start
 
@@ -26,6 +28,10 @@ conxius-enclave-sdk = { git = "https://github.com/Conxian/conxius-enclave-sdk", 
 ## Purpose
 
 Provide reusable enclave-facing primitives for signing, attestation, device trust, and hardened key handling across Conxian-aligned applications and services.
+
+The reusable contracts are part of the public `conxian.org` security surface. Commercial `conxian-labs.com` work covers provider integration, qualification, deployment support, and bespoke audits without changing the non-custodial rules. Conxian has no native token or staking asset.
+
+Android StrongBox support is currently a bounded authorization/evidence contract, not a production hardware signer. See [the offline signing boundary](./docs/architecture/ANDROID_STRONGBOX_OFFLINE_BOUNDARY.md) for the verified state and launch gates.
 
 ## Scope
 
@@ -48,14 +54,14 @@ This repository does **not** act as a complete wallet, DAO-facing governance sur
 
 | Feature | Status | Description |
 |---------|--------|-------------|
-| Hardware Attestation | Vendor-backed hardware attestation | AWS Nitro, Android StrongBox KeyMint, and PKCS#11 verifiers with root CA validation |
+| Hardware Attestation | Typed, fail-closed foundations; no production-supported provider | Provider taxonomy and bounded verifier foundations exist, but live provider collateral, key custody/operation binding, qualification, and release evidence remain incomplete |
 | FROST DKG | Production RFC 9591 DKG & threshold signing | Un-quarantined RFC 9591 DKG share verification, single-use nonce lifecycle, and ZF FROST threshold signing |
 | Threshold Attestation | Threshold t-of-n signing + composed TEE attestation | `ThresholdEnclaveManager` composes M-of-N per-share TEE reports into a `DeviceIntegrityReport` and produces value-bearing FROST threshold signatures (feature-gated by `frost-crypto`) |
 | Fedimint | Real BLS12-381 DLEQ proof & e-cash blinding | Chaum-Pedersen DLEQ proof creation, verification, and blind signature requests (`fedimint-crypto`); threshold mint provider-gated |
 | Ark / BitVM2 | Typed foundation & Groth16 pairing verifier | Groth16 SNARK proof verification with BLS12-381 pairings (`groth16`); Ark vTXO tree construction & recovery scan; legacy WASM challenge paths fail closed |
 | CCTP | Circle CCTP attestation validation | Verified canonical keccak256 message hashing and SEC1 secp256k1 ECDSA attestation signature validation |
 | Ethereum / Taproot / BIP-322 | Scoped canonical verification/derivation | BIP-340/BIP-341/BIP-86, Ethereum address/message/signature validation, and native P2WPKH/P2TR key-path Simple verification are implemented in scope; broader script formats, Ethereum transaction construction, provider evidence, and production gates remain open |
-| 42 Chains | Registry surface present | Address provenance and integration evidence are incomplete |
+| 42 chain/network/layer identifiers | Registry surface present | This is an SDK identifier count, not a live-connection claim; adapter, integration, and production evidence remain separate |
 | WASM | WASM runtime evidence verified | Zeroized WasmSecretBuffer memory boundary, browser/Node/bundler/worker test evidence, and fail-closed protocol execution |
 
 ## Development
@@ -94,6 +100,9 @@ cargo clippy -- -D warnings
 - [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md) - Release checklist
 - [Production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md) - Findings, gates, unknowns, and public-safe evidence
 - [Capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) - API/evidence/support status by capability
+- [Support inventory](./docs/architecture/support-inventory.json) - exact chain, asset, module, projection, and evidence-ledger measures
+- [Decentralized signing inventory](./docs/architecture/decentralized-signing-inventory.json) - separates verified cryptography from independent custody and production qualification
+- [Public signing conformance proof](./docs/architecture/public-signing-conformance-2026-10-14.json) - independently verifiable, non-release AWS KMS signatures with explicit non-claims
 - [Protocol implementation roadmap](./docs/architecture/PROTOCOL_IMPLEMENTATION_ROADMAP.md) - requirements, boundaries, tests, CI/artifact gates, and non-production milestones
 - [WASM support matrix](./docs/architecture/WASM_SUPPORT_MATRIX.md) - Runtime/provider boundaries and evidence requirements
 - [WASM key-boundary migration](./docs/migrations/wasm-key-boundary.md) - Breaking API changes and migration guidance

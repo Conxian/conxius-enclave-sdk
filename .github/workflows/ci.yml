@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main, staged ]
   pull_request:
-    branches: [ main, staged ]
+    branches: [ main, staged, dev ]
   workflow_dispatch:
 
 permissions:
@@ -48,6 +48,12 @@ jobs:
           toolchain: 1.98.1
       - name: Check formatting
         run: cargo fmt --all -- --check
+      - name: Validate support and capability inventories
+        run: |
+          python3 scripts/validate_support_inventory.py
+          python3 scripts/validate_capability_evidence.py --check
+          python3 scripts/validate_decentralized_signing_inventory.py
+          python3 scripts/verify_public_signing_proof.py
       - name: Clippy
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
 

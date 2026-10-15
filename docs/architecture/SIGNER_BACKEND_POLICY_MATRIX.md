@@ -36,3 +36,25 @@ The `RailProxy` must enforce the following signer-to-rail mapping:
 - **Gateway**: Must reject any `SignResponse` that does not include a valid `DeviceIntegrityReport` matching the required level for the target rail.
 - **Nexus**: Must store signer class metadata in the `ProofEnvelope` to allow downstream audit of signing integrity.
 - **Enclave SDK**: All production drivers MUST emit hardened attestation levels. Software drivers are strictly for local development and interface testing.
+
+
+## 5. Hardware Chipset & Driver Technical Specifications Matrix
+
+This section defines provider identifiers understood by the SDK. An identifier
+does **not** assert that a production verifier, signer, chipset, curve, FIPS
+certificate, or cloud configuration is available. Production support remains
+`unsupported` until the corresponding evidence gate in
+`HARDWARE_SIGNING_PROVIDER_MATRIX_2026.md` passes.
+
+| Provider identifier | Integration boundary | Evidence that must be verified | Important separation |
+| --- | --- | --- | --- |
+| **`INTEL_SGX_DCAP`** | SGX DCAP quote/collateral verifier | Quote, PCK/QE chain, TCB status, measurements, freshness | TDX has a distinct quote/TCB profile and needs its own typed verifier before enablement. |
+| **`ANDROID_STRONGBOX`** | Android KeyMint/Key Attestation | Google-rooted certificate path, attestation challenge, authorization lists, verified boot and security level | Package names, key IDs, model names, and Play Integrity alone do not prove StrongBox. |
+| **`AWS_NITRO`** | NSM attestation + KMS release policy | COSE signature/chain, PCRs, nonce/user data/public key, freshness, KMS conditions | Nitro attests an enclave; application/KMS key algorithms are a separate capability. |
+| **`TPM_20`** | TPM 2.0 quote and key certification | EK/AK trust, quote signature, PCR selection/values, nonce, certified key attributes | `tpm2-pkcs11` discovery metadata is not a TPM quote. |
+| **`APPLE_SECURE_ENCLAVE`** | Apple key authorization / App Attest profile | Apple chain, nonce/challenge, app identity, key binding and freshness | Secure Enclave key use and App Attest are separate Apple security APIs. |
+| **`AMD_SEV_SNP`** | SNP attestation report verifier | ARK/ASK/VCEK or VLEK path, report signature, TCB, policy, measurement, report data | Guest signing algorithms are not implied by the SNP report signature algorithm. |
+| **`ARM_TRUSTZONE`** | PSA initial-attestation profile | EAT/CBOR token signature, implementation identity, lifecycle, measurements, challenge | Arm CCA Realm attestation is a separate architecture/profile and needs a distinct type. |
+| **`KEYSTONE_RISCV`** | RISC-V Keystone TEE attestation | Security-monitor/enclave measurement chain, challenge, freshness, key binding | This is not the Keystone air-gapped hardware wallet product. |
+| **`PKCS11_HSM`** | PKCS#11 signing adapter plus provider profile | Authenticated slot/key identity, non-extractability, mechanism allow-list, provider/FIPS evidence | Manufacturer/module strings and `C_GetTokenInfo` are inventory hints only. |
+| **`WEBAUTHN_FIDO2`** | WebAuthn/FIDO authenticator verifier | Client data, RP ID, challenge, authenticator data, statement format, trust policy, counters | WebAuthn authentication is not a general Bitcoin transaction-signing API. |
