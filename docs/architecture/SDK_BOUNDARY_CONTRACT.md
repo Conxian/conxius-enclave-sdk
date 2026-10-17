@@ -67,6 +67,14 @@ SDK validation only.
 - **Interface**: `AssetRegistry`, `Chain` enum, `TaprootManager`.
 - **Boundary**: Decoupled from specific liquidity rails. Provides the "language" for cross-chain interaction.
 
+### D. Corporate identity and alert boundary
+
+- **Communication:** Corporate mail, including Zoho Mail where configured, may receive sanitized operational alerts. A mailbox is not itself evidence of SSO, provisioning or offboarding enforcement.
+- **Administration:** Scoped human roles may administer corporate cloud services. Workload/service identities and signing authorization must remain separately authenticated and authorized.
+- **Trust:** SDK authorization continues to depend on its verified request, policy, key, proof and attestation contracts; corporate email addresses or domain membership supply none of these proofs.
+- **Offboarding:** Record identity-provider, application provisioning, active-session and token-revocation evidence separately for each service. Do not claim instant organization-wide revocation without those observations.
+- **Data:** Never include signing secrets or credentials in alerts. Sanitization, access controls and delivery review are required deployment controls; this documentation does not implement or certify them.
+
 ## 2. Interface Contracts (WASM/Binding Layer)
 
 The `ConclaveWasmClient` serves as the canonical entry point for external integrators.

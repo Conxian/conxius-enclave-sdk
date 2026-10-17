@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Documentation
+- Preserve the proposed watchtower/spending-policy work as explicit acceptance requirements (#544); existing source and evidence gates are retained without enabling challenge execution or claiming hardware spending limits.
+- Clarify corporate mail, identity federation, alert sanitization and SDK authorization as separate evidence boundaries (#545). This documentation adds no tenant configuration, runtime enforcement or custody authority.
+
 ### Breaking
 - **Rail ontology rename (#422)**: `protocol::rails` → `protocol::bridges` and `rails::TrustTier` (T1–T4) → `bridges::RailTrustTier`, disambiguating the SDK rail-security tier from the core `TrustTier` (Strict/Managed/Expedient/ObserverOnly). See `docs/RAIL_ONTOLOGY.md` in lib-conxian-core.
 
