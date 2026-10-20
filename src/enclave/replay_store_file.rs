@@ -156,7 +156,9 @@ impl ReplayStore for DurableFileReplayStore {
             return Err(ReplayStoreError::ClockRollback);
         }
         state.high_water_secs = now_secs;
-        let _ = write_high_water(&state.dir, now_secs);
+        // Retain the observed clock in memory on failure, but do not touch
+        // claims unless its persistence succeeds.
+        write_high_water(&state.dir, now_secs)?;
 
         let path = record_path(&state.dir, reservation.binding_digest());
         match OpenOptions::new().write(true).create_new(true).open(&path) {
@@ -226,7 +228,8 @@ impl ReplayStore for DurableFileReplayStore {
             return Err(ReplayStoreError::ClockRollback);
         }
         state.high_water_secs = now_secs;
-        let _ = write_high_water(&state.dir, now_secs);
+        // Match the single-key boundary: no claim changes on clock failure.
+        write_high_water(&state.dir, now_secs)?;
 
         // All-or-nothing conflict check before any write.
         let mut claims: Vec<(PathBuf, u64)> = Vec::with_capacity(reservations.len());
@@ -393,5 +396,100 @@ mod tests {
             Err(ReplayStoreError::InvalidRetention)
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn clock_open_failure_prevents_single_and_batch_claims_and_recovers() {
+        for batch in [false, true] {
+            let dir = temp_dir(if batch { "clock-batch" } else { "clock-single" });
+            let store = DurableFileReplayStore::open(&dir).unwrap();
+            let first = reservation(41, 10_100);
+            let second = reservation(42, 10_100);
+            let clock = dir.join(CLOCK_FILE_NAME);
+            fs::create_dir(&clock).unwrap();
+
+            let result = if batch {
+                store
+                    .consume_once_batch(&[first.clone(), second.clone()], 10_000)
+                    .map(|_| ())
+            } else {
+                store.consume_once(&first, 10_000).map(|_| ())
+            };
+            assert_eq!(result, Err(ReplayStoreError::BackendUnavailable));
+            assert!(!record_path(&dir, first.binding_digest()).exists());
+            assert!(!record_path(&dir, second.binding_digest()).exists());
+
+            // Retain the observed high-water mark in memory even on failure.
+            assert_eq!(
+                store.consume_once(&first, 9_999),
+                Err(ReplayStoreError::ClockRollback)
+            );
+            assert_eq!(
+                store.consume_once_batch(&[first.clone(), second.clone()], 9_999),
+                Err(ReplayStoreError::ClockRollback)
+            );
+            fs::remove_dir(&clock).unwrap();
+            if batch {
+                assert_eq!(
+                    store
+                        .consume_once_batch(&[first.clone(), second.clone()], 10_000)
+                        .unwrap()
+                        .accepted_count(),
+                    2
+                );
+            } else {
+                assert_eq!(
+                    store.consume_once(&first, 10_000).unwrap(),
+                    ReplayConsumeOutcome::Accepted
+                );
+            }
+            drop(store);
+            let reopened = DurableFileReplayStore::open(&dir).unwrap();
+            assert_eq!(
+                reopened.consume_once(&first, 9_999),
+                Err(ReplayStoreError::ClockRollback)
+            );
+            assert_eq!(
+                reopened.consume_once(&first, 10_000).unwrap(),
+                ReplayConsumeOutcome::Duplicate
+            );
+            fs::remove_dir_all(&dir).unwrap();
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn clock_write_failure_is_indeterminate_before_any_claim_changes() {
+        use std::os::unix::fs::symlink;
+
+        let dir = temp_dir("clock-write");
+        let store = DurableFileReplayStore::open(&dir).unwrap();
+        let first = reservation(51, 10_100);
+        let second = reservation(52, 10_100);
+        let existing = reservation(53, 10_100);
+        store.consume_once(&existing, 9_000).unwrap();
+        let existing_path = record_path(&dir, existing.binding_digest());
+        let original = fs::read(&existing_path).unwrap();
+        let clock = dir.join(CLOCK_FILE_NAME);
+        fs::remove_file(&clock).unwrap();
+        symlink("/dev/full", &clock).unwrap();
+
+        assert_eq!(
+            store.consume_once(&first, 10_000),
+            Err(ReplayStoreError::TransactionIndeterminate)
+        );
+        assert_eq!(
+            store.consume_once_batch(&[first.clone(), second.clone()], 10_000),
+            Err(ReplayStoreError::TransactionIndeterminate)
+        );
+        assert_eq!(fs::read(&existing_path).unwrap(), original);
+        assert!(!record_path(&dir, first.binding_digest()).exists());
+        assert!(!record_path(&dir, second.binding_digest()).exists());
+        fs::remove_file(&clock).unwrap();
+        assert_eq!(
+            store.consume_once(&first, 10_000).unwrap(),
+            ReplayConsumeOutcome::Accepted
+        );
+        fs::remove_dir_all(&dir).unwrap();
     }
 }

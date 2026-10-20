@@ -1,5 +1,11 @@
 # Next Session Plan
 
+## Current P0 continuation — 20 October 2026
+
+Lower-level #599 is integrated into dev and staged. Review the higher-level durable-request clock correction in `openspec/changes/2026-10-20-durable-request-clock/proposal.md` against its exact head: clock persistence precedes every record path, including duplicate/conflicting retries, with failure/recovery/restart regressions. Keep the mainnet acceptance pack and real #240/#202 outcomes open.
+
+Review the clock-persistence correction candidate under #240 against the exact PR head and hosted evidence. Preserve replay history and normal independent review/promotion controls. Next qualify the service-owned transactional backend, replica/restart/outage/rollback behavior, current provider collateral and operation/key binding. Local file-store tests do not close distributed replay, hardware or release acceptance. See `openspec/changes/2026-10-20-replay-clock-persistence/proposal.md` and SEC-003 in `DEBT_INVENTORY.md`.
+
 ## Session 84 Completed (2026-10-11) — Hardware Signing Chipset Drivers, HSM, Keystone, Enclave & StrongBox Research Expansion
 
 Provider identifiers and policy bindings were added as an inventory and

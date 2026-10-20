@@ -713,6 +713,67 @@ mod edge_case_tests {
     }
 
     #[test]
+    fn ambiguous_provider_names_cannot_select_a_different_trust_boundary() {
+        for token in [
+            "TDX",
+            "KEYMINT",
+            "AMD_SEV",
+            "SEV",
+            "ARM_CCA",
+            "KEYSTONE",
+            "SECURE_ENCLAVE",
+            "HSM",
+            "",
+            "unknown",
+        ] {
+            assert_eq!(HardwareProviderType::from_str_token(token), None, "{token}");
+        }
+        for (token, provider) in [
+            (" SGX ", HardwareProviderType::IntelSgx),
+            ("STRONGBOX", HardwareProviderType::AndroidStrongBox),
+            ("NITRO", HardwareProviderType::AwsNitro),
+            ("TRUSTZONE", HardwareProviderType::ArmTrustZone),
+            ("RISCV_KEYSTONE", HardwareProviderType::Keystone),
+        ] {
+            assert_eq!(HardwareProviderType::from_str_token(token), Some(provider));
+        }
+    }
+
+    #[test]
+    fn provider_claim_is_indeterminate_for_duplicate_or_conflicting_metadata() {
+        let generator = MockAttestationGenerator::new(AttestationLevel::CloudTEE);
+        let nonce = random_nonce();
+        let mut report = generator.generate_valid_report(&nonce, 1_000_000);
+        assert!(report.verify_at_time(&nonce, 1_000_000));
+        assert_eq!(report.claimed_hardware_provider(), None);
+        report
+            .extensions
+            .push(AttestationExtension::ProviderAwsNitro);
+        report.extension_data.push_str("|PROVIDER_AWS_NITRO");
+        report.sign_with_ed25519_key(&test_signing_key()).unwrap();
+        assert_eq!(
+            report.claimed_hardware_provider(),
+            Some(HardwareProviderType::AwsNitro)
+        );
+        assert!(report.verify_at_time(&nonce, 1_000_000));
+        assert!(
+            !report.verify_at_time_with_policy(&nonce, 1_000_000, &AttestationPolicy::production()),
+            "a fresh, signed fixture and provider claim cannot authorize production use"
+        );
+        report
+            .extensions
+            .push(AttestationExtension::ProviderAwsNitro);
+        assert_eq!(report.claimed_hardware_provider(), None);
+        report.extensions.pop();
+        report
+            .extensions
+            .push(AttestationExtension::ProviderIntelSgx);
+        assert_eq!(report.claimed_hardware_provider(), None);
+        report.extensions.reverse();
+        assert_eq!(report.claimed_hardware_provider(), None);
+    }
+
+    #[test]
     fn test_attestation_extension_provider_tokens() {
         let extension_tokens = [
             ("PROVIDER_INTEL_SGX", AttestationExtension::ProviderIntelSgx),
