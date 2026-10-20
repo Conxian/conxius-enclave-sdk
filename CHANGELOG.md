@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- Stop local replay consumption when saving the anti-rollback clock fails, for both single and batch requests; preserve the in-process high-water observation for retries (#240).
+
 ### Documentation
 - Preserve the proposed watchtower/spending-policy work as explicit acceptance requirements (#544); existing source and evidence gates are retained without enabling challenge execution or claiming hardware spending limits.
 - Clarify corporate mail, identity federation, alert sanitization and SDK authorization as separate evidence boundaries (#545). This documentation adds no tenant configuration, runtime enforcement or custody authority.
