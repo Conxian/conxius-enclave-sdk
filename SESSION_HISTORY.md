@@ -1,3 +1,13 @@
+## 20 October 2026 — P0 replay clock persistence correction candidate
+
+Tracking: #240; portfolio Conxian/conxian-business#1390. Fresh base: `e86c8502620f60b396f0fc39e4c590d02335fd20`.
+
+Both new native regression tests failed against unchanged replay consumption: an obstructed high-water path returned success instead of BackendUnavailable, and an actual Linux write failure returned Accepted instead of TransactionIndeterminate. Both single and batch paths now propagate clock-persistence errors before touching claims. Failed attempts retain the in-process clock observation, requiring recovery at the same or a later timestamp. No replay format, policy digest, dependency or trust authority changes.
+
+The bounded change includes failure/retry/restart tests and corrects SEC-003 to P0. Full validation results belong in the exact candidate PR and #240; local tests are not provider/distributed/crash-durability or release acceptance. Continue the remaining service-owned distributed replay and hardware/independent-review work under #240/#241/#559/#202. The old session declarations of code completeness below are historical, not current acceptance.
+
+---
+
 ## Session 78 (2026-09-27) — End-to-End Repository Recon, Gap Analysis & ATS Ledger Synchronization
 
 ### Changes
