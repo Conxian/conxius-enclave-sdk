@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- Require durable-request clock persistence before new claims and duplicate/conflicting retries; preserve forward observations across restart (#240).
 - Stop local replay consumption when saving the anti-rollback clock fails, for both single and batch requests; preserve the in-process high-water observation for retries (#240).
 
 ### Documentation
