@@ -1,3 +1,13 @@
+## 20 October 2026 — P0 higher-level durable replay clock follow-through
+
+Fresh dev: `af8e2844dd6c8936aad16e391a70ec202a383cf2` (#599); staged `00320f4c9fef8056d6c8f2afcc8de48c88aefbf1` (#600). These are source integrations, not #240/#202 production acceptance.
+
+The distinct higher-level file backend still used best-effort clock persistence after committing a claim and did not save forward observations on duplicate/conflicting requests. Four new native regression tests fail on unchanged source. Move clock persistence before all claim paths and preserve the in-process high-water observation even on failure. No format, policy, identity, expiry convention, dependencies or release authority changes; no existing replay records are erased. Exact validation and review receipts belong in the candidate PR and #240.
+
+Continue P0 service-owned transactional/distributed replay, real provider/collateral evidence and independent release qualification. Do not substitute local reference-store checks or source promotion for these outcomes.
+
+---
+
 ## 20 October 2026 — P0 replay clock persistence correction candidate
 
 Tracking: #240; portfolio Conxian/conxian-business#1390. Fresh base: `e86c8502620f60b396f0fc39e4c590d02335fd20`.
