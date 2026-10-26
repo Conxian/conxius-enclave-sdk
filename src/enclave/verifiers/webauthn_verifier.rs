@@ -60,10 +60,12 @@ fn attestation_error(message: impl Into<String>) -> ConclaveError {
 }
 
 fn map_value<'a>(entries: &'a [(Value, Value)], key: &str) -> Option<&'a Value> {
-    entries.iter().find_map(|(candidate, value)| match candidate {
-        Value::Text(candidate) if candidate == key => Some(value),
-        _ => None,
-    })
+    entries
+        .iter()
+        .find_map(|(candidate, value)| match candidate {
+            Value::Text(candidate) if candidate == key => Some(value),
+            _ => None,
+        })
 }
 
 fn decode_cbor_prefix(bytes: &[u8], label: &str) -> ConclaveResult<(Value, usize)> {
@@ -136,10 +138,11 @@ fn parse_authenticator_data(
         credential_id = Some(bytes[offset..credential_id_end].to_vec());
         offset = credential_id_end;
 
-        let (public_key, consumed) =
-            decode_cbor_prefix(&bytes[offset..], "credential public key")?;
+        let (public_key, consumed) = decode_cbor_prefix(&bytes[offset..], "credential public key")?;
         if !matches!(public_key, Value::Map(_)) {
-            return Err(attestation_error("credential public key must be a CBOR map"));
+            return Err(attestation_error(
+                "credential public key must be a CBOR map",
+            ));
         }
         credential_public_key = Some(bytes[offset..offset + consumed].to_vec());
         offset += consumed;
@@ -150,7 +153,9 @@ fn parse_authenticator_data(
         offset += consumed;
     }
     if offset != bytes.len() {
-        return Err(attestation_error("authenticatorData has unexpected trailing bytes"));
+        return Err(attestation_error(
+            "authenticatorData has unexpected trailing bytes",
+        ));
     }
 
     Ok(ParsedAuthenticatorData {
@@ -182,16 +187,26 @@ fn parse_attestation_object(
             "android-safetynet" => AttestationFormat::AndroidSafetyNet,
             "apple" => AttestationFormat::Apple,
             "none" => AttestationFormat::None_,
-            _ => return Err(attestation_error(format!("unsupported attestation format '{format}'"))),
+            _ => {
+                return Err(attestation_error(format!(
+                    "unsupported attestation format '{format}'"
+                )))
+            }
         },
         _ => return Err(attestation_error("attestationObject fmt must be text")),
     };
     let auth_data = match map_value(&entries, "authData") {
         Some(Value::Bytes(bytes)) => bytes,
-        _ => return Err(attestation_error("attestationObject authData must be bytes")),
+        _ => {
+            return Err(attestation_error(
+                "attestationObject authData must be bytes",
+            ))
+        }
     };
     if !matches!(map_value(&entries, "attStmt"), Some(Value::Map(_))) {
-        return Err(attestation_error("attestationObject attStmt must be a CBOR map"));
+        return Err(attestation_error(
+            "attestationObject attStmt must be a CBOR map",
+        ));
     }
 
     Ok((format, parse_authenticator_data(auth_data, rp_id, true)?))
@@ -298,7 +313,9 @@ impl WebauthnVerifier {
             ));
         }
         let _structural_credential = WebauthnCredential {
-            credential_id: parsed.credential_id.expect("registration parser sets credential ID"),
+            credential_id: parsed
+                .credential_id
+                .expect("registration parser sets credential ID"),
             public_key: parsed
                 .credential_public_key
                 .expect("registration parser sets credential public key"),
@@ -380,8 +397,7 @@ impl WebauthnVerifier {
         let challenge_b64 = base64_url(challenge);
         let _cd =
             self.validate_client_data(client_data_json, &challenge_b64, origin, "webauthn.get")?;
-        let _parsed =
-            parse_authenticator_data(_authenticator_data, &self.config.rp_id, false)?;
+        let _parsed = parse_authenticator_data(_authenticator_data, &self.config.rp_id, false)?;
         Err(ConclaveError::Unsupported(
             "WebAuthn structural validation passed; enable `webauthn` for cryptographic verification".into(),
         ))
@@ -390,8 +406,9 @@ impl WebauthnVerifier {
     /// Generate a WebAuthn registration challenge.
     pub fn generate_challenge(&self) -> ConclaveResult<(Vec<u8>, String)> {
         let mut challenge = vec![0u8; 32];
-        getrandom::fill(&mut challenge)
-            .map_err(|error| ConclaveError::Attestation(format!("WebAuthn: challenge RNG failed: {error}")))?;
+        getrandom::fill(&mut challenge).map_err(|error| {
+            ConclaveError::Attestation(format!("WebAuthn: challenge RNG failed: {error}"))
+        })?;
         let b64 = base64_url(&challenge);
         Ok((challenge, b64))
     }
@@ -545,7 +562,11 @@ mod tests {
             rp_name: "Test".into(),
             allowed_credentials: vec![],
             require_attestation,
-            trusted_attestation_cas: if require_attestation { vec![b"test-anchor".to_vec()] } else { vec![] },
+            trusted_attestation_cas: if require_attestation {
+                vec![b"test-anchor".to_vec()]
+            } else {
+                vec![]
+            },
         }
     }
 
@@ -651,7 +672,9 @@ mod tests {
             challenge,
             "https://test.local",
         );
-        assert!(matches!(result, Err(ConclaveError::Attestation(message)) if message.contains("trust anchors")));
+        assert!(
+            matches!(result, Err(ConclaveError::Attestation(message)) if message.contains("trust anchors"))
+        );
     }
 
     #[test]
@@ -668,7 +691,12 @@ mod tests {
             Value::Map(vec![]),
         );
         assert!(matches!(
-            verifier.verify_registration(&object, client_data.as_bytes(), challenge, "https://test.local"),
+            verifier.verify_registration(
+                &object,
+                client_data.as_bytes(),
+                challenge,
+                "https://test.local"
+            ),
             Err(ConclaveError::Unsupported(_))
         ));
     }
@@ -693,6 +721,4 @@ mod tests {
         let (second, _) = verifier.generate_challenge().unwrap();
         assert_ne!(first, second);
     }
-
 }
-
