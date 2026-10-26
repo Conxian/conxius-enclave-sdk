@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- **Phala dstack TEE Abstraction & Proof Verifier (`src/enclave/verifiers/dstack_verifier.rs`)**: Integrated Phala Network's open-source `dstack` TEE/SGX abstraction framework into `conxius-enclave-sdk` while retaining private container orchestration in `conxius-platform`. Implemented `PhalaDstackVerifier` (`conxian.trust.phala.dstack.v1`), `DstackAttestationDocument`, `DstackAppPolicy`, and `DstackReleaseBinding`. Validates application code/signer measurements (`MRENCLAVE`, `MRSIGNER`), container layer states (`RTMR0`..`RTMR3`), timestamp freshness, and operation release bindings. Documented integration in `docs/architecture/PHALA_DSTACK_INTEGRATION.md` and registered `PHALA_DSTACK` token parsing in `src/enclave/attestation.rs` and `src/enclave/verifiers/mod.rs`.
+
 ### Fixed
 - Require durable-request clock persistence before new claims and duplicate/conflicting retries; preserve forward observations across restart (#240).
 - Stop local replay consumption when saving the anti-rollback clock fails, for both single and batch requests; preserve the in-process high-water observation for retries (#240).

@@ -66,7 +66,7 @@ impl HardwareProviderType {
     /// identify a provider. Parsing is inventory classification, not evidence.
     pub fn from_str_token(token: &str) -> Option<Self> {
         match token.trim() {
-            "INTEL_SGX_DCAP" | "INTEL_SGX" | "SGX" => Some(Self::IntelSgx),
+            "INTEL_SGX_DCAP" | "INTEL_SGX" | "SGX" | "PHALA_DSTACK" | "DSTACK" => Some(Self::IntelSgx),
             "ANDROID_STRONGBOX" | "STRONGBOX" => Some(Self::AndroidStrongBox),
             "AWS_NITRO" | "NITRO" => Some(Self::AwsNitro),
             "TPM_20" | "TPM20" | "TPM" => Some(Self::Tpm20),
@@ -116,7 +116,7 @@ impl HardwareProviderType {
     /// Driver interface specification reference.
     pub fn driver_interface_spec(&self) -> &'static str {
         match self {
-            Self::IntelSgx => "Intel SGX DCAP / ECDSA Quote Specification",
+            Self::IntelSgx => "Intel SGX DCAP / Phala dstack Quote Specification",
             Self::AndroidStrongBox => "Android KeyMint v4 / StrongBox Keymaster SE API",
             Self::AwsNitro => "AWS Nitro Security Module (NSM) / COSE CBOR Attestation",
             Self::Tpm20 => "TCG TPM 2.0 Library Specification v1.85 / tpm2-pkcs11",
@@ -212,6 +212,7 @@ pub enum AttestationExtension {
     ProviderKeystone,
     ProviderPkcs11Hsm,
     ProviderWebAuthnFido2,
+    ProviderPhalaDstack,
     Opaque(String),
 }
 
@@ -244,6 +245,7 @@ impl AttestationExtension {
             "PROVIDER_KEYSTONE" => Self::ProviderKeystone,
             "PROVIDER_PKCS11_HSM" => Self::ProviderPkcs11Hsm,
             "PROVIDER_WEBAUTHN_FIDO2" => Self::ProviderWebAuthnFido2,
+            "PROVIDER_PHALA_DSTACK" => Self::ProviderPhalaDstack,
             value if value.starts_with("OS_VERSION_") && value.len() > "OS_VERSION_".len() => {
                 Self::OsVersion(value["OS_VERSION_".len()..].to_string())
             }
@@ -276,6 +278,7 @@ impl AttestationExtension {
             Self::ProviderKeystone => (27, None),
             Self::ProviderPkcs11Hsm => (28, None),
             Self::ProviderWebAuthnFido2 => (29, None),
+            Self::ProviderPhalaDstack => (30, None),
             Self::Opaque(token) => (255, Some(token.as_str())),
         }
     }
@@ -473,7 +476,9 @@ fn attestation_extension_provider(
     extension: &AttestationExtension,
 ) -> Option<HardwareProviderType> {
     match extension {
-        AttestationExtension::ProviderIntelSgx => Some(HardwareProviderType::IntelSgx),
+        AttestationExtension::ProviderIntelSgx | AttestationExtension::ProviderPhalaDstack => {
+            Some(HardwareProviderType::IntelSgx)
+        }
         AttestationExtension::ProviderAndroidStrongBox => {
             Some(HardwareProviderType::AndroidStrongBox)
         }
