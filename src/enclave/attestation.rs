@@ -66,7 +66,9 @@ impl HardwareProviderType {
     /// identify a provider. Parsing is inventory classification, not evidence.
     pub fn from_str_token(token: &str) -> Option<Self> {
         match token.trim() {
-            "INTEL_SGX_DCAP" | "INTEL_SGX" | "SGX" | "PHALA_DSTACK" | "DSTACK" => Some(Self::IntelSgx),
+            "INTEL_SGX_DCAP" | "INTEL_SGX" | "SGX" | "PHALA_DSTACK" | "DSTACK" => {
+                Some(Self::IntelSgx)
+            }
             "ANDROID_STRONGBOX" | "STRONGBOX" => Some(Self::AndroidStrongBox),
             "AWS_NITRO" | "NITRO" => Some(Self::AwsNitro),
             "TPM_20" | "TPM20" | "TPM" => Some(Self::Tpm20),
