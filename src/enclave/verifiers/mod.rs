@@ -2,7 +2,7 @@
 //!
 //! Production verifiers that plug into the proof and trust infrastructure:
 //! - [`nitro_verifier`] — AWS Nitro TEE (P0: primary deployment target)
-//! - [`dstack_verifier`] — Phala dstack TEE (P0: Intel SGX / TDX abstraction)
+//! - [`dstack_verifier`] — Phala dstack research adapter (unavailable; diagnostic parsing only)
 //! - [`pkcs11_verifier`] — PKCS#11 HSM/TPM (P1: on-premise hardware)
 //! - [`webauthn_verifier`] — WebAuthn/FIDO2 endpoints (P2: mobile/desktop)
 //! - [`oidc_verifier`] — OIDC token verification (P1: enterprise auth)

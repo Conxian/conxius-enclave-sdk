@@ -66,9 +66,7 @@ impl HardwareProviderType {
     /// identify a provider. Parsing is inventory classification, not evidence.
     pub fn from_str_token(token: &str) -> Option<Self> {
         match token.trim() {
-            "INTEL_SGX_DCAP" | "INTEL_SGX" | "SGX" | "PHALA_DSTACK" | "DSTACK" => {
-                Some(Self::IntelSgx)
-            }
+            "INTEL_SGX_DCAP" | "INTEL_SGX" | "SGX" => Some(Self::IntelSgx),
             "ANDROID_STRONGBOX" | "STRONGBOX" => Some(Self::AndroidStrongBox),
             "AWS_NITRO" | "NITRO" => Some(Self::AwsNitro),
             "TPM_20" | "TPM20" | "TPM" => Some(Self::Tpm20),
@@ -118,7 +116,7 @@ impl HardwareProviderType {
     /// Driver interface specification reference.
     pub fn driver_interface_spec(&self) -> &'static str {
         match self {
-            Self::IntelSgx => "Intel SGX DCAP / Phala dstack Quote Specification",
+            Self::IntelSgx => "Intel SGX DCAP / ECDSA Quote Specification",
             Self::AndroidStrongBox => "Android KeyMint v4 / StrongBox Keymaster SE API",
             Self::AwsNitro => "AWS Nitro Security Module (NSM) / COSE CBOR Attestation",
             Self::Tpm20 => "TCG TPM 2.0 Library Specification v1.85 / tpm2-pkcs11",
@@ -214,8 +212,9 @@ pub enum AttestationExtension {
     ProviderKeystone,
     ProviderPkcs11Hsm,
     ProviderWebAuthnFido2,
-    ProviderPhalaDstack,
     Opaque(String),
+    /// Framework metadata only; cannot identify a physical hardware provider.
+    ProviderPhalaDstack,
 }
 
 impl AttestationExtension {
@@ -478,9 +477,7 @@ fn attestation_extension_provider(
     extension: &AttestationExtension,
 ) -> Option<HardwareProviderType> {
     match extension {
-        AttestationExtension::ProviderIntelSgx | AttestationExtension::ProviderPhalaDstack => {
-            Some(HardwareProviderType::IntelSgx)
-        }
+        AttestationExtension::ProviderIntelSgx => Some(HardwareProviderType::IntelSgx),
         AttestationExtension::ProviderAndroidStrongBox => {
             Some(HardwareProviderType::AndroidStrongBox)
         }
@@ -1281,6 +1278,22 @@ pub(crate) fn test_signing_key() -> SigningKey {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn dstack_framework_is_not_a_hardware_identity() {
+        for token in ["PHALA_DSTACK", "DSTACK"] {
+            assert_eq!(super::HardwareProviderType::from_str_token(token), None);
+        }
+        assert_eq!(
+            super::attestation_extension_provider(
+                &super::AttestationExtension::ProviderPhalaDstack
+            ),
+            None
+        );
+        let mut report = valid_report(1, super::AttestationLevel::CloudTEE);
+        report.extensions = vec![super::AttestationExtension::ProviderPhalaDstack];
+        assert_eq!(report.claimed_hardware_provider(), None);
+    }
+
     use super::{
         parse_extension_data, test_signing_key, AttestationAlgorithm, AttestationExtension,
         AttestationLevel, AttestationPolicy, AttestationPurpose, AttestationReportType,

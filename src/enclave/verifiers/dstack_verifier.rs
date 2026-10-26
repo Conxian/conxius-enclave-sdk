@@ -1,26 +1,28 @@
-//! Phala dstack TEE Attestation Verifier (Phase 3).
+//! Unavailable adapter and untrusted diagnostic types for Phala dstack research.
 //!
-//! Provides hardware-backed confidential computing attestation verification
-//! for Intel SGX / TDX and AMD SEV-SNP workloads running inside Phala's
-//! open-source dstack TEE framework.
-//!
-//! # References
-//! - Phala dstack OS: https://github.com/Phala-Network/dstack
-//! - Intel SGX DCAP Quote Format: https://www.intel.com/content/www/us/en/developer/articles/technical/quote-verification-in-sgx-dcap.html
+//! Parsing and comparing claims never establishes hardware provenance. No DCAP
+//! signature, collateral, TCB or dstack event-log backend is installed here.
+//! See `docs/architecture/PHALA_DSTACK_INTEGRATION.md` for qualification gates.
 
 use crate::enclave::proofs::{
-    ProofEnvelope, ProofKind, ProofVerificationContext, ProofVerifier, ProofVerifierStatus,
-    VerifiedProofReceipt,
+    proof_verifier_unavailable, ProofEnvelope, ProofKind, ProofVerificationContext, ProofVerifier,
+    ProofVerifierStatus, VerifiedProofReceipt,
 };
 use crate::{ConclaveError, ConclaveResult};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+// Diagnostic limits match the proof envelope bounds; no production evidence is accepted.
+const MAX_PROOF_EVIDENCE_BYTES: usize = 16 * 1024;
+const MAX_PROOF_IDENTIFIER_BYTES: usize = 256;
+
 pub const PHALA_DSTACK_VERIFIER_ID: &str = "conxian.trust.phala.dstack.v1";
 pub const DSTACK_BINDING_DOMAIN: &str = "CONXIAN-DSTACK-BINDING/v1";
 
-/// Parsed dstack TEE attestation document representation.
+/// Local diagnostic schema, not an authenticated upstream dstack wire format.
+/// All fields are untrusted caller claims, including measurements and time.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct DstackAttestationDocument {
     pub app_id: String,
     pub mrenclave: [u8; 32],
@@ -41,50 +43,40 @@ pub struct DstackAttestationDocument {
 }
 
 impl DstackAttestationDocument {
-    /// Parse dstack attestation document from JSON bytes.
+    /// Parse bounded diagnostic JSON. Success does not verify attestation.
     pub fn parse(bytes: &[u8]) -> ConclaveResult<Self> {
-        if bytes.is_empty() {
-            return Err(ConclaveError::Attestation(
-                "dstack evidence payload is empty".to_string(),
-            ));
+        if bytes.is_empty() || bytes.len() > MAX_PROOF_EVIDENCE_BYTES {
+            return Err(ConclaveError::InvalidPayload);
         }
-
-        serde_json::from_slice::<Self>(bytes).map_err(|e| {
-            ConclaveError::Attestation(format!(
-                "Failed to parse dstack attestation document JSON: {e}"
-            ))
-        })
+        let doc: Self = serde_json::from_slice(bytes).map_err(|_| ConclaveError::InvalidPayload)?;
+        if !valid_identifier(&doc.app_id)
+            || doc.report_data.len() != 64
+            || doc.quote_bytes.len() < 48
+            || doc.quote_bytes.len() > MAX_PROOF_EVIDENCE_BYTES
+            || [&doc.rtmr0, &doc.rtmr1, &doc.rtmr2, &doc.rtmr3]
+                .iter()
+                .any(|rtmr| rtmr.as_ref().is_some_and(|value| value.len() != 48))
+        {
+            return Err(ConclaveError::InvalidPayload);
+        }
+        Ok(doc)
     }
 
-    /// Verifies the structural integrity and minimum header bounds of the attached quote.
+    /// Diagnostic header check only; never verifies a quote or its body.
+    /// Versions 3, 4 and 5 do not alone identify the hardware provider.
     pub fn verify_quote_structure(&self) -> ConclaveResult<()> {
-        if self.quote_bytes.is_empty() {
-            return Err(ConclaveError::Attestation(
-                "dstack quote bytes cannot be empty".to_string(),
-            ));
+        if self.quote_bytes.len() < 48 || self.quote_bytes.len() > MAX_PROOF_EVIDENCE_BYTES {
+            return Err(ConclaveError::InvalidPayload);
         }
-
-        // Intel DCAP / TDX quotes require at least a 48-byte header
-        if self.quote_bytes.len() < 48 {
-            return Err(ConclaveError::Attestation(format!(
-                "dstack quote too short: expected at least 48 bytes, got {}",
-                self.quote_bytes.len()
-            )));
-        }
-
-        // Verify quote version (version 4 for SGX DCAP or version 5 for TDX)
         let version = u16::from_le_bytes([self.quote_bytes[0], self.quote_bytes[1]]);
-        if version != 4 && version != 5 {
-            return Err(ConclaveError::Attestation(format!(
-                "Unsupported dstack quote version: {version}"
-            )));
+        if !matches!(version, 3..=5) {
+            return Err(ConclaveError::InvalidPayload);
         }
-
         Ok(())
     }
 }
 
-/// Measurement and policy constraints for dstack container applications.
+/// Diagnostic constraints on untrusted claims; not an authorization policy.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DstackAppPolicy {
     pub expected_mrenclave: Option<[u8; 32]>,
@@ -107,6 +99,7 @@ impl Default for DstackAppPolicy {
 }
 
 impl DstackAppPolicy {
+    /// Compare local claims only. Success is not attestation verification.
     pub fn evaluate(&self, doc: &DstackAttestationDocument) -> ConclaveResult<()> {
         if doc.isv_svn < self.min_isv_svn {
             return Err(ConclaveError::Attestation(format!(
@@ -160,7 +153,8 @@ impl DstackAppPolicy {
 }
 
 /// Release binding connecting operation context, purpose, audience, and nonce
-/// to dstack report_data.
+/// to a candidate report_data digest. This does not authenticate report_data.
+/// Expiration must be the fixed envelope expiry, never a moving verifier clock.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DstackReleaseBinding {
     pub operation_digest: [u8; 32],
@@ -180,7 +174,7 @@ impl DstackReleaseBinding {
     ) -> ConclaveResult<Self> {
         let purpose = purpose.into();
         let audience = audience.into();
-        if purpose.is_empty() || audience.is_empty() {
+        if !valid_identifier(&purpose) || !valid_identifier(&audience) {
             return Err(ConclaveError::InvalidPayload);
         }
 
@@ -207,7 +201,7 @@ impl DstackReleaseBinding {
     }
 }
 
-/// Production Phala dstack TEE attestation verifier.
+/// Reserved verifier route. Always unavailable until independently qualified.
 pub struct PhalaDstackVerifier {
     policy: DstackAppPolicy,
     verifier_id: String,
@@ -242,60 +236,32 @@ impl ProofVerifier for PhalaDstackVerifier {
     }
 
     fn status(&self) -> ProofVerifierStatus {
-        ProofVerifierStatus::Available
+        ProofVerifierStatus::Unavailable
     }
 
     fn verify(
         &self,
-        envelope: &ProofEnvelope,
-        context: &ProofVerificationContext,
+        _envelope: &ProofEnvelope,
+        _context: &ProofVerificationContext,
     ) -> ConclaveResult<VerifiedProofReceipt> {
-        let doc = DstackAttestationDocument::parse(&envelope.evidence)?;
-
-        // Verify quote structure
-        doc.verify_quote_structure()?;
-
-        // Evaluate application policy
-        self.policy.evaluate(&doc)?;
-
-        // Freshness check
-        if context.now_secs > doc.timestamp + context.max_age_secs {
-            return Err(ConclaveError::Attestation(
-                "dstack attestation report expired".to_string(),
-            ));
-        }
-        if doc.timestamp > context.now_secs + context.max_future_skew_secs {
-            return Err(ConclaveError::Attestation(
-                "dstack attestation report timestamp from the future".to_string(),
-            ));
-        }
-
-        // Construct expected release binding and compare against report_data
-        let nonce_hash: [u8; 32] = Sha256::digest(&context.nonce).into();
-        let release_binding = DstackReleaseBinding::new(
-            context.operation_digest,
-            context.purpose.clone(),
-            context.audience.clone(),
-            context.now_secs + context.max_age_secs,
-            nonce_hash,
-        )?;
-
-        let expected_digest = release_binding.canonical_digest();
-        if doc.report_data.len() < 32 || doc.report_data[..32] != expected_digest {
-            return Err(ConclaveError::Attestation(
-                "dstack report_data does not match operation release binding".to_string(),
-            ));
-        }
-
-        VerifiedProofReceipt::from_verified_envelope(envelope, context)
+        Err(proof_verifier_unavailable())
     }
+}
+
+fn valid_identifier(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= MAX_PROOF_IDENTIFIER_BYTES
+        && !value.chars().any(char::is_control)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn sample_valid_doc(now_secs: u64, report_data_digest: [u8; 32]) -> DstackAttestationDocument {
+    fn sample_diagnostic_doc(
+        now_secs: u64,
+        report_data_digest: [u8; 32],
+    ) -> DstackAttestationDocument {
         let mut quote_bytes = vec![0u8; 64];
         // Version 4 header (0x0004 LE)
         quote_bytes[0] = 4;
@@ -321,15 +287,49 @@ mod tests {
     }
 
     #[test]
+    fn diagnostic_parser_enforces_bounds() {
+        let doc = sample_diagnostic_doc(1, [0; 32]);
+        let bytes = serde_json::to_vec(&doc).unwrap();
+        assert_eq!(DstackAttestationDocument::parse(&bytes).unwrap(), doc);
+        assert!(
+            DstackAttestationDocument::parse(&vec![b' '; MAX_PROOF_EVIDENCE_BYTES + 1]).is_err()
+        );
+        for length in [0, 47, 49] {
+            let mut invalid = doc.clone();
+            invalid.rtmr3 = Some(vec![0; length]);
+            assert!(
+                DstackAttestationDocument::parse(&serde_json::to_vec(&invalid).unwrap()).is_err()
+            );
+        }
+        let mut invalid = doc.clone();
+        invalid.report_data.truncate(32);
+        assert!(DstackAttestationDocument::parse(&serde_json::to_vec(&invalid).unwrap()).is_err());
+        let mut value = serde_json::to_value(&doc).unwrap();
+        value["unknown"] = true.into();
+        assert!(DstackAttestationDocument::parse(&serde_json::to_vec(&value).unwrap()).is_err());
+    }
+
+    #[test]
+    fn binding_rejects_unbounded_or_control_identifiers() {
+        for purpose in [
+            String::new(),
+            "a".repeat(MAX_PROOF_IDENTIFIER_BYTES + 1),
+            "sign\n".into(),
+        ] {
+            assert!(DstackReleaseBinding::new([0; 32], purpose, "audience", 1, [0; 32]).is_err());
+        }
+    }
+
+    #[test]
     fn verifier_constructs() {
         let verifier = PhalaDstackVerifier::default();
         assert_eq!(verifier.kind(), ProofKind::Tee);
         assert_eq!(verifier.verifier_id(), PHALA_DSTACK_VERIFIER_ID);
-        assert_eq!(verifier.status(), ProofVerifierStatus::Available);
+        assert_eq!(verifier.status(), ProofVerifierStatus::Unavailable);
     }
 
     #[test]
-    fn successful_verification() {
+    fn unavailable_adapter_never_issues_receipt() {
         let now_secs = 1_700_000_000;
         let context = ProofVerificationContext {
             operation_digest: [0xA5u8; 32],
@@ -351,7 +351,7 @@ mod tests {
         )
         .unwrap();
 
-        let doc = sample_valid_doc(now_secs, release_binding.canonical_digest());
+        let doc = sample_diagnostic_doc(now_secs, release_binding.canonical_digest());
         let evidence = serde_json::to_vec(&doc).unwrap();
 
         let envelope = ProofEnvelope {
@@ -377,14 +377,17 @@ mod tests {
         };
 
         let verifier = PhalaDstackVerifier::new(policy);
-        let receipt = verifier.verify(&envelope, &context).unwrap();
-        assert_eq!(receipt.proof_id(), "test-dstack-proof-1");
+        assert_eq!(verifier.status(), ProofVerifierStatus::Unavailable);
+        assert!(matches!(
+            verifier.verify(&envelope, &context),
+            Err(ConclaveError::Unsupported(_))
+        ));
     }
 
     #[test]
     fn policy_mrenclave_mismatch_fails() {
         let now_secs = 1_700_000_000;
-        let mut doc = sample_valid_doc(now_secs, [0u8; 32]);
+        let mut doc = sample_diagnostic_doc(now_secs, [0u8; 32]);
         doc.mrenclave = [0xFFu8; 32];
 
         let policy = DstackAppPolicy {
@@ -396,7 +399,7 @@ mod tests {
     }
 
     #[test]
-    fn expired_timestamp_fails() {
+    fn unavailable_adapter_rejects_expired_input() {
         let now_secs = 1_700_000_000;
         let context = ProofVerificationContext {
             operation_digest: [0xA5u8; 32],
@@ -408,7 +411,7 @@ mod tests {
             max_future_skew_secs: 60,
         };
 
-        let expired_doc = sample_valid_doc(now_secs - 500, [0u8; 32]);
+        let expired_doc = sample_diagnostic_doc(now_secs - 500, [0u8; 32]);
         let evidence = serde_json::to_vec(&expired_doc).unwrap();
 
         let envelope = ProofEnvelope {

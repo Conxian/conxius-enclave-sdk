@@ -375,8 +375,8 @@ Applying the 75-point weighted gap scoring rubric (Security: 3x, Blocker: 3x, Un
 - **Live Yield Data Telemetry & Autonomous SLA Engine (CON-1329 / CON-1600)**: Defined multi-cloud telemetry aggregation across Supabase BOS, Neon Postgres (`conxian-nexus`), and Render microservices feeding into the Autonomous SLA Engine (`src/protocol/job_card.rs` / `src/protocol/economy.rs`) for real-time 80/10/10 yield splitting calculations.
 - **CXIP-1317 BitVM3 Garbled-Circuit Fraud Proofs**: Upgraded Universal Verification Adapters for `Conxian Nexus v0.4.23` light-client bridges, introducing BitVM3 garbled circuits for sub-$50 execution fees and ~56 kB on-chain assertion payloads on Bitcoin L1.
 
-## Session 86 — Phala dstack TEE Abstraction & Proof Verifier Integration (2026-10-21)
+## Session 86 — Phala dstack research adapter (2026-10-26)
 
-- **Phala dstack TEE Attestation Integration**: Integrated Phala Network's open-source `dstack` TEE/SGX abstraction framework into `conxius-enclave-sdk` while retaining Conxian's private container orchestration in `conxius-platform`.
-- **`PhalaDstackVerifier` & Policy Enforcement**: Implemented `PhalaDstackVerifier` (`conxian.trust.phala.dstack.v1`), `DstackAttestationDocument`, `DstackAppPolicy`, and `DstackReleaseBinding` in `src/enclave/verifiers/dstack_verifier.rs`. Validates application measurements (`MRENCLAVE`, `MRSIGNER`), container layer states (`RTMR0`..`RTMR3`), timestamp freshness, and operation release bindings.
-- **Architecture Documentation & Provider Registration**: Documented integration in `docs/architecture/PHALA_DSTACK_INTEGRATION.md` and registered `PHALA_DSTACK` token parsing in `src/enclave/attestation.rs` and `src/enclave/verifiers/mod.rs`.
+- PR #620 adds bounded diagnostic parsing and a reserved unavailable verifier route; no production attestation backend or hardware custody qualification is delivered.
+- Provider aliases do not equate dstack with Intel SGX. Existing provider tags and policy-v2 encodings remain unchanged.
+- Remaining gates: reviewed DCAP backend and dependency policy; authenticated platform-specific claims; collateral/TCB/revocation policy; event-log replay; stable operation/nonce/expiry binding; durable replay and signer qualification. See `docs/architecture/PHALA_DSTACK_INTEGRATION.md` and existing qualification trackers #240 / #202. These gaps remain open.
