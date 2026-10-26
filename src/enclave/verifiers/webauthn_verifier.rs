@@ -101,6 +101,14 @@ fn parse_authenticator_data(
     if flags & 0x01 == 0 {
         return Err(attestation_error("user-presence flag is missing"));
     }
+    if flags & 0x22 != 0 {
+        return Err(attestation_error("reserved authenticator flag is set"));
+    }
+    if flags & 0x10 != 0 && flags & 0x08 == 0 {
+        return Err(attestation_error(
+            "backup-state flag requires backup eligibility",
+        ));
+    }
     let has_attested_data = flags & 0x40 != 0;
     if registration != has_attested_data {
         return Err(attestation_error(if registration {
@@ -712,6 +720,18 @@ mod tests {
         with_at.push(0x41);
         with_at.extend_from_slice(&0u32.to_be_bytes());
         assert!(parse_authenticator_data(&with_at, "test.local", false).is_err());
+
+        let mut invalid_backup_state = Vec::new();
+        invalid_backup_state.extend_from_slice(&Sha256::digest(b"test.local"));
+        invalid_backup_state.push(0x11);
+        invalid_backup_state.extend_from_slice(&0u32.to_be_bytes());
+        assert!(parse_authenticator_data(&invalid_backup_state, "test.local", false).is_err());
+
+        let mut reserved_flag = Vec::new();
+        reserved_flag.extend_from_slice(&Sha256::digest(b"test.local"));
+        reserved_flag.push(0x03);
+        reserved_flag.extend_from_slice(&0u32.to_be_bytes());
+        assert!(parse_authenticator_data(&reserved_flag, "test.local", false).is_err());
     }
 
     #[test]
