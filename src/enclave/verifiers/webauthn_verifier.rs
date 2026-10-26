@@ -19,8 +19,9 @@
 //! - webauthn-rs crate: https://docs.rs/webauthn-rs/
 
 use crate::{ConclaveError, ConclaveResult};
-#[cfg(feature = "webauthn")]
+use ciborium::value::Value;
 use sha2::{Digest, Sha256};
+use std::io::Cursor;
 
 /// WebAuthn client data (parsed from clientDataJSON).
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -43,6 +44,180 @@ pub enum AttestationFormat {
     AndroidSafetyNet,
     Apple,
     None_,
+}
+
+#[derive(Debug)]
+struct ParsedAuthenticatorData {
+    credential_id: Option<Vec<u8>>,
+    credential_public_key: Option<Vec<u8>>,
+    aaguid: Option<[u8; 16]>,
+    sign_count: u32,
+    user_verified: bool,
+}
+
+fn attestation_error(message: impl Into<String>) -> ConclaveError {
+    ConclaveError::Attestation(format!("WebAuthn: {}", message.into()))
+}
+
+fn map_value<'a>(entries: &'a [(Value, Value)], key: &str) -> Option<&'a Value> {
+    entries
+        .iter()
+        .find_map(|(candidate, value)| match candidate {
+            Value::Text(candidate) if candidate == key => Some(value),
+            _ => None,
+        })
+}
+
+fn decode_cbor_prefix(bytes: &[u8], label: &str) -> ConclaveResult<(Value, usize)> {
+    if bytes.is_empty() {
+        return Err(attestation_error(format!("{label} is empty")));
+    }
+    let mut cursor = Cursor::new(bytes);
+    let value: Value = ciborium::de::from_reader(&mut cursor)
+        .map_err(|error| attestation_error(format!("invalid {label} CBOR: {error}")))?;
+    let consumed = usize::try_from(cursor.position())
+        .map_err(|_| attestation_error(format!("{label} length overflow")))?;
+    if consumed == 0 || consumed > bytes.len() {
+        return Err(attestation_error(format!("invalid {label} length")));
+    }
+    Ok((value, consumed))
+}
+
+fn parse_authenticator_data(
+    bytes: &[u8],
+    rp_id: &str,
+    registration: bool,
+) -> ConclaveResult<ParsedAuthenticatorData> {
+    if bytes.len() < 37 {
+        return Err(attestation_error("authenticatorData is truncated"));
+    }
+
+    let expected_rp_hash: [u8; 32] = Sha256::digest(rp_id.as_bytes()).into();
+    if bytes[..32] != expected_rp_hash {
+        return Err(attestation_error("RP ID hash mismatch"));
+    }
+
+    let flags = bytes[32];
+    if flags & 0x01 == 0 {
+        return Err(attestation_error("user-presence flag is missing"));
+    }
+    if flags & 0x22 != 0 {
+        return Err(attestation_error("reserved authenticator flag is set"));
+    }
+    if flags & 0x10 != 0 && flags & 0x08 == 0 {
+        return Err(attestation_error(
+            "backup-state flag requires backup eligibility",
+        ));
+    }
+    let has_attested_data = flags & 0x40 != 0;
+    if registration != has_attested_data {
+        return Err(attestation_error(if registration {
+            "registration is missing attested credential data"
+        } else {
+            "authentication unexpectedly contains attested credential data"
+        }));
+    }
+
+    let sign_count = u32::from_be_bytes(bytes[33..37].try_into().expect("fixed bounds"));
+    let mut offset = 37;
+    let mut credential_id = None;
+    let mut credential_public_key = None;
+    let mut aaguid = None;
+
+    if registration {
+        if bytes.len() < offset + 18 {
+            return Err(attestation_error("attested credential data is truncated"));
+        }
+        let mut parsed_aaguid = [0u8; 16];
+        parsed_aaguid.copy_from_slice(&bytes[offset..offset + 16]);
+        aaguid = Some(parsed_aaguid);
+        offset += 16;
+
+        let credential_id_len =
+            u16::from_be_bytes(bytes[offset..offset + 2].try_into().expect("fixed bounds"))
+                as usize;
+        offset += 2;
+        let credential_id_end = offset
+            .checked_add(credential_id_len)
+            .ok_or_else(|| attestation_error("credential ID length overflow"))?;
+        if credential_id_len == 0 || credential_id_end > bytes.len() {
+            return Err(attestation_error("credential ID is empty or truncated"));
+        }
+        credential_id = Some(bytes[offset..credential_id_end].to_vec());
+        offset = credential_id_end;
+
+        let (public_key, consumed) = decode_cbor_prefix(&bytes[offset..], "credential public key")?;
+        if !matches!(public_key, Value::Map(_)) {
+            return Err(attestation_error(
+                "credential public key must be a CBOR map",
+            ));
+        }
+        credential_public_key = Some(bytes[offset..offset + consumed].to_vec());
+        offset += consumed;
+    }
+
+    if flags & 0x80 != 0 {
+        let (_, consumed) = decode_cbor_prefix(&bytes[offset..], "authenticator extensions")?;
+        offset += consumed;
+    }
+    if offset != bytes.len() {
+        return Err(attestation_error(
+            "authenticatorData has unexpected trailing bytes",
+        ));
+    }
+
+    Ok(ParsedAuthenticatorData {
+        credential_id,
+        credential_public_key,
+        aaguid,
+        sign_count,
+        user_verified: flags & 0x04 != 0,
+    })
+}
+
+fn parse_attestation_object(
+    bytes: &[u8],
+    rp_id: &str,
+) -> ConclaveResult<(AttestationFormat, ParsedAuthenticatorData)> {
+    let (value, consumed) = decode_cbor_prefix(bytes, "attestationObject")?;
+    if consumed != bytes.len() {
+        return Err(attestation_error("attestationObject has trailing bytes"));
+    }
+    let Value::Map(entries) = value else {
+        return Err(attestation_error("attestationObject must be a CBOR map"));
+    };
+
+    let format = match map_value(&entries, "fmt") {
+        Some(Value::Text(format)) => match format.as_str() {
+            "packed" => AttestationFormat::Packed,
+            "tpm" => AttestationFormat::Tpm,
+            "android-key" => AttestationFormat::AndroidKey,
+            "android-safetynet" => AttestationFormat::AndroidSafetyNet,
+            "apple" => AttestationFormat::Apple,
+            "none" => AttestationFormat::None_,
+            _ => {
+                return Err(attestation_error(format!(
+                    "unsupported attestation format '{format}'"
+                )))
+            }
+        },
+        _ => return Err(attestation_error("attestationObject fmt must be text")),
+    };
+    let auth_data = match map_value(&entries, "authData") {
+        Some(Value::Bytes(bytes)) => bytes,
+        _ => {
+            return Err(attestation_error(
+                "attestationObject authData must be bytes",
+            ))
+        }
+    };
+    if !matches!(map_value(&entries, "attStmt"), Some(Value::Map(_))) {
+        return Err(attestation_error(
+            "attestationObject attStmt must be a CBOR map",
+        ));
+    }
+
+    Ok((format, parse_authenticator_data(auth_data, rp_id, true)?))
 }
 
 /// WebAuthn credential with attestation evidence.
@@ -134,9 +309,33 @@ impl WebauthnVerifier {
         let challenge_b64 = base64_url(challenge);
         let _cd =
             self.validate_client_data(client_data_json, &challenge_b64, origin, "webauthn.create")?;
+        if self.config.require_attestation && self.config.trusted_attestation_cas.is_empty() {
+            return Err(attestation_error(
+                "attestation is required but no trust anchors are configured",
+            ));
+        }
+        let (format, parsed) = parse_attestation_object(_attestation_object, &self.config.rp_id)?;
+        if self.config.require_attestation && format == AttestationFormat::None_ {
+            return Err(attestation_error(
+                "attestation is required but the credential uses fmt=none",
+            ));
+        }
+        let _structural_credential = WebauthnCredential {
+            credential_id: parsed
+                .credential_id
+                .expect("registration parser sets credential ID"),
+            public_key: parsed
+                .credential_public_key
+                .expect("registration parser sets credential public key"),
+            attestation_format: format,
+            aaguid: parsed.aaguid.expect("registration parser sets AAGUID"),
+            sign_count: parsed.sign_count,
+            user_verified: parsed.user_verified,
+            attestation_trusted: false,
+        };
 
         Err(ConclaveError::Unsupported(
-            "WebAuthn attestation: full webauthn-rs verification pending".into(),
+            "WebAuthn attestation: structural validation passed; cryptographic webauthn-rs verification pending".into(),
         ))
     }
 
@@ -151,8 +350,19 @@ impl WebauthnVerifier {
         let challenge_b64 = base64_url(challenge);
         let _cd =
             self.validate_client_data(client_data_json, &challenge_b64, origin, "webauthn.create")?;
+        if self.config.require_attestation && self.config.trusted_attestation_cas.is_empty() {
+            return Err(attestation_error(
+                "attestation is required but no trust anchors are configured",
+            ));
+        }
+        let (format, _) = parse_attestation_object(_attestation_object, &self.config.rp_id)?;
+        if self.config.require_attestation && format == AttestationFormat::None_ {
+            return Err(attestation_error(
+                "attestation is required but the credential uses fmt=none",
+            ));
+        }
         Err(ConclaveError::Unsupported(
-            "WebAuthn verify: enable `webauthn` feature for attestation verification".into(),
+            "WebAuthn structural validation passed; enable `webauthn` for cryptographic verification".into(),
         ))
     }
 
@@ -171,6 +381,7 @@ impl WebauthnVerifier {
         let _cd =
             self.validate_client_data(client_data_json, &challenge_b64, origin, "webauthn.get")?;
 
+        let _parsed = parse_authenticator_data(authenticator_data, &self.config.rp_id, false)?;
         let client_data_hash: [u8; 32] = Sha256::digest(client_data_json).into();
         let mut signed_data = Vec::with_capacity(authenticator_data.len() + 32);
         signed_data.extend_from_slice(authenticator_data);
@@ -194,16 +405,18 @@ impl WebauthnVerifier {
         let challenge_b64 = base64_url(challenge);
         let _cd =
             self.validate_client_data(client_data_json, &challenge_b64, origin, "webauthn.get")?;
+        let _parsed = parse_authenticator_data(_authenticator_data, &self.config.rp_id, false)?;
         Err(ConclaveError::Unsupported(
-            "WebAuthn verify: enable `webauthn` feature".into(),
+            "WebAuthn structural validation passed; enable `webauthn` for cryptographic verification".into(),
         ))
     }
 
     /// Generate a WebAuthn registration challenge.
     pub fn generate_challenge(&self) -> ConclaveResult<(Vec<u8>, String)> {
         let mut challenge = vec![0u8; 32];
-        // In production, use getrandom() or OsRng
-        challenge.fill(0xAA); // Placeholder deterministic for testing
+        getrandom::fill(&mut challenge).map_err(|error| {
+            ConclaveError::Attestation(format!("WebAuthn: challenge RNG failed: {error}"))
+        })?;
         let b64 = base64_url(&challenge);
         Ok((challenge, b64))
     }
@@ -350,5 +563,182 @@ mod tests {
             "webauthn.create",
         );
         assert!(result.is_ok());
+    }
+    fn test_config(require_attestation: bool) -> WebauthnConfig {
+        WebauthnConfig {
+            rp_id: "test.local".into(),
+            rp_name: "Test".into(),
+            allowed_credentials: vec![],
+            require_attestation,
+            trusted_attestation_cas: if require_attestation {
+                vec![b"test-anchor".to_vec()]
+            } else {
+                vec![]
+            },
+        }
+    }
+
+    fn registration_auth_data(rp_id: &str, flags: u8, truncate: bool) -> Vec<u8> {
+        let mut data = Vec::new();
+        data.extend_from_slice(&Sha256::digest(rp_id.as_bytes()));
+        data.push(flags);
+        data.extend_from_slice(&1u32.to_be_bytes());
+        data.extend_from_slice(&[0u8; 16]);
+        data.extend_from_slice(&2u16.to_be_bytes());
+        data.extend_from_slice(&[0x01, 0x02]);
+        let key = Value::Map(vec![(Value::Integer(1.into()), Value::Integer(2.into()))]);
+        ciborium::ser::into_writer(&key, &mut data).unwrap();
+        if truncate {
+            data.pop();
+        }
+        data
+    }
+
+    fn attestation_object(fmt: Value, auth_data: Value, att_stmt: Value) -> Vec<u8> {
+        let value = Value::Map(vec![
+            (Value::Text("fmt".into()), fmt),
+            (Value::Text("authData".into()), auth_data),
+            (Value::Text("attStmt".into()), att_stmt),
+        ]);
+        let mut encoded = Vec::new();
+        ciborium::ser::into_writer(&value, &mut encoded).unwrap();
+        encoded
+    }
+
+    #[test]
+    fn registration_rejects_malformed_cbor_and_typed_fields() {
+        let verifier = WebauthnVerifier::new(test_config(false));
+        assert!(parse_attestation_object(&[0xff], &verifier.config.rp_id).is_err());
+        let auth = registration_auth_data("test.local", 0x41, false);
+        let wrong_fmt = attestation_object(
+            Value::Integer(1.into()),
+            Value::Bytes(auth.clone()),
+            Value::Map(vec![]),
+        );
+        assert!(parse_attestation_object(&wrong_fmt, &verifier.config.rp_id).is_err());
+        let wrong_stmt = attestation_object(
+            Value::Text("packed".into()),
+            Value::Bytes(auth),
+            Value::Bytes(vec![]),
+        );
+        assert!(parse_attestation_object(&wrong_stmt, &verifier.config.rp_id).is_err());
+    }
+
+    #[test]
+    fn registration_rejects_wrong_rp_hash_and_truncated_credential_data() {
+        let wrong_rp = attestation_object(
+            Value::Text("packed".into()),
+            Value::Bytes(registration_auth_data("other.local", 0x41, false)),
+            Value::Map(vec![]),
+        );
+        assert!(parse_attestation_object(&wrong_rp, "test.local").is_err());
+
+        let truncated = attestation_object(
+            Value::Text("packed".into()),
+            Value::Bytes(registration_auth_data("test.local", 0x41, true)),
+            Value::Map(vec![]),
+        );
+        assert!(parse_attestation_object(&truncated, "test.local").is_err());
+    }
+
+    #[test]
+    fn registration_requires_attested_flag_and_supported_format() {
+        let no_at = attestation_object(
+            Value::Text("packed".into()),
+            Value::Bytes(registration_auth_data("test.local", 0x01, false)),
+            Value::Map(vec![]),
+        );
+        assert!(parse_attestation_object(&no_at, "test.local").is_err());
+
+        let unsupported = attestation_object(
+            Value::Text("custom".into()),
+            Value::Bytes(registration_auth_data("test.local", 0x41, false)),
+            Value::Map(vec![]),
+        );
+        assert!(parse_attestation_object(&unsupported, "test.local").is_err());
+    }
+
+    #[test]
+    fn required_attestation_rejects_missing_trust_configuration() {
+        let verifier = WebauthnVerifier::new(WebauthnConfig {
+            trusted_attestation_cas: vec![],
+            ..test_config(true)
+        });
+        let challenge = b"challenge";
+        let client_data = format!(
+            r#"{{"type":"webauthn.create","challenge":"{}","origin":"https://test.local"}}"#,
+            base64_url(challenge)
+        );
+        let object = attestation_object(
+            Value::Text("packed".into()),
+            Value::Bytes(registration_auth_data("test.local", 0x45, false)),
+            Value::Map(vec![]),
+        );
+        let result = verifier.verify_registration(
+            &object,
+            client_data.as_bytes(),
+            challenge,
+            "https://test.local",
+        );
+        assert!(
+            matches!(result, Err(ConclaveError::Attestation(message)) if message.contains("trust anchors"))
+        );
+    }
+
+    #[test]
+    fn structurally_valid_registration_remains_unsupported() {
+        let verifier = WebauthnVerifier::new(test_config(false));
+        let challenge = b"challenge";
+        let client_data = format!(
+            r#"{{"type":"webauthn.create","challenge":"{}","origin":"https://test.local"}}"#,
+            base64_url(challenge)
+        );
+        let object = attestation_object(
+            Value::Text("packed".into()),
+            Value::Bytes(registration_auth_data("test.local", 0x45, false)),
+            Value::Map(vec![]),
+        );
+        assert!(matches!(
+            verifier.verify_registration(
+                &object,
+                client_data.as_bytes(),
+                challenge,
+                "https://test.local"
+            ),
+            Err(ConclaveError::Unsupported(_))
+        ));
+    }
+
+    #[test]
+    fn authentication_rejects_truncated_wrong_rp_and_attested_flag() {
+        assert!(parse_authenticator_data(&[0u8; 36], "test.local", false).is_err());
+        let mut wrong_rp = vec![0u8; 37];
+        wrong_rp[32] = 0x01;
+        assert!(parse_authenticator_data(&wrong_rp, "test.local", false).is_err());
+        let mut with_at = Vec::new();
+        with_at.extend_from_slice(&Sha256::digest(b"test.local"));
+        with_at.push(0x41);
+        with_at.extend_from_slice(&0u32.to_be_bytes());
+        assert!(parse_authenticator_data(&with_at, "test.local", false).is_err());
+
+        let mut invalid_backup_state = Vec::new();
+        invalid_backup_state.extend_from_slice(&Sha256::digest(b"test.local"));
+        invalid_backup_state.push(0x11);
+        invalid_backup_state.extend_from_slice(&0u32.to_be_bytes());
+        assert!(parse_authenticator_data(&invalid_backup_state, "test.local", false).is_err());
+
+        let mut reserved_flag = Vec::new();
+        reserved_flag.extend_from_slice(&Sha256::digest(b"test.local"));
+        reserved_flag.push(0x03);
+        reserved_flag.extend_from_slice(&0u32.to_be_bytes());
+        assert!(parse_authenticator_data(&reserved_flag, "test.local", false).is_err());
+    }
+
+    #[test]
+    fn generated_challenges_are_not_deterministic() {
+        let verifier = WebauthnVerifier::new(test_config(false));
+        let (first, _) = verifier.generate_challenge().unwrap();
+        let (second, _) = verifier.generate_challenge().unwrap();
+        assert_ne!(first, second);
     }
 }
