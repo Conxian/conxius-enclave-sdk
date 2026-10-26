@@ -374,3 +374,9 @@ Applying the 75-point weighted gap scoring rubric (Security: 3x, Blocker: 3x, Un
 - **Multi-Dimensional Scoring Refactoring (CON-1437 / CON-1440 / CON-1436)**: Shifted WPS scoring models away from `erp_mock` schema to live external `x402` payment transaction volume (`X402PaymentRequest` / `X402PaymentProof`) and real-world `ERC-8183` AI Agent Escrow state (`EvmErc8183`).
 - **Live Yield Data Telemetry & Autonomous SLA Engine (CON-1329 / CON-1600)**: Defined multi-cloud telemetry aggregation across Supabase BOS, Neon Postgres (`conxian-nexus`), and Render microservices feeding into the Autonomous SLA Engine (`src/protocol/job_card.rs` / `src/protocol/economy.rs`) for real-time 80/10/10 yield splitting calculations.
 - **CXIP-1317 BitVM3 Garbled-Circuit Fraud Proofs**: Upgraded Universal Verification Adapters for `Conxian Nexus v0.4.23` light-client bridges, introducing BitVM3 garbled circuits for sub-$50 execution fees and ~56 kB on-chain assertion payloads on Bitcoin L1.
+
+## Session 86 — Phala dstack research adapter (2026-10-26)
+
+- PR #620 adds bounded diagnostic parsing and a reserved unavailable verifier route; no production attestation backend or hardware custody qualification is delivered.
+- Provider aliases do not equate dstack with Intel SGX. Existing provider tags and policy-v2 encodings remain unchanged.
+- Remaining gates: reviewed DCAP backend and dependency policy; authenticated platform-specific claims; collateral/TCB/revocation policy; event-log replay; stable operation/nonce/expiry binding; durable replay and signer qualification. See `docs/architecture/PHALA_DSTACK_INTEGRATION.md` and existing qualification trackers #240 / #202. These gaps remain open.

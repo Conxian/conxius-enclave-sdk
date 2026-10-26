@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- **Phala dstack research adapter**: Added bounded diagnostic types and a reserved, always-unavailable proof route. Parsing does not establish hardware provenance or authorize operations. DCAP verification, workload appraisal, and hardware qualification remain open; see `docs/architecture/PHALA_DSTACK_INTEGRATION.md` (#620, #240, #202).
+
 ### Fixed
 - Require durable-request clock persistence before new claims and duplicate/conflicting retries; preserve forward observations across restart (#240).
 - Stop local replay consumption when saving the anti-rollback clock fails, for both single and batch requests; preserve the in-process high-water observation for retries (#240).
