@@ -1,3 +1,4 @@
+/bin/bash: line 701: rustfmt: command not found
 //! WebAuthn/FIDO2 attestation verifier (Phase 3).
 //!
 //! Verifies FIDO2/WebAuthn attestation statements from:
@@ -695,3 +696,4 @@ mod tests {
     }
 
 }
+
