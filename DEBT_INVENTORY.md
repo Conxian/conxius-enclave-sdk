@@ -380,3 +380,18 @@ Applying the 75-point weighted gap scoring rubric (Security: 3x, Blocker: 3x, Un
 - PR #620 adds bounded diagnostic parsing and a reserved unavailable verifier route; no production attestation backend or hardware custody qualification is delivered.
 - Provider aliases do not equate dstack with Intel SGX. Existing provider tags and policy-v2 encodings remain unchanged.
 - Remaining gates: reviewed DCAP backend and dependency policy; authenticated platform-specific claims; collateral/TCB/revocation policy; event-log replay; stable operation/nonce/expiry binding; durable replay and signer qualification. See `docs/architecture/PHALA_DSTACK_INTEGRATION.md` and existing qualification trackers #240 / #202. These gaps remain open.
+
+---
+## Session 87 — Decentralized-system candidate register (2026-10-27)
+
+This section records unadopted research candidates for existing debt. It does not mark any debt mitigated or resolved. Each candidate remains unusable for production policy until primary-source research, a repository-owned design decision, implementation, adversarial tests, provider/runtime evidence, and independent acceptance are complete.
+
+| Existing debt / issue | Candidate area retained for research | Required evidence before adoption |
+| --- | --- | --- |
+| #240 distributed replay | Data-availability or replicated-state systems | Service-owned transactional semantics, authenticated writes, ordering/fencing, restart/outage/recovery/rollback tests, retention and deletion policy, and independent review |
+| #195 / #242 hardware attestation | Multiple hardware or managed attestation providers | Authenticated provider claims, collateral/TCB/revocation validation, operation/key/nonce/expiry binding, custody and recovery evidence, and fail-closed policy composition |
+| #200 WASM secret boundary | Confidential-compute runtimes | Exact runtime and artifact identity, memory and host-call boundary tests, attestation binding, secret lifecycle proof, deployment evidence, and independent review |
+| #271 routing inputs | Maintained oracle or pricing interfaces | Supported contract/version, signature and freshness validation, stale/divergent-source behavior, market/data rights, value caps, and fail-closed integration tests |
+| BitVM watchtower backlog | Maintained operator/watchtower implementations | Bitcoin-rooted compatibility, deterministic challenge behavior, fee and liveness bounds, custody/authorization model, failure recovery, and accountable acceptance |
+
+Candidate names are not approved systems or substitutes for existing controls. This register does not authorize a custom consensus layer, native token, staking/restaking, yield product, RWA route, pricing, custody, treasury action, or value-bearing deployment.
