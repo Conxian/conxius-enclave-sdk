@@ -1393,41 +1393,29 @@ Expanded research and SDK contract work across hardware provider families used b
 
 ---
 
-## Session 86 Research Log (2026-10-27) — Decentralized Systems Interoperability, Production Readiness & Commercial Opportunities
+## Sessions 86–87 research intake correction (2026-10-27)
 
-### 1. Overview & Strategic Mandate
-This research expands our architectural blueprints for leveraging external decentralized infrastructure networks to systematically resolve SDK and Gateway production readiness bottlenecks (#240 distributed replay, #195 hardware provider verification, #242 Nitro secret-release, #241 StrongBox attestation, #200 WASM secret isolation) while unlocking multi-rail commercial settlement opportunities across autonomous AI agents, enterprise signers, and cross-chain yield vaults.
+### Status and method
 
-### 2. Decentralized System Integration Matrix & Production Readiness Mitigation
+The named systems below are an unverified candidate inventory. The prior draft combined vendor descriptions, architecture proposals, and commercial ideas with statements of mitigation or approval. Those statements were not backed by source-dated primary evidence, implementation, runtime proof, or an accepted repository decision.
 
-| Decentralized System | Architecture / Protocol | Mitigation for SDK/Gateway Issue | Production Readiness Impact | Commercial & Business Opportunity |
-| --- | --- | --- | --- | --- |
-| **Phala Network dStack** | CVM (Confidential VM) based on Intel SGX / TDX with RA-TLS | **#240 (Distributed Replay)** & **#195 (Hardware Attestation)** | Eliminates single-cloud dependency (AWS Nitro) by distributing TEE enclaves across a decentralized CVM network with hardware RA-TLS verification. | **Managed Gateway Enclave Hosting**: Enterprise customers pay execution fees in x402/USDC to run zero-knowledge threshold signers inside Phala dStack. |
-| **EigenLayer AVS** | Ethereum Restaking & Actively Validated Services (AVS) | **BitVM2 / BitVM3 Fraud Watchtowers** & **#202 (Security Review)** | Converts single-operator watchtowers into a decentralized, cryptoeconomically staked watchtower network that guarantees disproof transaction execution within the challenge window. | **SLA Insurance & Yield Splitting**: Stakers provide economic collateral for 80/10/10 yield splitting; slashable watchtowers collect 10% operator fees. |
-| **Lit Network** | Threshold Cryptography Network & Decentralized Key Management | **FROST DKG / Round 2 Nonce Isolation** | Provides decentralized key generation (DKG) and signing nodes for threshold secp256k1/ed25519 signing without relying on centralized HSMs or single-cloud KMS. | **Key Management as a Service (KMaaS)**: White-label enclave wallet API for cross-chain AI agent key custody with hardware-backed policy enforcement. |
-| **Nomic BTC & Babylon Staking** | Cosmos-SDK Bitcoin Bridge & EOTS (Extractable One-Time Signatures) | **#271 (Lightning / Bitcoin L1 Settlement)** & **SDK-005 (Babylon)** | Enables trust-minimized, non-custodial Bitcoin staking and 1-second finality cross-chain BTC transfers using EOTS double-signing slashing guarantees. | **Sovereign Bitcoin Yield Vaults**: Enterprise vaults stake idle BTC into Babylon/Nomic pools via `conxius-ctl` CLI to earn native L1 yield. |
-| **Celestia & Avail DA** | Data Availability Sampling (DAS) & Blobspace | **#240 (Durable Replay Store Log Availability)** | Archives encrypted attestation proofs, replay keys, and audit logs to Celestia/Avail blobspace, ensuring immutable 7-year replay protection auditability. | **Auditable Enclave Compliance Logs**: Zero-knowledge proof indexing for institutional compliance auditing against immutable DA timestamps. |
-| **IBC / Hyperlane T2 / LayerZero DVN** | Sovereign Light-Client & Multi-DVN Aggregation Bridges | **T1/T2 Bridge Policy Enforcement** | Replaces weak single-attester bridges with sovereign light-client verifiers and multi-domain validation networks (DVNs) with strict per-route caps. | **Cross-Chain Agent Liquidity Routing**: Automated routing of x402 micro-payments and ERC-8183 escrow funds across Ethereum, Arbitrum, Solana, and Bitcoin L2s. |
+The weekly research lane under Business #1390/#1423/#1424 owns primary-source verification. Each candidate must be assessed for maintained versions and contracts, license, governance, security assumptions, supported cryptography, data/control boundaries, deployment model, and compatibility with the existing Conxian architecture. Recommendations remain proposals until adopted through the owning issue and review process.
 
-### 3. Deep-Dive: Resolving Production Readiness Issues via Decentralized Networks
+### Candidate domains retained
 
-1. **Resolving Issue #240 (Durable Replay & Distributed Replay Store)**:
-   - *Problem*: Local `DurableFileReplayStore` or single-database replay stores create single-point-of-failure risks and cannot guarantee cross-region atomicity under net-split conditions.
-   - *Decentralized Solution*: Deploy a decentralized replay state committee using Phala dStack CVM nodes running a lightweight Raft/Tendermint consensus engine backed by Celestia DA blob storage. Replay key freshness (`retain_until > now_secs`) is cryptographically verified inside hardware TEEs across at least 3 distinct node operators.
+| Domain | Candidates to research | Questions that must be answered before a proposal |
+| --- | --- | --- |
+| Confidential compute / attestation | Phala dStack, Oasis Sapphire, Secret Network, AWS Nitro | Which authenticated claims and roots are exposed? How are collateral, TCB, revocation, operation, key, nonce, and expiry bound? |
+| Threshold authorization / key services | Lit Network and maintained threshold implementations | Who administers nodes and recovery? Which algorithms and message formats are supported? What custody and failure assumptions remain? |
+| Data availability / storage | Celestia, Avail, Arweave, Filecoin | What inclusion, ordering, durability, retention, deletion, access-control, and recovery evidence is available? |
+| Oracles / signed data | Pyth, Chainlink | Which maintained interfaces provide signature, provenance, freshness, divergence, and replay protections? What data rights apply? |
+| Watchtowers / operator networks | Maintained BitVM-compatible watchtower or operator systems, including EigenLayer only where compatible | Does the design preserve Bitcoin-rooted execution, deterministic authorization, fee/liveness bounds, and the zero-native-token boundary? |
+| Interoperability | IBC, Hyperlane, LayerZero, Wormhole and existing approved bridge contracts | Which exact contracts, proof envelopes, finality rules, limits, and failure modes are supported? |
+| Verifiable compute | Ritual, Akash and maintained proof/attestation runtimes | Is output bound to an authenticated artifact and input? What verifier, availability, confidentiality, and payment-release evidence exists? |
+| Asset/RWA proposals | Centrifuge, Goldfinch | Treat as out of production scope unless separately approved after legal, custody, data-rights, risk, and value-authority review. |
 
-2. **Resolving Issue #195 & #242 (Hardware Attestation & KMS Release Boundary)**:
-   - *Problem*: Binding signing keys solely to AWS Nitro KMS creates cloud lock-in and risk of AWS account compromise or administrative intervention.
-   - *Decentralized Solution*: Bind the `AttestationPolicy` to a threshold composition of AWS Nitro, Phala SGX/TDX, and Lit Network MPC nodes. Secret release requires a 2-of-3 multi-hardware attestation quorum, preventing any single cloud vendor from extracting signing keys.
+### Preserved gates
 
-3. **Resolving BitVM2 / BitVM3 Watchtower Availability**:
-   - *Problem*: If the primary watchtower goes offline or experiences network congestion during a BitVM fraud challenge period, malicious state roots could be finalized on Bitcoin L1.
-   - *Decentralized Solution*: Register watchtower assertions on an EigenLayer AVS network. Multiple independent EigenLayer operators continuously monitor state roots and automatically submit garbled-circuit disproof transactions (~56 kB) to Bitcoin L1, backed by slashable restaked ETH collateral.
+No entry above is assigned a trust tier or `proof_verified`/attester status by this log. No open SDK issue is mitigated or resolved by documentation. No custom consensus, multi-attestation quorum, commercial fee split, staking/restaking, yield, RWA, native-token, treasury, custody, or value-bearing path is adopted or activated here.
 
-### 4. Commercial Strategy & Business Opportunities
-
-1. **Enterprise Enclave Vault (`conxius-ctl`) Subscription Tier**:
-   - Offer financial institutions turnkey deployment scripts for operating self-hosted TEE signers with Phala/Nitro dual attestation.
-2. **Autonomous AI Agent x402 Escrow & Settlement Engine**:
-   - Provide high-throughput x402 payment headers and ERC-8183 escrow verification for autonomous AI agent-to-agent transactions across Lightning and EVM rails.
-3. **Institutional Yield Aggregator (80/10/10 SLA Model)**:
-   - Commercialize the Autonomous SLA Engine by routing capital to Babylon BTC staking and EigenLayer AVS nodes, taking a 10% protocol yield share while distributing 80% to capital LPs and 10% to node operators.
+Applicable work must proceed through the existing issue/OpenSpec path with tests, exact source/artifact/configuration/deployment evidence, rollback and recovery proof, and accountable independent acceptance.

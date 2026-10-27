@@ -44,22 +44,18 @@ chipset names are inventory metadata, never proof of hardware signing.
 
 ---
 
+## Session 86/87 research intake correction (2026-10-27)
 
-## Session 86 Completed (2026-10-27) — Decentralized Systems Interoperability, Production Readiness & Business Opportunities
+The decentralized-system list is retained as an unadopted candidate inventory. Earlier wording that described systems as approved, implemented, mitigating open issues, or commercially enabled was not supported by primary-source evidence or repository adoption and has been withdrawn.
 
-### ✅ Research Expansion & Knowledge Base Synchronization
-- Expanded  with Session 86 research covering Phala Network dStack CVM TEEs, EigenLayer AVS watchtowers, Lit Network DKG/KMaaS, Nomic BTC & Babylon dual staking, Celestia/Avail DA, and IBC/Hyperlane/LayerZero/Wormhole bridges.
-- Updated  with Section 6 defining trust-tier classifications, proof conditions, and commercial enablement rules for decentralized networks.
-- Updated  () and  (, Score: 68).
-- Created issue specification in  and updated tracking ledgers (, ).
+### Next executable research steps
+1. Consume the source-dated standards compatibility register maintained under Business #1390/#1423/#1424.
+2. For each candidate, record primary sources, supported versions/contracts, maintenance status, license, security and trust assumptions, data rights, and exact applicability to an existing SDK issue.
+3. Prefer maintained implementations and thin tested adapters. Do not design a custom replay consensus, attestation quorum, oracle, or bridge layer without an evidenced gap and an accepted OpenSpec.
+4. Keep #200, #202, #240, #241, #242, and #271 open. Produce implementation and runtime evidence in their owning repositories before proposing any status change.
+5. Preserve existing promotion, release, soak, CODEOWNERS, and independent acceptance controls.
 
-## Session 87 Planned
-
-### P0: Automated BitVM2/Ark Challenge Watchtower Execution
-- Extend `BitVm2Orchestrator` and `ArkClient` to support automated challenge-response transaction triggering on fraudulent state root detection.
-
-### P0: Hardware Key Management as a Service (KMaaS) Policy Enforcement
-- Extend `ThresholdEnclaveManager` / `UniversalChainSigner` to support policy-enforced Hardware KMaaS signing limits and authorization rules.
-
-### P0: Independent Security Review & Release Acceptance (#202)
-- Maintain tracking for independent security auditor review evidence and release acceptance artifacts.
+### Scope boundaries
+- Bitcoin-rooted universal-chain scope and zero-native-token policy remain unchanged.
+- No staking/restaking, yield, RWA, pricing, treasury, custody, settlement, or production activation is authorized.
+- Research recommendations are neither adopted policy nor conformance, deployment, or Mainnet proof.
