@@ -59,3 +59,21 @@ Nexus should publish/store (minimum):
 - `decision_reason` + `degrade_status`
 
 This aligns with existing architecture docs that require normalized trust/proof fields and fail-closed behavior.
+
+
+## 6. Decentralized Network Integration & Commercial Policy (Session 86)
+
+To support production readiness and mitigate single-cloud dependencies, approved decentralized networks are categorized under the Trust-Tier Taxonomy as follows:
+
+| Decentralized System | Trust Tier | Primary Role & Proof Class | Required Security Conditions & Commercial Policy |
+| --- | --- | --- | --- |
+| **Phala Network dStack** | **T1 / T2** | Confidential VM (CVM) TEE Attestation (`proof_verified`) | T1 requires dual-attestation (AWS Nitro + Phala Intel SGX/TDX) with RA-TLS certificate validation. Used for hosting decentralized TEE threshold signers and CVM managed gateway instances. |
+| **EigenLayer AVS** | **T1 / T2** | Restaked Cryptoeconomic Watchtower ( + secondary AVS (`proof_verified`) | T1 requires >$50M active restaked ETH collateral and 2/3 operator consensus. Used for automated BitVM2/BitVM3 fraud challenge watchtowers and SLA backstopping. |
+| **Nomic BTC & Babylon** | **T1** | Bitcoin Native Staking & EOTS Slashing (`proof_verified`) | Requires Extractable One-Time Signatures (EOTS) verification and Bitcoin L1 taproot script binding. Used for sovereign Bitcoin yield vaults and instant L2 finality. |
+| **Lit Network MPC** | **T2 / T3** | Threshold Cryptography & KMaaS (`attester_verified`) | T2 requires 2/3 threshold signature verification across distinct node operators. Used for Key Management as a Service (KMaaS) and multi-chain wallet authorization. |
+| **Celestia / Avail DA** | **T1** | Data Availability & Blob Storage (`proof_verified`) | Requires DAS (Data Availability Sampling) inclusion proofs. Used for 7-year immutable audit logging of enclave attestation quotes and durable replay keys. |
+
+### Commercial Enablement Rules
+1. **Multi-Rail Value Routing**: High-value transactions (> $100k USD equivalent) routed over T3 or T4 systems MUST require additive T1/T2 proof verification or EigenLayer SLA backstopping.
+2. **Fee Distribution & Yield Splitting**: Revenue generated from cross-chain settlement and managed enclave hosting follows the protocol 80/10/10 SLA model (80% LPs, 10% operator nodes, 10% risk reserve).
+3. **Emergency Circuit-Breakers**: Any decentralized network node set experiencing >15% stake churning or unverified TCB state changes triggers an automatic route fallback to local TEE hardware signers.
