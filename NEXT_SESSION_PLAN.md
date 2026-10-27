@@ -44,31 +44,18 @@ chipset names are inventory metadata, never proof of hardware signing.
 
 ---
 
+## Session 86/87 research intake correction (2026-10-27)
 
-## Session 86 Completed (2026-10-27) — Decentralized Systems Interoperability, Production Readiness & Business Opportunities
+The decentralized-system list is retained as an unadopted candidate inventory. Earlier wording that described systems as approved, implemented, mitigating open issues, or commercially enabled was not supported by primary-source evidence or repository adoption and has been withdrawn.
 
-### ✅ Research Expansion & Knowledge Base Synchronization
-- Expanded `RESEARCH_LOG.md` with Session 86 research covering Phala Network dStack CVM TEEs, EigenLayer AVS watchtowers, Lit Network DKG/KMaaS, Nomic BTC & Babylon dual staking, Celestia/Avail DA, and IBC/Hyperlane/LayerZero/Wormhole bridges.
-- Updated `docs/architecture/APPROVED_BRIDGE_AND_MESSAGING_SYSTEMS_BY_TRUST_TIER.md` with Section 6 defining trust-tier classifications, proof conditions, and commercial enablement rules for decentralized networks.
-- Updated `DEBT_INVENTORY.md` and `docs/architecture/GAP_SCORECARD.md` (Score: 68).
-- Created issue specification in `issues/0621.md` and updated tracking ledgers (`ISSUES_INDEX.md`, `TRACKING.md`).
+### Next executable research steps
+1. Consume the source-dated standards compatibility register maintained under Business #1390/#1423/#1424.
+2. For each candidate, record primary sources, supported versions/contracts, maintenance status, license, security and trust assumptions, data rights, and exact applicability to an existing SDK issue.
+3. Prefer maintained implementations and thin tested adapters. Do not design a custom replay consensus, attestation quorum, oracle, or bridge layer without an evidenced gap and an accepted OpenSpec.
+4. Keep #200, #202, #240, #241, #242, and #271 open. Produce implementation and runtime evidence in their owning repositories before proposing any status change.
+5. Preserve existing promotion, release, soak, CODEOWNERS, and independent acceptance controls.
 
-
-## Session 87 Completed (2026-10-27) — Org-Wide Workload Management & Decentralized Systems Expansion
-
-### ✅ Workload Governance & Knowledge Base Synchronization
-- Expanded `RESEARCH_LOG.md` (Session 87) covering Pyth/Chainlink Oracles, Oasis Sapphire Confidential EVM, Arweave/Filecoin DA, Centrifuge RWAs, and Ritual/Akash AI compute.
-- Updated `docs/architecture/APPROVED_BRIDGE_AND_MESSAGING_SYSTEMS_BY_TRUST_TIER.md` (Section 7) with trust-tier policies for decentralized compute, oracles, DA, and storage.
-- Expanded `issues/0621.md` with anti-loop workload management directives and org-wide mitigation mappings.
-- Updated `DEBT_INVENTORY.md`, `docs/architecture/GAP_SCORECARD.md`, `TRACKING.md`, and `.session/ledger.md`.
-
-## Session 88 Planned
-
-### P0: Decentralized Replay Consensus Specification (#240)
-- Specify the Raft/Tendermint consensus engine interface for Phala dStack CVM nodes with Celestia DA blob archiving.
-
-### P0: Multi-Hardware Attestation Policy Quorum (#195 / #242)
-- Formalize 2-of-3 threshold hardware attestation policy evaluation across AWS Nitro, Phala SGX/TDX, and Lit Network MPC nodes.
-
-### P0: Independent Security Review & Release Acceptance (#202)
-- Maintain tracking for independent security auditor review evidence and release acceptance artifacts.
+### Scope boundaries
+- Bitcoin-rooted universal-chain scope and zero-native-token policy remain unchanged.
+- No staking/restaking, yield, RWA, pricing, treasury, custody, settlement, or production activation is authorized.
+- Research recommendations are neither adopted policy nor conformance, deployment, or Mainnet proof.

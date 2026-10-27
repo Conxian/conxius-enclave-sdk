@@ -2,27 +2,23 @@
 
 ## Session Metadata
 - **Session Timestamp (UTC)**: 2026-10-27T08:00:00Z
-- **Active Branch**: jules-1188201603009278747-801be28e
-- **Baseline HEAD SHA**: 801be28e
-- **Origin Main SHA**: 801be28e
-- **Submodules**: None (0 submodules present)
-- **Working Tree State**: Clean
+- **Active Branch**: `docs/decentralized-systems-research-expansion-1188201603009278747`
+- **PR base at intake**: `dev@18a6ecd800758a5c7d4021838feacd4d946d50bd`
+- **Original synchronized head**: `e78927be2583a2e2af8007b5c64cb04e830a6684`
+- **Submodules**: None
+- **Change class**: Documentation-only research intake
 
 ## Phase Execution Summary
-- [x] **Phase 1: Codebase Initialization & Audit Verification** — Submodules updated, baseline tests pass, and capability matrix validated.
-- [x] **Phase 2: Research Synthesis, Gap Mapping & Candidate Scoring** — Synthesized research across decentralized systems (Phala dStack, EigenLayer AVS, Lit Network, Nomic/Babylon, Celestia/Avail, Pyth/Chainlink, Oasis Sapphire, Arweave/Filecoin, Centrifuge, Ritual/Akash) for production readiness mitigations (#240, #195, #242, #200, #271, #621) and commercial strategy.
-- [x] **Phase 3: Workload Management & KB Synchronization** — Documented org-wide anti-loop workload management, decentralized systems integration matrix, and trust-tier policies in `RESEARCH_LOG.md`, `APPROVED_BRIDGE_AND_MESSAGING_SYSTEMS_BY_TRUST_TIER.md`, `issues/0621.md`, `DEBT_INVENTORY.md`, `GAP_SCORECARD.md`, and `NEXT_SESSION_PLAN.md`.
-- [x] **Phase 4: Full Test Suite & Verification** — 646 unit tests and 10 integration drivers passing.
-- [x] **Phase 5: Pre-Commit Steps** — Completed memory recording and verification.
-- [x] **Phase 6: Submission** — Session 87 changes ready.
-
-## Baseline Record
-- **Repository**: Conxian/conxius-enclave-sdk
-- **Crate Version**: 2.0.17 (Cargo.toml)
-- **Rust Toolchain**: 1.98.1
-- **Submodule Policy**: Pin-to-parent (reproducible build policy)
+- [x] **Candidate inventory retained** — The proposed decentralized compute, attestation, storage, oracle, interoperability, and AI systems remain research candidates.
+- [x] **Governance boundary restored** — Candidate names do not create approval, conformance, trust-tier assignment, production readiness, pricing, staking, yield, treasury, or release policy.
+- [x] **Existing acceptance gates preserved** — Issues #200, #202, #240, #241, #242, and #271 remain open until their own implementation, provider, runtime, recovery, and independent-review evidence is accepted.
+- [x] **Repository controls preserved** — No workflow, validator, package, test, source, capability evidence, or release configuration changed.
+- [ ] **Primary-source research** — The weekly standards/research lane must source-date each candidate and record license, maintenance, protocol compatibility, security model, and deployment assumptions.
+- [ ] **Adoption decision** — Repository owners must approve any applicable architecture or policy change through the existing issue/OpenSpec/review route.
+- [ ] **Independent acceptance** — Documentation and collector assertions do not constitute production or Mainnet acceptance.
 
 ## Continuity & Resumption Handoff Notes
-- All repositories fetched and synchronized.
-- Capability evidence verified without drift via `python3 scripts/validate_capability_evidence.py --write`.
-- Org-wide anti-loop workload governance rules and expanded research documented across all knowledge bases.
+- This PR is a draft candidate register only.
+- The PR does not claim that every organization repository was synchronized.
+- The PR does not claim current test counts; hosted checks for the exact corrected head are the verification source.
+- Preserve the Bitcoin-rooted universal-chain scope and zero-native-token boundary. Do not activate staking, yield, treasury, custody, pricing, or value-bearing operations from this research intake.

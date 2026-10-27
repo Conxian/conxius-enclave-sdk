@@ -347,16 +347,16 @@ The Ark, Fedimint, and related BitVM entries below record API/structural impleme
 - **CXIP-1317 BitVM3 Garbled-Circuit Fraud Proofs**: Upgraded Universal Verification Adapters for `Conxian Nexus v0.4.23` light-client bridges, introducing BitVM3 garbled circuits for sub-$50 execution fees and ~56 kB on-chain assertion payloads on Bitcoin L1.
 
 ---
+## Session 87 — Unscored decentralized-system candidate intake (2026-10-27)
 
-## Session 87 Workload & Decentralized Systems Gap Update (2026-10-27)
+No numerical readiness score is assigned. Documentation coverage is not implementation, testing, deployment, or independent acceptance.
 
-### Gap Scorecard: Expanded Decentralized Infrastructure (Score: 72/100)
+| Existing gap | Candidate research retained | Status |
+| --- | --- | --- |
+| #240 distributed replay | Maintained replicated-state or data-availability systems | Open; no transactional backend, fencing, restart/outage/recovery/rollback, or independent acceptance established |
+| #195 / #242 attestation and KMS boundaries | Multiple attestation and threshold-authorization providers | Open; no qualified policy composition, custody/recovery, or authenticated provider/runtime evidence established |
+| #200 WASM secret boundary | Confidential-compute runtimes | Open; no accepted runtime/artifact/secret-lifecycle deployment evidence established |
+| #271 routing data | Maintained signed-data/oracle interfaces | Open; no adopted contract, data-rights decision, divergence/outage policy, or value-bearing integration established |
+| Watchtower qualification | Maintained Bitcoin-compatible watchtower/operator implementations | Open; no accepted authorization, fee/liveness, recovery, or production evidence established |
 
-- **Target**: Org-wide workload management and production readiness mitigations via decentralized systems (#621, #240, #195, #242, #200, #271).
-- **Architecture**:
-  - **Workload Governance**: Anti-loop rules enforce KB-first documentation and spec mirroring across all repositories.
-  - **TEE Attestation Quorum**: AWS Nitro + Phala dStack CVM + Lit Network MPC 2-of-3 quorum.
-  - **DA Audit Log Archival**: Celestia / Avail blob storage for 7-year replay auditability.
-  - **Oracle Clearance**: Pyth / Chainlink ZK price signatures for FDC3 clearing and x402 AI agent swaps.
-  - **Yield Splitting**: 80/10/10 rule enforced across Babylon BTC staking, EigenLayer AVS, and Centrifuge RWA pools.
-- **Verification Status**: Documented in `RESEARCH_LOG.md`, `APPROVED_BRIDGE_AND_MESSAGING_SYSTEMS_BY_TRUST_TIER.md`, `DEBT_INVENTORY.md`, and `issues/0621.md`.
+The candidate inventory does not change capability evidence or close a gap. It creates no trust-tier approval, policy adoption, conformance, production readiness, pricing, staking/restaking, yield, RWA, treasury, custody, or Mainnet claim.

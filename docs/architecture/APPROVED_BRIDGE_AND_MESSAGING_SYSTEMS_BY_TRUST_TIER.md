@@ -60,32 +60,21 @@ Nexus should publish/store (minimum):
 
 This aligns with existing architecture docs that require normalized trust/proof fields and fail-closed behavior.
 
+## 6. Decentralized-system research candidates (Sessions 86–87)
 
-## 6. Decentralized Network Integration & Commercial Policy (Session 86)
+This document's approved tiers remain limited to the systems and conditions established in Sections 1–5. The following names are retained only as research candidates; they have no default trust class, target tier, approval, conformance, or production status.
 
-To support production readiness and mitigate single-cloud dependencies, approved decentralized networks are categorized under the Trust-Tier Taxonomy as follows:
+| Candidate domain | Systems to evaluate | Minimum adoption evidence |
+| --- | --- | --- |
+| Confidential compute | Phala dStack, Oasis Sapphire, Secret Network | Authenticated provider claims and roots; collateral/TCB/revocation; artifact/input/operation binding; secret lifecycle; supported runtime evidence |
+| Threshold authorization | Lit Network and maintained threshold libraries/services | Supported algorithms and formats; independently administered participants; DKG/nonce/recovery ceremonies; custody and failure model |
+| Data availability / storage | Celestia, Avail, Arweave, Filecoin | Inclusion and ordering proof; authenticated writes; durability/retention/deletion guarantees; outage, restore, and rollback evidence |
+| Signed data / oracles | Pyth, Chainlink | Supported interface/version; provenance, signature, freshness, divergence, replay, and outage handling; data rights |
+| Watchtower/operator networks | Maintained Bitcoin-compatible implementations; EigenLayer only if separately shown compatible | Bitcoin-rooted authorization, deterministic challenge behavior, fee/liveness bounds, custody model, and fail-closed tests |
+| Interoperability | IBC, Hyperlane, LayerZero, Wormhole | Exact maintained contracts; proof/finality model; limits; replay and duplicate protection; rollback and incident handling |
+| Verifiable compute | Ritual, Akash and maintained proof/attestation runtimes | Authenticated artifact/input/output binding; verifier and availability evidence; confidentiality and payment-release boundary |
+| Asset/RWA protocols | Centrifuge, Goldfinch | Separate legal, custody, data-rights, value-authority, risk, and independent production acceptance |
 
-| Decentralized System | Trust Tier | Primary Role & Proof Class | Required Security Conditions & Commercial Policy |
-| --- | --- | --- | --- |
-| **Phala Network dStack** | **T1 / T2** | Confidential VM (CVM) TEE Attestation (`proof_verified`) | T1 requires dual-attestation (AWS Nitro + Phala Intel SGX/TDX) with RA-TLS certificate validation. Used for hosting decentralized TEE threshold signers and CVM managed gateway instances. |
-| **EigenLayer AVS** | **T1 / T2** | Restaked Cryptoeconomic Watchtower ( + secondary AVS (`proof_verified`) | T1 requires >$50M active restaked ETH collateral and 2/3 operator consensus. Used for automated BitVM2/BitVM3 fraud challenge watchtowers and SLA backstopping. |
-| **Nomic BTC & Babylon** | **T1** | Bitcoin Native Staking & EOTS Slashing (`proof_verified`) | Requires Extractable One-Time Signatures (EOTS) verification and Bitcoin L1 taproot script binding. Used for sovereign Bitcoin yield vaults and instant L2 finality. |
-| **Lit Network MPC** | **T2 / T3** | Threshold Cryptography & KMaaS (`attester_verified`) | T2 requires 2/3 threshold signature verification across distinct node operators. Used for Key Management as a Service (KMaaS) and multi-chain wallet authorization. |
-| **Celestia / Avail DA** | **T1** | Data Availability & Blob Storage (`proof_verified`) | Requires DAS (Data Availability Sampling) inclusion proofs. Used for 7-year immutable audit logging of enclave attestation quotes and durable replay keys. |
+Research intake cannot assign `proof_verified`, `attester_verified`, or any trust tier. Any addition to Sections 1–5 requires an accepted repository decision, a thin tested adapter to a maintained contract, exact evidence, and independent review.
 
-### Commercial Enablement Rules
-1. **Multi-Rail Value Routing**: High-value transactions (> $100k USD equivalent) routed over T3 or T4 systems MUST require additive T1/T2 proof verification or EigenLayer SLA backstopping.
-2. **Fee Distribution & Yield Splitting**: Revenue generated from cross-chain settlement and managed enclave hosting follows the protocol 80/10/10 SLA model (80% LPs, 10% operator nodes, 10% risk reserve).
-3. **Emergency Circuit-Breakers**: Any decentralized network node set experiencing >15% stake churning or unverified TCB state changes triggers an automatic route fallback to local TEE hardware signers.
-
-## 7. Expanded Decentralized Systems & Oracle Policy (Session 87)
-
-The trust-tier taxonomy is expanded to cover decentralized oracle, confidential compute, storage, and AI inference systems:
-
-| System Class | Approved Systems | Default Trust Class | Target Trust Tier | Policy Requirements & Commercial Bounds |
-| --- | --- | --- | --- | --- |
-| **Decentralized Oracles** | Pyth Network, Chainlink (Pull Oracles / ZK TLS) | `proof_verified` | **T1 / T2** | Requires cryptographic signature verification and max 30s freshness window for high-value x402 settlement and FDC3 clearing. |
-| **Confidential Compute** | Oasis Sapphire, Secret Network | `proof_verified` | **T2** | State updates must carry TEE remote attestation quotes (Intel SGX/TDX) to handle private WASM state (#200). |
-| **Decentralized DA & Storage** | Celestia, Avail, Arweave, Filecoin | `proof_verified` | **T1** | Data Availability Sampling (DAS) inclusion proofs required for durable replay key archiving (#240). |
-| **RWA Protocols** | Centrifuge, Goldfinch | `attester_verified` | **T3** | Mandatory per-transaction value caps and mandatory additive T1/T2 proof verification for treasury routes. |
-| **Verifiable AI Compute** | Ritual, Akash Network | `proof_verified` (zkML) | **T2 / T3** | Requires ZKML proof or enclave execution quote before payout release via ERC-8183 escrow. |
+This section does not authorize a native token, staking/restaking, yield, RWA, pricing, fee split, treasury, custody, settlement, or value-bearing route. Existing fail-closed controls and promotion/release gates remain authoritative.

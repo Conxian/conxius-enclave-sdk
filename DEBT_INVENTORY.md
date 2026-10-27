@@ -382,15 +382,16 @@ Applying the 75-point weighted gap scoring rubric (Security: 3x, Blocker: 3x, Un
 - Remaining gates: reviewed DCAP backend and dependency policy; authenticated platform-specific claims; collateral/TCB/revocation policy; event-log replay; stable operation/nonce/expiry binding; durable replay and signer qualification. See `docs/architecture/PHALA_DSTACK_INTEGRATION.md` and existing qualification trackers #240 / #202. These gaps remain open.
 
 ---
+## Session 87 — Decentralized-system candidate register (2026-10-27)
 
-## Session 87 Workload & Production Readiness Debt Synchronization (2026-10-27)
+This section records unadopted research candidates for existing debt. It does not mark any debt mitigated or resolved. Each candidate remains unusable for production policy until primary-source research, a repository-owned design decision, implementation, adversarial tests, provider/runtime evidence, and independent acceptance are complete.
 
-### Decentralized Systems Integration Matrix & Resolution Path
+| Existing debt / issue | Candidate area retained for research | Required evidence before adoption |
+| --- | --- | --- |
+| #240 distributed replay | Data-availability or replicated-state systems | Service-owned transactional semantics, authenticated writes, ordering/fencing, restart/outage/recovery/rollback tests, retention and deletion policy, and independent review |
+| #195 / #242 hardware attestation | Multiple hardware or managed attestation providers | Authenticated provider claims, collateral/TCB/revocation validation, operation/key/nonce/expiry binding, custody and recovery evidence, and fail-closed policy composition |
+| #200 WASM secret boundary | Confidential-compute runtimes | Exact runtime and artifact identity, memory and host-call boundary tests, attestation binding, secret lifecycle proof, deployment evidence, and independent review |
+| #271 routing inputs | Maintained oracle or pricing interfaces | Supported contract/version, signature and freshness validation, stale/divergent-source behavior, market/data rights, value caps, and fail-closed integration tests |
+| BitVM watchtower backlog | Maintained operator/watchtower implementations | Bitcoin-rooted compatibility, deterministic challenge behavior, fee and liveness bounds, custody/authorization model, failure recovery, and accountable acceptance |
 
-| Debt / Issue ID | Affected Component | Decentralized System Mitigation | Workload & Anti-Loop Management |
-| --- | --- | --- | --- |
-| **#240** | Replay Store / High-Water Mark | Phala dStack CVM + Celestia DA | Decentralized Raft consensus committee archives encrypted replay keys to Celestia DA. |
-| **#195 / #242** | Hardware Attestation / KMS | AWS Nitro + Phala TEE + Lit Network MPC | 2-of-3 threshold hardware attestation quorum eliminates single-cloud KMS lock-in. |
-| **#200** | WASM Secret Boundary | Oasis Sapphire / Secret Enclaves | Confidential EVM state execution handles WASM secrets out of client memory. |
-| **#271** | Lightning / FDC3 Clearing | Pyth / Chainlink ZK Oracles | Real-time price signatures validate sub-second x402 swap routing and FDC3 clearing. |
-| **BitVM Watchtowers** | Fraud Proof Submissions | EigenLayer AVS Operators | Cryptoeconomically restaked ETH collateral backstops automated garbled-circuit submissions. |
+Candidate names are not approved systems or substitutes for existing controls. This register does not authorize a custom consensus layer, native token, staking/restaking, yield product, RWA route, pricing, custody, treasury action, or value-bearing deployment.
