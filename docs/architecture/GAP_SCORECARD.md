@@ -345,3 +345,18 @@ The Ark, Fedimint, and related BitVM entries below record API/structural impleme
 - **Multi-Dimensional Scoring Refactoring (CON-1437 / CON-1440 / CON-1436)**: Shifted WPS scoring models away from `erp_mock` schema to live external `x402` payment transaction volume (`X402PaymentRequest` / `X402PaymentProof`) and real-world `ERC-8183` AI Agent Escrow state (`EvmErc8183`).
 - **Live Yield Telemetry & Autonomous SLA Engine (CON-1329 / CON-1600)**: Defined multi-cloud telemetry aggregation across Supabase BOS, Neon Postgres (`conxian-nexus`), and Render microservices feeding into the Autonomous SLA Engine (`src/protocol/job_card.rs` / `src/protocol/economy.rs`) for real-time 80/10/10 yield splitting calculations.
 - **CXIP-1317 BitVM3 Garbled-Circuit Fraud Proofs**: Upgraded Universal Verification Adapters for `Conxian Nexus v0.4.23` light-client bridges, introducing BitVM3 garbled circuits for sub-$50 execution fees and ~56 kB on-chain assertion payloads on Bitcoin L1.
+
+---
+
+## Session 87 Workload & Decentralized Systems Gap Update (2026-10-27)
+
+### Gap Scorecard: Expanded Decentralized Infrastructure (Score: 72/100)
+
+- **Target**: Org-wide workload management and production readiness mitigations via decentralized systems (#621, #240, #195, #242, #200, #271).
+- **Architecture**:
+  - **Workload Governance**: Anti-loop rules enforce KB-first documentation and spec mirroring across all repositories.
+  - **TEE Attestation Quorum**: AWS Nitro + Phala dStack CVM + Lit Network MPC 2-of-3 quorum.
+  - **DA Audit Log Archival**: Celestia / Avail blob storage for 7-year replay auditability.
+  - **Oracle Clearance**: Pyth / Chainlink ZK price signatures for FDC3 clearing and x402 AI agent swaps.
+  - **Yield Splitting**: 80/10/10 rule enforced across Babylon BTC staking, EigenLayer AVS, and Centrifuge RWA pools.
+- **Verification Status**: Documented in `RESEARCH_LOG.md`, `APPROVED_BRIDGE_AND_MESSAGING_SYSTEMS_BY_TRUST_TIER.md`, `DEBT_INVENTORY.md`, and `issues/0621.md`.

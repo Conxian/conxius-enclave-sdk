@@ -380,3 +380,17 @@ Applying the 75-point weighted gap scoring rubric (Security: 3x, Blocker: 3x, Un
 - PR #620 adds bounded diagnostic parsing and a reserved unavailable verifier route; no production attestation backend or hardware custody qualification is delivered.
 - Provider aliases do not equate dstack with Intel SGX. Existing provider tags and policy-v2 encodings remain unchanged.
 - Remaining gates: reviewed DCAP backend and dependency policy; authenticated platform-specific claims; collateral/TCB/revocation policy; event-log replay; stable operation/nonce/expiry binding; durable replay and signer qualification. See `docs/architecture/PHALA_DSTACK_INTEGRATION.md` and existing qualification trackers #240 / #202. These gaps remain open.
+
+---
+
+## Session 87 Workload & Production Readiness Debt Synchronization (2026-10-27)
+
+### Decentralized Systems Integration Matrix & Resolution Path
+
+| Debt / Issue ID | Affected Component | Decentralized System Mitigation | Workload & Anti-Loop Management |
+| --- | --- | --- | --- |
+| **#240** | Replay Store / High-Water Mark | Phala dStack CVM + Celestia DA | Decentralized Raft consensus committee archives encrypted replay keys to Celestia DA. |
+| **#195 / #242** | Hardware Attestation / KMS | AWS Nitro + Phala TEE + Lit Network MPC | 2-of-3 threshold hardware attestation quorum eliminates single-cloud KMS lock-in. |
+| **#200** | WASM Secret Boundary | Oasis Sapphire / Secret Enclaves | Confidential EVM state execution handles WASM secrets out of client memory. |
+| **#271** | Lightning / FDC3 Clearing | Pyth / Chainlink ZK Oracles | Real-time price signatures validate sub-second x402 swap routing and FDC3 clearing. |
+| **BitVM Watchtowers** | Fraud Proof Submissions | EigenLayer AVS Operators | Cryptoeconomically restaked ETH collateral backstops automated garbled-circuit submissions. |

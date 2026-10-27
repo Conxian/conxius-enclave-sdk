@@ -77,3 +77,15 @@ To support production readiness and mitigate single-cloud dependencies, approved
 1. **Multi-Rail Value Routing**: High-value transactions (> $100k USD equivalent) routed over T3 or T4 systems MUST require additive T1/T2 proof verification or EigenLayer SLA backstopping.
 2. **Fee Distribution & Yield Splitting**: Revenue generated from cross-chain settlement and managed enclave hosting follows the protocol 80/10/10 SLA model (80% LPs, 10% operator nodes, 10% risk reserve).
 3. **Emergency Circuit-Breakers**: Any decentralized network node set experiencing >15% stake churning or unverified TCB state changes triggers an automatic route fallback to local TEE hardware signers.
+
+## 7. Expanded Decentralized Systems & Oracle Policy (Session 87)
+
+The trust-tier taxonomy is expanded to cover decentralized oracle, confidential compute, storage, and AI inference systems:
+
+| System Class | Approved Systems | Default Trust Class | Target Trust Tier | Policy Requirements & Commercial Bounds |
+| --- | --- | --- | --- | --- |
+| **Decentralized Oracles** | Pyth Network, Chainlink (Pull Oracles / ZK TLS) | `proof_verified` | **T1 / T2** | Requires cryptographic signature verification and max 30s freshness window for high-value x402 settlement and FDC3 clearing. |
+| **Confidential Compute** | Oasis Sapphire, Secret Network | `proof_verified` | **T2** | State updates must carry TEE remote attestation quotes (Intel SGX/TDX) to handle private WASM state (#200). |
+| **Decentralized DA & Storage** | Celestia, Avail, Arweave, Filecoin | `proof_verified` | **T1** | Data Availability Sampling (DAS) inclusion proofs required for durable replay key archiving (#240). |
+| **RWA Protocols** | Centrifuge, Goldfinch | `attester_verified` | **T3** | Mandatory per-transaction value caps and mandatory additive T1/T2 proof verification for treasury routes. |
+| **Verifiable AI Compute** | Ritual, Akash Network | `proof_verified` (zkML) | **T2 / T3** | Requires ZKML proof or enclave execution quote before payout release via ERC-8183 escrow. |
