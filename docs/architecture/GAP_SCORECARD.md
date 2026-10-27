@@ -12,19 +12,33 @@ support decision. Scores preserve the 75-point planning scale used for issue
 #240 and its follow-on lanes.
 
 | Gap ID | Scope | Score | Dependency phase |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | --- | --- | ---: | --- |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G240-TC` | Provider-neutral trust/collateral contract | 73 | Phase A — contract and negative evidence |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G240-RP` | Durable replay contract and uncertainty semantics | 66 | Phase A — contract; reference backends `FileBackedDurableReplayStore` + `DurableFileReplayStore` (Session 62, passes conformance suite) |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G-DOC` | Canonical documentation and evidence normalization | 65 | Phase A — current residual gates |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G200-WASM` | WASM secret boundary and runtime/platform evidence | 65 | Phase B — secret boundary error stability tests added (Session 67, #200) |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G241-AP` | Android KeyMint/StrongBox authorization and Play Integrity | 59 | Phase B — Android provider lane |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G198-AM` | Asset metadata and account-model containment | 57 | Phase B — protocol/provider lane |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G242-NP` | AWS Nitro attestation and KMS release boundary | 56 | Phase B — Nitro provider lane |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G199-REL` | Reproducible release, SBOM, and provenance evidence | 54 | Phase C — exact artifact gate |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G198-AA` | Account abstraction boundary | 53 | Phase B — protocol/provider lane |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G198-CCTP` | CCTP attestation and cross-chain authorization | 52 | Phase B — protocol/provider lane |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G-live-AP` | Live Android/Nitro runtime evidence | 45 | Phase B — provider/runtime evidence |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G202-REV` | Independent review and release acceptance | 44 | Phase C — reviewed artifact gate |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 
 ## Exact weighted scoring formula and rubric
 
@@ -69,19 +83,33 @@ last column shows the formula result and is the source for the displayed
 score, rather than an informal ranking:
 
 | Gap ID | Sec | Blocker | Unlock | Evidence | Confidence | Efficiency | External (5=local/software) | Doc risk | Formula result |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G240-TC` | 5 | 5 | 5 | 5 | 5 | 3 | 5 | 5 | 73 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G240-RP` | 5 | 5 | 4 | 4 | 4 | 4 | 4 | 4 | 66 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G-DOC` | 4 | 4 | 4 | 5 | 5 | 4 | 4 | 5 | 65 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G200-WASM` | 4 | 5 | 4 | 3 | 4 | 4 | 4 | 4 | 61 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G241-AP` | 5 | 4 | 4 | 2 | 4 | 4 | 4 | 4 | 59 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G198-AM` | 4 | 4 | 4 | 3 | 4 | 3 | 4 | 4 | 57 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G242-NP` | 5 | 4 | 4 | 2 | 3 | 3 | 4 | 4 | 56 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G199-REL` | 4 | 4 | 3 | 4 | 3 | 3 | 3 | 4 | 54 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G198-AA` | 4 | 4 | 4 | 2 | 3 | 4 | 3 | 4 | 53 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G198-CCTP` | 4 | 4 | 4 | 2 | 3 | 3 | 3 | 4 | 52 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G-live-AP` | 5 | 4 | 2 | 1 | 2 | 2 | 2 | 4 | 45 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G202-REV` | 4 | 4 | 3 | 1 | 2 | 3 | 2 | 3 | 44 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 
 Phase A closes only the provider-neutral contract slice represented by
 `G240-TC`, `G240-RP`, and the documentation portion of `G-DOC`. It does not
@@ -317,3 +345,18 @@ The Ark, Fedimint, and related BitVM entries below record API/structural impleme
 - **Multi-Dimensional Scoring Refactoring (CON-1437 / CON-1440 / CON-1436)**: Shifted WPS scoring models away from `erp_mock` schema to live external `x402` payment transaction volume (`X402PaymentRequest` / `X402PaymentProof`) and real-world `ERC-8183` AI Agent Escrow state (`EvmErc8183`).
 - **Live Yield Telemetry & Autonomous SLA Engine (CON-1329 / CON-1600)**: Defined multi-cloud telemetry aggregation across Supabase BOS, Neon Postgres (`conxian-nexus`), and Render microservices feeding into the Autonomous SLA Engine (`src/protocol/job_card.rs` / `src/protocol/economy.rs`) for real-time 80/10/10 yield splitting calculations.
 - **CXIP-1317 BitVM3 Garbled-Circuit Fraud Proofs**: Upgraded Universal Verification Adapters for `Conxian Nexus v0.4.23` light-client bridges, introducing BitVM3 garbled circuits for sub-$50 execution fees and ~56 kB on-chain assertion payloads on Bitcoin L1.
+
+---
+## Session 87 — Unscored decentralized-system candidate intake (2026-10-27)
+
+No numerical readiness score is assigned. Documentation coverage is not implementation, testing, deployment, or independent acceptance.
+
+| Existing gap | Candidate research retained | Status |
+| --- | --- | --- |
+| #240 distributed replay | Maintained replicated-state or data-availability systems | Open; no transactional backend, fencing, restart/outage/recovery/rollback, or independent acceptance established |
+| #195 / #242 attestation and KMS boundaries | Multiple attestation and threshold-authorization providers | Open; no qualified policy composition, custody/recovery, or authenticated provider/runtime evidence established |
+| #200 WASM secret boundary | Confidential-compute runtimes | Open; no accepted runtime/artifact/secret-lifecycle deployment evidence established |
+| #271 routing data | Maintained signed-data/oracle interfaces | Open; no adopted contract, data-rights decision, divergence/outage policy, or value-bearing integration established |
+| Watchtower qualification | Maintained Bitcoin-compatible watchtower/operator implementations | Open; no accepted authorization, fee/liveness, recovery, or production evidence established |
+
+The candidate inventory does not change capability evidence or close a gap. It creates no trust-tier approval, policy adoption, conformance, production readiness, pricing, staking/restaking, yield, RWA, treasury, custody, or Mainnet claim.
