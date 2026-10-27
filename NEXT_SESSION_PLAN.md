@@ -1,9 +1,13 @@
 # Next Session Plan
 
-## Current P0 continuation — 20 October 2026
+## Current P0 continuation — 27 October 2026
 
-Lower-level #599 is integrated into dev and staged. Review the higher-level durable-request clock correction in `openspec/changes/2026-10-20-durable-request-clock/proposal.md` against its exact head: clock persistence precedes every record path, including duplicate/conflicting retries, with failure/recovery/restart regressions. Keep the mainnet acceptance pack and real #240/#202 outcomes open.
+Session 86 completed research expansion on production readiness, issue resolution via decentralized system patterns (#200, #202, #240, #241, #242, #271), T1-T4 trust-tier bridge interoperability, and Conxian Nexus business opportunities (Turnkey KMaaS, WASM Compute, Autonomous SLA 80/10/10 yield splitting, x402 payment escrows).
 
+### Planned Work for Session 87
+1. **Phala dStack TEE WASM Execution Harness (#200)**: Complete integration of `WasmPreAttestationContext` and `WasmSecretBuffer` with Phala dStack TEE runtime environment.
+2. **Cosmos IBC State Replay & High-Water Mark Replication (#240)**: Extend `DurableReplayStore` with Cosmos CometBFT light-client state proof verifiers for cross-region replay protection.
+3. **Independent Security Review & Release Acceptance (#202)**: Maintain tracking for OpenSpec evidence pack, mainnet acceptance PR checks, and third-party security audit reports.
 Review the clock-persistence correction candidate under #240 against the exact PR head and hosted evidence. Preserve replay history and normal independent review/promotion controls. Next qualify the service-owned transactional backend, replica/restart/outage/rollback behavior, current provider collateral and operation/key binding. Local file-store tests do not close distributed replay, hardware or release acceptance. See `openspec/changes/2026-10-20-replay-clock-persistence/proposal.md` and SEC-003 in `DEBT_INVENTORY.md`.
 
 ## Session 84 Completed (2026-10-11) — Hardware Signing Chipset Drivers, HSM, Keystone, Enclave & StrongBox Research Expansion
