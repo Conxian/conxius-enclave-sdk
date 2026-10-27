@@ -12,19 +12,33 @@ support decision. Scores preserve the 75-point planning scale used for issue
 #240 and its follow-on lanes.
 
 | Gap ID | Scope | Score | Dependency phase |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | --- | --- | ---: | --- |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G240-TC` | Provider-neutral trust/collateral contract | 73 | Phase A — contract and negative evidence |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G240-RP` | Durable replay contract and uncertainty semantics | 66 | Phase A — contract; reference backends `FileBackedDurableReplayStore` + `DurableFileReplayStore` (Session 62, passes conformance suite) |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G-DOC` | Canonical documentation and evidence normalization | 65 | Phase A — current residual gates |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G200-WASM` | WASM secret boundary and runtime/platform evidence | 65 | Phase B — secret boundary error stability tests added (Session 67, #200) |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G241-AP` | Android KeyMint/StrongBox authorization and Play Integrity | 59 | Phase B — Android provider lane |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G198-AM` | Asset metadata and account-model containment | 57 | Phase B — protocol/provider lane |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G242-NP` | AWS Nitro attestation and KMS release boundary | 56 | Phase B — Nitro provider lane |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G199-REL` | Reproducible release, SBOM, and provenance evidence | 54 | Phase C — exact artifact gate |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G198-AA` | Account abstraction boundary | 53 | Phase B — protocol/provider lane |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G198-CCTP` | CCTP attestation and cross-chain authorization | 52 | Phase B — protocol/provider lane |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G-live-AP` | Live Android/Nitro runtime evidence | 45 | Phase B — provider/runtime evidence |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G202-REV` | Independent review and release acceptance | 44 | Phase C — reviewed artifact gate |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 
 ## Exact weighted scoring formula and rubric
 
@@ -69,19 +83,33 @@ last column shows the formula result and is the source for the displayed
 score, rather than an informal ranking:
 
 | Gap ID | Sec | Blocker | Unlock | Evidence | Confidence | Efficiency | External (5=local/software) | Doc risk | Formula result |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G240-TC` | 5 | 5 | 5 | 5 | 5 | 3 | 5 | 5 | 73 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G240-RP` | 5 | 5 | 4 | 4 | 4 | 4 | 4 | 4 | 66 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G-DOC` | 4 | 4 | 4 | 5 | 5 | 4 | 4 | 5 | 65 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G200-WASM` | 4 | 5 | 4 | 3 | 4 | 4 | 4 | 4 | 61 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G241-AP` | 5 | 4 | 4 | 2 | 4 | 4 | 4 | 4 | 59 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G198-AM` | 4 | 4 | 4 | 3 | 4 | 3 | 4 | 4 | 57 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G242-NP` | 5 | 4 | 4 | 2 | 3 | 3 | 4 | 4 | 56 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G199-REL` | 4 | 4 | 3 | 4 | 3 | 3 | 3 | 4 | 54 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G198-AA` | 4 | 4 | 4 | 2 | 3 | 4 | 3 | 4 | 53 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G198-CCTP` | 4 | 4 | 4 | 2 | 3 | 3 | 3 | 4 | 52 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G-live-AP` | 5 | 4 | 2 | 1 | 2 | 2 | 2 | 4 | 45 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 | `G202-REV` | 4 | 4 | 3 | 1 | 2 | 3 | 2 | 3 | 44 |
+|  | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
 
 Phase A closes only the provider-neutral contract slice represented by
 `G240-TC`, `G240-RP`, and the documentation portion of `G-DOC`. It does not

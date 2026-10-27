@@ -139,3 +139,5 @@ git push -u origin feature/your-feature-name
 - **Documentation**: See `docs/` directory
 - **Issues**: https://github.com/Conxian/conxius-enclave-sdk/issues
 - **Security**: See SECURITY.md
+
+- **#621**: Expand research on production readiness and business opportunities with decentralized systems (Open / Assigned: CharlieHelps)
