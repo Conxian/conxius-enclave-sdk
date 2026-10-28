@@ -14,10 +14,10 @@ support decision. Scores preserve the 75-point planning scale used for issue
 | Gap ID | Scope | Score | Dependency phase |
 | --- | --- | ---: | --- |
 | `G240-TC` | Provider-neutral trust/collateral contract | 73 | Phase A — contract and negative evidence |
-| `G621-DEC` | Decentralized Network Interoperability & Production Readiness | 68 | Phase B — Decentralized TEE (Phala dStack), EigenLayer AVS, Nomic/Babylon BTC, Celestia DA (Session 86 / Issue #621) |
+| `G621-DEC` | Decentralized interoperability research; no support or release acceptance | 60 | Phase B research candidates — Phala dstack, EigenLayer, Nomic/Babylon and Celestia; coordinator Conxian/conxian-business#1317, qualification #240/#202 |
 | `G240-RP` | Durable replay contract and uncertainty semantics | 66 | Phase A — contract; reference backends `FileBackedDurableReplayStore` + `DurableFileReplayStore` (Session 62, passes conformance suite) |
 | `G-DOC` | Canonical documentation and evidence normalization | 65 | Phase A — current residual gates |
-| `G200-WASM` | WASM secret boundary and runtime/platform evidence | 65 | Phase B — secret boundary error stability tests added (Session 67, #200) |
+| `G200-WASM` | WASM secret boundary and runtime/platform evidence | 61 | Phase B — secret boundary error stability tests added (Session 67, #200) |
 | `G241-AP` | Android KeyMint/StrongBox authorization and Play Integrity | 59 | Phase B — Android provider lane |
 | `G198-AM` | Asset metadata and account-model containment | 57 | Phase B — protocol/provider lane |
 | `G242-NP` | AWS Nitro attestation and KMS release boundary | 56 | Phase B — Nitro provider lane |
@@ -72,7 +72,7 @@ score, rather than an informal ranking:
 | Gap ID | Sec | Blocker | Unlock | Evidence | Confidence | Efficiency | External (5=local/software) | Doc risk | Formula result |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `G240-TC` | 5 | 5 | 5 | 5 | 5 | 3 | 5 | 5 | 73 |
-| `G621-DEC` | 5 | 4 | 4 | 3 | 4 | 4 | 3 | 4 | 68 |
+| `G621-DEC` | 5 | 4 | 4 | 3 | 4 | 4 | 3 | 4 | 60 |
 | `G240-RP` | 5 | 5 | 4 | 4 | 4 | 4 | 4 | 4 | 66 |
 | `G-DOC` | 4 | 4 | 4 | 5 | 5 | 4 | 4 | 5 | 65 |
 | `G200-WASM` | 4 | 5 | 4 | 3 | 4 | 4 | 4 | 4 | 61 |
