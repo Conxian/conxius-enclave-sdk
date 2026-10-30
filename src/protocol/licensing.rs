@@ -142,9 +142,8 @@ impl LicenseIssuer {
     /// onboarding round-trip.
     pub fn mint_api_key(&self, claims: LicenseClaims) -> ConclaveResult<String> {
         let license = self.issue(claims)?;
-        let json = serde_json::to_vec(&license).map_err(|err| {
-            ConclaveError::CryptoError(format!("license encoding failed: {err}"))
-        })?;
+        let json = serde_json::to_vec(&license)
+            .map_err(|err| ConclaveError::CryptoError(format!("license encoding failed: {err}")))?;
         Ok(BASE64_URL_SAFE_NO_PAD.encode(json))
     }
 }
@@ -161,13 +160,12 @@ impl LicenseVerifier {
         issuer: impl Into<String>,
         public_key_hex: &str,
     ) -> ConclaveResult<Self> {
-        let bytes =
-            hex::decode(public_key_hex).map_err(|_| ConclaveError::InvalidPayload)?;
+        let bytes = hex::decode(public_key_hex).map_err(|_| ConclaveError::InvalidPayload)?;
         let bytes: [u8; 32] = bytes
             .try_into()
             .map_err(|_| ConclaveError::InvalidPayload)?;
-        let verifying_key = VerifyingKey::from_bytes(&bytes)
-            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let verifying_key =
+            VerifyingKey::from_bytes(&bytes).map_err(|_| ConclaveError::InvalidPayload)?;
         Ok(Self {
             verifying_key,
             issuer: issuer.into(),
@@ -201,8 +199,8 @@ impl LicenseVerifier {
 
         let signature_bytes =
             hex::decode(&license.signature).map_err(|_| ConclaveError::InvalidPayload)?;
-        let signature = Signature::from_slice(&signature_bytes)
-            .map_err(|_| ConclaveError::InvalidPayload)?;
+        let signature =
+            Signature::from_slice(&signature_bytes).map_err(|_| ConclaveError::InvalidPayload)?;
         let canonical = license.claims.canonical_bytes()?;
 
         self.verifying_key
@@ -260,9 +258,10 @@ impl SeatRegistry {
         seat_id: impl Into<String>,
     ) -> ConclaveResult<()> {
         let seat_id = seat_id.into();
-        let mut seats = self.seats.write().map_err(|_| {
-            ConclaveError::CryptoError("seat registry lock poisoned".to_string())
-        })?;
+        let mut seats = self
+            .seats
+            .write()
+            .map_err(|_| ConclaveError::CryptoError("seat registry lock poisoned".to_string()))?;
 
         let held = seats.entry(license.license_id().to_string()).or_default();
         if held.contains(&seat_id) {
@@ -361,9 +360,11 @@ mod tests {
     fn wrong_issuer_key_is_rejected() -> ConclaveResult<()> {
         let now = 1_700_000_000;
         let license = test_issuer().issue(base_claims(now))?;
-        let other_verifier =
-            LicenseVerifier::from_public_key_hex(ISSUER, &LicenseIssuer::from_seed(ISSUER, [0x6b; 32]).public_key_hex())
-                .unwrap();
+        let other_verifier = LicenseVerifier::from_public_key_hex(
+            ISSUER,
+            &LicenseIssuer::from_seed(ISSUER, [0x6b; 32]).public_key_hex(),
+        )
+        .unwrap();
         assert!(other_verifier.verify_at(&license, now + 1).is_err());
         Ok(())
     }
@@ -425,7 +426,9 @@ mod tests {
         let mid = tampered.len() / 2;
         tampered[mid] ^= 0xff;
         let tampered_key = BASE64_URL_SAFE_NO_PAD.encode(&tampered);
-        assert!(test_verifier().verify_api_key_at(&tampered_key, now + 1).is_err());
+        assert!(test_verifier()
+            .verify_api_key_at(&tampered_key, now + 1)
+            .is_err());
         Ok(())
     }
 
