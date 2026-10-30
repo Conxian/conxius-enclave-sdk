@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "schemaVersion": 1,
   "repository": "Conxian/conxius-enclave-sdk",
-  "lastVerified": "2026-10-14",
+  "lastVerified": "2026-10-30",
   "trustModel": {
     "root": "bitcoin-l1",
     "scope": "universal-chain",
@@ -22,7 +22,7 @@
       "meaning": "Unique built-in chain-and-symbol records; inactive records are inventory-only and fail closed"
     },
     "protocolModules": {
-      "count": 43,
+      "count": 44,
       "source": "src/protocol/mod.rs",
       "meaning": "Non-test protocol modules, including infrastructure and integration modules"
     },
