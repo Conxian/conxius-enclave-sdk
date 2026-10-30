@@ -14,9 +14,9 @@
 //! - `none` (no attestation — self-assertion only)
 //!
 //! # References
-//! - WebAuthn Level 3: https://www.w3.org/TR/webauthn-3/
-//! - FIDO2 Attestation: https://fidoalliance.org/specs/
-//! - webauthn-rs crate: https://docs.rs/webauthn-rs/
+//! - WebAuthn Level 3: <https://www.w3.org/TR/webauthn-3/>
+//! - FIDO2 Attestation: <https://fidoalliance.org/specs/>
+//! - webauthn-rs crate: <https://docs.rs/webauthn-rs/>
 
 use crate::{ConclaveError, ConclaveResult};
 use ciborium::value::Value;

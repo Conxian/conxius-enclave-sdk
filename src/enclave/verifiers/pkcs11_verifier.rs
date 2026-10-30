@@ -17,9 +17,9 @@
 //! module and firmware policy, and key-to-operation binding.
 //!
 //! # References
-//! - PKCS#11 v3.2: https://docs.oasis-open.org/pkcs11/
-//! - rust-cryptoki: https://github.com/parallaxsecond/rust-cryptoki
-//! - tpm2-pkcs11: https://github.com/tpm2-software/tpm2-pkcs11
+//! - PKCS#11 v3.2: <https://docs.oasis-open.org/pkcs11/>
+//! - rust-cryptoki: <https://github.com/parallaxsecond/rust-cryptoki>
+//! - tpm2-pkcs11: <https://github.com/tpm2-software/tpm2-pkcs11>
 
 use crate::{ConclaveError, ConclaveResult};
 

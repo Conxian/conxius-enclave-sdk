@@ -1,3 +1,9 @@
+//! Protocol primitives for the Conxian universal-chain capability surface.
+//!
+//! This module groups Bitcoin, Lightning, Babylon BTC staking, settlement
+//! bridges/rails, x402 machine-to-machine payments, chain abstraction, and the
+//! digital license terms in [`licensing`].
+
 pub mod a2p;
 pub mod account_abstraction;
 pub mod ark;
@@ -28,6 +34,7 @@ pub mod frost_crypto;
 pub mod identity;
 pub mod intent;
 pub mod job_card;
+/// Digital license terms and zero-manual-onboarding verification.
 pub mod licensing;
 pub mod lightning;
 pub mod lightning_channel;

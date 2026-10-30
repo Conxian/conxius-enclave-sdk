@@ -930,7 +930,7 @@ impl NitroKmsRecipientResponse {
     /// Constructs a safe response from only the dedicated
     /// `CiphertextForRecipient` field. Raw KMS transport parsing is out of
     /// scope; a future crate-private adapter must call
-    /// [`validate_raw_recipient_response`] with the actual raw fields first.
+    /// `validate_raw_recipient_response` with the actual raw fields first.
     pub fn from_ciphertext_for_recipient(
         ciphertext_for_recipient: Vec<u8>,
     ) -> Result<Self, NitroError> {
