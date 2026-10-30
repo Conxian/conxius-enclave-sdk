@@ -13,6 +13,8 @@ Behavior:
 - In tag context (GITHUB_REF_TYPE=tag), validates tag format is vX.Y.Z.
 - Verifies Cargo.toml [package].version matches the expected release version.
 - Verifies CHANGELOG.md contains a section for that release version.
+- Verifies CHANGELOG.md has no non-empty [Unreleased] section at release time.
+- Verifies README.md quick-start references the release tag.
 - Verifies Cargo.lock is tracked and is current under `cargo metadata --locked`.
 - In tag context, verifies the checked-out commit is the tagged commit.
 USAGE
@@ -134,6 +136,30 @@ escaped_version="$(printf '%s' "$expected_version" | sed 's/\./\\./g')"
 if ! grep -Eiq "^##[[:space:]]+\\[?v?${escaped_version}\\]?([[:space:]]*-[[:space:]]*[0-9]{4}-[0-9]{2}-[0-9]{2})?[[:space:]]*$" CHANGELOG.md; then
   echo "error: CHANGELOG.md is missing a section header for version '$expected_version'" >&2
   echo "expected something like: '## [${expected_version}] - YYYY-MM-DD'" >&2
+  exit 1
+fi
+
+if [[ ! -f README.md ]]; then
+  echo "error: README.md not found" >&2
+  exit 1
+fi
+
+if ! grep -Fq "tag = \"v${expected_version}\"" README.md; then
+  echo "error: README.md quick-start must reference the release tag 'v${expected_version}'" >&2
+  echo "expected: conxius-enclave-sdk = { git = \"...\", tag = \"v${expected_version}\" }" >&2
+  exit 1
+fi
+
+unreleased_content="$({
+  python3 - <<'PY'
+import re
+text = open('CHANGELOG.md').read()
+match = re.search(r'^##\s+\[Unreleased\]\s*$(.*?)(?=^##\s+|\Z)', text, re.MULTILINE | re.DOTALL)
+print((match.group(1).strip() if match else ''))
+PY
+})"
+if [[ -n "$unreleased_content" ]]; then
+  echo "error: CHANGELOG.md has a non-empty [Unreleased] section; fold it into '## [${expected_version}]'" >&2
   exit 1
 fi
 

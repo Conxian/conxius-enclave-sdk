@@ -12,9 +12,9 @@
 //! - Any OIDC-compliant provider with JWKS endpoint
 //!
 //! # References
-//! - OpenID Connect Core 1.0: https://openid.net/specs/openid-connect-core-1_0.html
-//! - RFC 7519 (JWT): https://datatracker.ietf.org/doc/html/rfc7519
-//! - AWS Nitro Enclaves OIDC: https://docs.aws.amazon.com/enclaves/latest/user/nitro-enclave-ref.html
+//! - OpenID Connect Core 1.0: <https://openid.net/specs/openid-connect-core-1_0.html>
+//! - RFC 7519 (JWT): <https://datatracker.ietf.org/doc/html/rfc7519>
+//! - AWS Nitro Enclaves OIDC: <https://docs.aws.amazon.com/enclaves/latest/user/nitro-enclave-ref.html>
 
 use crate::{ConclaveError, ConclaveResult};
 use std::collections::HashMap;

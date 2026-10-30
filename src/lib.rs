@@ -1,3 +1,33 @@
+//! # conxius-enclave-sdk
+//!
+//! Hardware-backed security primitives for the broader Conxian ecosystem.
+//! The SDK provides a high-integrity root of trust for wallet, signing,
+//! attestation, and policy flows, with a Bitcoin-rooted universal-chain
+//! capability surface.
+//!
+//! ## Capability surface
+//!
+//! * [`enclave`] — attestation, hardware provider classification, replay
+//!   protection, and verifiers (AWS Nitro, PKCS#11, Android KeyMint, TPM 2.0).
+//! * [`protocol`] — Bitcoin, Lightning, Babylon BTC staking, x402 M2M payments,
+//!   bridges (settlement rails), and chain abstraction.
+//! * [`signing`] — key management and signer backends.
+//! * [`licensing`] — digital license terms and zero-manual-onboarding
+//!   verification (Ed25519-signed license claims, API-key minting, seat
+//!   allocation, and capability gating).
+//!
+//! ## Status
+//!
+//! Stable (conditional). Value-bearing signing and settlement remain gated on
+//! the release-signing contract and independent cryptographic review. See
+//! [`PRODUCTION_READINESS.md`](https://github.com/Conxian/conxius-enclave-sdk/blob/main/PRODUCTION_READINESS.md).
+//!
+//! ## Feature flags
+//!
+//! * `frost-crypto` — threshold signing (FROST); still resolves `crypto-bigint`
+//!   transitively via `frost-secp256k1-tr`.
+//! * `sdk-development-simulators` / `sdk-mock-cloud-enclave` — dev-only opt-ins.
+
 pub mod config;
 pub mod enclave;
 pub mod protocol;
