@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Added
+- `src/protocol/licensing.rs`: Added digital license terms and zero-manual-onboarding verification (`DigitalLicense`, `LicenseVerifier`, `LicenseIssuer`, `SeatRegistry`), Ed25519-signed license claims, self-contained API-key minting/verification, seat allocation, and capability gating.
+
+## [2.1.0]
+
+### Added
 - Expanded research on production readiness and commercial opportunities leveraging decentralized infrastructure networks (Phala dStack CVM, EigenLayer AVS, Lit Network KMaaS, Nomic/Babylon BTC, Celestia DA) in  (Session 86) and created issue #621 in .
 - Updated  with Section 6 specifying trust tiers and commercial policies for approved decentralized systems.
 - Updated  (),  (), , and .
