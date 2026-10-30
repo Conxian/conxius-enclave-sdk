@@ -1,6 +1,6 @@
 use crate::protocol::asset::validate_evm_address;
 use crate::{ConclaveError, ConclaveResult};
-use alloy::primitives::keccak256;
+use alloy_primitives::keccak256;
 use serde::{Deserialize, Serialize};
 
 /// Circle's published CCTP attestation public key (secp256k1, uncompressed SEC1 65 bytes).

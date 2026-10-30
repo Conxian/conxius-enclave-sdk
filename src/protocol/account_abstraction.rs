@@ -1,6 +1,6 @@
 use crate::protocol::asset::validate_evm_address;
 use crate::{ConclaveError, ConclaveResult};
-use alloy::primitives::{Address, U256};
+use alloy_primitives::{Address, U256};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

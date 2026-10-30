@@ -5,6 +5,9 @@
 ### Added
 - `src/protocol/licensing.rs`: Added digital license terms and zero-manual-onboarding verification (`DigitalLicense`, `LicenseVerifier`, `LicenseIssuer`, `SeatRegistry`), Ed25519-signed license claims, self-contained API-key minting/verification, seat allocation, and capability gating.
 
+### Security
+- Eliminated `crypto-bigint 0.5.5` (RUSTSEC-2026-0387) from the default dependency graph by replacing the `alloy` meta-crate (`signer-local`/`provider-http`/`network`/`pubsub`) with `alloy-primitives` (`default-features=false`, `std`). `Address`/`U256`/`keccak256`/`Keccak256` are now sourced directly from `alloy-primitives` without its optional `k256 ^0.13` dependency. `stablecoin_orchestrator` now performs ERC-20 reads via raw `reqwest` JSON-RPC `eth_call` (no `alloy-provider`/`sol!`). The optional `frost-crypto` feature still resolves `crypto-bigint 0.5.5` transitively via `frost-secp256k1-tr 3.0.0` (`k256 ^0.13`), which remains blocked upstream.
+
 ## [2.1.0]
 
 ### Added
