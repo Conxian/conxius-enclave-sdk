@@ -47,6 +47,7 @@ pub enum AttestationFormat {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)] // Phase 3 verification consumes these; parsing precedes the read path
 struct ParsedAuthenticatorData {
     credential_id: Option<Vec<u8>>,
     credential_public_key: Option<Vec<u8>>,
