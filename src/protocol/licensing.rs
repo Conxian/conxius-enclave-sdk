@@ -28,10 +28,12 @@ fn unix_time_secs() -> u64 {
 pub struct Capability(pub String);
 
 impl Capability {
+    /// Creates a capability from any string-like value.
     pub fn new(name: impl Into<String>) -> Self {
         Self(name.into())
     }
 
+    /// Returns the capability name.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -84,10 +86,12 @@ pub struct DigitalLicense {
 }
 
 impl DigitalLicense {
+    /// Returns the license identifier from the signed claims.
     pub fn license_id(&self) -> &str {
         &self.claims.license_id
     }
 
+    /// Returns `true` if the license grants `capability`.
     pub fn has_capability(&self, capability: &Capability) -> bool {
         self.claims.capabilities.contains(capability)
     }
@@ -115,6 +119,7 @@ impl LicenseIssuer {
         Self::from_seed(issuer, seed)
     }
 
+    /// Returns the issuer identifier stamped into issued licenses.
     pub fn issuer(&self) -> &str {
         &self.issuer
     }
@@ -156,6 +161,7 @@ pub struct LicenseVerifier {
 }
 
 impl LicenseVerifier {
+    /// Builds a verifier from a hex-encoded Ed25519 public key.
     pub fn from_public_key_hex(
         issuer: impl Into<String>,
         public_key_hex: &str,
@@ -172,6 +178,7 @@ impl LicenseVerifier {
         })
     }
 
+    /// Returns the trusted issuer identifier this verifier enforces.
     pub fn issuer(&self) -> &str {
         &self.issuer
     }
@@ -244,6 +251,7 @@ pub struct SeatRegistry {
 }
 
 impl SeatRegistry {
+    /// Creates an empty seat registry.
     pub fn new() -> Self {
         Self {
             seats: RwLock::new(HashMap::new()),
