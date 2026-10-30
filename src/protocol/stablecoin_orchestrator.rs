@@ -33,7 +33,9 @@ async fn eth_call(rpc_url: &str, to: &Address, calldata: &[u8]) -> ConclaveResul
         .map_err(|e| ConclaveError::NetworkError(format!("eth_call response parse failed: {e}")))?;
 
     if let Some(err) = resp.get("error") {
-        return Err(ConclaveError::NetworkError(format!("eth_call RPC error: {err}")));
+        return Err(ConclaveError::NetworkError(format!(
+            "eth_call RPC error: {err}"
+        )));
     }
 
     let result = resp
@@ -42,7 +44,8 @@ async fn eth_call(rpc_url: &str, to: &Address, calldata: &[u8]) -> ConclaveResul
         .ok_or_else(|| ConclaveError::NetworkError("eth_call missing result".to_string()))?;
 
     let bare = result.strip_prefix("0x").unwrap_or(result);
-    hex::decode(bare).map_err(|_| ConclaveError::NetworkError("eth_call invalid hex result".to_string()))
+    hex::decode(bare)
+        .map_err(|_| ConclaveError::NetworkError("eth_call invalid hex result".to_string()))
 }
 
 fn decode_uint256(bytes: &[u8]) -> ConclaveResult<U256> {
@@ -68,7 +71,9 @@ fn decode_abi_string(bytes: &[u8]) -> ConclaveResult<String> {
             .try_into()
             .map_err(|_| ConclaveError::InvalidPayload)?,
     );
-    let len_start = offset.checked_add(32).ok_or(ConclaveError::InvalidPayload)?;
+    let len_start = offset
+        .checked_add(32)
+        .ok_or(ConclaveError::InvalidPayload)?;
     if len_start > bytes.len() {
         return Err(ConclaveError::InvalidPayload);
     }
@@ -77,11 +82,14 @@ fn decode_abi_string(bytes: &[u8]) -> ConclaveResult<String> {
             .try_into()
             .map_err(|_| ConclaveError::InvalidPayload)?,
     );
-    let data_end = len_start.checked_add(length).ok_or(ConclaveError::InvalidPayload)?;
+    let data_end = len_start
+        .checked_add(length)
+        .ok_or(ConclaveError::InvalidPayload)?;
     if data_end > bytes.len() {
         return Err(ConclaveError::InvalidPayload);
     }
-    String::from_utf8(bytes[len_start..data_end].to_vec()).map_err(|_| ConclaveError::InvalidPayload)
+    String::from_utf8(bytes[len_start..data_end].to_vec())
+        .map_err(|_| ConclaveError::InvalidPayload)
 }
 
 pub struct StablecoinOrchestrator {
