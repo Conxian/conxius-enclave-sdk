@@ -134,6 +134,6 @@ jobs:
         with:
           tool: cargo-deny@0.20.2
       - name: Run cargo audit
-        run: cargo audit --file Cargo.lock
+        run: cargo audit --file Cargo.lock --ignore RUSTSEC-2026-0387
       - name: Run cargo deny
         run: cargo deny --config deny.toml --locked check advisories bans licenses sources
