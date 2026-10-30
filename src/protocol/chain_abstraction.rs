@@ -8,7 +8,7 @@ use crate::{
     },
     ConclaveError, ConclaveResult,
 };
-use alloy::primitives::{Address as EthAddress, Keccak256};
+use alloy_primitives::{Address as EthAddress, Keccak256};
 use bitcoin::address::Address;
 use bitcoin::key::PublicKey;
 use bitcoin::Network;
