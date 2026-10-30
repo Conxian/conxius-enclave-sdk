@@ -5,7 +5,7 @@ use crate::{
     },
     ConclaveError, ConclaveResult,
 };
-use alloy::primitives::{eip191_hash_message, keccak256, Address as EthAddress};
+use alloy_primitives::{eip191_hash_message, keccak256, Address as EthAddress};
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId, Signature},
     Message, PublicKey,

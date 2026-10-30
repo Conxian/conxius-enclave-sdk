@@ -1,29 +1,32 @@
 # Session Continuity Ledger
 
 ## Session Metadata
-- **Session Timestamp (UTC)**: 2026-10-11T07:17:08Z
-- **Active Branch**:
-- **Baseline HEAD SHA**:
-- **Origin Main SHA**:
-- **Submodules**: None (0 submodules present)
-- **Working Tree State**: Clean
+- **Session Timestamp (UTC)**: 2026-10-27T08:00:00Z
+- **Active Branch**: `docs/decentralized-systems-research-expansion-1188201603009278747`
+- **PR base at intake**: `dev@18a6ecd800758a5c7d4021838feacd4d946d50bd`
+- **Original synchronized head**: `e78927be2583a2e2af8007b5c64cb04e830a6684`
+- **Submodules**: None
+- **Change class**: Documentation-only research intake
 
 ## Phase Execution Summary
-- [x] **Phase 1: Codebase Initialization & Audit Verification** — Submodules updated, baseline tests pass, and capability matrix validated.
-- [x] **Phase 2: Research Synthesis, Gap Mapping & Candidate Scoring** — Synthesized research across issues (#200, #240, #241, #242, #271, CXIP #1317) and selected Turnkey Enclave Pre-Attested WASM Execution Harness.
-- [x] **Phase 3: Production Code Implementation & Hardening** — Implemented  and  in  and re-exported in . Added unit tests.
-- [x] **Phase 4: Documentation & Knowledge Base Synchronization** — Updated , , , and .
-- [ ] **Phase 5: Full Test Suite & Verification** — Pending full test execution.
-- [ ] **Phase 6: Pre-Commit Steps** — Pending pre-commit instructions execution.
-- [ ] **Phase 7: Submission** — Pending change submission.
-
-## Baseline Record
-- **Repository**:
-- **Crate Version**:  (Cargo.toml)
-- **Rust Toolchain**: 1.98.1
-- **Submodule Policy**: Pin-to-parent (reproducible build policy)
+- [x] **Candidate inventory retained** — The proposed decentralized compute, attestation, storage, oracle, interoperability, and AI systems remain research candidates.
+- [x] **Governance boundary restored** — Candidate names do not create approval, conformance, trust-tier assignment, production readiness, pricing, staking, yield, treasury, or release policy.
+- [x] **Existing acceptance gates preserved** — Issues #200, #202, #240, #241, #242, and #271 remain open until their own implementation, provider, runtime, recovery, and independent-review evidence is accepted.
+- [x] **Repository controls preserved** — No workflow, validator, package, test, source, capability evidence, or release configuration changed.
+- [ ] **Primary-source research** — The weekly standards/research lane must source-date each candidate and record license, maintenance, protocol compatibility, security model, and deployment assumptions.
+- [ ] **Adoption decision** — Repository owners must approve any applicable architecture or policy change through the existing issue/OpenSpec/review route.
+- [ ] **Independent acceptance** — Documentation and collector assertions do not constitute production or Mainnet acceptance.
 
 ## Continuity & Resumption Handoff Notes
 - All repositories fetched and synchronized.
 - Capability evidence verified without drift (capability evidence valid: 70 capabilities; generated matrix is current).
 - WasmExecutionHarness & WasmPreAttestationContext implemented and passing unit tests.
+
+## Session 86 Handoff (2026-10-27)
+- Completed research expansion on production readiness, decentralized systems interoperability matrix (T1-T4), and Conxian Nexus business opportunities in `RESEARCH_LOG.md`.
+- Created `docs/architecture/DECENTRALIZED_SYSTEMS_BUSINESS_OPPORTUNITIES.md` and updated `PRODUCTION_READINESS.md`.
+- Synchronized `TRACKING.md`, `NEXT_SESSION_PLAN.md`, and regenerated `CAPABILITY_MATRIX.md`.
+- This PR is a draft candidate register only.
+- The PR does not claim that every organization repository was synchronized.
+- The PR does not claim current test counts; hosted checks for the exact corrected head are the verification source.
+- Preserve the Bitcoin-rooted universal-chain scope and zero-native-token boundary. Do not activate staking, yield, treasury, custody, pricing, or value-bearing operations from this research intake.

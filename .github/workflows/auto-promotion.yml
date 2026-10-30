@@ -186,6 +186,8 @@ jobs:
           - [ ] Wallet / signer / treasury boundary checks are explicitly recorded.
           - [ ] Deployment boundary checks are explicitly recorded.
           - [ ] Any required submodule pins, lockfiles, and artifact provenance are updated.
+
+          > **Merge method:** merge with a **merge commit** (NOT squash or rebase). Squash-merging creates a divergent `{target}` history and makes the next promotion conflict.
           """
           else:
               body = f"""## Staged -> main promotion
@@ -214,6 +216,8 @@ jobs:
 
           #### Owner accountability
           Complete before review.
+
+          > **Merge method:** merge with a **merge commit** (NOT squash or rebase) to preserve `staged` lineage and avoid `main`/`staged` divergence.
           """
 
           date_str = datetime.date.today().isoformat()

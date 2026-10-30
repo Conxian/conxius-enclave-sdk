@@ -72,10 +72,11 @@ bs58 = "0.5.1"
 sha2 = "0.11.0"
 blake2 = "0.10.6"
 subtle = "2.6.1"
+ciborium = { version = "0.2.2", default-features = false, features = ["std"] }
 bls12_381 = { version = "0.8", default-features = false, features = ["alloc", "groups", "pairings"], optional = true }
 thiserror = "2.0.18"
 tokio = { version = "1.52.3", features = ["rt", "macros", "time"] }
-alloy = { version = "2.1.0", features = ["rpc-types", "rpc-client", "network", "signer-local", "provider-http", "pubsub"] }
+alloy-primitives = { version = "1.7.3", default-features = false, features = ["std"] }
 wasm-bindgen = "0.2.125"
 wasm-bindgen-futures = "0.4.71"
 web-sys = "0.3.102"
@@ -86,7 +87,6 @@ webauthn-rs = { version = "0.5", optional = true }
 secrecy = "0.10"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-ciborium = { version = "0.2.2", default-features = false, features = ["std"] }
 p384 = { version = "0.14.0", default-features = false, features = ["ecdsa", "std"] }
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]

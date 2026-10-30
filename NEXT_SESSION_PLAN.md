@@ -1,5 +1,15 @@
 # Next Session Plan
 
+## Current P0 continuation — 27 October 2026
+
+Session 86 completed research expansion on production readiness, issue resolution via decentralized system patterns (#200, #202, #240, #241, #242, #271), T1-T4 trust-tier bridge interoperability, and Conxian Nexus business opportunities (Turnkey KMaaS, WASM Compute, Autonomous SLA 80/10/10 yield splitting, x402 payment escrows).
+
+### Planned Work for Session 87
+1. **Phala dStack TEE WASM Execution Harness (#200)**: Complete integration of `WasmPreAttestationContext` and `WasmSecretBuffer` with Phala dStack TEE runtime environment.
+2. **Cosmos IBC State Replay & High-Water Mark Replication (#240)**: Extend `DurableReplayStore` with Cosmos CometBFT light-client state proof verifiers for cross-region replay protection.
+3. **Independent Security Review & Release Acceptance (#202)**: Maintain tracking for OpenSpec evidence pack, mainnet acceptance PR checks, and third-party security audit reports.
+Review the clock-persistence correction candidate under #240 against the exact PR head and hosted evidence. Preserve replay history and normal independent review/promotion controls. Next qualify the service-owned transactional backend, replica/restart/outage/rollback behavior, current provider collateral and operation/key binding. Local file-store tests do not close distributed replay, hardware or release acceptance. See `openspec/changes/2026-10-20-replay-clock-persistence/proposal.md` and SEC-003 in `DEBT_INVENTORY.md`.
+
 ## Session 84 Completed (2026-10-11) — Hardware Signing Chipset Drivers, HSM, Keystone, Enclave & StrongBox Research Expansion
 
 Provider identifiers and policy bindings were added as an inventory and
@@ -38,13 +48,18 @@ chipset names are inventory metadata, never proof of hardware signing.
 
 ---
 
-## Session 85 Planned
+## Session 86/87 research intake correction (2026-10-27)
 
-### P0: Automated BitVM2/Ark Challenge Watchtower Execution
-- Extend `BitVm2Orchestrator` and `ArkClient` to support automated challenge-response transaction triggering on fraudulent state root detection.
+The decentralized-system list is retained as an unadopted candidate inventory. Earlier wording that described systems as approved, implemented, mitigating open issues, or commercially enabled was not supported by primary-source evidence or repository adoption and has been withdrawn.
 
-### P0: Hardware Key Management as a Service (KMaaS) Policy Enforcement
-- Extend `ThresholdEnclaveManager` / `UniversalChainSigner` to support policy-enforced Hardware KMaaS signing limits and authorization rules.
+### Next executable research steps
+1. Consume the source-dated standards compatibility register maintained under Business #1390/#1423/#1424.
+2. For each candidate, record primary sources, supported versions/contracts, maintenance status, license, security and trust assumptions, data rights, and exact applicability to an existing SDK issue.
+3. Prefer maintained implementations and thin tested adapters. Do not design a custom replay consensus, attestation quorum, oracle, or bridge layer without an evidenced gap and an accepted OpenSpec.
+4. Keep #200, #202, #240, #241, #242, and #271 open. Produce implementation and runtime evidence in their owning repositories before proposing any status change.
+5. Preserve existing promotion, release, soak, CODEOWNERS, and independent acceptance controls.
 
-### P0: Independent Security Review & Release Acceptance (#202)
-- Maintain tracking for independent security auditor review evidence and release acceptance artifacts.
+### Scope boundaries
+- Bitcoin-rooted universal-chain scope and zero-native-token policy remain unchanged.
+- No staking/restaking, yield, RWA, pricing, treasury, custody, settlement, or production activation is authorized.
+- Research recommendations are neither adopted policy nor conformance, deployment, or Mainnet proof.

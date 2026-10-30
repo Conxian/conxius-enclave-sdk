@@ -7,6 +7,8 @@ pub mod state;
 pub mod telemetry;
 pub mod wasm_support;
 
+pub use protocol::licensing;
+
 #[cfg(target_arch = "wasm32")]
 pub mod wasm_bindings;
 

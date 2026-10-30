@@ -1,6 +1,6 @@
 use crate::config::Network;
 use crate::{ConclaveError, ConclaveResult};
-use alloy::primitives::Address;
+use alloy_primitives::Address;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;

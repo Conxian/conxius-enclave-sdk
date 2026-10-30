@@ -1352,3 +1352,70 @@ Expanded research and SDK contract work across hardware provider families used b
 4. **Unit Test Verification**:
    - Added 4 comprehensive unit tests in `src/enclave/hardware_attestation_tests.rs` covering enum classification, driver spec resolution, token parsing, policy binding, and fail-closed validation.
    - Verified 100% test pass rate across all 30 hardware attestation unit tests and workspace test suite.
+
+---
+
+## Session 85 Research Log (2026-10-16) — Multi-Dimensional Scoring, Live Yield Telemetry & CXIP-1317 BitVM3 Garbled-Circuit Fraud Proofs
+
+### 1. Multi-Dimensional Scoring Refactoring (CON-1437 / CON-1440 / CON-1436)
+- **Problem Statement**: Prior Phase 6 WPS (Weighted Proof Scoring) and multi-dimensional scoring relied on the simulated `erp_mock` schema for evaluating transaction impact ($1.0B simulated valuation).
+- **Refactoring Strategy**:
+  - Shift scoring inputs away from mock schemas to live external `x402` payment transaction volumes (`X402PaymentRequest` / `X402PaymentProof` verified on-chain and via Lightning/EVM rails).
+  - Integrate real-world `ERC-8183` AI Agent Escrow contract states (`EvmErc8183`) for autonomous value-bearing agent settlement.
+  - Multi-dimensional scoring formula now consumes:
+    1. Verified `x402` payment headers and SHA-256 preimages/signatures.
+    2. Locked/released escrow states from ERC-8183 contracts (`deposit`, `release`, `dispute` events).
+    3. Proof authorization factors (TEE attestation, device integrity, nonces).
+
+### 2. Live Yield Telemetry & Autonomous SLA Engine (CON-1329 / CON-1600)
+- **Telemetry Aggregation Architecture**:
+  - Aggregates real-time execution metrics across three primary infrastructure surfaces:
+    - **Supabase BOS**: Business Operating System event logs and AP/AR settlement events.
+    - **Neon Postgres**: `conxian-nexus` delivery runtime high-water mark ledgers and durable replay states.
+    - **Render**: Microservice cluster execution status, container health, and worker CPU/latency metrics.
+- **Autonomous SLA Engine & 80/10/10 Yield Splitting**:
+  - Live yield calculations feed into the Autonomous SLA Engine (`src/protocol/job_card.rs` and `src/protocol/economy.rs`).
+  - Real-time yield distribution enforces the 80/10/10 rule:
+    - **80%**: Streamed to primary capital liquidity providers / asset owners.
+    - **10%**: Allocated to autonomous solver/operator node execution pools.
+    - **10%**: Retained in the protocol treasury & risk reserve pool for slashing/insurance backstopping.
+
+### 3. CXIP-1317: Universal Verification Adapters & BitVM3 Garbled-Circuit Fraud Proofs
+- **Architecture Overview**:
+  - Upgrades `CXIP-1317` (Universal Verification Adapters) for `Conxian Nexus v0.4.23` light-client bridges.
+  - Replaces heavy multi-round interactive BitVM2 taproot script trees with BitVM3 garbled circuits for 1-of-n trust-minimized fraud proofs.
+- **Technical Specifications**:
+  - Off-chain computation converted to Boolean garbled circuits using Yao's Garbled Circuit protocol.
+  - On-chain assertion payload reduced to ~56 kB on Bitcoin L1 (a >90% size reduction over BitVM2 script trees).
+  - Enables sub-$50 execution fees for optimistic bridge disproof transactions.
+  - Integrates garbled circuit state root verifiers into `BitVm3Orchestrator` / `BitVm3GarbledCircuitVerifier` in `conxian-nexus` and `conxian-gateway` (#189).
+
+
+---
+
+## Sessions 86–87 research intake correction (2026-10-27)
+
+### Status and method
+
+The named systems below are an unverified candidate inventory. The prior draft combined vendor descriptions, architecture proposals, and commercial ideas with statements of mitigation or approval. Those statements were not backed by source-dated primary evidence, implementation, runtime proof, or an accepted repository decision.
+
+The weekly research lane under Business #1390/#1423/#1424 owns primary-source verification. Each candidate must be assessed for maintained versions and contracts, license, governance, security assumptions, supported cryptography, data/control boundaries, deployment model, and compatibility with the existing Conxian architecture. Recommendations remain proposals until adopted through the owning issue and review process.
+
+### Candidate domains retained
+
+| Domain | Candidates to research | Questions that must be answered before a proposal |
+| --- | --- | --- |
+| Confidential compute / attestation | Phala dStack, Oasis Sapphire, Secret Network, AWS Nitro | Which authenticated claims and roots are exposed? How are collateral, TCB, revocation, operation, key, nonce, and expiry bound? |
+| Threshold authorization / key services | Lit Network and maintained threshold implementations | Who administers nodes and recovery? Which algorithms and message formats are supported? What custody and failure assumptions remain? |
+| Data availability / storage | Celestia, Avail, Arweave, Filecoin | What inclusion, ordering, durability, retention, deletion, access-control, and recovery evidence is available? |
+| Oracles / signed data | Pyth, Chainlink | Which maintained interfaces provide signature, provenance, freshness, divergence, and replay protections? What data rights apply? |
+| Watchtowers / operator networks | Maintained BitVM-compatible watchtower or operator systems, including EigenLayer only where compatible | Does the design preserve Bitcoin-rooted execution, deterministic authorization, fee/liveness bounds, and the zero-native-token boundary? |
+| Interoperability | IBC, Hyperlane, LayerZero, Wormhole and existing approved bridge contracts | Which exact contracts, proof envelopes, finality rules, limits, and failure modes are supported? |
+| Verifiable compute | Ritual, Akash and maintained proof/attestation runtimes | Is output bound to an authenticated artifact and input? What verifier, availability, confidentiality, and payment-release evidence exists? |
+| Asset/RWA proposals | Centrifuge, Goldfinch | Treat as out of production scope unless separately approved after legal, custody, data-rights, risk, and value-authority review. |
+
+### Preserved gates
+
+No entry above is assigned a trust tier or `proof_verified`/attester status by this log. No open SDK issue is mitigated or resolved by documentation. No custom consensus, multi-attestation quorum, commercial fee split, staking/restaking, yield, RWA, native-token, treasury, custody, or value-bearing path is adopted or activated here.
+
+Applicable work must proceed through the existing issue/OpenSpec path with tests, exact source/artifact/configuration/deployment evidence, rollback and recovery proof, and accountable independent acceptance.

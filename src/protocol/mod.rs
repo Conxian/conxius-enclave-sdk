@@ -28,6 +28,7 @@ pub mod frost_crypto;
 pub mod identity;
 pub mod intent;
 pub mod job_card;
+pub mod licensing;
 pub mod lightning;
 pub mod lightning_channel;
 pub mod mmr;
