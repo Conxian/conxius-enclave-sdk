@@ -5,6 +5,7 @@ all-features = true
 ignore = [
     "RUSTSEC-2023-0089", # atomic-polyfill is unmaintained (frost→heapless dep)
     "RUSTSEC-2024-0436",
+    "RUSTSEC-2026-0387", # crypto-bigint 0.5.5 timing side-channel: transitive via alloy 2.5.0→alloy-signer→elliptic-curve 0.13.8; no patched alloy release; value-bearing path (k256 0.14→elliptic-curve 0.14→crypto-bigint 0.7.10) is already patched
 ]
 yanked = "warn"
 

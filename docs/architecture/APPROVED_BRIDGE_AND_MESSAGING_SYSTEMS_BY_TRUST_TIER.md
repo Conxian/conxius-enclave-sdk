@@ -59,3 +59,22 @@ Nexus should publish/store (minimum):
 - `decision_reason` + `degrade_status`
 
 This aligns with existing architecture docs that require normalized trust/proof fields and fail-closed behavior.
+
+## 6. Decentralized-system research candidates (Sessions 86–87)
+
+This document's approved tiers remain limited to the systems and conditions established in Sections 1–5. The following names are retained only as research candidates; they have no default trust class, target tier, approval, conformance, or production status.
+
+| Candidate domain | Systems to evaluate | Minimum adoption evidence |
+| --- | --- | --- |
+| Confidential compute | Phala dStack, Oasis Sapphire, Secret Network | Authenticated provider claims and roots; collateral/TCB/revocation; artifact/input/operation binding; secret lifecycle; supported runtime evidence |
+| Threshold authorization | Lit Network and maintained threshold libraries/services | Supported algorithms and formats; independently administered participants; DKG/nonce/recovery ceremonies; custody and failure model |
+| Data availability / storage | Celestia, Avail, Arweave, Filecoin | Inclusion and ordering proof; authenticated writes; durability/retention/deletion guarantees; outage, restore, and rollback evidence |
+| Signed data / oracles | Pyth, Chainlink | Supported interface/version; provenance, signature, freshness, divergence, replay, and outage handling; data rights |
+| Watchtower/operator networks | Maintained Bitcoin-compatible implementations; EigenLayer only if separately shown compatible | Bitcoin-rooted authorization, deterministic challenge behavior, fee/liveness bounds, custody model, and fail-closed tests |
+| Interoperability | IBC, Hyperlane, LayerZero, Wormhole | Exact maintained contracts; proof/finality model; limits; replay and duplicate protection; rollback and incident handling |
+| Verifiable compute | Ritual, Akash and maintained proof/attestation runtimes | Authenticated artifact/input/output binding; verifier and availability evidence; confidentiality and payment-release boundary |
+| Asset/RWA protocols | Centrifuge, Goldfinch | Separate legal, custody, data-rights, value-authority, risk, and independent production acceptance |
+
+Research intake cannot assign `proof_verified`, `attester_verified`, or any trust tier. Any addition to Sections 1–5 requires an accepted repository decision, a thin tested adapter to a maintained contract, exact evidence, and independent review.
+
+This section does not authorize a native token, staking/restaking, yield, RWA, pricing, fee split, treasury, custody, settlement, or value-bearing route. Existing fail-closed controls and promotion/release gates remain authoritative.

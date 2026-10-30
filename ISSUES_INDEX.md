@@ -6,11 +6,14 @@
 
 
 ## Summary
-- **Total Issues**: 40
-- **Open Issues**: 6
+- **Total Issues**: 41
+- **Open Issues**: 7
 - **Closed Issues**: 34
 
 ## Open Issues
+- [ ] [**#621**](https://github.com/Conxian/conxius-enclave-sdk/issues/621): [P1] Expand research on production readiness and business opportunities with decentralized systems
+  - Labels: architecture, production-readiness, research, business
+  - Assigned: CharlieHelps
 - [ ] [**#271**](https://github.com/Conxian/conxius-enclave-sdk/issues/271): P1: lightning — BOLT12 offer & BIP-353 DNS payment domain resolution added
   - Labels: enhancement
   - Assigned: unassigned

@@ -14,9 +14,10 @@ support decision. Scores preserve the 75-point planning scale used for issue
 | Gap ID | Scope | Score | Dependency phase |
 | --- | --- | ---: | --- |
 | `G240-TC` | Provider-neutral trust/collateral contract | 73 | Phase A — contract and negative evidence |
+| `G621-DEC` | Decentralized interoperability research; no support or release acceptance | 60 | Phase B research candidates — Phala dstack, EigenLayer, Nomic/Babylon and Celestia; coordinator Conxian/conxian-business#1317, qualification #240/#202 |
 | `G240-RP` | Durable replay contract and uncertainty semantics | 66 | Phase A — contract; reference backends `FileBackedDurableReplayStore` + `DurableFileReplayStore` (Session 62, passes conformance suite) |
 | `G-DOC` | Canonical documentation and evidence normalization | 65 | Phase A — current residual gates |
-| `G200-WASM` | WASM secret boundary and runtime/platform evidence | 65 | Phase B — secret boundary error stability tests added (Session 67, #200) |
+| `G200-WASM` | WASM secret boundary and runtime/platform evidence | 61 | Phase B — secret boundary error stability tests added (Session 67, #200) |
 | `G241-AP` | Android KeyMint/StrongBox authorization and Play Integrity | 59 | Phase B — Android provider lane |
 | `G198-AM` | Asset metadata and account-model containment | 57 | Phase B — protocol/provider lane |
 | `G242-NP` | AWS Nitro attestation and KMS release boundary | 56 | Phase B — Nitro provider lane |
@@ -71,6 +72,7 @@ score, rather than an informal ranking:
 | Gap ID | Sec | Blocker | Unlock | Evidence | Confidence | Efficiency | External (5=local/software) | Doc risk | Formula result |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `G240-TC` | 5 | 5 | 5 | 5 | 5 | 3 | 5 | 5 | 73 |
+| `G621-DEC` | 5 | 4 | 4 | 3 | 4 | 4 | 3 | 4 | 60 |
 | `G240-RP` | 5 | 5 | 4 | 4 | 4 | 4 | 4 | 4 | 66 |
 | `G-DOC` | 4 | 4 | 4 | 5 | 5 | 4 | 4 | 5 | 65 |
 | `G200-WASM` | 4 | 5 | 4 | 3 | 4 | 4 | 4 | 4 | 61 |
@@ -317,3 +319,18 @@ The Ark, Fedimint, and related BitVM entries below record API/structural impleme
 - **Multi-Dimensional Scoring Refactoring (CON-1437 / CON-1440 / CON-1436)**: Shifted WPS scoring models away from `erp_mock` schema to live external `x402` payment transaction volume (`X402PaymentRequest` / `X402PaymentProof`) and real-world `ERC-8183` AI Agent Escrow state (`EvmErc8183`).
 - **Live Yield Telemetry & Autonomous SLA Engine (CON-1329 / CON-1600)**: Defined multi-cloud telemetry aggregation across Supabase BOS, Neon Postgres (`conxian-nexus`), and Render microservices feeding into the Autonomous SLA Engine (`src/protocol/job_card.rs` / `src/protocol/economy.rs`) for real-time 80/10/10 yield splitting calculations.
 - **CXIP-1317 BitVM3 Garbled-Circuit Fraud Proofs**: Upgraded Universal Verification Adapters for `Conxian Nexus v0.4.23` light-client bridges, introducing BitVM3 garbled circuits for sub-$50 execution fees and ~56 kB on-chain assertion payloads on Bitcoin L1.
+
+---
+## Session 87 — Unscored decentralized-system candidate intake (2026-10-27)
+
+No numerical readiness score is assigned. Documentation coverage is not implementation, testing, deployment, or independent acceptance.
+
+| Existing gap | Candidate research retained | Status |
+| --- | --- | --- |
+| #240 distributed replay | Maintained replicated-state or data-availability systems | Open; no transactional backend, fencing, restart/outage/recovery/rollback, or independent acceptance established |
+| #195 / #242 attestation and KMS boundaries | Multiple attestation and threshold-authorization providers | Open; no qualified policy composition, custody/recovery, or authenticated provider/runtime evidence established |
+| #200 WASM secret boundary | Confidential-compute runtimes | Open; no accepted runtime/artifact/secret-lifecycle deployment evidence established |
+| #271 routing data | Maintained signed-data/oracle interfaces | Open; no adopted contract, data-rights decision, divergence/outage policy, or value-bearing integration established |
+| Watchtower qualification | Maintained Bitcoin-compatible watchtower/operator implementations | Open; no accepted authorization, fee/liveness, recovery, or production evidence established |
+
+The candidate inventory does not change capability evidence or close a gap. It creates no trust-tier approval, policy adoption, conformance, production readiness, pricing, staking/restaking, yield, RWA, treasury, custody, or Mainnet claim.

@@ -213,6 +213,8 @@ pub enum AttestationExtension {
     ProviderPkcs11Hsm,
     ProviderWebAuthnFido2,
     Opaque(String),
+    /// Framework metadata only; cannot identify a physical hardware provider.
+    ProviderPhalaDstack,
 }
 
 impl AttestationExtension {
@@ -244,6 +246,7 @@ impl AttestationExtension {
             "PROVIDER_KEYSTONE" => Self::ProviderKeystone,
             "PROVIDER_PKCS11_HSM" => Self::ProviderPkcs11Hsm,
             "PROVIDER_WEBAUTHN_FIDO2" => Self::ProviderWebAuthnFido2,
+            "PROVIDER_PHALA_DSTACK" => Self::ProviderPhalaDstack,
             value if value.starts_with("OS_VERSION_") && value.len() > "OS_VERSION_".len() => {
                 Self::OsVersion(value["OS_VERSION_".len()..].to_string())
             }
@@ -276,6 +279,7 @@ impl AttestationExtension {
             Self::ProviderKeystone => (27, None),
             Self::ProviderPkcs11Hsm => (28, None),
             Self::ProviderWebAuthnFido2 => (29, None),
+            Self::ProviderPhalaDstack => (30, None),
             Self::Opaque(token) => (255, Some(token.as_str())),
         }
     }
@@ -1274,6 +1278,22 @@ pub(crate) fn test_signing_key() -> SigningKey {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn dstack_framework_is_not_a_hardware_identity() {
+        for token in ["PHALA_DSTACK", "DSTACK"] {
+            assert_eq!(super::HardwareProviderType::from_str_token(token), None);
+        }
+        assert_eq!(
+            super::attestation_extension_provider(
+                &super::AttestationExtension::ProviderPhalaDstack
+            ),
+            None
+        );
+        let mut report = valid_report(1, super::AttestationLevel::CloudTEE);
+        report.extensions = vec![super::AttestationExtension::ProviderPhalaDstack];
+        assert_eq!(report.claimed_hardware_provider(), None);
+    }
+
     use super::{
         parse_extension_data, test_signing_key, AttestationAlgorithm, AttestationExtension,
         AttestationLevel, AttestationPolicy, AttestationPurpose, AttestationReportType,

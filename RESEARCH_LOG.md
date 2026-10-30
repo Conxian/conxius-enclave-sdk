@@ -1389,3 +1389,33 @@ Expanded research and SDK contract work across hardware provider families used b
   - On-chain assertion payload reduced to ~56 kB on Bitcoin L1 (a >90% size reduction over BitVM2 script trees).
   - Enables sub-$50 execution fees for optimistic bridge disproof transactions.
   - Integrates garbled circuit state root verifiers into `BitVm3Orchestrator` / `BitVm3GarbledCircuitVerifier` in `conxian-nexus` and `conxian-gateway` (#189).
+
+
+---
+
+## Sessions 86–87 research intake correction (2026-10-27)
+
+### Status and method
+
+The named systems below are an unverified candidate inventory. The prior draft combined vendor descriptions, architecture proposals, and commercial ideas with statements of mitigation or approval. Those statements were not backed by source-dated primary evidence, implementation, runtime proof, or an accepted repository decision.
+
+The weekly research lane under Business #1390/#1423/#1424 owns primary-source verification. Each candidate must be assessed for maintained versions and contracts, license, governance, security assumptions, supported cryptography, data/control boundaries, deployment model, and compatibility with the existing Conxian architecture. Recommendations remain proposals until adopted through the owning issue and review process.
+
+### Candidate domains retained
+
+| Domain | Candidates to research | Questions that must be answered before a proposal |
+| --- | --- | --- |
+| Confidential compute / attestation | Phala dStack, Oasis Sapphire, Secret Network, AWS Nitro | Which authenticated claims and roots are exposed? How are collateral, TCB, revocation, operation, key, nonce, and expiry bound? |
+| Threshold authorization / key services | Lit Network and maintained threshold implementations | Who administers nodes and recovery? Which algorithms and message formats are supported? What custody and failure assumptions remain? |
+| Data availability / storage | Celestia, Avail, Arweave, Filecoin | What inclusion, ordering, durability, retention, deletion, access-control, and recovery evidence is available? |
+| Oracles / signed data | Pyth, Chainlink | Which maintained interfaces provide signature, provenance, freshness, divergence, and replay protections? What data rights apply? |
+| Watchtowers / operator networks | Maintained BitVM-compatible watchtower or operator systems, including EigenLayer only where compatible | Does the design preserve Bitcoin-rooted execution, deterministic authorization, fee/liveness bounds, and the zero-native-token boundary? |
+| Interoperability | IBC, Hyperlane, LayerZero, Wormhole and existing approved bridge contracts | Which exact contracts, proof envelopes, finality rules, limits, and failure modes are supported? |
+| Verifiable compute | Ritual, Akash and maintained proof/attestation runtimes | Is output bound to an authenticated artifact and input? What verifier, availability, confidentiality, and payment-release evidence exists? |
+| Asset/RWA proposals | Centrifuge, Goldfinch | Treat as out of production scope unless separately approved after legal, custody, data-rights, risk, and value-authority review. |
+
+### Preserved gates
+
+No entry above is assigned a trust tier or `proof_verified`/attester status by this log. No open SDK issue is mitigated or resolved by documentation. No custom consensus, multi-attestation quorum, commercial fee split, staking/restaking, yield, RWA, native-token, treasury, custody, or value-bearing path is adopted or activated here.
+
+Applicable work must proceed through the existing issue/OpenSpec path with tests, exact source/artifact/configuration/deployment evidence, rollback and recovery proof, and accountable independent acceptance.

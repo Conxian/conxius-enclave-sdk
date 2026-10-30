@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+- `src/protocol/licensing.rs`: Added digital license terms and zero-manual-onboarding verification (`DigitalLicense`, `LicenseVerifier`, `LicenseIssuer`, `SeatRegistry`), Ed25519-signed license claims, self-contained API-key minting/verification, seat allocation, and capability gating.
+
+## [2.1.0]
+
+### Added
+- Expanded research on production readiness and commercial opportunities leveraging decentralized infrastructure networks (Phala dStack CVM, EigenLayer AVS, Lit Network KMaaS, Nomic/Babylon BTC, Celestia DA) in  (Session 86) and created issue #621 in .
+- Updated  with Section 6 specifying trust tiers and commercial policies for approved decentralized systems.
+- Updated  (),  (), , and .
+
+### Added
+- **Phala dstack research adapter**: Added bounded diagnostic types and a reserved, always-unavailable proof route. Parsing does not establish hardware provenance or authorize operations. DCAP verification, workload appraisal, and hardware qualification remain open; see `docs/architecture/PHALA_DSTACK_INTEGRATION.md` (#620, #240, #202).
+
 ### Fixed
 - Require durable-request clock persistence before new claims and duplicate/conflicting retries; preserve forward observations across restart (#240).
 - Stop local replay consumption when saving the anti-rollback clock fails, for both single and batch requests; preserve the in-process high-water observation for retries (#240).
