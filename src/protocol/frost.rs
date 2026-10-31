@@ -1,7 +1,7 @@
 //! FROST protocol boundary.
 //!
 //! When the `frost-crypto` feature is enabled, real cryptographic execution
-//! is delegated to [`super::frost_crypto`], backed by the Zcash Foundation
+//! is delegated to `super::frost_crypto`, backed by the Zcash Foundation
 //! FROST library (`frost-secp256k1-tr` v3.0.0, RFC 9591).
 //!
 //! Without `frost-crypto`, this module performs versioned, secret-safe

@@ -4,7 +4,7 @@ Bitcoin-rooted universal-chain capability truth is recorded in the support inven
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Security Policy](https://img.shields.io/badge/Security-Policy-red.svg)](SECURITY.md)
-[![Version](https://img.shields.io/badge/version-2.x-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](CHANGELOG.md)
 [![Status](https://img.shields.io/badge/status-stable%20(conditional)-green.svg)](PRODUCTION_READINESS.md)
 
 **Hardware-backed security primitives for the broader Conxian ecosystem.**
@@ -15,14 +15,16 @@ The SDK provides a high-integrity root of trust for security-sensitive wallet, s
 
 **Stable (conditional).** The 2.x line is verified stable for the non-signing capability surface under the [2026-09-29 production-enablement audit](./docs/audits/PRODUCTION_ENABLEMENT_AUDIT_2026-09-29.md); value-bearing signing remains conditional pending the #240 release-signing contract and independent cryptographic review. Do **not** enable value-bearing production signing or settlement from this tree.
 
-The latest visible GitHub release/tag is `v2.0.17` as of 2026-08-30. `Cargo.toml` declares package version `2.0.17`, aligned with the latest release tag. Review the [support inventory](./docs/architecture/support-inventory.json) for exact, non-interchangeable counts and the [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) for the evidence boundary of each surface.
+The latest visible GitHub release/tag is `v2.1.0` as of 2026-10-30. `Cargo.toml` declares package version `2.1.0`, aligned with the latest release tag. Review the [support inventory](./docs/architecture/support-inventory.json) for exact, non-interchangeable counts and the [capability matrix](./docs/architecture/CAPABILITY_MATRIX.md) for the evidence boundary of each surface.
+
+The `2.1.0` release adds the [`licensing`](https://docs.rs/conxius-enclave-sdk/latest/conxius_enclave_sdk/licensing/) module — digital license terms and zero-manual-onboarding verification (Ed25519-signed license claims, self-contained API-key minting/verification, seat allocation, and capability gating) — and removes the `crypto-bigint` dependency from the default graph (RUSTSEC-2026-0387).
 
 ## Quick Start
 
 ```bash
 # Pin a reviewed 2.x artifact only after checking its release evidence.
 [dependencies]
-conxius-enclave-sdk = { git = "https://github.com/Conxian/conxius-enclave-sdk", tag = "v2.0.17" }
+conxius-enclave-sdk = { git = "https://github.com/Conxian/conxius-enclave-sdk", tag = "v2.1.0" }
 ```
 
 ## Purpose
