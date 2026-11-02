@@ -51,11 +51,11 @@ cargo test --locked                    # 617 unit tests + 44 integration tests (
 
 ## Org Map & Cross-Repo State (Session 64)
 
-### Conxian org (15 repos: 14 public + 1 private)
+### Conxian org (13 repos: 11 public + 2 private)
 - **SDK layer**: `conxius-enclave-sdk` (this repo — TEE/hardware signing), `lib-conxian-core` (shared primitives).
 - **Infra/services**: `conxian-nexus` (Postgres/Redis "delivery runtime", Rust `sqlx`+`redis`), `conxian-gateway` (Redis middleware, ISO20022), `conxian-business` (control plane).
 - **Product**: `conxius-wallet` (Android wallet), `Conxian` (Stacks/Clarity), `conxian_ui`, `conxian_market`, `conxius-platform` (dev/ops), `conxius-orbit` (archived).
-- **Web/sites**: `conxian-labs-site`, `conxian.github.io`.
+- **Web/sites**: `conxian-labs-site`, `conxian.github.io` (archived).
 - **Org governance**: `.github` (public defaults/guidance), `.github-private` (central "Map and Guide", private).
 
 Full inventory + phased plan: `docs/ORG_WIDE_PHASED_PLAN.md`.
@@ -63,7 +63,7 @@ Full inventory + phased plan: `docs/ORG_WIDE_PHASED_PLAN.md`.
 ### Dependency chain (already wired)
 `conxian-nexus` → `lib-conxian-core` (`full-sdk`) → `conxius-enclave-sdk` (optional `enclave` feature). The `ReplayStore` trait is in this repo; production backends belong in services, NOT this library.
 
-### Neon projects (6) → repos
+### Neon projects (7) → repos
 `Conxian Nexus` (region: eu-central-1, pg17) = nexus · `conxian-core` = lib-conxian-core · `Software dev kit` = SDK · `Gateway` = gateway · `Business Operating System` = business · `market` = conxian_market.
 
 ### Cross-repo work state (Session 64 — post-audit)
