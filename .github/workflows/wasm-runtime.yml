@@ -85,6 +85,7 @@ jobs:
         if: always()
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           WASM_RUNTIME_EVIDENCE_DIR: ${{ runner.temp }}/wasm-runtime-evidence
           WASM_EXPECTED_TESTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
