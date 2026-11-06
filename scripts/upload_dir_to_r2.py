@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Publish a directory of evidence to Cloudflare R2 (REST API).
 
-Credentials come from the environment only. Fails open: if the source directory
-or credentials are absent it logs and exits 0, so a missing publish never breaks
-a build.
+Credentials come from the environment only. Skips (exit 0) when the source
+directory, token or account ID are absent so an unconfigured publish never
+breaks a build; set R2_REQUIRED=1 to fail closed instead. The retired
+pre-2026-11-06 account is rejected outright so publishing can never silently
+target it.
 
 Env:
   CLOUDFLARE_API_TOKEN    required; API token with R2 edit permission
-  CLOUDFLARE_ACCOUNT_ID   Cloudflare account ID (default Conxian)
+  CLOUDFLARE_ACCOUNT_ID   required; Cloudflare account ID (no default)
+  R2_REQUIRED             optional; "1" makes a missing account ID a failure
   S3_BUCKET               (default: conxian-wasm-runtime)
   S3_SOURCE_DIR           required; local directory to upload
   S3_PREFIX               object-key prefix, e.g. "dkg-ceremony/<sha>"
@@ -20,16 +23,34 @@ import sys
 import urllib.parse
 import urllib.request
 
-ACCOUNT_ID = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "9df5b1e8c9a89154418b7a152ca81e2d")
+RETIRED_ACCOUNT_ID = "9df5b1e8c9a89154418b7a152ca81e2d"
+ACCOUNT_ID = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
 TOKEN = os.environ.get("CLOUDFLARE_API_TOKEN", "")
 BUCKET = os.environ.get("S3_BUCKET", "conxian-wasm-runtime")
 SRC = os.environ.get("S3_SOURCE_DIR", "")
 PREFIX = os.environ.get("S3_PREFIX", "").strip("/")
 LATEST = os.environ.get("S3_LATEST_KEY", "").strip("/")
+REQUIRED = os.environ.get("R2_REQUIRED", "").strip().lower() in ("1", "true", "yes")
 
 if not (SRC and os.path.isdir(SRC) and TOKEN):
     print("R2 publish skipped (missing source directory or credentials)")
     sys.exit(0)
+
+if not ACCOUNT_ID:
+    message = "R2 publish skipped: CLOUDFLARE_ACCOUNT_ID is not set"
+    if REQUIRED:
+        print(f"ERROR: {message}", file=sys.stderr)
+        sys.exit(1)
+    print(message)
+    sys.exit(0)
+
+if ACCOUNT_ID == RETIRED_ACCOUNT_ID:
+    print(
+        "ERROR: CLOUDFLARE_ACCOUNT_ID points at the retired pre-2026-11-06 "
+        "account; refusing to publish. Set it to the current account.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 BASE = (
     f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}"

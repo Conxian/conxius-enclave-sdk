@@ -80,6 +80,7 @@ jobs:
         if: always()
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           S3_SOURCE_DIR: ${{ runner.temp }}/dkg-ceremony
           S3_PREFIX: dkg-ceremony/${{ github.sha }}
           S3_LATEST_KEY: dkg-ceremony/latest
