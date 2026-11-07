@@ -109,7 +109,7 @@ fn sign_with_context(enclave: &dyn EnclaveManager, ctx: SignContext<'_>) -> Conc
     let operation_context = OperationContext::new(ctx.domain, ctx.purpose, context_bytes)?;
     let trust_requirement = TrustRequirement::hardware_backed(VALUE_BEARING_POLICY_ID)?;
 
-    let public_key = algorithm_placeholder_public_key(ctx.algorithm);
+    let public_key = resolve_signer_public_key(enclave, ctx.derivation_path)?;
     let key_binding = SignerKeyBinding::new(ctx.key_id, ctx.derivation_path, public_key)?;
 
     let request = ValueBearingSignRequest::new(
@@ -125,12 +125,18 @@ fn sign_with_context(enclave: &dyn EnclaveManager, ctx: SignContext<'_>) -> Conc
     Ok(response.sign_response().signature_hex.clone())
 }
 
-fn algorithm_placeholder_public_key(algorithm: SigningAlgorithm) -> Vec<u8> {
-    match algorithm {
-        SigningAlgorithm::EcdsaSecp256k1 => vec![0x02; 33],
-        SigningAlgorithm::SchnorrSecp256k1 => vec![0x02; 32],
-        SigningAlgorithm::Ed25519 => vec![0x00; 32],
-    }
+/// Resolve the real signer public key for a derivation path from the enclave.
+///
+/// The value-bearing path binds the response and attestation to the exact
+/// `key_binding` public key, so a fabricated placeholder would make every
+/// signing operation fail closed against a compliant provider. Always use the
+/// enclave's own public key for the path.
+fn resolve_signer_public_key(
+    enclave: &dyn EnclaveManager,
+    derivation_path: &str,
+) -> ConclaveResult<Vec<u8>> {
+    let public_key_hex = enclave.get_public_key(derivation_path)?;
+    hex::decode(public_key_hex).map_err(|_| crate::ConclaveError::InvalidPayload)
 }
 
 // ---------------------------------------------------------------------------
@@ -287,7 +293,9 @@ mod tests {
         }
 
         fn get_public_key(&self, _derivation_path: &str) -> ConclaveResult<String> {
-            Ok("02cafebabe".to_string())
+            // 32-byte x-only key (64 hex chars): the length the Schnorr path
+            // validates, so sign_bitcoin_taproot reaches the value-bearing call.
+            Ok("ab".repeat(32))
         }
 
         fn sign(&self, _request: SignRequest) -> ConclaveResult<SignResponse> {
@@ -348,5 +356,48 @@ mod tests {
         let result = ucs.sign_bitcoin_taproot([0xAB; 32], "m/86'/0'/0'/0/0", "k", None);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), ConclaveError::Unsupported(_)));
+    }
+
+    #[test]
+    fn resolver_uses_the_enclave_public_key() {
+        let enclave = TestEnclave;
+        let resolved = resolve_signer_public_key(&enclave, "m/44'/0'/0'/0/0").unwrap();
+        assert_eq!(resolved.len(), 32);
+        assert_eq!(
+            hex::encode(&resolved),
+            enclave.get_public_key("any").unwrap()
+        );
+    }
+
+    #[test]
+    fn resolver_rejects_malformed_public_key_hex() {
+        struct BadKeyEnclave;
+        impl EnclaveManager for BadKeyEnclave {
+            fn initialize(&self) -> ConclaveResult<()> {
+                Ok(())
+            }
+            fn generate_key(&self, _key_id: &str) -> ConclaveResult<String> {
+                Err(ConclaveError::Unsupported("no".to_string()))
+            }
+            fn get_public_key(&self, _derivation_path: &str) -> ConclaveResult<String> {
+                Ok("not-hex".to_string())
+            }
+            fn sign(&self, _request: SignRequest) -> ConclaveResult<SignResponse> {
+                Err(ConclaveError::Unsupported("no".to_string()))
+            }
+            fn signer_capability(&self) -> SignerCapability {
+                SignerCapability::provider_verified(VALUE_BEARING_POLICY_ID).unwrap()
+            }
+            fn sign_value_bearing(
+                &self,
+                _request: ValueBearingSignRequest,
+            ) -> ConclaveResult<ValueBearingSignResponse> {
+                Err(ConclaveError::Unsupported("no".to_string()))
+            }
+        }
+
+        let enclave = BadKeyEnclave;
+        let result = resolve_signer_public_key(&enclave, "m/0");
+        assert!(matches!(result, Err(ConclaveError::InvalidPayload)));
     }
 }

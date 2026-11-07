@@ -71,7 +71,7 @@ jobs:
           targets: wasm32-unknown-unknown
           toolchain: 1.98.1
       - name: Install wasm-pack
-        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2
+        uses: taiki-e/install-action@c509219cf42fba86913069efd0ade2458c59337b # v2
         with:
           tool: wasm-pack@0.15.0
       - name: Build WASM

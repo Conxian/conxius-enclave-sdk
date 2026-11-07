@@ -27,7 +27,7 @@ pub struct HarnessEnclave {
 impl HarnessEnclave {
     pub fn new() -> Self {
         Self {
-            public_key_hex: "02deadbeefcafebabedeadbeefcafebabedeadbeefcafebabedeadbeefcafebabe"
+            public_key_hex: "deadbeefcafebabedeadbeefcafebabedeadbeefcafebabedeadbeefcafebabe"
                 .into(),
         }
     }
