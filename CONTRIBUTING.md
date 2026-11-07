@@ -21,6 +21,15 @@ We use [GitHub Flow](https://guides.github.com/introduction/flow/index.html). Al
 - If sensitive files changed, obtain required CODEOWNERS review before merge.
 - By contributing, you agree your work is licensed under this repository's [MIT License](LICENSE).
 
+### Developer Certificate of Origin (DCO)
+
+All commits must be signed off under the [Developer Certificate of Origin 1.1](https://developercertificate.org/).
+Add a `Signed-off-by: Your Name <you@example.com>` line (use `git commit -s`).
+
+This repository uses a **DCO, not a CLA**, so that the project can be donated to a neutral
+foundation without a copyright reassignment step. Do not add a CLA.
+
+
 ## Sensitive File Changes
 
 Changes to the following files require CODEOWNERS review and adherence to the PR security checklist:
