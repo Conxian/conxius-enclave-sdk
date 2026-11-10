@@ -19,15 +19,18 @@ the protocol.
 ## What you actually do
 
 You never share a secret. You run the SDK's FROST DKG **against your own
-device**, and publish only **public** round packages via a pull request:
+device**, and publish only the **round-1** packages via a pull request.
+Round-2 packages carry a secret share and are delivered point-to-point,
+never published:
 
 1. `dkg_round1(participant_id, 3, 2)` → publish `ceremony/round1/pN.pkg`
-2. Once every round-1 package is present: `dkg_round2(...)` → publish `ceremony/round2/pN.pkg`
+2. Once every round-1 package is present: `dkg_round2(...)` → send each recipient their own round-2 package over a **confidential, authenticated channel** (out-of-band). **Do not publish round-2 packages.**
 3. `dkg_round3(...)` → hold the resulting `key_package` **locally**; publish the public key package.
 
 The **DKG Ceremony Evidence** workflow (`.github/workflows/dkg-ceremony.yml`)
-validates whatever is present on every push (`verify_dkg_round1_package` /
-`verify_dkg_round2_package`) and records `operator pickup: X/Y package(s) valid`.
+validates the round-1 packages present on every push (`verify_dkg_round1_package`;
+a structural check only) and records `operator pickup: X/Y package(s) parseable`.
+Round-2 packages are not published and are not validated in CI.
 When all packages are present the ceremony is complete and the shared
 `public_key_package` becomes the `conxian-release` signer key.
 
@@ -40,7 +43,8 @@ You can rehearse the exact code path first: `examples/dkg_ceremony.rs`.
   control with Conxian or the other operators; otherwise the scheme collapses to
   an effective single signer (the Ronin/Bybit failure mode).
 - **Hardware-backed boundary** — an attestable device (HSM, or Nitro/StrongBox-class).
-- **Never commit secrets** — only public round packages and the public key package.
+- **Never commit secrets** — round-1 packages are public by design; round-2
+  packages carry a secret share and must never be published.
 
 ## What you get
 
@@ -56,7 +60,10 @@ custody or release authority. Acceptance stays system-gated.
 
 Per the ceremony design: an attestation document (Nitro COSE + Nitro root-CA
 chain) verifying PCR0/1/2, a nonce bound to the round, the recipient key, and
-your identity claim. CI validates it; nothing is trusted on faith.
+your identity claim. **Attestation verification in CI is not yet implemented**
+(`dkg-ceremony.yml` performs round-1 package parsing only); automated proof
+validation is part of the independent audit (#202). Until then, attestation
+proofs are reviewed by a human, not "trusted on faith".
 
 ## How to start
 

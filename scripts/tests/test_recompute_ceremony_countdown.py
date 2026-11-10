@@ -136,11 +136,14 @@ class RecomputeCeremonyCountdownTests(unittest.TestCase):
         self.assertTrue(result["aggregate_key_drift"])
         self.assertEqual(len(result["distinct_aggregate_pubkeys"]), 2)
 
-    def test_recount_counts_operator_proofs(self) -> None:
+    def test_recount_does_not_treat_claims_and_filenames_as_validated_proofs(self) -> None:
         sample = published_sample()
         sample["rehearsal"] = "operator pickup: 3/3 package(s) valid in ceremony\n"
         result = rc.recount([sample], packages_in_repo=3)
-        self.assertEqual(result["rc_n"], 3)
+        self.assertEqual(result["rc_n"], 0)
+        self.assertEqual(result["operator_proofs_recorded"], (3, 3))
+        self.assertEqual(result["packages_in_ceremony_dir"], 3)
+        self.assertEqual(result["operator_package_validation"], "unavailable")
 
     def test_repo_package_scan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

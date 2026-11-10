@@ -14,9 +14,9 @@ GITHUB_TOKEN=... python3 scripts/recompute_ceremony_countdown.py --runs 3
 The script uses no Conxian code and no third-party crypto: it pulls the
 published `dkg-ceremony/latest/` evidence and independently (a) re-verifies
 each aggregate signature with a pure-Python standard BIP340 verifier pinned
-to the official BIP-340 test vectors, (b) recounts operator signer proofs from
-the recorded pickup line and from `*.pkg` files actually present under
-`ceremony/`, and (c) compares the aggregate public key across recent runs.
+to the official BIP-340 test vectors, (b) inventories recorded operator-proof
+claims and `*.pkg` files under `ceremony/` while failing the validated count
+closed because the package bytes are not cryptographically verified, and (c) compares the aggregate public key across recent runs.
 
 `dkg-ceremony/latest/` in R2 is not anonymously readable: an unauthenticated
 GET against the `.env.example` endpoint (`https://c00b56fd07e91f358f2a512b2f23b9cf.r2.cloudflarestorage.com`)
