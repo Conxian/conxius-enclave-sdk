@@ -242,8 +242,11 @@ pub fn dkg_part3(
     ))
 }
 
-/// Verify that a raw DKG Round 1 package deserializes cleanly and passes
-/// proof-of-knowledge checks.
+/// Verify that a raw DKG Round 1 package deserializes cleanly.
+///
+/// Structural check only: the embedded proof of knowledge is *not* checked
+/// here; it is verified later by `dkg_part2` when a peer consumes the
+/// package (upstream `frost_core::keys::dkg::part2`).
 pub fn verify_dkg_round1_package(pkg_bytes: &[u8]) -> ConclaveResult<bool> {
     match dkg::round1::Package::deserialize(pkg_bytes) {
         Ok(_) => Ok(true),
@@ -352,5 +355,198 @@ mod tests {
             assert!(!kp.is_empty());
             assert!(!pp.is_empty());
         }
+    }
+
+    // ── Issue #726 independent-review characterization tests ─────────────
+
+    type SField = frost::Secp256K1ScalarField;
+    type SScalar = <SField as frost::Field>::Scalar;
+
+    fn scalar_from32(bytes: &[u8]) -> SScalar {
+        let arr: [u8; 32] = bytes.try_into().expect("32-byte scalar serialization");
+        <SField as frost::Field>::deserialize(&arr).expect("scalar deserialization")
+    }
+
+    #[test]
+    fn dkg_round2_publication_leaks_every_participant_secret_coefficient() {
+        // Finding F1: ceremony/README.md tells operators to publish their
+        // round-2 packages ("publish round2/pN.pkg"), but the pinned frost-core
+        // documents round-2 packages as requiring a *confidential* channel
+        // (frost-core/src/keys/dkg.rs: "The package must be sent on an
+        // *confidential* and *authenticated* channel") because each package
+        // carries a raw per-recipient signing share. At t=2, n=3 an observer
+        // holding only the published round-2 files recovers every operator's
+        // full secret polynomial, hence the group secret s = s1 + s2 + s3.
+        let n: u16 = 3;
+        let t: u16 = 2;
+        let id_bytes: Vec<Vec<u8>> = (1..=n)
+            .map(|i| Identifier::try_from(i).unwrap().serialize().to_vec())
+            .collect();
+
+        let mut r1s = BTreeMap::new();
+        let mut r1p = BTreeMap::new();
+        for ib in &id_bytes {
+            let (s, p) = dkg_part1(ib, n, t).unwrap();
+            r1s.insert(ib.clone(), s);
+            r1p.insert(ib.clone(), p);
+        }
+        let mut all_r2: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, Vec<u8>>> = BTreeMap::new();
+        for my_id in &id_bytes {
+            let mut peer_r1 = BTreeMap::new();
+            for (id, pkg) in &r1p {
+                if id != my_id {
+                    peer_r1.insert(id.clone(), pkg.clone());
+                }
+            }
+            let (_sr, r2map) = dkg_part2(r1s.get(my_id).unwrap(), &peer_r1).unwrap();
+            all_r2.insert(my_id.clone(), r2map);
+        }
+
+        // Schema drift: the API yields n-1 distinct per-recipient packages per
+        // operator, while the ceremony docs describe a single "pN.pkg" file.
+        for my_id in &id_bytes {
+            let pkgs = all_r2.get(my_id).unwrap();
+            assert_eq!(pkgs.len(), usize::from(n - 1));
+            let mut it = pkgs.values();
+            assert_ne!(it.next().unwrap(), it.next().unwrap());
+        }
+
+        // Observer view: the published share for recipient j is the trailing
+        // 32-byte big-endian scalar of the serialized round-2 package.
+        let mut secrets = Vec::new();
+        for sender in &id_bytes {
+            let pts: Vec<(SScalar, SScalar)> = all_r2[sender]
+                .iter()
+                .map(|(rid, pkg)| (scalar_from32(rid), scalar_from32(&pkg[pkg.len() - 32..])))
+                .collect();
+            // BTreeMap iteration is identifier-ordered; big-endian identifier
+            // bytes sort with the numeric identifier, so pts is already ordered.
+            // Two points determine the linear polynomial f_sender.
+            let dx = pts[1].0 - pts[0].0;
+            let inv = <SField as frost::Field>::invert(&dx).unwrap();
+            let a = (pts[1].1 - pts[0].1) * inv;
+            let s = pts[0].1 - a * pts[0].0;
+            // Consistency with both published shares.
+            assert_eq!(s + a * pts[0].0, pts[0].1);
+            assert_eq!(s + a * pts[1].0, pts[1].1);
+            secrets.push(s);
+        }
+
+        // The recovered coefficients are non-trivial and pairwise distinct, so
+        // the observer holds real per-operator secrets, not zeros.
+        let zero = <SField as frost::Field>::zero();
+        for (i, si) in secrets.iter().enumerate() {
+            assert_ne!(*si, zero);
+            for sj in &secrets[i + 1..] {
+                assert_ne!(si, sj);
+            }
+        }
+        let group_secret = secrets.iter().fold(zero, |acc, s| acc + *s);
+        assert_ne!(group_secret, zero);
+    }
+
+    #[test]
+    fn forged_round1_proof_of_knowledge_passes_verify_but_fails_part2() {
+        // Finding F2: `verify_dkg_round1_package` only deserializes. A round-1
+        // package whose proof-of-knowledge scalar is forged passes the CI
+        // pickup check and is rejected only later, inside `dkg_part2`.
+        let n: u16 = 3;
+        let t: u16 = 2;
+        let id_bytes: Vec<Vec<u8>> = (1..=n)
+            .map(|i| Identifier::try_from(i).unwrap().serialize().to_vec())
+            .collect();
+        let mut r1s = BTreeMap::new();
+        let mut r1p = BTreeMap::new();
+        for ib in &id_bytes {
+            let (s, p) = dkg_part1(ib, n, t).unwrap();
+            r1s.insert(ib.clone(), s);
+            r1p.insert(ib.clone(), p);
+        }
+
+        // Flip one bit of the trailing proof-of-knowledge scalar mu of operator 1's package.
+        let mut forged = r1p[&id_bytes[0]].clone();
+        let last = forged.len() - 1;
+        forged[last] ^= 0x01;
+        assert_ne!(forged, r1p[&id_bytes[0]]);
+
+        assert!(verify_dkg_round1_package(&r1p[&id_bytes[0]]).unwrap());
+        assert!(
+            verify_dkg_round1_package(&forged).unwrap(),
+            "F2: a forged proof of knowledge still passes verify_dkg_round1_package"
+        );
+
+        let mut peer_r1 = BTreeMap::new();
+        peer_r1.insert(id_bytes[0].clone(), forged);
+        peer_r1.insert(id_bytes[2].clone(), r1p[&id_bytes[2]].clone());
+        let err = dkg_part2(r1s.get(&id_bytes[1]).unwrap(), &peer_r1)
+            .expect_err("dkg_part2 must reject a forged proof of knowledge");
+        assert!(
+            format!("{err:?}").contains("InvalidProofOfKnowledge"),
+            "unexpected part2 rejection reason: {err:?}"
+        );
+    }
+
+    #[test]
+    fn custom_dkg_identifiers_construct_but_positional_signing_breaks() {
+        // Finding F7: `create_signing_package` assigns participant identifiers
+        // positionally (i + 1), so a ceremony that runs DKG with custom
+        // identifiers constructs cleanly but fails at first signing.
+        let n: u16 = 3;
+        let t: u16 = 2;
+        let ids: Vec<Vec<u8>> = [10u16, 11, 12]
+            .iter()
+            .map(|i| Identifier::try_from(*i).unwrap().serialize().to_vec())
+            .collect();
+
+        let mut r1s = BTreeMap::new();
+        let mut r1p = BTreeMap::new();
+        for ib in &ids {
+            let (s, p) = dkg_part1(ib, n, t).unwrap();
+            r1s.insert(ib.clone(), s);
+            r1p.insert(ib.clone(), p);
+        }
+        let mut r2s = BTreeMap::new();
+        let mut all_r2: BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, Vec<u8>>> = BTreeMap::new();
+        for my_id in &ids {
+            let mut peer_r1 = BTreeMap::new();
+            for (id, pkg) in &r1p {
+                if id != my_id {
+                    peer_r1.insert(id.clone(), pkg.clone());
+                }
+            }
+            let (sr, r2map) = dkg_part2(r1s.get(my_id).unwrap(), &peer_r1).unwrap();
+            r2s.insert(my_id.clone(), sr);
+            all_r2.insert(my_id.clone(), r2map);
+        }
+        let mut key_packages = Vec::new();
+        for my_id in &ids {
+            let mut peer_r1 = BTreeMap::new();
+            for (id, pkg) in &r1p {
+                if id != my_id {
+                    peer_r1.insert(id.clone(), pkg.clone());
+                }
+            }
+            let mut my_r2 = BTreeMap::new();
+            for (sender_id, r2_out) in &all_r2 {
+                if sender_id == my_id {
+                    continue;
+                }
+                if let Some(p) = r2_out.get(my_id) {
+                    my_r2.insert(sender_id.clone(), p.clone());
+                }
+            }
+            let (kp, pp) = dkg_part3(r2s.get(my_id).unwrap(), &peer_r1, &my_r2).unwrap();
+            assert!(!kp.is_empty() && !pp.is_empty());
+            key_packages.push(kp);
+        }
+
+        // DKG succeeded end-to-end; signing is where the positional assumption bites.
+        let (n1, c1) = create_nonces_and_commitments(&key_packages[0]).unwrap();
+        let (_n2, c2) = create_nonces_and_commitments(&key_packages[1]).unwrap();
+        let sigpkg = create_signing_package(b"custom-id msg", &[c1, c2]).unwrap();
+        assert!(
+            create_signature_share(&key_packages[0], &n1, &sigpkg, b"custom-id msg").is_err(),
+            "F7: a key package with identifier 10 should not sign a positional-identifier package"
+        );
     }
 }
