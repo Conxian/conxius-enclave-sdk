@@ -1,7 +1,7 @@
 # Conxius Enclave SDK: Agent Directives (Session 61, Aug 2026)
 
 > **Archive**: `docs/archive/AGENTS_archive_session_58.md` (full session + Phase tracking)
-> **Version**: v2.0.17 — published to crates.io
+> **Version**: v2.1.0 — published to crates.io
 
 ## Core Ethos
 - **Hardware-backed**: Every signing path requires attestation. No TEE-bypass code paths.
@@ -25,7 +25,7 @@
 `bitcoin`, `bip322`, `bitvm`, `bitvm2`, `dlc`, `frost` (real ZF v3.0.0 backend), `frost_crypto`, `lightning` (BOLT 12/BIP-353), `lightning_channel`, `musig2`, `stacks` (Nakamoto), `covenant` (OP_CAT), `ark`, `cctp`, `mmr`, `ethereum` (EIP-1559), `solana`, `statechain` (Spark), `sidl`, `credit`, `fiat`, `asset` (42 chains), `bip110`, `babylon` (SDK-005), `rgb` (SDK-006)
 
 ### Infrastructure & Integration
-`economy`, `intent`, `swap_router`, `solver`, `stablecoin_orchestrator`, `settlement`, `settlement_service`, `chain_abstraction`, `account_abstraction`, `control_model_adapter`, `job_card`, `a2p`, `opportunity`, `business`, `identity`, `rails` (Bisq/Boltz/Changelly/NTT/Wormhole/x402), `nexus` (Fedimint/ROAST/`fedimint_crypto` BLS12-381 DLEQ), `zkml`
+`economy`, `intent`, `swap_router`, `solver`, `stablecoin_orchestrator`, `settlement`, `settlement_service`, `chain_abstraction`, `account_abstraction`, `control_model_adapter`, `job_card`, `a2p`, `opportunity`, `business`, `identity`, `bridges` (Bisq/Boltz/Changelly/NTT/Wormhole/x402; renamed from `rails` in v2.1.0), `nexus` (Fedimint/ROAST/`fedimint_crypto` BLS12-381 DLEQ), `zkml`
 
 ### SDK-level (non-protocol modules, outside `src/protocol/`)
 `wasm_bindings` (`src/`), `android_strongbox` + `cloud` (`src/enclave/`)
