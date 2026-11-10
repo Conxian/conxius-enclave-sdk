@@ -1112,15 +1112,16 @@ hardware deployment:
 
 ### Conxian references
 
-> **Access-controlled/internal references.** The next two links point to
-> private canonical repositories and are retained for authorized maintainers.
-> Public readers should rely on this guide's summary: custody remains with
-> contract/vault principals, while signer sets, quorums, and authority
-> boundaries are policy-controlled. This guide does not reproduce private
-> repository contents.
+> **Boundary note.** Of the two references below, the SAB Wallet Architecture
+> and Control Matrix is in a private repository and is retained for authorized
+> maintainers only. The Wallet Treasury Feasibility analysis is public (in
+> `conxian_market`). Public readers should rely on this guide's summary: custody
+> remains with contract/vault principals, while signer sets, quorums, and
+> authority boundaries are policy-controlled. This guide does not reproduce
+> private repository contents.
 
-- [Wallet Treasury Feasibility (internal, access-controlled)](https://github.com/Conxian/conxian_market/blob/main/docs/research/WALLET_TREASURY_FEASIBILITY.md)
-- [SAB Wallet Architecture and Control Matrix (internal, access-controlled)](https://github.com/Conxian/conxian-business/blob/main/docs/SAB_WALLET_ARCHITECTURE_AND_CONTROL_MATRIX.md)
+- [Wallet Treasury Feasibility (public — conxian_market)](https://github.com/Conxian/conxian_market/blob/main/docs/research/WALLET_TREASURY_FEASIBILITY.md)
+- [SAB Wallet Architecture and Control Matrix (private — access-controlled)](https://github.com/Conxian/conxian-business/blob/main/docs/SAB_WALLET_ARCHITECTURE_AND_CONTROL_MATRIX.md)
 - [Current structural FROST module](../../src/protocol/frost.rs)
 - [Current n-of-n MuSig2 wrapper](../../src/protocol/musig2.rs)
 - [Production readiness checklist](../../PRODUCTION_READINESS.md)
