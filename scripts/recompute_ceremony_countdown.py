@@ -17,8 +17,9 @@ Where the published `dkg-ceremony/latest/` objects are readable:
 
 This script fetches that evidence with public read only (downloading an
 artifact needs a free GitHub token: set GITHUB_TOKEN), then independently:
-  1. counts real operator signer proofs - round packages recorded in
-     `rehearsal.txt` ("operator pickup: X/Y") and present under `ceremony/`;
+  1. inventories operator-proof claims and round-package files, but reports
+     `rc.N = 0` until those package bytes are independently cryptographically
+     verified; a log line plus matching filenames is never validation;
   2. re-verifies every published aggregate signature from the fields of
      `evidence.json` alone, using a pure-Python standard BIP340 check over
      secp256k1 (the frost-secp256k1-tr variant verifies as plain BIP340 over
@@ -272,20 +273,21 @@ def repo_package_count(ceremony_dir: Path) -> int:
 def recount(samples: list[dict], packages_in_repo: int) -> dict:
     """Recompute the countdown from published evidence; no Conxian code used.
 
-    `rc_n` counts validated signer proofs from real operators: the recorded
-    pickup count, corroborated by the round packages actually present under
-    ceremony/. The rehearsal aggregate signature is counted separately - it is
-    one verifiable threshold proof per run, but over ephemeral local shares,
-    not operator shares.
+    `rc_n` counts independently validated real-operator signer proofs.
+    This artifact does not cryptographically verify operator package bytes.
+    A claimed pickup count and matching filenames are inventory evidence, not
+    validation, so the count fails closed at zero. Rehearsal aggregate
+    signatures are counted separately because they use ephemeral local shares.
     """
     latest = samples[0]
     recorded = pickup_counts(latest.get("rehearsal", ""))
     verifiable = sum(1 for s in samples if verify_variants(s["evidence"]))
     pubkeys = [s["evidence"]["public_key_x_only"] for s in samples]
     return {
-        "rc_n": min(recorded[0], packages_in_repo) if recorded else packages_in_repo,
+        "rc_n": 0,
         "operator_proofs_recorded": recorded,
         "packages_in_ceremony_dir": packages_in_repo,
+        "operator_package_validation": "unavailable",
         "aggregate_proofs_verifiable": verifiable,
         "samples": len(samples),
         "distinct_aggregate_pubkeys": sorted(set(pubkeys)),
