@@ -37,23 +37,20 @@ fn main() {
     if let Ok(dir) = std::env::var("DKG_OPERATOR_DIR") {
         let mut found = 0usize;
         let mut valid = 0usize;
-        if let Ok(entries) = std::fs::read_dir(&dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) != Some("pkg") {
-                    continue;
-                }
-                let bytes = std::fs::read(&path).unwrap_or_default();
-                let ok = verify_dkg_round1_package(&bytes).unwrap_or(false)
-                    || verify_dkg_round2_package(&bytes).unwrap_or(false);
-                println!(
-                    "operator package {}: {}",
-                    path.file_name().unwrap_or_default().to_string_lossy(),
-                    if ok { "VALID" } else { "INVALID" }
-                );
-                found += 1;
-                valid += usize::from(ok);
-            }
+        // Operators publish `round1/pN.pkg` and `round2/pN.pkg` (see
+        // ceremony/README.md), so the pickup must recurse into subdirectories;
+        // a top-level-only scan would silently record 0 packages.
+        for path in collect_pkg_files(std::path::Path::new(&dir)) {
+            let bytes = std::fs::read(&path).unwrap_or_default();
+            let ok = verify_dkg_round1_package(&bytes).unwrap_or(false)
+                || verify_dkg_round2_package(&bytes).unwrap_or(false);
+            println!(
+                "operator package {}: {}",
+                path.file_name().unwrap_or_default().to_string_lossy(),
+                if ok { "VALID" } else { "INVALID" }
+            );
+            found += 1;
+            valid += usize::from(ok);
         }
         println!("operator pickup: {valid}/{found} package(s) valid in {dir}");
     }
@@ -162,4 +159,23 @@ fn main() {
          cargo run --example dkg_ceremony --features frost-crypto"
     );
     std::process::exit(2);
+}
+
+/// Recursively collect `*.pkg` files under `dir` (operators publish into
+/// `round1/` and `round2/` subdirectories), skipping the directory if unreadable.
+#[cfg(feature = "frost-crypto")]
+fn collect_pkg_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            out.extend(collect_pkg_files(&path));
+        } else if path.extension().and_then(|e| e.to_str()) == Some("pkg") {
+            out.push(path);
+        }
+    }
+    out
 }
