@@ -136,6 +136,20 @@ class PromotionHeadBindingTests(unittest.TestCase):
             with self.subTest(lane=lane[0]):
                 self.assertTrue(errors(data))
 
+    def test_placeholder_evidence_pack_fails_even_when_draft(self):
+        # A promotion candidate is generated as a DRAFT. The placeholder check
+        # must not be skipped while draft, or a placeholder pack would show green
+        # and could be marked ready and merged without evidence. The Mainnet pack
+        # applies to the staged -> main lane only.
+        lane = ("staged-to-main", "main", MAIN)
+        data = event(lane)
+        body = data["pull_request"]["body"].replace(
+            "Synthetic policy fixture.", "Complete before review."
+        )
+        data["pull_request"]["body"] = body
+        data["pull_request"]["draft"] = True
+        self.assertTrue(errors(data))
+
     def test_moving_head_requires_a_new_candidate(self):
         for lane in LANES:
             data = event(lane)
