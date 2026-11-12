@@ -256,22 +256,26 @@ def validate_pull_request(
             missing = [heading for heading in required_headings if not _has_heading(body, heading)]
             if missing:
                 errors.append("Mainnet Acceptance Evidence Pack is missing: " + ", ".join(missing) + ".")
-            if not ctx.draft:
-                unfilled = [
-                    heading
-                    for heading in required_headings
-                    if _has_heading(body, heading)
-                    and (
-                        not _heading_content(body, heading)
-                        or EVIDENCE_PLACEHOLDER_RE.search(_heading_content(body, heading))
-                    )
-                ]
-                if unfilled:
-                    errors.append(
-                        "Mainnet Acceptance Evidence Pack must be completed (not placeholder) for: "
-                        + ", ".join(unfilled)
-                        + "."
-                    )
+            # The placeholder check runs for drafts too. A promotion candidate is
+            # generated as a DRAFT; if the check were skipped while draft, a
+            # placeholder pack would show green and could be marked ready and
+            # merged without evidence. Match the org-wide policy: the pack must
+            # be completed (not placeholder) regardless of draft state.
+            unfilled = [
+                heading
+                for heading in required_headings
+                if _has_heading(body, heading)
+                and (
+                    not _heading_content(body, heading)
+                    or EVIDENCE_PLACEHOLDER_RE.search(_heading_content(body, heading))
+                )
+            ]
+            if unfilled:
+                errors.append(
+                    "Mainnet Acceptance Evidence Pack must be completed (not placeholder) for: "
+                    + ", ".join(unfilled)
+                    + "."
+                )
         return errors
 
     errors.append("Branch Promotion Policy only accepts pull requests targeting dev, staged, or main.")
