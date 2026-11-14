@@ -2576,6 +2576,24 @@ mod tests {
     }
 
     #[test]
+    fn release_binding_matches_the_parent_encoder_vector() {
+        // Vector produced by scripts/nitro/encode-release-binding.py, which the
+        // parent uses to build enclave `user_data`. This pins the wire layout so
+        // the Python encoder and the Rust decoder cannot drift apart silently.
+        let vector: Vec<u8> = hex::decode(
+            "434f4e5849414e2d4e4954524f2d4b4d532d52454c454153452d42494e44494e472f7631000001000b4b4d535f52454c45415345ababababababababababababababababababababababababababababababababcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd00000001efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef0000018bcfe568001212121212121212121212121212121212121212121212121212121212121212",
+        )
+        .expect("hex");
+
+        let decoded = NitroReleaseBinding::decode(&vector).expect("decode python vector");
+        assert_eq!(decoded.purpose(), "KMS_RELEASE");
+        assert_eq!(decoded.policy_version(), 1);
+        assert_eq!(decoded.expires_at_ms(), 1_700_000_000_000);
+        // Re-encoding the decoded binding reproduces the vector byte-for-byte.
+        assert_eq!(decoded.encode().expect("re-encode"), vector);
+    }
+
+    #[test]
     fn rejects_zero_operation_digest() {
         assert_eq!(
             NitroReleaseBinding::new(

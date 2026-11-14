@@ -17,6 +17,8 @@
 - **Phala dstack research adapter**: Added bounded diagnostic types and a reserved, always-unavailable proof route. Parsing does not establish hardware provenance or authorize operations. DCAP verification, workload appraisal, and hardware qualification remain open; see `docs/architecture/PHALA_DSTACK_INTEGRATION.md` (#620, #240, #202).
 
 ### Fixed
+- Correct the Nitro attestation capture path (#242): `nitro-cli run-enclave` does not print the enclave's stdout and its console requires `--debug-mode` (all-zero PCRs), so the pipeline now captures the document over vsock. The probe connects to the parent and returns the document on the same socket; `scripts/nitro/vsock-capture.py` is the parent-side listener; `run-attestation.sh` launches the enclave in production mode (no `--debug-mode`). Adds `scripts/nitro/encode-release-binding.py` and a Rust test pinning the release-binding wire layout. See `docs/architecture/NITRO_ATTESTATION_CAPTURE.md`.
+- Redact the AWS account id from `scripts/nitro/iam/oidc-federation.yaml` and the `provision-nitro` workflow: the repository is public and its own convention redacts the account id, so the OIDC role ARN now uses the `AWS_ACCOUNT_ID` repository variable.
 - Require durable-request clock persistence before new claims and duplicate/conflicting retries; preserve forward observations across restart (#240).
 - Stop local replay consumption when saving the anti-rollback clock fails, for both single and batch requests; preserve the in-process high-water observation for retries (#240).
 
