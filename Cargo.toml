@@ -73,7 +73,7 @@ sha2 = "0.11.0"
 blake2 = "0.10.6"
 subtle = "2.6.1"
 ciborium = { version = "0.2.2", default-features = false, features = ["std"] }
-bls12_381 = { version = "0.8", default-features = false, features = ["alloc", "groups", "pairings"], optional = true }
+bls12_381 = { version = "0.9", default-features = false, features = ["alloc", "groups", "pairings"], optional = true }
 thiserror = "2.0.18"
 tokio = { version = "1.52.3", features = ["rt", "macros", "time"] }
 alloy-primitives = { version = "1.7.3", default-features = false, features = ["std"] }
