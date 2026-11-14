@@ -14,7 +14,10 @@ Parameters:
     Default: conxius-enclave-sdk
   AwsAccountId:
     Type: String
-    Default: "692112933743"
+    Description: >
+      Deploying AWS account id. This repository is public, so no real account
+      id is committed here; pass it at deploy time, e.g.
+      `aws cloudformation deploy ... --parameter-overrides AwsAccountId=<id>`.
   Region:
     Type: String
     Default: eu-central-1
