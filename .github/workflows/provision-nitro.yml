@@ -41,7 +41,10 @@ jobs:
       - name: Configure AWS credentials (OIDC, repo-scoped role)
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: arn:aws:iam::692112933743:role/github-actions-provision-nitro
+          # Account id is a repository variable, not a literal: this repo is
+          # public and its own convention (docs/ORG_WIDE_PHASED_PLAN.md) redacts
+          # the account id. Set the `AWS_ACCOUNT_ID` repository variable.
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-provision-nitro
           role-session-name: conxian-provision-nitro
           aws-region: eu-central-1
 
