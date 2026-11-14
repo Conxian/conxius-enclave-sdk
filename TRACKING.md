@@ -57,7 +57,7 @@ The current implementation and acceptance backlog spans GitHub issues across mul
 | Repository | Description |
 |------------|-------------|
 | conxius-platform | Main platform services |
-| conxius-orbit | Orbit services |
+| conxius-orbit (archived) | Orbit services (historical) |
 | conxius-wallet | Wallet implementation |
 | lib-conxian-core | Core library |
 | conxian-gateway | Gateway services |

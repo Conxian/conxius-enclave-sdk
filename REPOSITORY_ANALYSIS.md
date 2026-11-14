@@ -255,7 +255,7 @@ From `conxius-platform#1136`:
 | Repo | Relationship | Integration Points |
 |------|--------------|-------------------|
 | conxius-platform | Consumer | Nexus adapter, settlement service |
-| conxius-orbit | Consumer | Orbit signing flows |
+| conxius-orbit (archived) | Legacy consumer | Orbit signing flows (historical) |
 | conxius-wallet | Consumer | Wallet signing primitives |
 | lib-conxian-core | Shared | Core shared primitives |
 | conxian-gateway | Consumer | Gateway attestation |

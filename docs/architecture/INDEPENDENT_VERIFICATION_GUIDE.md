@@ -18,7 +18,7 @@ signing stays conditional until `independentReview` is evidenced (issue #202).
 
 ## 1. Read the support statement first
 
-1. [`SECURITY.md`](../SECURITY.md) — what is and is not supported.
+1. [`SECURITY.md`](../../SECURITY.md) — what is and is not supported.
 2. [`docs/architecture/CAPABILITY_MATRIX.md`](CAPABILITY_MATRIX.md) — per-capability axis state.
 3. [`docs/architecture/capability-evidence.json`](capability-evidence.json) — the raw ledger.
 4. [`docs/architecture/GAP_SCORECARD.md`](GAP_SCORECARD.md) — prioritised residual gaps.

@@ -163,6 +163,6 @@ part of the public policy surface.
 | Distributed replay, independent review, release artifact/provenance, production support | **Unsupported** | These gates remain open and are not inferred from local tests or documentation. |
 
 The canonical evidence inventory is
-[`capability-evidence.json`](./capability-evidence.json), and the research and
+[`capability-evidence.json`](../architecture/capability-evidence.json), and the research and
 gap boundaries are recorded in
 [`docs/audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md`](../audits/PR-237_HARDWARE_ATTESTATION_RESEARCH_2026-07-22.md).
