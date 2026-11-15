@@ -66,4 +66,4 @@ Integrators access these capabilities via the `ConclaveWasmClient`:
 - `client.universal()` -> ChainAbstractionService
 
 ## 8. Trust-Tier Enforcement
-The `RailProxy` enforces the [Approved Bridge and Messaging Trust-Tier Policy](architecture/APPROVED_BRIDGE_AND_MESSAGING_SYSTEMS_BY_TRUST_TIER.md). High-value enterprise routes are restricted to T1/T2 systems (IBC, hardened LayerZero/CCIP), while T3 systems (Axelar, Wormhole) are used for capped corridors.
+The `RailProxy` enforces the [Approved Bridge and Messaging Trust-Tier Policy](APPROVED_BRIDGE_AND_MESSAGING_SYSTEMS_BY_TRUST_TIER.md). High-value enterprise routes are restricted to T1/T2 systems (IBC, hardened LayerZero/CCIP), while T3 systems (Axelar, Wormhole) are used for capped corridors.

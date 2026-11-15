@@ -54,7 +54,7 @@ cargo test --locked                    # 617 unit tests + 44 integration tests (
 ### Conxian org (13 repos: 11 public + 2 private)
 - **SDK layer**: `conxius-enclave-sdk` (this repo — TEE/hardware signing), `lib-conxian-core` (shared primitives).
 - **Infra/services**: `conxian-nexus` (Postgres/Redis "delivery runtime", Rust `sqlx`+`redis`), `conxian-gateway` (Redis middleware, ISO20022), `conxian-business` (control plane).
-- **Product**: `conxius-wallet` (Android wallet), `Conxian` (Stacks/Clarity), `conxian_ui`, `conxian_market`, `conxius-platform` (dev/ops), `conxius-orbit` (archived).
+- **Product**: `conxius-wallet` (Android wallet), `conxian_market`, `conxius-platform` (dev/ops). Retired/archived: `Conxian` (Stacks/Clarity), `conxian_ui`, `conxius-orbit`.
 - **Web/sites**: `conxian-labs-site`, `conxian.github.io` (archived).
 - **Org governance**: `.github` (public defaults/guidance), `.github-private` (central "Map and Guide", private).
 
