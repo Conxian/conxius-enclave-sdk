@@ -1,7 +1,7 @@
 # `conxius-enclave-sdk` Repository Analysis
 
 > Comprehensive analysis of capabilities, gaps, and implementation roadmap
-> Generated: 2026-07-14 | Updated: 2026-08-31 | Package metadata: 2.0.17; latest visible release/tag: v2.0.17
+> Generated: 2026-07-14 | Updated: 2026-11-21 | Package metadata: 2.1.0; latest visible release/tag: v2.1.0
 
 ---
 
@@ -14,8 +14,8 @@ The SDK (`conxius-enclave-sdk`) is a Rust-based security-primitives library for 
 ### Repository Status
 - **Maturity**: Stable (conditional); production enablement is blocked by CON-1506 P0/P1 gates
 - **Tech Debt**: Material (protocol placeholders, dependency/toolchain drift, release and integration evidence gaps)
-- **Open Issues**: Production enablement issue #191 remains open
-- **Open PRs**: 0 observed at the audit baseline; this does not establish release support
+- **Open Issues**: 9 open at the 2026-11-21 snapshot (see [ISSUES_INDEX.md](./ISSUES_INDEX.md))
+- **Open PRs**: 7 open at the 2026-11-21 snapshot; a merged PR does not establish release support
 - **Test Evidence**: Unit and structural tests exist; vendor/protocol/runtime integration evidence is incomplete
 - **Knowledge Base**: v0.4.0 with self-evolution patterns
 
@@ -255,10 +255,11 @@ From `conxius-platform#1136`:
 | Repo | Relationship | Integration Points |
 |------|--------------|-------------------|
 | conxius-platform | Consumer | Nexus adapter, settlement service |
-| conxius-orbit (archived) | Legacy consumer | Orbit signing flows (historical) |
 | conxius-wallet | Consumer | Wallet signing primitives |
 | lib-conxian-core | Shared | Core shared primitives |
 | conxian-gateway | Consumer | Gateway attestation |
+| conxian-nexus | Consumer | Attested evidence consumption |
+| conxian_market | Consumer | Settlement and escrow calculations |
 
 ---
 
