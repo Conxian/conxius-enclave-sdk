@@ -236,6 +236,7 @@ impl ThresholdEnclaveManager {
             request.key_binding().public_key(),
             &public_key,
             request.message_digest(),
+            &request.operation_context().canonical_digest()?,
             request.operation_context().purpose().canonical_token(),
             AttestationPurpose::Sign,
             request.algorithm().attestation_algorithm(),
@@ -720,14 +721,13 @@ mod tests {
     }
 
     #[test]
-    fn value_bearing_response_replays_across_operation_contexts() {
-        // Issue #726 finding F6: `SignerKeyBindingEvidence` hashes the key id,
-        // derivation path, public keys, operation digest, purpose token,
-        // attestation purpose, and algorithm - but not the `OperationContext`
-        // domain or context payload. The challenge nonce is just the message
-        // digest. A provider response captured for one operation context
-        // therefore verifies verbatim against a different request whose domain
-        // and context payload differ while the digest is unchanged.
+    fn value_bearing_response_does_not_replay_across_operation_contexts() {
+        // Issue #726 finding F6 fix (#746): `SignerKeyBindingEvidence` now also
+        // hashes the `OperationContext` (domain + purpose + context payload)
+        // into `operation_context_hash`. A provider response captured for one
+        // operation context no longer verifies against a different request whose
+        // domain or context payload differ, even when the message digest is
+        // unchanged.
         use crate::enclave::{
             OperationContext, SignerKeyBinding, TrustRequirement, ValueBearingPurpose,
             ValueBearingSignResponse,
@@ -784,8 +784,8 @@ mod tests {
             now_secs,
         );
         assert!(
-            replayed.is_ok(),
-            "F6: response captured for context A was expected to replay into context B: {replayed:?}"
+            replayed.is_err(),
+            "F6: response captured for context A must not replay into context B, got: {replayed:?}"
         );
     }
 }

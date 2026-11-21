@@ -344,8 +344,8 @@ fn append_digest_component(output: &mut Vec<u8>, value: &[u8]) -> ConclaveResult
 }
 
 /// Versioned domain separator for value-bearing signer identity evidence.
-pub const VALUE_BEARING_BINDING_VERSION: u16 = 1;
-pub const VALUE_BEARING_BINDING_DOMAIN: &str = "CONXIAN-VALUE-BEARING-BINDING/v1";
+pub const VALUE_BEARING_BINDING_VERSION: u16 = 2;
+pub const VALUE_BEARING_BINDING_DOMAIN: &str = "CONXIAN-VALUE-BEARING-BINDING/v2";
 
 /// A single participant/device binding inside a composed threshold report.
 ///
@@ -407,6 +407,12 @@ pub struct SignerKeyBindingEvidence {
     pub expected_public_key_hash: [u8; 32],
     pub returned_public_key_hash: [u8; 32],
     pub operation_digest_hash: [u8; 32],
+    /// Hash of the `OperationContext` (domain + purpose + context payload).
+    /// Finding F6 (#746): without this, a response captured for one context
+    /// verified verbatim against a different context that shared the message
+    /// digest.
+    #[serde(default)]
+    pub operation_context_hash: [u8; 32],
     pub operation_purpose_hash: [u8; 32],
     pub purpose_hash: [u8; 32],
     pub algorithm_hash: [u8; 32],
@@ -422,6 +428,7 @@ impl SignerKeyBindingEvidence {
         expected_public_key: &[u8],
         returned_public_key: &[u8],
         operation_digest: &[u8],
+        operation_context_hash: &[u8; 32],
         operation_purpose: &str,
         purpose: AttestationPurpose,
         algorithm: AttestationAlgorithm,
@@ -432,6 +439,7 @@ impl SignerKeyBindingEvidence {
             || returned_public_key.is_empty()
             || operation_digest.is_empty()
             || operation_purpose.is_empty()
+            || *operation_context_hash == [0u8; 32]
         {
             return Err(ConclaveError::InvalidPayload);
         }
@@ -455,6 +463,7 @@ impl SignerKeyBindingEvidence {
                 returned_public_key,
             )?,
             operation_digest_hash: hash_binding_component("operation-digest", operation_digest)?,
+            operation_context_hash: *operation_context_hash,
             operation_purpose_hash: hash_binding_component(
                 "operation-purpose",
                 operation_purpose.as_bytes(),
@@ -472,7 +481,7 @@ impl SignerKeyBindingEvidence {
             return None;
         }
 
-        let mut output = Vec::with_capacity(2 + 8 * 32);
+        let mut output = Vec::with_capacity(2 + 9 * 32);
         output.extend_from_slice(VALUE_BEARING_BINDING_DOMAIN.as_bytes());
         output.push(0);
         output.extend_from_slice(&self.version.to_be_bytes());
@@ -481,6 +490,7 @@ impl SignerKeyBindingEvidence {
         output.extend_from_slice(&self.expected_public_key_hash);
         output.extend_from_slice(&self.returned_public_key_hash);
         output.extend_from_slice(&self.operation_digest_hash);
+        output.extend_from_slice(&self.operation_context_hash);
         output.extend_from_slice(&self.operation_purpose_hash);
         output.extend_from_slice(&self.purpose_hash);
         output.extend_from_slice(&self.algorithm_hash);
@@ -1940,6 +1950,7 @@ mod tests {
                 &report.attested_operation_public_key,
                 &report.attested_operation_public_key,
                 &[0xA5; 32],
+                &[0x5A; 32],
                 "TRANSACTION",
                 AttestationPurpose::Sign,
                 AttestationAlgorithm::Ed25519,
