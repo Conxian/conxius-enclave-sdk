@@ -532,10 +532,12 @@ mod tests {
     }
 
     #[test]
-    fn custom_dkg_identifiers_construct_but_positional_signing_breaks() {
-        // Finding F7: `create_signing_package` assigns participant identifiers
-        // positionally (i + 1), so a ceremony that runs DKG with custom
-        // identifiers constructs cleanly but fails at first signing.
+    fn custom_dkg_identifiers_sign_with_their_real_ids() {
+        // Finding F7 (#747): `create_signing_package` is positional (`i + 1`),
+        // so it cannot sign a custom-identifier ceremony. Signing must key the
+        // package by the ceremony's real identifiers; with those ids the same
+        // custom-id ceremony signs successfully, while the positional helper
+        // (still exported for the contiguous `1..=t` case) fails as documented.
         let n: u16 = 3;
         let t: u16 = 2;
         let ids: Vec<Vec<u8>> = [10u16, 11, 12]
@@ -564,6 +566,7 @@ mod tests {
             all_r2.insert(my_id.clone(), r2map);
         }
         let mut key_packages = Vec::new();
+        let mut public_package: Option<Vec<u8>> = None;
         for my_id in &ids {
             let mut peer_r1 = BTreeMap::new();
             for (id, pkg) in &r1p {
@@ -582,16 +585,38 @@ mod tests {
             }
             let (kp, pp) = dkg_part3(r2s.get(my_id).unwrap(), &peer_r1, &my_r2).unwrap();
             assert!(!kp.is_empty() && !pp.is_empty());
+            public_package.get_or_insert(pp);
             key_packages.push(kp);
         }
 
-        // DKG succeeded end-to-end; signing is where the positional assumption bites.
+        // DKG succeeded end-to-end. Positional packaging is wrong for custom ids.
         let (n1, c1) = create_nonces_and_commitments(&key_packages[0]).unwrap();
-        let (_n2, c2) = create_nonces_and_commitments(&key_packages[1]).unwrap();
-        let sigpkg = create_signing_package(b"custom-id msg", &[c1, c2]).unwrap();
+        let (n2, c2) = create_nonces_and_commitments(&key_packages[1]).unwrap();
+        let positional =
+            create_signing_package(b"custom-id msg", &[c1.clone(), c2.clone()]).unwrap();
         assert!(
-            create_signature_share(&key_packages[0], &n1, &sigpkg, b"custom-id msg").is_err(),
+            create_signature_share(&key_packages[0], &n1, &positional, b"custom-id msg").is_err(),
             "F7: a key package with identifier 10 should not sign a positional-identifier package"
         );
+
+        // Keyed by the ceremony's real identifiers, signing succeeds end-to-end.
+        let real_ids: Vec<u16> = key_packages
+            .iter()
+            .take(2)
+            .map(|kp| key_package_identifier(kp).unwrap())
+            .collect();
+        assert_eq!(real_ids, vec![10, 11]);
+        let sigpkg =
+            create_signing_package_with_ids(b"custom-id msg", &real_ids, &[c1, c2]).unwrap();
+        let ss1 = create_signature_share(&key_packages[0], &n1, &sigpkg, b"custom-id msg").unwrap();
+        let ss2 = create_signature_share(&key_packages[1], &n2, &sigpkg, b"custom-id msg").unwrap();
+        let pubkey_pkg = public_package.expect("DKG produced a public package");
+        let signature = aggregate(
+            &sigpkg,
+            &[(real_ids[0], ss1), (real_ids[1], ss2)],
+            &pubkey_pkg,
+        )
+        .expect("custom-id ceremony must aggregate with its real identifiers");
+        assert_eq!(signature.len(), 128, "Schnorr signature is 64 bytes hex");
     }
 }

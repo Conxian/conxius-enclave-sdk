@@ -175,6 +175,16 @@ impl ThresholdEnclaveManager {
             .aggregate(signing_package, shares, &self.verifying_key_package)
     }
 
+    /// The ceremony participant identifiers carried by the configured key
+    /// packages, in key-package order. Used so participant evidence names the
+    /// real ceremony ids rather than positions (finding F7, #747).
+    fn key_package_identifiers(&self) -> ConclaveResult<Vec<u16>> {
+        self.key_packages
+            .iter()
+            .map(|key_package| crate::protocol::frost_crypto::key_package_identifier(key_package))
+            .collect()
+    }
+
     /// Attach the per-share attestation source used by value-bearing signing.
     pub fn with_share_report_provider(mut self, provider: ShareReportProvider) -> Self {
         self.share_report_provider = Some(provider);
@@ -198,12 +208,23 @@ impl ThresholdEnclaveManager {
         }
         let mut nonces = Vec::with_capacity(self.key_packages.len());
         let mut commitments = Vec::with_capacity(self.key_packages.len());
+        // Derive participant identifiers from each key package itself (finding
+        // F7, #747) rather than assuming a contiguous `1..=n` ceremony. A custom
+        // DKG identifier set then signs correctly instead of failing at round 2.
+        let mut ids = Vec::with_capacity(self.key_packages.len());
         for key_package in &self.key_packages {
+            ids.push(crate::protocol::frost_crypto::key_package_identifier(
+                key_package,
+            )?);
             let (nonce, commitment) = self.signer.create_nonces(key_package)?;
             nonces.push(nonce);
             commitments.push(commitment);
         }
-        let signing_package = self.signer.create_signing_package(message, &commitments)?;
+        let signing_package = crate::protocol::frost_crypto::create_signing_package_with_ids(
+            message,
+            &ids,
+            &commitments,
+        )?;
         let mut shares = Vec::with_capacity(self.key_packages.len());
         for (i, key_package) in self.key_packages.iter().enumerate() {
             let share = self.signer.create_signature_share(
@@ -212,7 +233,7 @@ impl ThresholdEnclaveManager {
                 &signing_package,
                 message,
             )?;
-            shares.push(((i + 1) as u16, share));
+            shares.push((ids[i], share));
         }
         self.signer
             .aggregate(&signing_package, &shares, &self.verifying_key_package)
@@ -252,7 +273,9 @@ impl ThresholdEnclaveManager {
 
         // Build participant/device distinctness evidence (finding F3, #744) and
         // refuse to compose a report that one device could have produced alone.
-        let threshold_participants = Self::compose_participants(&share_reports, self.min_signers)?;
+        let participant_ids = self.key_package_identifiers()?;
+        let threshold_participants =
+            Self::compose_participants(&share_reports, &participant_ids, self.min_signers)?;
 
         let report = DeviceIntegrityReport {
             report_version: ATTESTATION_ENVELOPE_VERSION,
@@ -288,11 +311,16 @@ impl ThresholdEnclaveManager {
     /// against the signed report. A cloned share (same leaf) is rejected here.
     fn compose_participants(
         share_reports: &[DeviceIntegrityReport],
+        participant_ids: &[u16],
         min_signers: u16,
     ) -> ConclaveResult<Vec<ThresholdParticipantEvidence>> {
+        if share_reports.len() != participant_ids.len() {
+            return Err(ConclaveError::InvalidPayload);
+        }
         let mut participants = Vec::with_capacity(share_reports.len());
         let mut seen_device_keys = std::collections::BTreeSet::new();
-        for (index, share) in share_reports.iter().enumerate() {
+        let mut seen_ids = std::collections::BTreeSet::new();
+        for (share, participant_id) in share_reports.iter().zip(participant_ids.iter().copied()) {
             let leaf = share
                 .certificate_chain
                 .first()
@@ -306,7 +334,12 @@ impl ThresholdEnclaveManager {
                         .to_string(),
                 ));
             }
-            let participant_id = (index + 1) as u16;
+            if !seen_ids.insert(participant_id) {
+                return Err(ConclaveError::Unsupported(
+                    "threshold composition has duplicate participant ids (finding F7, #747)"
+                        .to_string(),
+                ));
+            }
             participants.push(ThresholdParticipantEvidence::new(participant_id, &leaf)?);
         }
         if (participants.len() as u16) < min_signers {
