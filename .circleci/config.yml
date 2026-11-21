@@ -4,7 +4,7 @@ version: 2.1
 executors:
   rust-executor:
     docker:
-      - image: cimg/rust:1.77.1 # You can adjust this to your specific Rust needs
+      - image: cimg/rust:1.99.1
     environment:
       CARGO_TERM_COLOR: always
       RUST_BACKTRACE: 1
