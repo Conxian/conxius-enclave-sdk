@@ -2543,6 +2543,7 @@ mod tests {
                 report_type: AttestationReportType::DeviceIntegrity,
                 threshold_min_signers: None,
                 threshold_shares: None,
+                threshold_participants: None,
                 level: AttestationLevel::TEE,
                 challenge_nonce: request.message_digest().to_vec(),
                 signature: Vec::new(),

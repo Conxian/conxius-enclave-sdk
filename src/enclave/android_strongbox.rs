@@ -155,6 +155,7 @@ impl CoreEnclaveManager {
             report_type: AttestationReportType::DeviceIntegrity,
             threshold_min_signers: None,
             threshold_shares: None,
+            threshold_participants: None,
             level,
             challenge_nonce: challenge.to_vec(),
             signature: Vec::new(),

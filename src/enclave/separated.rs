@@ -28,17 +28,17 @@
 //! };
 //! # fn demo(share1: Vec<u8>, share3: Vec<u8>, pubkey_pkg: Vec<u8>) -> Result<(), Box<dyn std::error::Error>> {
 //! // Each operator is constructed on its own device from its own key package.
-//! let op1 = ThresholdOperator::from_key_package(1, share1)?;
-//! let op3 = ThresholdOperator::from_key_package(3, share3)?;
+//! let mut op1 = ThresholdOperator::from_key_package(1, share1)?;
+//! let mut op3 = ThresholdOperator::from_key_package(3, share3)?;
 //!
 //! // The coordinator only needs the public key package and the ids it will use.
 //! let coordinator = ThresholdCoordinator::new(pubkey_pkg, 2)?;
 //! let message = b"release-authorization";
 //!
 //! // Round 1: participating operators publish commitments (public).
-//! let mut ops = [&op1, &op3];
+//! let mut ops = [&mut op1, &mut op3];
 //! let commitments: Vec<(u16, Vec<u8>)> = ops
-//!     .iter()
+//!     .iter_mut()
 //!     .map(|op| op.commit().map(|(_, c)| (op.identifier(), c)))
 //!     .collect::<Result<_, _>>()?;
 //!

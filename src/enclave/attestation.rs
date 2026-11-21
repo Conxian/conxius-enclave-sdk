@@ -19,11 +19,16 @@ pub const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
 const MAX_ATTESTATION_FUTURE_SKEW_SECS: u64 = 30;
 
 /// Version of the canonical signed attestation envelope.
-pub const ATTESTATION_ENVELOPE_VERSION: u16 = 2;
+///
+/// v3 adds the threshold-composition participant list (finding F3, #744) to the
+/// signed envelope; v2 composites are rejected because they could not carry
+/// participant/device distinctness evidence.
+pub const ATTESTATION_ENVELOPE_VERSION: u16 = 3;
 
-/// Provider-bound policy encoding. v1 digests are not accepted as v2 aliases.
-pub const ATTESTATION_POLICY_DIGEST_VERSION: u16 = 2;
-pub const ATTESTATION_POLICY_DIGEST_DOMAIN: &str = "CONXIAN-ATTESTATION-POLICY/v2";
+/// Provider-bound policy encoding. v3 adds the threshold operator-set pin
+/// (finding F3, #744); earlier versions are not accepted as v3 aliases.
+pub const ATTESTATION_POLICY_DIGEST_VERSION: u16 = 3;
+pub const ATTESTATION_POLICY_DIGEST_DOMAIN: &str = "CONXIAN-ATTESTATION-POLICY/v3";
 
 /// Provider identifiers understood by the attestation contract.
 ///
@@ -342,6 +347,41 @@ fn append_digest_component(output: &mut Vec<u8>, value: &[u8]) -> ConclaveResult
 pub const VALUE_BEARING_BINDING_VERSION: u16 = 1;
 pub const VALUE_BEARING_BINDING_DOMAIN: &str = "CONXIAN-VALUE-BEARING-BINDING/v1";
 
+/// A single participant/device binding inside a composed threshold report.
+///
+/// Finding F3 (#744): the composite M-of-N was self-declared JSON with no
+/// participant list, so one device could satisfy the quorum by presenting the
+/// same share report M times. Each entry names a FROST participant identifier
+/// and the device public key that signed its share report. The verifier
+/// requires the declared `device_public_key` to equal the share report's signed
+/// leaf key, the device keys to be pairwise distinct among the counted shares,
+/// and (when the policy pins the ceremony) the participant ids to be a subset of
+/// the ceremony operator set with `shares.len() <= N`. A single device key can
+/// therefore never occupy more than one slot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ThresholdParticipantEvidence {
+    pub participant_id: u16,
+    /// Hex of the device's attestation leaf public key (the key that signed the
+    /// matching share report). Distinct participants must present distinct keys.
+    pub device_public_key: String,
+}
+
+impl ThresholdParticipantEvidence {
+    pub fn new(participant_id: u16, device_public_key: &[u8]) -> ConclaveResult<Self> {
+        if participant_id == 0 || device_public_key.is_empty() {
+            return Err(ConclaveError::InvalidPayload);
+        }
+        Ok(Self {
+            participant_id,
+            device_public_key: hex::encode(device_public_key),
+        })
+    }
+
+    fn device_key_bytes(&self) -> Option<Vec<u8>> {
+        hex::decode(&self.device_public_key).ok()
+    }
+}
+
 fn hash_binding_component(label: &str, value: &[u8]) -> ConclaveResult<[u8; 32]> {
     let mut canonical = Vec::new();
     append_len_prefixed(&mut canonical, VALUE_BEARING_BINDING_DOMAIN.as_bytes())
@@ -512,7 +552,7 @@ enum ProviderVerifier {
     #[cfg(test)]
     TestFixture {
         trusted_roots: Vec<String>,
-        leaf_public_key: [u8; 32],
+        leaf_public_keys: Vec<[u8; 32]>,
     },
 }
 
@@ -532,6 +572,10 @@ pub struct AttestationPolicy {
     required_algorithm: AttestationAlgorithm,
     required_extensions: Vec<AttestationExtension>,
     expected_hardware_provider: Option<HardwareProviderType>,
+    /// Operator identifiers published by the threshold ceremony's
+    /// `PublicKeyPackage`. When set, a composed threshold report's declared
+    /// participants must exactly cover this set (finding F3, #744).
+    threshold_operator_ids: Option<Vec<u16>>,
     provider_verifier: ProviderVerifier,
 }
 
@@ -554,6 +598,7 @@ impl AttestationPolicy {
             required_algorithm: AttestationAlgorithm::Ed25519,
             required_extensions: vec![AttestationExtension::PurposeSign],
             expected_hardware_provider: None,
+            threshold_operator_ids: None,
             provider_verifier: ProviderVerifier::Unavailable,
         }
     }
@@ -573,6 +618,7 @@ impl AttestationPolicy {
             required_algorithm: AttestationAlgorithm::Ed25519,
             required_extensions: vec![AttestationExtension::PurposeSign],
             expected_hardware_provider: None,
+            threshold_operator_ids: None,
             provider_verifier: ProviderVerifier::TestFixture {
                 trusted_roots: vec![
                     "CONCLAVE_ROOT_CA_V1".to_string(),
@@ -580,7 +626,13 @@ impl AttestationPolicy {
                     "GOOGLE_STRONGBOX_ROOT_V1".to_string(),
                     "AWS_NITRO_ROOT_V1".to_string(),
                 ],
-                leaf_public_key: test_signing_key().verifying_key().to_bytes(),
+                leaf_public_keys: vec![
+                    test_signing_key().verifying_key().to_bytes(),
+                    test_device_signing_key(1).verifying_key().to_bytes(),
+                    test_device_signing_key(2).verifying_key().to_bytes(),
+                    test_device_signing_key(3).verifying_key().to_bytes(),
+                    test_device_signing_key(4).verifying_key().to_bytes(),
+                ],
             },
         }
     }
@@ -669,7 +721,7 @@ impl AttestationPolicy {
 
         self.provider_verifier = ProviderVerifier::TestFixture {
             trusted_roots,
-            leaf_public_key: test_signing_key().verifying_key().to_bytes(),
+            leaf_public_keys: vec![test_signing_key().verifying_key().to_bytes()],
         };
         Ok(self)
     }
@@ -707,6 +759,25 @@ impl AttestationPolicy {
     /// Returns the expected hardware provider requirement, if configured.
     pub fn expected_hardware_provider(&self) -> Option<HardwareProviderType> {
         self.expected_hardware_provider
+    }
+
+    /// Restricts composed threshold reports to the ceremony's operator set.
+    /// The declared participants must exactly cover these identifiers.
+    pub fn with_threshold_operator_ids(mut self, ids: Vec<u16>) -> ConclaveResult<Self> {
+        if ids.is_empty() || ids.contains(&0) {
+            return Err(ConclaveError::InvalidPayload);
+        }
+        let unique: std::collections::BTreeSet<u16> = ids.iter().copied().collect();
+        if unique.len() != ids.len() {
+            return Err(ConclaveError::InvalidPayload);
+        }
+        self.threshold_operator_ids = Some(ids);
+        Ok(self)
+    }
+
+    /// Returns the ceremony operator set the policy pins, if any.
+    pub(crate) fn threshold_operator_ids(&self) -> Option<&[u16]> {
+        self.threshold_operator_ids.as_deref()
     }
 
     /// Returns the canonical digest of every attestation-policy input that
@@ -757,12 +828,25 @@ impl AttestationPolicy {
                 .unwrap_or(0),
         );
 
+        // Threshold operator-set pinning is part of the policy identity.
+        match &self.threshold_operator_ids {
+            None => canonical.push(0),
+            Some(ids) => {
+                canonical.push(1);
+                let mut ids = ids.clone();
+                ids.sort_unstable();
+                for id in ids {
+                    canonical.extend_from_slice(&id.to_be_bytes());
+                }
+            }
+        }
+
         match &self.provider_verifier {
             ProviderVerifier::Unavailable => canonical.push(0),
             #[cfg(test)]
             ProviderVerifier::TestFixture {
                 trusted_roots,
-                leaf_public_key,
+                leaf_public_keys,
             } => {
                 canonical.push(1);
                 let mut trusted_roots = trusted_roots.clone();
@@ -770,7 +854,11 @@ impl AttestationPolicy {
                 for root in trusted_roots {
                     append_digest_component(&mut canonical, root.as_bytes())?;
                 }
-                append_digest_component(&mut canonical, leaf_public_key)?;
+                let mut leaf_keys = leaf_public_keys.clone();
+                leaf_keys.sort_unstable();
+                for key in leaf_keys {
+                    append_digest_component(&mut canonical, &key)?;
+                }
             }
         }
 
@@ -803,7 +891,7 @@ impl AttestationPolicy {
             #[cfg(test)]
             ProviderVerifier::TestFixture {
                 trusted_roots,
-                leaf_public_key,
+                leaf_public_keys,
             } => {
                 if !_report.certificate_chain_is_well_formed() {
                     return false;
@@ -814,7 +902,7 @@ impl AttestationPolicy {
                     .first()
                     .and_then(|entry| hex::decode(entry).ok())
                     .and_then(|key| <[u8; 32]>::try_from(key).ok())
-                    .is_some_and(|key| key == *leaf_public_key);
+                    .is_some_and(|key| leaf_public_keys.contains(&key));
                 let root_matches = _report
                     .certificate_chain
                     .last()
@@ -873,6 +961,12 @@ pub struct DeviceIntegrityReport {
     /// for composed threshold reports.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub threshold_shares: Option<Vec<DeviceIntegrityReport>>,
+    /// Participant/device distinctness evidence (finding F3, #744). Only present
+    /// for composed threshold reports. Each entry binds a FROST participant
+    /// identifier to the device key that signed its share report; the verifier
+    /// requires pairwise-distinct device keys among the counted shares.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold_participants: Option<Vec<ThresholdParticipantEvidence>>,
     /// Full certificate/identity chain. The first entry is the leaf public key
     /// as hex in the currently supported software/test envelope.
     pub certificate_chain: Vec<String>,
@@ -979,6 +1073,20 @@ impl DeviceIntegrityReport {
     /// `threshold_shares` must each pass the single-mechanism policy against the
     /// same nonce. The composed report must also carry the expected
     /// purpose/algorithm and a non-empty aggregated operation key.
+    ///
+    /// Finding F3 (#744): counting valid share reports alone let one device
+    /// satisfy the quorum by repeating its own report. The participant list
+    /// (`threshold_participants`) closes this by requiring:
+    ///  - one participant entry per share, with distinct participant ids;
+    ///  - the participant ids to exactly cover the operator set of the ceremony
+    ///    public key package when one is supplied (so shares cannot be minted
+    ///    under identifiers outside the threshold key);
+    ///  - a pairwise-distinct `device_public_key` per counted share (one device
+    ///    key cannot occupy two slots);
+    ///  - each participant's `device_public_key` to match the leaf key that
+    ///    actually signed the corresponding share report; and
+    ///  - the count of shares that are *both* valid and distinct to reach the
+    ///    threshold, capped at the ceremony's N.
     fn verify_threshold_composition(
         &self,
         expected_nonce: &[u8],
@@ -989,6 +1097,15 @@ impl DeviceIntegrityReport {
             Some(shares) if !shares.is_empty() => shares,
             _ => return false,
         };
+        let participants = match &self.threshold_participants {
+            Some(participants) if !participants.is_empty() => participants,
+            _ => return false,
+        };
+        // One participant binding per share report; a mismatch means the
+        // composition is internally inconsistent and cannot be trusted.
+        if participants.len() != shares.len() {
+            return false;
+        }
         let min = match self.threshold_min_signers {
             Some(m) if m > 0 && (m as usize) <= shares.len() => m as usize,
             _ => return false,
@@ -1003,10 +1120,54 @@ impl DeviceIntegrityReport {
             return false;
         }
 
-        let valid = shares
-            .iter()
-            .filter(|share| share.verify_at_time_impl(expected_nonce, now_secs, policy))
-            .count();
+        // Participant ids must be pairwise distinct.
+        let mut seen_ids = std::collections::BTreeSet::new();
+        for participant in participants {
+            if participant.participant_id == 0 || !seen_ids.insert(participant.participant_id) {
+                return false;
+            }
+        }
+
+        // When the policy pins the ceremony's operator set, every declared
+        // participant must be a ceremony member and the total cannot exceed N.
+        // A t-of-n signing is a subset, so this is subset membership plus a
+        // cap, not exact coverage.
+        if let Some(expected_ids) = policy.threshold_operator_ids() {
+            if shares.len() > expected_ids.len()
+                || !seen_ids.iter().all(|id| expected_ids.contains(id))
+            {
+                return false;
+            }
+        }
+
+        // Bind each share report to its participant's device key and count only
+        // shares that are valid *and* carry a device key not already counted.
+        let mut seen_device_keys = std::collections::BTreeSet::new();
+        let mut valid = 0usize;
+        for (share, participant) in shares.iter().zip(participants.iter()) {
+            if !share.verify_at_time_impl(expected_nonce, now_secs, policy) {
+                continue;
+            }
+            let device_key = match participant.device_key_bytes() {
+                Some(key) if !key.is_empty() => key,
+                _ => return false,
+            };
+            // The device key that signed this share must be the one the
+            // participant declares; otherwise the binding is decorative.
+            let leaf = share
+                .certificate_chain
+                .first()
+                .and_then(|entry| hex::decode(entry).ok());
+            if leaf.as_deref() != Some(device_key.as_slice()) {
+                return false;
+            }
+            if !seen_device_keys.insert(device_key) {
+                // The same device key backs two shares: refuse the whole
+                // composition rather than silently under-counting.
+                return false;
+            }
+            valid += 1;
+        }
         if valid < min {
             return false;
         }
@@ -1276,6 +1437,17 @@ pub(crate) fn test_signing_key() -> SigningKey {
     SigningKey::from_bytes(&[0x42; 32])
 }
 
+/// Deterministic device key for threshold-composition tests. `slot` must be
+/// `1..=4`; each slot yields a distinct key so tests can model independent
+/// hardware participants.
+#[cfg(test)]
+pub(crate) fn test_device_signing_key(slot: u8) -> SigningKey {
+    assert!((1..=4).contains(&slot), "device slot must be 1..=4");
+    let mut seed = [0x11u8; 32];
+    seed[0] = slot;
+    SigningKey::from_bytes(&seed)
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -1303,11 +1475,11 @@ mod tests {
     use std::time::{Duration, SystemTime};
 
     #[test]
-    fn production_policy_digest_uses_v2_known_vector() {
-        assert_eq!(super::ATTESTATION_POLICY_DIGEST_VERSION, 2);
+    fn production_policy_digest_uses_v3_known_vector() {
+        assert_eq!(super::ATTESTATION_POLICY_DIGEST_VERSION, 3);
         assert_eq!(
             super::ATTESTATION_POLICY_DIGEST_DOMAIN,
-            "CONXIAN-ATTESTATION-POLICY/v2"
+            "CONXIAN-ATTESTATION-POLICY/v3"
         );
         let actual = hex::encode(
             AttestationPolicy::production()
@@ -1316,11 +1488,15 @@ mod tests {
         );
         assert_eq!(
             actual,
-            "a70ee922a269eebb7b4aea95199c0f5b2ddfbe83d7014d425f178b53a33c252a"
+            "99689c577b290a4d01554d9405e1959dec840bd5e2688353c547ef7ac01daea4"
+        );
+        assert_ne!(
+            actual, "a70ee922a269eebb7b4aea95199c0f5b2ddfbe83d7014d425f178b53a33c252a",
+            "v2 must not alias the v3 operator-set-bound digest"
         );
         assert_ne!(
             actual, "b40365a05a2a11c791c57ff78deddf7565456f820c45ea73f1839257529e1465",
-            "legacy v1 must not alias provider-bound v2"
+            "legacy v1 must not alias v3"
         );
     }
 
@@ -1339,6 +1515,7 @@ mod tests {
             report_type: AttestationReportType::DeviceIntegrity,
             threshold_min_signers: None,
             threshold_shares: None,
+            threshold_participants: None,
             level,
             challenge_nonce: nonce,
             signature: Vec::new(),
@@ -1353,6 +1530,64 @@ mod tests {
             .sign_with_ed25519_key(&signing_key)
             .expect("fixture should sign");
         report
+    }
+
+    /// Build a single-mechanism report signed by a specific deterministic
+    /// device key, so threshold-composition tests can present distinct devices.
+    fn valid_device_report(
+        device_slot: u8,
+        timestamp: u64,
+        level: AttestationLevel,
+    ) -> DeviceIntegrityReport {
+        let signing_key = super::test_device_signing_key(device_slot);
+        let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
+        let nonce = vec![1, 2, 3, 4];
+        let mut extension_data = "PURPOSE_SIGN|ALGORITHM_ED25519|OS_VERSION_14".to_string();
+        if level == AttestationLevel::StrongBox || level == AttestationLevel::CloudTEE {
+            extension_data.push_str("|HARDWARE_BACKED|SECURE_BOOT_ENABLED");
+        }
+        let extensions = parse_extension_data(&extension_data).expect("valid extensions");
+
+        let mut report = DeviceIntegrityReport {
+            report_version: super::ATTESTATION_ENVELOPE_VERSION,
+            report_type: AttestationReportType::DeviceIntegrity,
+            threshold_min_signers: None,
+            threshold_shares: None,
+            threshold_participants: None,
+            level,
+            challenge_nonce: nonce,
+            signature: Vec::new(),
+            attested_operation_public_key: signing_key.verifying_key().to_bytes().to_vec(),
+            signer_key_binding: None,
+            certificate_chain: vec![pubkey_hex, "CONCLAVE_ROOT_CA_V1".to_string()],
+            timestamp,
+            extension_data,
+            extensions,
+        };
+        report
+            .sign_with_ed25519_key(&signing_key)
+            .expect("fixture should sign");
+        report
+    }
+
+    /// Derive the participant list from a set of share reports, using each
+    /// share's signed leaf key as its device public key (participant ids 1..=n).
+    fn participants_for(
+        shares: &[DeviceIntegrityReport],
+    ) -> Vec<super::ThresholdParticipantEvidence> {
+        shares
+            .iter()
+            .enumerate()
+            .map(|(index, share)| {
+                let leaf = share
+                    .certificate_chain
+                    .first()
+                    .and_then(|entry| hex::decode(entry).ok())
+                    .expect("share must carry a leaf key");
+                super::ThresholdParticipantEvidence::new((index + 1) as u16, &leaf)
+                    .expect("participant evidence")
+            })
+            .collect()
     }
 
     #[test]
@@ -1390,6 +1625,15 @@ mod tests {
     }
 
     fn threshold_report(shares: Vec<DeviceIntegrityReport>, min: u16) -> DeviceIntegrityReport {
+        let participants = participants_for(&shares);
+        threshold_report_with_participants(shares, participants, min)
+    }
+
+    fn threshold_report_with_participants(
+        shares: Vec<DeviceIntegrityReport>,
+        participants: Vec<super::ThresholdParticipantEvidence>,
+        min: u16,
+    ) -> DeviceIntegrityReport {
         let nonce = vec![1, 2, 3, 4];
         let extensions = parse_extension_data("PURPOSE_SIGN|ALGORITHM_ED25519").unwrap();
         DeviceIntegrityReport {
@@ -1397,6 +1641,7 @@ mod tests {
             report_type: AttestationReportType::DeviceIntegrity,
             threshold_min_signers: Some(min),
             threshold_shares: Some(shares),
+            threshold_participants: Some(participants),
             level: AttestationLevel::Threshold,
             challenge_nonce: nonce,
             signature: Vec::new(),
@@ -1412,10 +1657,11 @@ mod tests {
     #[test]
     fn verify_accepts_threshold_composition_m_of_n() {
         let now_secs: u64 = 1_000_000;
+        let ts = now_secs.saturating_sub(60);
         let shares = vec![
-            valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox),
-            valid_report(now_secs.saturating_sub(60), AttestationLevel::CloudTEE),
-            valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox),
+            valid_device_report(1, ts, AttestationLevel::StrongBox),
+            valid_device_report(2, ts, AttestationLevel::CloudTEE),
+            valid_device_report(3, ts, AttestationLevel::StrongBox),
         ];
         let report = threshold_report(shares, 2);
         let policy = AttestationPolicy::test_fixture();
@@ -1425,16 +1671,139 @@ mod tests {
     #[test]
     fn verify_rejects_threshold_composition_below_quorum() {
         let now_secs: u64 = 1_000_000;
-        let mut share2 = valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox);
-        let mut share3 = valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox);
+        let ts = now_secs.saturating_sub(60);
+        // Only one distinct device backs a valid report; the other two are
+        // stale (wrong nonce), so distinct-valid count is 1 < 2.
+        let mut share2 = valid_device_report(2, ts, AttestationLevel::StrongBox);
+        let mut share3 = valid_device_report(3, ts, AttestationLevel::StrongBox);
         share2.challenge_nonce = vec![9, 9, 9, 9];
         share3.challenge_nonce = vec![9, 9, 9, 9];
         let shares = vec![
-            valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox),
+            valid_device_report(1, ts, AttestationLevel::StrongBox),
             share2,
             share3,
         ];
         let report = threshold_report(shares, 2);
+        let policy = AttestationPolicy::test_fixture();
+        assert!(!report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
+    }
+
+    #[test]
+    fn verify_rejects_threshold_composition_with_cloned_device_reports() {
+        // Finding F3 (#744): three byte-identical share reports signed by one
+        // device must not satisfy 2-of-3.
+        let now_secs: u64 = 1_000_000;
+        let ts = now_secs.saturating_sub(60);
+        let shares = vec![
+            valid_device_report(1, ts, AttestationLevel::StrongBox),
+            valid_device_report(1, ts, AttestationLevel::StrongBox),
+            valid_device_report(1, ts, AttestationLevel::StrongBox),
+        ];
+        let report = threshold_report(shares, 2);
+        let policy = AttestationPolicy::test_fixture();
+        assert!(!report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
+    }
+
+    #[test]
+    fn verify_rejects_threshold_composition_with_missing_participants() {
+        let now_secs: u64 = 1_000_000;
+        let ts = now_secs.saturating_sub(60);
+        let shares = vec![
+            valid_device_report(1, ts, AttestationLevel::StrongBox),
+            valid_device_report(2, ts, AttestationLevel::StrongBox),
+        ];
+        let mut report = threshold_report(shares, 2);
+        report.threshold_participants = None;
+        let policy = AttestationPolicy::test_fixture();
+        assert!(!report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
+    }
+
+    #[test]
+    fn verify_rejects_threshold_composition_with_duplicate_participant_ids() {
+        let now_secs: u64 = 1_000_000;
+        let ts = now_secs.saturating_sub(60);
+        let shares = vec![
+            valid_device_report(1, ts, AttestationLevel::StrongBox),
+            valid_device_report(2, ts, AttestationLevel::StrongBox),
+        ];
+        let participants = vec![
+            super::ThresholdParticipantEvidence::new(1, &[0x11; 32]).unwrap(),
+            super::ThresholdParticipantEvidence::new(1, &[0x22; 32]).unwrap(),
+        ];
+        let report = threshold_report_with_participants(shares, participants, 2);
+        let policy = AttestationPolicy::test_fixture();
+        assert!(!report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
+    }
+
+    #[test]
+    fn verify_rejects_threshold_composition_with_mismatched_participant_count() {
+        let now_secs: u64 = 1_000_000;
+        let ts = now_secs.saturating_sub(60);
+        let shares = vec![
+            valid_device_report(1, ts, AttestationLevel::StrongBox),
+            valid_device_report(2, ts, AttestationLevel::StrongBox),
+        ];
+        // Only one participant for two shares: internally inconsistent.
+        let participants = vec![super::ThresholdParticipantEvidence::new(1, &[0x11; 32]).unwrap()];
+        let report = threshold_report_with_participants(shares, participants, 2);
+        let policy = AttestationPolicy::test_fixture();
+        assert!(!report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
+    }
+
+    #[test]
+    fn verify_rejects_threshold_composition_with_participant_outside_ceremony() {
+        let now_secs: u64 = 1_000_000;
+        let ts = now_secs.saturating_sub(60);
+        let shares = vec![
+            valid_device_report(1, ts, AttestationLevel::StrongBox),
+            valid_device_report(2, ts, AttestationLevel::StrongBox),
+        ];
+        let report = threshold_report(shares, 2);
+        // Ceremony only contains participants 1..=3; participant id 9 is foreign.
+        let policy = AttestationPolicy::test_fixture()
+            .with_threshold_operator_ids(vec![1, 2, 3])
+            .expect("valid operator ids");
+        // Re-label the second participant to a foreign id while keeping its key.
+        let mut tampered = report.clone();
+        if let Some(participants) = tampered.threshold_participants.as_mut() {
+            participants[1].participant_id = 9;
+        }
+        assert!(report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
+        assert!(!tampered.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
+    }
+
+    #[test]
+    fn verify_rejects_threshold_composition_exceeding_ceremony_size() {
+        let now_secs: u64 = 1_000_000;
+        let ts = now_secs.saturating_sub(60);
+        let shares = vec![
+            valid_device_report(1, ts, AttestationLevel::StrongBox),
+            valid_device_report(2, ts, AttestationLevel::StrongBox),
+            valid_device_report(3, ts, AttestationLevel::StrongBox),
+        ];
+        let report = threshold_report(shares, 2);
+        // A 3-share composition cannot come from a 2-operator ceremony.
+        let policy = AttestationPolicy::test_fixture()
+            .with_threshold_operator_ids(vec![1, 2])
+            .expect("valid operator ids");
+        assert!(!report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
+    }
+
+    #[test]
+    fn verify_rejects_threshold_composition_when_participant_key_mismatches_share() {
+        // The participant's declared device key must be the key that signed the
+        // share; a decorative/forged key list is rejected.
+        let now_secs: u64 = 1_000_000;
+        let ts = now_secs.saturating_sub(60);
+        let shares = vec![
+            valid_device_report(1, ts, AttestationLevel::StrongBox),
+            valid_device_report(2, ts, AttestationLevel::StrongBox),
+        ];
+        let participants = vec![
+            super::ThresholdParticipantEvidence::new(1, &[0x11; 32]).unwrap(),
+            super::ThresholdParticipantEvidence::new(2, &[0x22; 32]).unwrap(),
+        ];
+        let report = threshold_report_with_participants(shares, participants, 2);
         let policy = AttestationPolicy::test_fixture();
         assert!(!report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
     }
