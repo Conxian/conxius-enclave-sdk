@@ -40,7 +40,8 @@
 
 ## Testing
 ```bash
-cargo test --locked                    # 617 unit tests + 44 integration tests (661 total)
+cargo test --locked                    # default features: 671 unit tests
+cargo test --features frost-crypto     # 697 unit + 44 integration = 741 (1 ignored)
 ```
 
 ## CI & Build Conventions
