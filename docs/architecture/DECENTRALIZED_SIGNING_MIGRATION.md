@@ -73,8 +73,8 @@ t-of-n shares** held by independent, hardware-backed operators:
 > (`AttestationLevel::Threshold` + `verify_threshold_composition`), and the
 > `sign_value_bearing_provider` value-bearing path verified end-to-end through
 > `ValueBearingSignResponse::from_provider_at_time`. Verified: `cargo test
-> --features frost-crypto --lib` = 627 passed, 0 failed; CI runs
-> `--all-features`. DKG ceremony runbook:
+> --features frost-crypto --lib` = 697 passed, 0 failed (712 with
+> `--all-features`); CI runs DKG ceremony runbook:
 > `docs/operations/THRESHOLD_DKG_CEREMONY.md`. Remaining: (1) production DKG
 > ceremony execution, (2) independent audit.
 

@@ -29,7 +29,8 @@ ever reconstruct the full secret key**.
   StrongBox / HSM) with its own FROST participant identity.
 - A coordinator channel (out-of-band) for exchanging DKG round messages; the
   coordinator never holds a secret share.
-- Baseline verified: `cargo test --features frost-crypto --lib` (627 pass).
+- Baseline verified: `cargo test --features frost-crypto --lib` (697 pass, 1 ignored).
+  CI runs `--all-features` (712 pass); the count moves as findings F1–F7 land.
 
 ## Ceremony (distributed DKG, `ThresholdSigner`)
 
