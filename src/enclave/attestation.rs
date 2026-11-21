@@ -512,7 +512,7 @@ enum ProviderVerifier {
     #[cfg(test)]
     TestFixture {
         trusted_roots: Vec<String>,
-        leaf_public_key: [u8; 32],
+        leaf_public_keys: Vec<[u8; 32]>,
     },
 }
 
@@ -580,7 +580,7 @@ impl AttestationPolicy {
                     "GOOGLE_STRONGBOX_ROOT_V1".to_string(),
                     "AWS_NITRO_ROOT_V1".to_string(),
                 ],
-                leaf_public_key: test_signing_key().verifying_key().to_bytes(),
+                leaf_public_keys: vec![test_signing_key().verifying_key().to_bytes()],
             },
         }
     }
@@ -669,9 +669,32 @@ impl AttestationPolicy {
 
         self.provider_verifier = ProviderVerifier::TestFixture {
             trusted_roots,
-            leaf_public_key: test_signing_key().verifying_key().to_bytes(),
+            leaf_public_keys: vec![test_signing_key().verifying_key().to_bytes()],
         };
         Ok(self)
+    }
+
+    /// Test-only: trust one leaf key per ceremony participant, each derived from
+    /// a seed. Distinct seeds model distinct hardware devices.
+    #[cfg(test)]
+    pub(crate) fn with_trusted_device_keys(mut self, device_seeds: Vec<u8>) -> Self {
+        self.provider_verifier = ProviderVerifier::TestFixture {
+            trusted_roots: vec![
+                "CONCLAVE_ROOT_CA_V1".to_string(),
+                "CONCLAVE_CLOUD_ROOT_CA_V1".to_string(),
+                "GOOGLE_STRONGBOX_ROOT_V1".to_string(),
+                "AWS_NITRO_ROOT_V1".to_string(),
+            ],
+            leaf_public_keys: device_seeds
+                .into_iter()
+                .map(|seed| {
+                    SigningKey::from_bytes(&[seed; 32])
+                        .verifying_key()
+                        .to_bytes()
+                })
+                .collect(),
+        };
+        self
     }
 
     pub fn allowed_levels(&self) -> &[AttestationLevel] {
@@ -762,7 +785,7 @@ impl AttestationPolicy {
             #[cfg(test)]
             ProviderVerifier::TestFixture {
                 trusted_roots,
-                leaf_public_key,
+                leaf_public_keys,
             } => {
                 canonical.push(1);
                 let mut trusted_roots = trusted_roots.clone();
@@ -770,7 +793,11 @@ impl AttestationPolicy {
                 for root in trusted_roots {
                     append_digest_component(&mut canonical, root.as_bytes())?;
                 }
-                append_digest_component(&mut canonical, leaf_public_key)?;
+                let mut leaf_public_keys = leaf_public_keys.clone();
+                leaf_public_keys.sort();
+                for leaf in leaf_public_keys {
+                    append_digest_component(&mut canonical, &leaf)?;
+                }
             }
         }
 
@@ -803,7 +830,7 @@ impl AttestationPolicy {
             #[cfg(test)]
             ProviderVerifier::TestFixture {
                 trusted_roots,
-                leaf_public_key,
+                leaf_public_keys,
             } => {
                 if !_report.certificate_chain_is_well_formed() {
                     return false;
@@ -814,7 +841,7 @@ impl AttestationPolicy {
                     .first()
                     .and_then(|entry| hex::decode(entry).ok())
                     .and_then(|key| <[u8; 32]>::try_from(key).ok())
-                    .is_some_and(|key| key == *leaf_public_key);
+                    .is_some_and(|key| leaf_public_keys.contains(&key));
                 let root_matches = _report
                     .certificate_chain
                     .last()
@@ -1003,10 +1030,26 @@ impl DeviceIntegrityReport {
             return false;
         }
 
-        let valid = shares
-            .iter()
-            .filter(|share| share.verify_at_time_impl(expected_nonce, now_secs, policy))
-            .count();
+        // Count only distinct hardware participants. A share report is signed by
+        // its device key, so the leaf certificate is the device identity. Without
+        // this, one device re-signing the same report M times satisfies "M-of-N"
+        // (Nexus #744, finding F3).
+        let mut counted_leaves: Vec<String> = Vec::with_capacity(shares.len());
+        let mut valid = 0usize;
+        for share in shares {
+            if !share.verify_at_time_impl(expected_nonce, now_secs, policy) {
+                continue;
+            }
+            let leaf = match share.certificate_chain.first() {
+                Some(leaf) => leaf.to_ascii_lowercase(),
+                None => continue,
+            };
+            if counted_leaves.contains(&leaf) {
+                continue;
+            }
+            counted_leaves.push(leaf);
+            valid += 1;
+        }
         if valid < min {
             return false;
         }
@@ -1325,7 +1368,16 @@ mod tests {
     }
 
     fn valid_report(timestamp: u64, level: AttestationLevel) -> DeviceIntegrityReport {
-        let signing_key = test_signing_key();
+        valid_report_signed_by(test_signing_key(), timestamp, level)
+    }
+
+    /// Same as `valid_report`, but the report is signed by `signing_key` so the
+    /// leaf certificate identifies a specific device.
+    fn valid_report_signed_by(
+        signing_key: SigningKey,
+        timestamp: u64,
+        level: AttestationLevel,
+    ) -> DeviceIntegrityReport {
         let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
         let nonce = vec![1, 2, 3, 4];
         let mut extension_data = "PURPOSE_SIGN|ALGORITHM_ED25519|OS_VERSION_14".to_string();
@@ -1409,17 +1461,82 @@ mod tests {
         }
     }
 
+    /// Distinct device keys for one ceremony: seeds differ per participant.
+    fn distinct_device_key(seed: u8) -> SigningKey {
+        SigningKey::from_bytes(&[seed; 32])
+    }
+
     #[test]
     fn verify_accepts_threshold_composition_m_of_n() {
         let now_secs: u64 = 1_000_000;
+        let keys = [0x11u8, 0x22, 0x33];
+        let shares = vec![
+            valid_report_signed_by(
+                distinct_device_key(keys[0]),
+                now_secs.saturating_sub(60),
+                AttestationLevel::StrongBox,
+            ),
+            valid_report_signed_by(
+                distinct_device_key(keys[1]),
+                now_secs.saturating_sub(60),
+                AttestationLevel::CloudTEE,
+            ),
+            valid_report_signed_by(
+                distinct_device_key(keys[2]),
+                now_secs.saturating_sub(60),
+                AttestationLevel::StrongBox,
+            ),
+        ];
+        let report = threshold_report(shares, 2);
+        // The ceremony trusts exactly these three device leaves.
+        let policy = AttestationPolicy::test_fixture().with_trusted_device_keys(keys.to_vec());
+        assert!(report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
+    }
+
+    #[test]
+    fn verify_rejects_threshold_composition_of_cloned_reports_from_one_device() {
+        // Finding F3 (enclave-sdk #744): three byte-identical share reports from
+        // one device key must not satisfy 2-of-3. Distinctness is carried by the
+        // leaf certificate, which is the device key that signed the share.
+        let now_secs: u64 = 1_000_000;
         let shares = vec![
             valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox),
-            valid_report(now_secs.saturating_sub(60), AttestationLevel::CloudTEE),
+            valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox),
             valid_report(now_secs.saturating_sub(60), AttestationLevel::StrongBox),
         ];
         let report = threshold_report(shares, 2);
         let policy = AttestationPolicy::test_fixture();
-        assert!(report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
+        assert!(
+            !report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy),
+            "cloned reports from one device must not satisfy 2-of-3"
+        );
+    }
+
+    #[test]
+    fn verify_rejects_threshold_when_distinct_devices_fall_below_quorum() {
+        // Two distinct devices plus a clone of the first is only 2 distinct
+        // signers, so a 3-of-3 requirement must fail.
+        let now_secs: u64 = 1_000_000;
+        let shares = vec![
+            valid_report_signed_by(
+                distinct_device_key(0x11),
+                now_secs.saturating_sub(60),
+                AttestationLevel::StrongBox,
+            ),
+            valid_report_signed_by(
+                distinct_device_key(0x22),
+                now_secs.saturating_sub(60),
+                AttestationLevel::StrongBox,
+            ),
+            valid_report_signed_by(
+                distinct_device_key(0x11),
+                now_secs.saturating_sub(60),
+                AttestationLevel::StrongBox,
+            ),
+        ];
+        let report = threshold_report(shares, 3);
+        let policy = AttestationPolicy::test_fixture();
+        assert!(!report.verify_at_time_with_policy(&[1, 2, 3, 4], now_secs, &policy));
     }
 
     #[test]
