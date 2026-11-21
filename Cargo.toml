@@ -98,3 +98,8 @@ tokio = { version = "1.52.3", features = ["full"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "conxian-threshold"
+path = "src/bin/conxian-threshold.rs"
+required-features = ["frost-crypto"]

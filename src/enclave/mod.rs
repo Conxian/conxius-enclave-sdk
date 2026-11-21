@@ -12,6 +12,11 @@ pub mod proofs;
 pub mod replay_guard;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod replay_store_file;
+/// Separated-share threshold signing (Issue #726 F4, #745).
+#[cfg(feature = "frost-crypto")]
+pub mod separated;
+#[cfg(all(test, feature = "frost-crypto"))]
+mod separated_tests;
 #[cfg(feature = "frost-crypto")]
 pub mod threshold;
 pub mod trust;
