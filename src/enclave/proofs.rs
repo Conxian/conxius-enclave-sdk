@@ -2555,6 +2555,10 @@ mod tests {
                         request.key_binding().public_key(),
                         &operation_public_key,
                         request.message_digest(),
+                        &request
+                            .operation_context()
+                            .canonical_digest()
+                            .expect("operation context digest"),
                         request.operation_context().purpose().canonical_token(),
                         AttestationPurpose::Sign,
                         crate::enclave::attestation::AttestationAlgorithm::Ed25519,

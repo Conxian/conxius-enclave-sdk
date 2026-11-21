@@ -259,6 +259,20 @@ impl OperationContext {
         output.push(self.purpose.canonical_tag());
         append_len_prefixed(output, &self.context)
     }
+
+    /// Domain-separated digest over the domain, purpose, and context payload.
+    ///
+    /// Used to bind value-bearing signing evidence to the exact operation
+    /// context (finding F6, #746): two requests that differ only in their domain
+    /// or context payload must not share binding evidence.
+    pub fn canonical_digest(&self) -> ConclaveResult<[u8; 32]> {
+        let mut canonical = Vec::new();
+        append_len_prefixed(&mut canonical, b"CONXIAN-OPERATION-CONTEXT/v1")?;
+        self.append_canonical(&mut canonical)?;
+        let mut hasher = Sha256::new();
+        hasher.update(&canonical);
+        Ok(hasher.finalize().into())
+    }
 }
 
 /// Provenance class of the signer implementation.
@@ -949,6 +963,7 @@ impl ValueBearingSignResponse {
             request.key_binding.public_key(),
             &public_key,
             request.message_digest(),
+            &request.operation_context.canonical_digest()?,
             request.operation_context.purpose().canonical_token(),
             AttestationPurpose::Sign,
             request.algorithm.attestation_algorithm(),
@@ -1420,6 +1435,10 @@ mod enclave_tests {
                         request.key_binding().public_key(),
                         &operation_public_key,
                         request.message_digest(),
+                        &request
+                            .operation_context()
+                            .canonical_digest()
+                            .expect("operation context digest"),
                         request.operation_context().purpose().canonical_token(),
                         AttestationPurpose::Sign,
                         request.algorithm().attestation_algorithm(),
