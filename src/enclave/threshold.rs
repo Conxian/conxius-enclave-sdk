@@ -8,7 +8,7 @@
 
 use crate::enclave::attestation::{
     parse_extension_data, AttestationLevel, AttestationPurpose, DeviceIntegrityReport,
-    SignerKeyBindingEvidence, ATTESTATION_ENVELOPE_VERSION,
+    SignerKeyBindingEvidence, ThresholdParticipantEvidence, ATTESTATION_ENVELOPE_VERSION,
 };
 use crate::enclave::{
     EnclaveManager, SignRequest, SignResponse, SignerCapability, ValueBearingSignRequest,
@@ -249,11 +249,16 @@ impl ThresholdEnclaveManager {
         let extensions =
             parse_extension_data(&extension_data).ok_or(ConclaveError::InvalidPayload)?;
 
+        // Build participant/device distinctness evidence (finding F3, #744) and
+        // refuse to compose a report that one device could have produced alone.
+        let threshold_participants = Self::compose_participants(&share_reports, self.min_signers)?;
+
         let report = DeviceIntegrityReport {
             report_version: ATTESTATION_ENVELOPE_VERSION,
             report_type: crate::enclave::attestation::AttestationReportType::DeviceIntegrity,
             threshold_min_signers: Some(self.min_signers),
             threshold_shares: Some(share_reports),
+            threshold_participants: Some(threshold_participants),
             level: AttestationLevel::Threshold,
             challenge_nonce: request.message_digest().to_vec(),
             signature: Vec::new(),
@@ -272,6 +277,43 @@ impl ThresholdEnclaveManager {
                 serde_json::to_string(&report).map_err(|_| ConclaveError::InvalidPayload)?,
             ),
         })
+    }
+
+    /// Derive the participant list from the per-share reports and enforce that
+    /// each share is backed by a distinct device leaf key. Participant ids are
+    /// the ceremony identifiers (`1..=n`, matching the key-package order used by
+    /// [`Self::threshold_sign`]); each participant's `device_public_key` is the
+    /// leaf key that signed its share report, which the verifier re-checks
+    /// against the signed report. A cloned share (same leaf) is rejected here.
+    fn compose_participants(
+        share_reports: &[DeviceIntegrityReport],
+        min_signers: u16,
+    ) -> ConclaveResult<Vec<ThresholdParticipantEvidence>> {
+        let mut participants = Vec::with_capacity(share_reports.len());
+        let mut seen_device_keys = std::collections::BTreeSet::new();
+        for (index, share) in share_reports.iter().enumerate() {
+            let leaf = share
+                .certificate_chain
+                .first()
+                .and_then(|entry| hex::decode(entry).ok())
+                .filter(|key| !key.is_empty())
+                .ok_or(ConclaveError::InvalidPayload)?;
+            if !seen_device_keys.insert(leaf.clone()) {
+                return Err(ConclaveError::Unsupported(
+                    "threshold composition shares a device key across participants \
+                     (finding F3, #744)"
+                        .to_string(),
+                ));
+            }
+            let participant_id = (index + 1) as u16;
+            participants.push(ThresholdParticipantEvidence::new(participant_id, &leaf)?);
+        }
+        if (participants.len() as u16) < min_signers {
+            return Err(ConclaveError::Unsupported(
+                "threshold composition has fewer distinct devices than the threshold".to_string(),
+            ));
+        }
+        Ok(participants)
     }
 }
 
@@ -375,8 +417,11 @@ mod tests {
         _assert(build_manager());
     }
 
-    fn strongbox_share_report(nonce: &[u8; 32]) -> DeviceIntegrityReport {
-        let signing_key = crate::enclave::attestation::test_signing_key();
+    fn strongbox_share_report_for_device(
+        device_slot: u8,
+        nonce: &[u8; 32],
+    ) -> DeviceIntegrityReport {
+        let signing_key = crate::enclave::attestation::test_device_signing_key(device_slot);
         let pubkey_hex = hex::encode(signing_key.verifying_key().to_bytes());
         let extension_data =
             "PURPOSE_SIGN|ALGORITHM_SCHNORR_SECP256K1|HARDWARE_BACKED|SECURE_BOOT_ENABLED"
@@ -387,6 +432,7 @@ mod tests {
             report_type: crate::enclave::attestation::AttestationReportType::DeviceIntegrity,
             threshold_min_signers: None,
             threshold_shares: None,
+            threshold_participants: None,
             level: AttestationLevel::StrongBox,
             challenge_nonce: nonce.to_vec(),
             signature: Vec::new(),
@@ -433,8 +479,8 @@ mod tests {
 
         let manager =
             manager.with_share_report_provider(Arc::new(|req: &ValueBearingSignRequest| {
-                let reports = (0..3)
-                    .map(|_| strongbox_share_report(req.message_digest()))
+                let reports = (1..=3u8)
+                    .map(|slot| strongbox_share_report_for_device(slot, req.message_digest()))
                     .collect();
                 Ok(reports)
             }));
@@ -456,19 +502,14 @@ mod tests {
     }
 
     #[test]
-    fn threshold_composition_accepts_cloned_reports_from_one_device() {
-        // Issue #726 finding F3: the composed threshold report carries no
-        // participant list and no distinctness binding. `M-of-N` is
-        // self-declared in JSON (`threshold_min_signers` / `threshold_shares`)
-        // and `verify_threshold_composition` counts share reports that pass the
-        // single-mechanism policy - it never checks that they came from
-        // distinct devices or participants. Three byte-identical reports signed
-        // by one device key satisfy 2-of-3, and the composite report itself
-        // carries an empty signature and certificate chain
-        // (`compose_value_bearing_response`).
+    fn threshold_composition_rejects_cloned_reports_from_one_device() {
+        // Issue #726 finding F3 fix (#744): the composite report now carries a
+        // participant list and binds each share to a distinct device key, so
+        // three byte-identical reports signed by one device key can no longer
+        // satisfy 2-of-3. Composition fails closed instead of producing a
+        // report that verifies.
         use crate::enclave::{
             OperationContext, SignerKeyBinding, TrustRequirement, ValueBearingPurpose,
-            ValueBearingSignResponse,
         };
 
         let manager = build_manager();
@@ -493,49 +534,19 @@ mod tests {
         )
         .unwrap();
 
-        // Every "operator" report comes from the same simulated device key and
-        // attests the same operation public key.
+        // Every "operator" report comes from the same simulated device key.
         let manager =
             manager.with_share_report_provider(Arc::new(|req: &ValueBearingSignRequest| {
                 Ok((0..3)
-                    .map(|_| strongbox_share_report(req.message_digest()))
+                    .map(|_| strongbox_share_report_for_device(1, req.message_digest()))
                     .collect())
             }));
 
-        let response = manager
-            .sign_value_bearing_provider(&request)
-            .expect("one-device cloned reports should compose");
-        let attestation_json = response
-            .device_attestation
-            .as_deref()
-            .expect("value-bearing response must carry an attestation")
-            .to_string();
-
-        let now_secs = crate::enclave::trusted_unix_time_secs().unwrap();
-        let verified = ValueBearingSignResponse::from_provider_at_time(
-            &request,
-            response,
-            manager.signer_capability(),
-            now_secs,
-        );
+        let result = manager.sign_value_bearing_provider(&request);
         assert!(
-            verified.is_ok(),
-            "single-device 2-of-3 composition should verify: {verified:?}"
+            result.is_err(),
+            "one-device cloned reports must not compose, got: {result:?}"
         );
-
-        let report: serde_json::Value = serde_json::from_str(&attestation_json).unwrap();
-        // The composite attestation is self-asserted: no signature, no chain.
-        assert!(report["signature"].as_array().is_some_and(Vec::is_empty));
-        assert!(report["certificate_chain"]
-            .as_array()
-            .is_some_and(Vec::is_empty));
-        assert_eq!(report["threshold_min_signers"], serde_json::json!(2));
-        let shares = report["threshold_shares"].as_array().unwrap();
-        assert_eq!(shares.len(), 3);
-        // All three share reports attest with the same device certificate.
-        for share in shares.iter().skip(1) {
-            assert_eq!(share["certificate_chain"], shares[0]["certificate_chain"]);
-        }
     }
 
     /// Delegates to `FrostThresholdSigner` but simulates one operator being
@@ -747,8 +758,8 @@ mod tests {
 
         let manager =
             manager.with_share_report_provider(Arc::new(|req: &ValueBearingSignRequest| {
-                Ok((0..3)
-                    .map(|_| strongbox_share_report(req.message_digest()))
+                Ok((1..=3u8)
+                    .map(|slot| strongbox_share_report_for_device(slot, req.message_digest()))
                     .collect())
             }));
 

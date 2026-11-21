@@ -69,6 +69,7 @@ impl MockAttestationGenerator {
             report_type: AttestationReportType::DeviceIntegrity,
             threshold_min_signers: None,
             threshold_shares: None,
+            threshold_participants: None,
             level: self.level,
             challenge_nonce: nonce.to_vec(),
             signature: Vec::new(),
@@ -520,6 +521,7 @@ mod edge_case_tests {
             report_type: AttestationReportType::DeviceIntegrity,
             threshold_min_signers: None,
             threshold_shares: None,
+            threshold_participants: None,
             level: AttestationLevel::TEE,
             challenge_nonce: nonce.to_vec(),
             signature: vec![], // Empty signature

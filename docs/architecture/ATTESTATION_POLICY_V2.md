@@ -13,3 +13,12 @@ Sources: [OASIS PKCS#11 current mechanisms](https://docs.oasis-open.org/pkcs11/p
 ## Residual qualification work
 
 The current process-wide PKCS#11 context caches the first initialized module. Separate module instances must not be assumed isolated without a module-bound context design and real module tests; SDK #240 remains the owner. Public algorithm parameters alone do not qualify signers or resolve that provider-isolation work.
+
+## v3 — threshold operator-set binding (finding F3, #744)
+
+The attestation-policy digest moved to `CONXIAN-ATTESTATION-POLICY/v3` and big-endian version 3, and the signed report envelope to `ATTESTATION_ENVELOPE_VERSION = 3`. v3 adds two inputs that v2 could not express:
+
+- The **policy digest** now encodes an optional pinned ceremony operator set (`threshold_operator_ids`). When a policy pins the set, a composed threshold report's declared participants must be a subset of it with `shares.len() <= N`.
+- The **signed envelope** now carries `threshold_participants` for composed reports: one `{ participant_id, device_public_key }` per share. The verifier requires pairwise-distinct participant ids, pairwise-distinct device keys, and each `device_public_key` to equal the leaf key that signed its share report. A single device can no longer satisfy an M-of-N quorum by replaying its own report M times.
+
+v2 composites are rejected: a v2 report has `report_version = 2` and no participant list, so `verify_threshold_composition` fails closed. The production-policy known vector for v3 is `99689c577b290a4d01554d9405e1959dec840bd5e2688353c547ef7ac01daea4` (independently recomputed from the documented encoding, not copied from the implementation). The v2 vector `a70ee922…` and legacy v1 `b40365a0…` are retained above as historical evidence and are asserted *not* to alias the v3 digest.
