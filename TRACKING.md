@@ -1,6 +1,11 @@
 # `conxius-enclave-sdk` Repository Tracking
 
 > **STABLE (CONDITIONAL)** - 2.x production status is capability- and artifact-specific per the 2026-09-29 redo audit.
+>
+> **Alignment note (2026-11-21):** this page was reconciled with `README.md`, `Cargo.toml` and the live
+> GitHub tracker. The repository version is **2.1.0**; the earlier 2.0.17 values were stale. Volatile
+> counts live in [ISSUES_INDEX.md](./ISSUES_INDEX.md), [PRS_INDEX.md](./PRS_INDEX.md) and
+> [BRANCHES_INDEX.md](./BRANCHES_INDEX.md), which are dated snapshots - GitHub remains authoritative.
 
 This document provides a comprehensive overview of the repository status, including issues, pull requests, branches, and production-enablement evidence.
 
@@ -26,11 +31,11 @@ This document provides a comprehensive overview of the repository status, includ
 | **Repository** | Conxian/conxius-enclave-sdk |
 | **Default Branch** | main |
 | **Language** | Rust |
-| **Latest visible release/tag** | v2.0.17 (git tag); Cargo.toml 2.0.17 |
-| **Cargo package metadata** | 2.0.17 (aligned with release tag) |
+| **Latest visible release/tag** | v2.1.0 (git tag); Cargo.toml 2.1.0 |
+| **Cargo package metadata** | 2.1.0 (aligned with release tag) |
 | **Production Status** | Stable (conditional); value-bearing enablement blocked by CON-1506 gates |
 | **Test Coverage** | Historical source count; not an independent release gate |
-| **Last Updated** | 2026-08-31 (Session 64) |
+| **Last Updated** | 2026-11-21 (tracker alignment) |
 
 ## Production-enablement backlog map
 
@@ -38,16 +43,17 @@ The current implementation and acceptance backlog spans GitHub issues across mul
 
 | GitHub issue | Evidence gate | Priority | Status |
 | --- | --- | --- | --- |
-| [#267](https://github.com/Conxian/conxius-enclave-sdk/issues/267) | BitVM2 Groth16 SNARK verification | P0 | Implemented (Session 61) |
-| [#242](https://github.com/Conxian/conxius-enclave-sdk/issues/242) | AWS Nitro attestation + KMS boundary | P0 | Blocked |
-| [#241](https://github.com/Conxian/conxius-enclave-sdk/issues/241) | Android KeyMint/StrongBox + Play Integrity | P0 | Blocked |
-| [#240](https://github.com/Conxian/conxius-enclave-sdk/issues/240) | Attestation roots, collateral, revocation, distributed replay | P0 | In Progress (items 1-5,7 code-complete; production Postgres backend → conxian-nexus PR #250; item 6 external-blocked on #202) |
-| [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) | Independent security review and release acceptance | P0 | Blocked |
-| [#271](https://github.com/Conxian/conxius-enclave-sdk/issues/271) | Lightning LDK payment execution | P1 | Open (route-finding + channel state machine done; expanding research: BOLT12/BIP-353/trampoline/splicing/MPP + mainnet proofing) |
-| [#320](https://github.com/Conxian/conxius-enclave-sdk/issues/320) | secp256k1 0.32.0-beta.2 yanked | P0 | ✅ Resolved (PR #321 merged 2026-08-30: `bitcoin 0.32.102` + `secp256k1 0.33.1`, yanked crate removed) |
-| [conxian-nexus #251](https://github.com/Conxian/conxian-nexus/issues/251) | Wire IdempotencyStore to Neon + live-DB conformance suite | P1 | Open (cross-repo; PR #250 merged 2026-08-29; dependency fix #255 merged) |
-| [#200](https://github.com/Conxian/conxius-enclave-sdk/issues/200) | WASM secret boundary and runtime/platform evidence | P1 | In Progress (boundary hardened) |
-| [#272](https://github.com/Conxian/conxius-enclave-sdk/issues/272) | BitVM SNARK proof validation | P2 | Closed |
+| [#202](https://github.com/Conxian/conxius-enclave-sdk/issues/202) | Independent security review and release acceptance | P0 | Open - no independent acceptance evidence |
+| [#240](https://github.com/Conxian/conxius-enclave-sdk/issues/240) | Attestation roots, collateral, revocation, distributed replay | P0 | Open - service-owned transactional backend not qualified |
+| [#241](https://github.com/Conxian/conxius-enclave-sdk/issues/241) | Android KeyMint/StrongBox + Play Integrity | P0 | Open - real-device evidence outstanding |
+| [#509](https://github.com/Conxian/conxius-enclave-sdk/issues/509) | Turnkey KMaaS: pre-attested TEE compute + threshold signing | P1 | Open - research/qualification |
+| [#559](https://github.com/Conxian/conxius-enclave-sdk/issues/559) | Decentralized signing with community-verifiable evidence | P0 | Open - ceremony participation outstanding |
+| [#583](https://github.com/Conxian/conxius-enclave-sdk/issues/583) | Live hardware provider collateral and StrongBox offline boundaries | P0 | Open - provider collateral not qualified |
+| [#676](https://github.com/Conxian/conxius-enclave-sdk/issues/676) | Adopt org-wide business operations evidence contract | P1 | Open |
+| [#701](https://github.com/Conxian/conxius-enclave-sdk/issues/701) | Foundation donation package (FINOS/LFDT anchor) | P4 | Open |
+| [#720](https://github.com/Conxian/conxius-enclave-sdk/issues/720) | Open call: independent co-signer for the 2-of-3 FROST release key | - | Open - participation call |
+
+Closed since the previous snapshot: #200, #242, #267, #271, #272, #320 (see [ISSUES_INDEX.md](./ISSUES_INDEX.md)).
 
 ### Resolved (Session 57)
 **#196** (Bitcoin/Ethereum verification), **#198** (CCTP fail-closed), **#199** (reproducible toolchain), **#201** (telemetry, #210), **#197** (threshold settlement, mostly resolved except Fedimint), **#195** (hardware attestation, Phase 3 verifiers built)
@@ -56,11 +62,16 @@ The current implementation and acceptance backlog spans GitHub issues across mul
 
 | Repository | Description |
 |------------|-------------|
-| conxius-platform | Main platform services |
-| conxius-orbit (archived) | Orbit services (historical) |
+| conxius-platform | Control plane and orchestration |
 | conxius-wallet | Wallet implementation |
-| lib-conxian-core | Core library |
+| lib-conxian-core | Shared protocol primitives |
 | conxian-gateway | Gateway services |
+| conxian-nexus | Observation and proof layer |
+| conxian_market | Market SDK and settlement calculations |
+| conxian-business | BOS governance and portfolio wiring |
+
+`conxius-orbit` is retired (deleted) and is no longer part of the ecosystem map; see the org
+[repository taxonomy](https://github.com/Conxian/.github/blob/main/repository-taxonomy.md).
 
 ## Syncing Issues and PRs
 
@@ -95,9 +106,7 @@ Common labels used in this repository:
 
 ### Latest Commits on main
 
-```
-$(git log --oneline -5 origin/main)
-```
+Read the live history with `git log --oneline -5 origin/main`; this page does not pin commit SHAs.
 
 ### Latest Merged PRs
 
