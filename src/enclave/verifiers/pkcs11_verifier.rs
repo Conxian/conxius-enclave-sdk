@@ -91,7 +91,13 @@ fn classify_key_attributes(kind: Option<CkKeyType>, attributes: &[Attribute]) ->
             _ => Pkcs11KeyType::Unknown("EC parameters unavailable or unsupported".into()),
         },
         Some(CkKeyType::EC_EDWARDS) => match ec_params {
+            // DER OID 1.3.101.112 (id-Ed25519), the standard encoding.
             Some([0x06, 0x03, 0x2b, 0x65, 0x70]) => Pkcs11KeyType::Ed25519,
+            // Some tokens (e.g. SoftHSM) emit the curve name as a DER PrintableString
+            // "edwards25519" (13 0c "edwards25519") instead of the OID.
+            Some(
+                [0x13, 0x0c, b'e', b'd', b'w', b'a', b'r', b'd', b's', b'2', b'5', b'5', b'1', b'9'],
+            ) => Pkcs11KeyType::Ed25519,
             _ => Pkcs11KeyType::Unknown("Edwards parameters unavailable or unsupported".into()),
         },
         Some(CkKeyType::RSA) => {
@@ -245,17 +251,41 @@ impl Pkcs11Verifier {
                 Attribute::KeyType(value) => Some(*value),
                 _ => None,
             });
-            // Query only the public algorithm parameters applicable to this
-            // private key. CKA_MODULUS_BITS belongs to RSA public-key templates;
-            // derive the actual RSA size from the unsigned public modulus.
+            // Query the algorithm parameters applicable to this key. CKA_MODULUS_BITS
+            // belongs to RSA public-key templates; derive the actual RSA size from the
+            // unsigned public modulus. EC/EC_EDWARDS params may be exposed only on the
+            // private object (some tokens) or only on the public object (e.g. SoftHSM),
+            // so fall back to the matching public key when the private query is empty.
             let parameters = match kind {
                 Some(CkKeyType::EC | CkKeyType::EC_EDWARDS) => {
-                    session.get_attributes(*h, &[AttributeType::EcParams]).ok()
+                    let on_private = session
+                        .get_attributes(*h, &[AttributeType::EcParams])
+                        .ok()
+                        .unwrap_or_default();
+                    if on_private.is_empty() {
+                        session
+                            .find_objects(&[
+                                Attribute::Class(ObjectClass::PUBLIC_KEY),
+                                Attribute::Id(key_id.clone()),
+                            ])
+                            .ok()
+                            .and_then(|pubs| pubs.first().copied())
+                            .and_then(|pubh| {
+                                session
+                                    .get_attributes(pubh, &[AttributeType::EcParams])
+                                    .ok()
+                            })
+                            .unwrap_or_default()
+                    } else {
+                        on_private
+                    }
                 }
-                Some(CkKeyType::RSA) => session.get_attributes(*h, &[AttributeType::Modulus]).ok(),
-                _ => None,
-            }
-            .unwrap_or_default();
+                Some(CkKeyType::RSA) => session
+                    .get_attributes(*h, &[AttributeType::Modulus])
+                    .ok()
+                    .unwrap_or_default(),
+                _ => Vec::new(),
+            };
             let key_type = classify_key_attributes(kind, &parameters);
             result.push(Pkcs11Key {
                 key_id,
@@ -314,7 +344,7 @@ impl Pkcs11Verifier {
         signature: &[u8],
     ) -> ConclaveResult<bool> {
         let session = self.open_session(slot_id)?;
-        let handle = self.find_key_by_id(&session, key_id)?;
+        let handle = self.find_public_key_by_id(&session, key_id)?;
         let mech = self.map_mechanism(mechanism)?;
         match session.verify(&mech, handle, digest, signature) {
             Ok(()) => Ok(true),
@@ -394,6 +424,29 @@ impl Pkcs11Verifier {
         handles.into_iter().next().ok_or_else(|| {
             ConclaveError::Attestation(format!(
                 "PKCS#11: no key found for id {}",
+                hex::encode(key_id)
+            ))
+        })
+    }
+
+    /// Locate the public key object for verification. PKCS#11 `C_Verify`
+    /// operates on a public key; passing a private-key handle fails on
+    /// conformant tokens, so verify must resolve the public object.
+    #[cfg(feature = "cryptoki")]
+    fn find_public_key_by_id(
+        &self,
+        session: &cryptoki::session::Session,
+        key_id: &[u8],
+    ) -> ConclaveResult<cryptoki::object::ObjectHandle> {
+        let handles = session
+            .find_objects(&[
+                Attribute::Class(ObjectClass::PUBLIC_KEY),
+                Attribute::Id(key_id.to_vec()),
+            ])
+            .map_err(to_conclave_err)?;
+        handles.into_iter().next().ok_or_else(|| {
+            ConclaveError::Attestation(format!(
+                "PKCS#11: no public key found for id {}",
                 hex::encode(key_id)
             ))
         })
