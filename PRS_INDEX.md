@@ -1,124 +1,46 @@
 # Conxius Enclave SDK Pull Requests Index
 
-> Auto-generated from GitHub. Last sync: 2026-08-31T09:51:15Z
+> Snapshot generated from the GitHub API at `2026-11-21T14:30:00Z`.
 
-> **Snapshot semantics:** Closed and merged entries are point-in-time GitHub outcomes from this sync. They do not establish implementation completeness, production readiness, security review, release acceptance, or support. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
-
+> **Snapshot semantics:** This file is a point-in-time copy, not the live tracker. GitHub Pull Requests is authoritative; open [the live PR list](https://github.com/Conxian/conxius-enclave-sdk/pulls?q=is%3Apr) before acting. A merged PR is a source outcome, not release acceptance. See [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).
 
 ## Summary
-- **Total PRs**: 288
-- **Open PRs**: 0
-- **Merged PRs**: 273
-- **Closed PRs**: 15
+
+- **Total PRs**: 742
+- **Open PRs**: 7
+- **Merged PRs**: 591
+- **Closed (unmerged) PRs**: 144
 
 ## Open PRs
-*None returned by GitHub in this snapshot.*
+
+- [ ] [**#786**](https://github.com/Conxian/conxius-enclave-sdk/pull/786): chore(deps): bump rand from 0.10.3 to 0.10.4
+  - Author: dependabot[bot] | Branch: `dependabot/cargo/dev/rand-0.10.4`
+
+- [ ] [**#787**](https://github.com/Conxian/conxius-enclave-sdk/pull/787): chore(deps): bump taiki-e/install-action from 2.90.3 to 2.90.5
+  - Author: dependabot[bot] | Branch: `dependabot/github_actions/dev/taiki-e/install-action-2.90.5`
+
+- [ ] [**#788**](https://github.com/Conxian/conxius-enclave-sdk/pull/788): chore(deps): bump bls12_381 from 0.9.1 to 0.9.2
+  - Author: dependabot[bot] | Branch: `dependabot/cargo/dev/bls12_381-0.9.2`
+
+- [ ] [**#789**](https://github.com/Conxian/conxius-enclave-sdk/pull/789): chore(deps): bump actions/dependency-review-action from 5.0.0 to 5.0.1
+  - Author: dependabot[bot] | Branch: `dependabot/github_actions/dev/actions/dependency-review-action-5.0.1`
+
+- [ ] [**#790**](https://github.com/Conxian/conxius-enclave-sdk/pull/790): chore(deps): bump jsonwebtoken from 11.1.0 to 12.0.0
+  - Author: dependabot[bot] | Branch: `dependabot/cargo/dev/jsonwebtoken-12.0.0`
+
+- [ ] [**#791**](https://github.com/Conxian/conxius-enclave-sdk/pull/791): chore(deps): bump zeroize from 1.9.1 to 1.9.2
+  - Author: dependabot[bot] | Branch: `dependabot/cargo/dev/zeroize-1.9.2`
+
+- [ ] [**#792**](https://github.com/Conxian/conxius-enclave-sdk/pull/792): chore(deps): bump lightning-invoice from 0.34.1 to 0.34.2
+  - Author: dependabot[bot] | Branch: `dependabot/cargo/dev/lightning-invoice-0.34.2`
 
 ## Recently Merged PRs
-- [x] [**#329**](https://github.com/Conxian/conxius-enclave-sdk/pull/329): docs(kb): session 64 audit remediation + live verification + crates.io cleanup
-  - Author: botshelomokoka | Merged: 2026-08-31
 
-- [x] [**#328**](https://github.com/Conxian/conxius-enclave-sdk/pull/328): docs(kb): session 63 full-repo audit + remediation
-  - Author: botshelomokoka | Merged: 2026-08-30
-
-- [x] [**#327**](https://github.com/Conxian/conxius-enclave-sdk/pull/327): fix(ci): allow manual release recovery without a tag ref
-  - Author: botshelomokoka | Merged: 2026-08-30
-
-- [x] [**#326**](https://github.com/Conxian/conxius-enclave-sdk/pull/326): fix(release): add User-Agent to crates.io artifact download
-  - Author: botshelomokoka | Merged: 2026-08-30
-
-- [x] [**#325**](https://github.com/Conxian/conxius-enclave-sdk/pull/325): chore(release): v2.0.17
-  - Author: botshelomokoka | Merged: 2026-08-30
-
-- [x] [**#324**](https://github.com/Conxian/conxius-enclave-sdk/pull/324): docs(org): Conxian org-wide phased plan + 15-repo inventory
-  - Author: botshelomokoka | Merged: 2026-08-30
-
-- [x] [**#323**](https://github.com/Conxian/conxius-enclave-sdk/pull/323): feat(fedimint): real BLS12-381 e-cash blinding + Chaum-Pedersen DLEQ
-  - Author: botshelomokoka | Merged: 2026-08-30
-
-- [x] [**#322**](https://github.com/Conxian/conxius-enclave-sdk/pull/322): docs: session 63 full-repo gap analysis + documentation drift sync
-  - Author: botshelomokoka | Merged: 2026-08-30
-
-- [x] [**#321**](https://github.com/Conxian/conxius-enclave-sdk/pull/321): fix(deps): remove yanked secp256k1 via bitcoin 0.32.102 + secp256k1 0.33.1
-  - Author: botshelomokoka | Merged: 2026-08-30
-
-- [x] [**#319**](https://github.com/Conxian/conxius-enclave-sdk/pull/319): feat(enclave): add durable replay conditional write conformance test (#240)
-  - Author: botshelomokoka | Merged: 2026-08-29
-
-- [x] [**#318**](https://github.com/Conxian/conxius-enclave-sdk/pull/318): feat(wasm): harden secret isolation and memory zeroization (#200)
-  - Author: botshelomokoka | Merged: 2026-08-28
-
-- [x] [**#317**](https://github.com/Conxian/conxius-enclave-sdk/pull/317): feat(wasm): harden WASM secret boundary with zeroize (#200)
-  - Author: botshelomokoka | Merged: 2026-08-29
-
-- [x] [**#316**](https://github.com/Conxian/conxius-enclave-sdk/pull/316): feat(lightning): implement LDK payment execution engine (#271)
-  - Author: botshelomokoka | Merged: 2026-08-28
-
-- [x] [**#315**](https://github.com/Conxian/conxius-enclave-sdk/pull/315): feat(bitvm2): implement Groth16 SNARK proof verification (#267)
-  - Author: botshelomokoka | Merged: 2026-08-28
-
-- [x] [**#314**](https://github.com/Conxian/conxius-enclave-sdk/pull/314): FROST Round 2 Signature Verification & KB Hardening
-  - Author: botshelomokoka | Merged: 2026-08-26
-
-- [x] [**#313**](https://github.com/Conxian/conxius-enclave-sdk/pull/313): feat(fedimint): implement e-cash note and threshold validation
-  - Author: botshelomokoka | Merged: 2026-08-26
-
-- [x] [**#312**](https://github.com/Conxian/conxius-enclave-sdk/pull/312): docs: complete full-system integration audit and receipt
-  - Author: botshelomokoka | Merged: 2026-08-23
-
-- [x] [**#311**](https://github.com/Conxian/conxius-enclave-sdk/pull/311): feat(enclave): system audit, gap scorecard & durable replay mock backend
-  - Author: botshelomokoka | Merged: 2026-08-18
-
-- [x] [**#310**](https://github.com/Conxian/conxius-enclave-sdk/pull/310): feat(frost/attestation): harden DKG share verification and hardware attestation enforcement
-  - Author: botshelomokoka | Merged: 2026-08-17
-
-- [x] [**#309**](https://github.com/Conxian/conxius-enclave-sdk/pull/309): Audit capability matrix, establish candidate scoring model, and expand protocol research
-  - Author: botshelomokoka | Merged: 2026-08-17
-
-
-## Closed (Not Merged) PRs
-- [ ] [**#305**](https://github.com/Conxian/conxius-enclave-sdk/pull/305): feat: capability audit remediations
-  - Author: botshelomokoka
-
-- [ ] [**#294**](https://github.com/Conxian/conxius-enclave-sdk/pull/294): fix: complete fail-closed and no-panic follow-up to #293
-  - Author: charliecreates[bot]
-
-- [ ] [**#284**](https://github.com/Conxian/conxius-enclave-sdk/pull/284): fix(deps): upgrade jsonwebtoken 9→10 to resolve Dependabot #7 (CVE-2026-25537)
-  - Author: botshelomokoka
-
-- [ ] [**#163**](https://github.com/Conxian/conxius-enclave-sdk/pull/163): chore(deps): update x509-cert requirement from 0.2.5 to 0.3.0
-  - Author: dependabot[bot]
-
-- [ ] [**#162**](https://github.com/Conxian/conxius-enclave-sdk/pull/162): chore(deps): bump github/codeql-action/init from 4.36.2 to 4.37.0
-  - Author: dependabot[bot]
-
-- [ ] [**#161**](https://github.com/Conxian/conxius-enclave-sdk/pull/161): chore(deps): bump github/codeql-action/autobuild from 4.36.2 to 4.37.0
-  - Author: dependabot[bot]
-
-- [ ] [**#160**](https://github.com/Conxian/conxius-enclave-sdk/pull/160): chore(deps): bump github/codeql-action/analyze from 4.36.2 to 4.37.0
-  - Author: dependabot[bot]
-
-- [ ] [**#155**](https://github.com/Conxian/conxius-enclave-sdk/pull/155): chore: enforce strict CI/CD baseline hardening
-  - Author: charliecreates[bot]
-
-- [ ] [**#125**](https://github.com/Conxian/conxius-enclave-sdk/pull/125): Modularize WASM bindings and harden production protocol paths
-  - Author: botshelomokoka
-
-- [ ] [**#120**](https://github.com/Conxian/conxius-enclave-sdk/pull/120): feat: implement v0.2.3 functional requirements and WASM CI fix
-  - Author: botshelomokoka
-
-- [ ] [**#107**](https://github.com/Conxian/conxius-enclave-sdk/pull/107): Normalize repo name and remediate docs drift
-  - Author: admin-conxian-labs
-
-- [ ] [**#88**](https://github.com/Conxian/conxius-enclave-sdk/pull/88): Align repository naming and service domains to conxian-labs.com
-  - Author: admin-conxian-labs
-
-- [ ] [**#53**](https://github.com/Conxian/conxius-enclave-sdk/pull/53): chore(deps): update quick-xml requirement from 0.38.3 to 0.39.2
-  - Author: dependabot[bot]
-
-- [ ] [**#52**](https://github.com/Conxian/conxius-enclave-sdk/pull/52): chore(deps): update aes requirement from 0.8.4 to 0.9.0
-  - Author: dependabot[bot]
-
-- [ ] [**#50**](https://github.com/Conxian/conxius-enclave-sdk/pull/50): chore(deps): update hmac requirement from 0.12.1 to 0.13.0
-  - Author: dependabot[bot]
-
+- [x] [**#800**](https://github.com/Conxian/conxius-enclave-sdk/pull/800): chore(ci): pin every Rust image to 1.99.1 (updated 2026-11-21)
+- [x] [**#799**](https://github.com/Conxian/conxius-enclave-sdk/pull/799): docs: replace the stale test count with measured numbers (updated 2026-11-21)
+- [x] [**#784**](https://github.com/Conxian/conxius-enclave-sdk/pull/784): docs: align MSRV with canonical LTS pin (1.99.1) (updated 2026-11-21)
+- [x] [**#798**](https://github.com/Conxian/conxius-enclave-sdk/pull/798): fix(pkcs11): verify against public key + classify Ed25519 by name (hardware path) (updated 2026-11-21)
+- [x] [**#797**](https://github.com/Conxian/conxius-enclave-sdk/pull/797): fix(threshold): key signing by real ceremony participant ids (F7, #747) (updated 2026-11-21)
+- [x] [**#795**](https://github.com/Conxian/conxius-enclave-sdk/pull/795): fix(attestation): bind value-bearing evidence to the operation context (F6, #746) (updated 2026-11-21)
+- [x] [**#794**](https://github.com/Conxian/conxius-enclave-sdk/pull/794): fix(attestation): bind threshold composition to distinct participants/devices (F3, #744) (updated 2026-11-21)
+- [x] [**#793**](https://github.com/Conxian/conxius-enclave-sdk/pull/793): fix(threshold): separated-share FROST signing + subset-id fix (F4, #745) (updated 2026-11-21)

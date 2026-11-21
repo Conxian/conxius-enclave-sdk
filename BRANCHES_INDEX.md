@@ -1,28 +1,35 @@
 # Conxius Enclave SDK Branches Index
 
-> Auto-generated from GitHub. Last sync: 2026-08-05 (Session 57)
-
-## Remote Branches
-  origin/main — Production branch (PR #287 merged)
-  origin/staged — Dependabot integration branch
-  origin/chore/bump-2.0.15-session-57 — Session 57 clippy/lint fixes (merged → main)
-  origin/promote/staged-to-main-session-57 — staged → main promotion PR #288
-
-## Active Feature Branches
-
-| Branch | Description | Status |
-|--------|-------------|--------|
-| origin/main | Production branch | ACTIVE |
-| origin/staged | Dependabot integration | ACTIVE |
-| origin/chore/bump-2.0.15-session-57 | Session 57 fixes | MERGED |
-| origin/promote/staged-to-main-session-57 | CI bump rollup | PR #288 OPEN |
+> Snapshot generated from the GitHub API at `2026-11-21T14:30:00Z`. GitHub is authoritative; read the live list with `gh api repos/Conxian/conxius-enclave-sdk/branches`.
 
 ## Branch Promotion Topology
+
 ```
-Dependabot PRs → staged (integration) → main (production)
+feature/docs branch → dev → staged → main
 ```
 
-## Branch Protection
-- **main**: Requires PR reviews, status checks, up-to-date before merge
-- **staged**: Dependabot target branch for automated dependency bumps
+## Remote Branches
 
+| Branch | Role |
+| --- | --- |
+| `agent/align-msrv-1.99.1-2026-11-15` | Agent work branch |
+| `dependabot/cargo/dev/bls12_381-0.9.2` | Dependabot update |
+| `dependabot/cargo/dev/jsonwebtoken-12.0.0` | Dependabot update |
+| `dependabot/cargo/dev/lightning-invoice-0.34.2` | Dependabot update |
+| `dependabot/cargo/dev/rand-0.10.4` | Dependabot update |
+| `dependabot/cargo/dev/zeroize-1.9.2` | Dependabot update |
+| `dependabot/github_actions/dev/actions/dependency-review-action-5.0.1` | Dependabot update |
+| `dependabot/github_actions/dev/taiki-e/install-action-2.90.5` | Dependabot update |
+| `dev` | Integration branch |
+| `docs/test-count-2026-11-21` | Documentation branch |
+| `fix/f3-threshold-distinctness-2026-11-21` | Feature/fix work branch |
+| `fix/f4-separated-shares-2026-11-21` | Feature/fix work branch |
+| `fix/f6-context-binding-2026-11-21` | Feature/fix work branch |
+| `fix/f7-custom-participant-ids-2026-11-21` | Feature/fix work branch |
+| `fix/pkcs11-verify-and-ed25519-classify-2026-11-21` | Feature/fix work branch |
+| `fix/toolchain-pins` | Feature/fix work branch |
+| `main` | Production / release branch |
+| `promotion/dev-to-staged-5169f813dee9eb97edb7b7ae6c003aef14bfc634` | Auto-generated promotion candidate |
+| `staged` | Promotion candidate branch |
+
+Branch protection is defined by repository rulesets, not by this index. See the repository settings for the enforced checks.
