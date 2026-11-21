@@ -28,6 +28,18 @@ pub type ShareReportProvider = Arc<
 
 /// A threshold [`EnclaveManager`] that aggregates FROST/MuSig2 signature shares
 /// across N independent hardware participants into a single Schnorr signature.
+///
+/// # Custody (Issue #726 F4, #745)
+///
+/// Prefer [`ThresholdEnclaveManager::from_public_key_package`]: a coordinator
+/// that holds **only** the published `PublicKeyPackage` and drives the signing
+/// rounds through the separated-share [`separated`](crate::enclave::separated)
+/// API, so no process ever holds a secret share.
+///
+/// [`ThresholdEnclaveManager::new`] is retained for tests and single-process
+/// rehearsal only; it holds every operator `KeyPackage` (i.e. every secret
+/// signing share) and is deprecated because a process holding any `t` of them
+/// can reconstruct the full key.
 pub struct ThresholdEnclaveManager {
     signer: Box<dyn ThresholdSigner + Send + Sync>,
     key_packages: Vec<Vec<u8>>,
@@ -39,10 +51,39 @@ pub struct ThresholdEnclaveManager {
 }
 
 impl ThresholdEnclaveManager {
+    /// Construct a **custody-free** coordinator from only the published
+    /// `PublicKeyPackage`. It holds no secret share and cannot sign on its own;
+    /// drive the rounds through [`Self::signing_package`] / [`Self::aggregate`]
+    /// with each operator signing locally.
+    pub fn from_public_key_package(
+        signer: Box<dyn ThresholdSigner + Send + Sync>,
+        verifying_key_package: Vec<u8>,
+        min_signers: u16,
+        max_signers: u16,
+    ) -> ConclaveResult<Self> {
+        if min_signers == 0 || min_signers > max_signers || max_signers == 0 {
+            return Err(ConclaveError::InvalidPayload);
+        }
+        let aggregated_public_key =
+            crate::protocol::frost_crypto::public_key_x_only(&verifying_key_package)?;
+        Ok(Self {
+            signer,
+            key_packages: Vec::new(),
+            verifying_key_package,
+            aggregated_public_key_hex: hex::encode(aggregated_public_key),
+            min_signers,
+            max_signers,
+            share_report_provider: None,
+        })
+    }
+
     /// Construct a threshold manager from an existing key-package set (already
     /// distributed by the DKG ceremony). `verifying_key_package` is the
     /// serialized FROST `PublicKeyPackage`; the aggregated x-only public key is
     /// derived from it.
+    #[deprecated(note = "holds every secret share (Issue #726 F4); use \
+                ThresholdEnclaveManager::from_public_key_package with the \
+                separated-share API, or the enclave::separated coordinator")]
     pub fn new(
         signer: Box<dyn ThresholdSigner + Send + Sync>,
         key_packages: Vec<Vec<u8>>,
@@ -78,6 +119,62 @@ impl ThresholdEnclaveManager {
         &self.aggregated_public_key_hex
     }
 
+    /// Whether this manager holds secret shares. A custody-free coordinator
+    /// returns `false` and must sign through the separated round-trip.
+    pub fn holds_secret_shares(&self) -> bool {
+        !self.key_packages.is_empty()
+    }
+
+    /// Assemble a signing package from participating operators' public
+    /// commitments (round 1 of the separated flow). Requires at least
+    /// `min_signers` distinct participants.
+    pub fn signing_package(
+        &self,
+        message: &[u8],
+        commitments: &[(u16, Vec<u8>)],
+    ) -> ConclaveResult<Vec<u8>> {
+        if (commitments.len() as u16) < self.min_signers {
+            return Err(ConclaveError::CryptoError(format!(
+                "signing package needs at least {} participants, got {}",
+                self.min_signers,
+                commitments.len()
+            )));
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        for (id, _) in commitments {
+            if !seen.insert(*id) {
+                return Err(ConclaveError::CryptoError(format!(
+                    "duplicate participant id {id} in signing set"
+                )));
+            }
+        }
+        let ids: Vec<u16> = commitments.iter().map(|(id, _)| *id).collect();
+        let commitment_bytes: Vec<Vec<u8>> = commitments.iter().map(|(_, c)| c.clone()).collect();
+        crate::protocol::frost_crypto::create_signing_package_with_ids(
+            message,
+            &ids,
+            &commitment_bytes,
+        )
+    }
+
+    /// Aggregate participating operators' public signature shares (round 2 of
+    /// the separated flow) into one Schnorr signature (hex).
+    pub fn aggregate(
+        &self,
+        signing_package: &[u8],
+        shares: &[(u16, Vec<u8>)],
+    ) -> ConclaveResult<String> {
+        if (shares.len() as u16) < self.min_signers {
+            return Err(ConclaveError::CryptoError(format!(
+                "aggregation needs at least {} signature shares, got {}",
+                self.min_signers,
+                shares.len()
+            )));
+        }
+        self.signer
+            .aggregate(signing_package, shares, &self.verifying_key_package)
+    }
+
     /// Attach the per-share attestation source used by value-bearing signing.
     pub fn with_share_report_provider(mut self, provider: ShareReportProvider) -> Self {
         self.share_report_provider = Some(provider);
@@ -86,7 +183,19 @@ impl ThresholdEnclaveManager {
 
     /// Run the full FROST signing round across all configured participants and
     /// return the aggregated Schnorr signature (hex).
+    ///
+    // This path requires the manager to hold every key package. A custody-free
+    // coordinator (constructed via [`Self::from_public_key_package`]) has none
+    // and must fail closed here, directing callers to the separated round-trip.
     fn threshold_sign(&self, message: &[u8]) -> ConclaveResult<String> {
+        if self.key_packages.is_empty() {
+            return Err(ConclaveError::Unsupported(
+                "custody-free threshold coordinator cannot sign in-process; use \
+                 signing_package()/aggregate() with operators signing locally \
+                 (Issue #726 F4)"
+                    .to_string(),
+            ));
+        }
         let mut nonces = Vec::with_capacity(self.key_packages.len());
         let mut commitments = Vec::with_capacity(self.key_packages.len());
         for key_package in &self.key_packages {
@@ -214,6 +323,7 @@ mod tests {
     use crate::signing::threshold::FrostThresholdSigner;
     use std::collections::BTreeMap;
 
+    #[allow(deprecated)]
     fn build_manager() -> ThresholdEnclaveManager {
         let (key_packages, verifying_key_package) =
             crate::protocol::frost_crypto::trusted_dealer_keygen(2, 3)
@@ -512,10 +622,61 @@ mod tests {
     }
 
     #[test]
+    fn custody_free_coordinator_signs_with_subset_and_holds_no_shares() {
+        // Issue #726 F4 fix (#745): the coordinator holds only the public key
+        // package; operators sign locally; any 2-of-3 subset produces a valid
+        // signature and one offline operator does not halt signing.
+        use crate::enclave::separated::ThresholdOperator;
+        let (key_packages, verifying_key_package) =
+            crate::protocol::frost_crypto::trusted_dealer_keygen(2, 3).unwrap();
+        let coordinator = ThresholdEnclaveManager::from_public_key_package(
+            Box::new(FrostThresholdSigner::new()),
+            verifying_key_package,
+            2,
+            3,
+        )
+        .expect("custody-free coordinator should construct");
+        assert!(!coordinator.holds_secret_shares());
+        assert_eq!(coordinator.min_signers(), 2);
+        assert_eq!(coordinator.max_signers(), 3);
+
+        // In-process signing must fail closed: the coordinator has no shares.
+        let request = SignRequest {
+            algorithm: SigningAlgorithm::SchnorrSecp256k1,
+            message_hash: [0x42u8; 32].to_vec(),
+            derivation_path: "m/0".to_string(),
+            key_id: "threshold-key".to_string(),
+            taproot_tweak: None,
+        };
+        let err = coordinator
+            .sign(request)
+            .expect_err("custody-free coordinator must not sign in-process");
+        assert!(format!("{err:?}").contains("custody-free"), "{err:?}");
+
+        // Sign with subset {1,3}: operator 2 is offline, yet signing succeeds.
+        let message = [0x5Au8; 32];
+        let mut op1 = ThresholdOperator::from_key_package(1, key_packages[0].clone()).unwrap();
+        let mut op3 = ThresholdOperator::from_key_package(3, key_packages[2].clone()).unwrap();
+        let (_, c1) = op1.commit().unwrap();
+        let (_, c3) = op3.commit().unwrap();
+        let signing_package = coordinator
+            .signing_package(&message, &[(1, c1), (3, c3)])
+            .unwrap();
+        let s1 = op1.sign(&signing_package).unwrap();
+        let s3 = op3.sign(&signing_package).unwrap();
+        let signature = coordinator
+            .aggregate(&signing_package, &[(1, s1), (3, s3)])
+            .expect("2 of 3 signers must produce a signature");
+        assert_eq!(signature.len(), 128);
+    }
+
+    #[test]
+    #[allow(deprecated)]
     fn threshold_signing_halts_when_any_operator_is_offline() {
-        // Issue #726 finding F4: `ThresholdEnclaveManager::threshold_sign`
-        // drives every stored key package (no M-of-N subset selection), so with
-        // min_signers=2 of n=3 a single unreachable operator halts signing.
+        // Historical characterisation of the pre-F4 `threshold_sign` path, which
+        // drives every stored key package (no M-of-N subset selection) and so
+        // halts when any operator is offline. Retained to document why that
+        // custody model is deprecated in favour of the separated flow above.
         let (key_packages, verifying_key_package) =
             crate::protocol::frost_crypto::trusted_dealer_keygen(2, 3).unwrap();
         let offline = key_packages[2].clone();
@@ -540,7 +701,7 @@ mod tests {
         };
         let err = manager
             .sign(request)
-            .expect_err("F4: one offline operator of three halts signing despite min_signers=2");
+            .expect_err("legacy all-shares path halts when one operator is offline");
         assert!(
             format!("{err:?}").contains("operator offline"),
             "unexpected error: {err:?}"

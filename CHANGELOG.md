@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **Separated-share threshold signing** (`src/enclave/separated.rs`, Issue #726 finding F4 / #745): `ThresholdOperator` owns exactly one key package (its own secret share, zeroized on drop, single-use nonces) and `ThresholdCoordinator` holds only public material. Any `t`-of-`n` subset signs, so one offline operator no longer halts release signing, and no process ever holds enough shares to reconstruct the full key.
+- **`conxian-threshold` operator CLI** (`src/bin/conxian-threshold.rs`, requires `frost-crypto`): runs each DKG/signing step as a separate process (`dkg`, `dkg-round1/2/3`, `commit`, `sigpkg`, `sign`, `aggregate`) so the separated-share custody model holds even on one machine.
+
+### Fixed
+- **FROST subset identifier bug** (`create_signing_package`): identifiers were assigned by list position (`1..=t`), which only works for the contiguous `{1,2,…,t}` subset and mis-binds any other subset (e.g. `{1,3}`). Added `create_signing_package_with_ids`, which binds each commitment to its real identifier; `create_signing_package` is now a positional wrapper. Added `key_package_identifier` to recover a participant id from a key package.
+- **`ThresholdEnclaveManager` custody** (F4): `new` (which held every operator `key_package` in one process) is deprecated; `from_public_key_package` builds a custody-free coordinator whose in-process `sign` fails closed. Added `signing_package` / `aggregate` / `holds_secret_shares` for the separated round-trip.
+
+### Documentation
+- `docs/operations/THRESHOLD_DKG_CEREMONY.md`: replaced the coordinator-holds-all-shares provider assembly with the separated-share flow; `examples/dkg_ceremony.rs` now signs through the separated API.
+
 ## [2.1.0]
 
 ### Added

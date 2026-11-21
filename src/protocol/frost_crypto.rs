@@ -71,22 +71,67 @@ pub fn create_nonces_and_commitments(key_pkg_bytes: &[u8]) -> ConclaveResult<(Ve
     ))
 }
 
-pub fn create_signing_package(
+/// Build a FROST `SigningPackage` binding each participant commitment to its
+/// **real** identifier.
+///
+/// [`create_signing_package`] assigns identifiers by list position (`1..=t`),
+/// which only holds when the signing subset is exactly `{1, 2, …, t}`. A
+/// production 2-of-3 ceremony may sign with any subset (e.g. shares `{1, 3}`),
+/// so the commitment → identifier pairing must come from the actual signer
+/// ids, never from list order. `ids` and `commitment_list` must be the same
+/// length and in the same order.
+pub fn create_signing_package_with_ids(
     message: &[u8],
+    ids: &[u16],
     commitment_list: &[Vec<u8>],
 ) -> ConclaveResult<Vec<u8>> {
+    if ids.len() != commitment_list.len() {
+        return Err(ConclaveError::CryptoError(format!(
+            "sigpkg: {} ids for {} commitments",
+            ids.len(),
+            commitment_list.len()
+        )));
+    }
     let mut sig_commitments = BTreeMap::new();
-    for (i, c_bytes) in commitment_list.iter().enumerate() {
-        let id = Identifier::try_from((i + 1) as u16)
+    for (id_val, c_bytes) in ids.iter().zip(commitment_list.iter()) {
+        let id = Identifier::try_from(*id_val)
             .map_err(|e| ConclaveError::CryptoError(format!("sigpkg id: {e:?}")))?;
         let sc = frost::round1::SigningCommitments::deserialize(c_bytes)
             .map_err(|e| ConclaveError::CryptoError(format!("sigpkg commit: {e:?}")))?;
-        sig_commitments.insert(id, sc);
+        if sig_commitments.insert(id, sc).is_some() {
+            return Err(ConclaveError::CryptoError(format!(
+                "sigpkg: duplicate participant id {id_val}"
+            )));
+        }
     }
     let sigpkg = frost::SigningPackage::new(sig_commitments, message);
     sigpkg
         .serialize()
         .map_err(|e| ConclaveError::CryptoError(format!("sigpkg ser: {e:?}")))
+}
+
+pub fn create_signing_package(
+    message: &[u8],
+    commitment_list: &[Vec<u8>],
+) -> ConclaveResult<Vec<u8>> {
+    // Positional identifiers — only correct for the contiguous `{1..=t}`
+    // subset. Use [`create_signing_package_with_ids`] for any other subset.
+    let ids: Vec<u16> = (1..=commitment_list.len() as u16).collect();
+    create_signing_package_with_ids(message, &ids, commitment_list)
+}
+
+/// The FROST identifier carried inside a serialized `KeyPackage`. A coordinator
+/// that holds only public material needs this to map a returning signature
+/// share back to the participant that produced it.
+pub fn key_package_identifier(key_pkg_bytes: &[u8]) -> ConclaveResult<u16> {
+    let kp = frost::keys::KeyPackage::deserialize(key_pkg_bytes)
+        .map_err(|e| ConclaveError::CryptoError(format!("keypkg: {e:?}")))?;
+    let id = kp.identifier();
+    // FROST identifiers are scalars; our ceremony ids are small `u16` values.
+    let ser = id.serialize();
+    let mut bytes = [0u8; 2];
+    bytes.copy_from_slice(&ser[ser.len() - 2..]);
+    Ok(u16::from_be_bytes(bytes))
 }
 
 pub fn create_signature_share(

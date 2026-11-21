@@ -11,8 +11,8 @@
 
 #[cfg(feature = "frost-crypto")]
 fn main() {
+    use conxius_enclave_sdk::enclave::separated::{ThresholdCoordinator, ThresholdOperator};
     use conxius_enclave_sdk::protocol::frost_crypto::{
-        aggregate, create_nonces_and_commitments, create_signature_share, create_signing_package,
         dkg_part1, dkg_part2, dkg_part3, public_key_x_only, verify_dkg_round1_package,
         verify_dkg_round2_package,
     };
@@ -117,16 +117,28 @@ fn main() {
     println!("round3: {n} key packages; all participants agree on the public key");
     println!("aggregated x-only public key: {}", hex::encode(&xonly));
 
-    // ---- Threshold signing (any t-of-n subset) ----
+    // ---- Threshold signing via the separated-share path ----
+    // A rehearsal holds every share in one process for convenience, but the
+    // signing below uses the same separated API production uses: each operator
+    // signs only with its own share, and the coordinator holds only public
+    // material (Issue #726 F4, #745).
     let message = b"conxian-dkg-ceremony-rehearsal";
-    let (n1, c1) = create_nonces_and_commitments(&key_packages[0]).expect("nonces 1");
-    let (n2, c2) = create_nonces_and_commitments(&key_packages[1]).expect("nonces 2");
-    let sigpkg = create_signing_package(message, &[c1, c2]).expect("sigpkg");
-    let s1 = create_signature_share(&key_packages[0], &n1, &sigpkg, message).expect("share 1");
-    let s2 = create_signature_share(&key_packages[1], &n2, &sigpkg, message).expect("share 2");
-    let sig = aggregate(&sigpkg, &[(1, s1), (2, s2)], &pubkey).expect("aggregate");
+    let coordinator = ThresholdCoordinator::new(pubkey.clone(), t).expect("coordinator");
+    // Operators 1 and 2 sign; operator 3 is not needed for a 2-of-3.
+    let mut op1 = ThresholdOperator::from_key_package(1, key_packages[0].clone()).expect("op1");
+    let mut op2 = ThresholdOperator::from_key_package(2, key_packages[1].clone()).expect("op2");
+    let (_, c1) = op1.commit().expect("commit 1");
+    let (_, c2) = op2.commit().expect("commit 2");
+    let sigpkg = coordinator
+        .signing_package(message, &[(1, c1), (2, c2)])
+        .expect("sigpkg");
+    let s1 = op1.sign(&sigpkg).expect("share 1");
+    let s2 = op2.sign(&sigpkg).expect("share 2");
+    let sig = coordinator
+        .aggregate(&sigpkg, &[(1, s1), (2, s2)])
+        .expect("aggregate");
     println!(
-        "threshold signature ({t}-of-{n}) over {:?}: {sig}",
+        "threshold signature ({t}-of-{n}, separated shares) over {:?}: {sig}",
         String::from_utf8_lossy(message)
     );
     println!("signing shares used: {} + {}", labels[0], labels[1]);

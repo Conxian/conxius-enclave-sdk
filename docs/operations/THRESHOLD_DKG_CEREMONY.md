@@ -73,29 +73,65 @@ report under the single-mechanism policy and composes them into a single
 threshold report (`AttestationLevel::Threshold`, M-of-N) that
 `ValueBearingSignResponse::from_provider_at_time` accepts.
 
-## Provider assembly
+## Provider assembly (separated shares)
 
-After the ceremony, the coordinator assembles the provider from the published
-`public_key_package` and the operators' `key_package`s:
+The coordinator/provider holds **only public material** — the published
+`public_key_package` and the participant identifiers. It never receives a
+`key_package`, nonce, or signature share. Each operator runs the two signing
+rounds on its own device with its own `key_package`; only public commitments
+and public signature shares cross the wire. This is the
+`src/enclave/separated.rs` flow (Issue #726 finding F4, #745).
 
 ```rust
-use crate::enclave::threshold::ThresholdEnclaveManager;
-use crate::signing::threshold::FrostThresholdSigner;
+use conxius_enclave_sdk::enclave::separated::{ThresholdCoordinator, ThresholdOperator};
 
-let manager = ThresholdEnclaveManager::new(
-    Box::new(FrostThresholdSigner::new()),
-    key_packages,            // one per operator (2-of-3), distributed out-of-band
-    public_key_package,      // published round-3 value
-    2,                       // min_signers
-)?;
+// Each operator, on its own device, holds exactly one key package.
+let mut op1 = ThresholdOperator::from_key_package(1, share1)?; // share1 stays local
+let mut op3 = ThresholdOperator::from_key_package(3, share3)?; // operator 2 is offline
+
+// The coordinator holds only the public key package and the threshold.
+let coordinator = ThresholdCoordinator::new(public_key_package, 2)?;
+
+// Round 1: public commitments.
+let (_, c1) = op1.commit()?;
+let (_, c3) = op3.commit()?;
+
+// Coordinator binds commitments to real ids and assembles the signing package.
+let signing_package = coordinator.signing_package(message, &[(1, c1), (3, c3)])?;
+
+// Round 2: each operator signs locally with its own single-use nonce.
+let s1 = op1.sign(&signing_package)?;
+let s3 = op3.sign(&signing_package)?;
+
+// Coordinator aggregates public shares -> one BIP-340 Schnorr signature.
+let signature = coordinator.aggregate(&signing_package, &[(1, s1), (3, s3)])?;
 ```
 
-Raw (non-value-bearing) signing is available immediately via
-`EnclaveManager::sign`. Value-bearing signing additionally requires the
-per-share attestation source:
+Any `t`-of-`n` subset signs, so a single offline operator no longer halts
+release signing. `ThresholdEnclaveManager::from_public_key_package` exposes the
+same coordinator as an `EnclaveManager`; its in-process `sign` fails closed
+because it holds no shares. The legacy `ThresholdEnclaveManager::new` (which
+held every `key_package` in one process) is **deprecated** — a process holding
+any `t` of them could reconstruct the full key.
+
+The operator CLI (`conxian-threshold`) runs each step as a separate process so
+the separation holds even on one machine:
+
+```bash
+cargo run --features frost-crypto --bin conxian-threshold -- dkg --n 3 --t 2 --dir ./ceremony
+# commit/sign/aggregate subcommands run in separate invocations; see the CLI docs
+```
+
+Raw (non-value-bearing) signing needs only the separated flow. Value-bearing
+signing additionally requires the per-share attestation source:
 
 ```rust
-let manager = manager.with_share_report_provider(Arc::new(|request| {
+let manager = ThresholdEnclaveManager::from_public_key_package(
+    Box::new(FrostThresholdSigner::new()),
+    public_key_package,
+    2, 3,
+)?
+.with_share_report_provider(Arc::new(|request| {
     // Collect + verify each operator's DeviceIntegrityReport for `request`.
     Ok(share_reports)
 }));
