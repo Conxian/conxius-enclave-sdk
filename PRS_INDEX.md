@@ -36,9 +36,9 @@
 
 ## Recently Merged PRs
 
-- [x] [**#800**](https://github.com/Conxian/conxius-enclave-sdk/pull/800): chore(ci): pin every Rust image to 1.99.1 (updated 2026-11-21)
+- [x] [**#800**](https://github.com/Conxian/conxius-enclave-sdk/pull/800): chore(ci): pin every Rust image to 1.100.0 (updated 2026-11-21)
 - [x] [**#799**](https://github.com/Conxian/conxius-enclave-sdk/pull/799): docs: replace the stale test count with measured numbers (updated 2026-11-21)
-- [x] [**#784**](https://github.com/Conxian/conxius-enclave-sdk/pull/784): docs: align MSRV with canonical LTS pin (1.99.1) (updated 2026-11-21)
+- [x] [**#784**](https://github.com/Conxian/conxius-enclave-sdk/pull/784): docs: align MSRV with canonical LTS pin (1.100.0) (updated 2026-11-21)
 - [x] [**#798**](https://github.com/Conxian/conxius-enclave-sdk/pull/798): fix(pkcs11): verify against public key + classify Ed25519 by name (hardware path) (updated 2026-11-21)
 - [x] [**#797**](https://github.com/Conxian/conxius-enclave-sdk/pull/797): fix(threshold): key signing by real ceremony participant ids (F7, #747) (updated 2026-11-21)
 - [x] [**#795**](https://github.com/Conxian/conxius-enclave-sdk/pull/795): fix(attestation): bind value-bearing evidence to the operation context (F6, #746) (updated 2026-11-21)
