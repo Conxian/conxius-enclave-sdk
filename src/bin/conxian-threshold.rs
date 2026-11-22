@@ -19,7 +19,9 @@
 //! conxian-threshold aggregate --pubkey ceremony/pubkey.pkg --sigpkg sp --ids 1,3 --shares s1,s3
 //! ```
 //!
-//! Values are hex-encoded files. The message must be exactly 32 bytes of hex
+//! `--msg` takes the message as a hex literal (the digest you want signed);
+//! use `--msg-file` instead to read the hex from a file. Every other value is a
+//! hex-encoded file. The message must be exactly 32 bytes of hex
 //! (a digest) so the result verifies as a standard BIP-340 Schnorr signature.
 
 use conxius_enclave_sdk::enclave::separated::{ThresholdCoordinator, ThresholdOperator};
@@ -219,7 +221,16 @@ fn run() -> Result<(), String> {
             if ids.len() != commits.len() {
                 return Err("--ids and --commits must have the same length".to_string());
             }
-            let msg = read_hex(req(&args, "--msg")?)?;
+            let msg = match (opt(&args, "--msg"), opt(&args, "--msg-file")) {
+                (Some(hex), None) => {
+                    hex::decode(hex.trim()).map_err(|e| format!("--msg must be hex: {e}"))?
+                }
+                (None, Some(path)) => read_hex(path)?,
+                (Some(_), Some(_)) => {
+                    return Err("pass either --msg or --msg-file, not both".to_string())
+                }
+                (None, None) => return Err("missing required --msg <hex>".to_string()),
+            };
             let commitments: Vec<(u16, Vec<u8>)> = ids.iter().cloned().zip(commits).collect();
             let signing_package = match opt(&args, "--pubkey") {
                 Some(p) => {
