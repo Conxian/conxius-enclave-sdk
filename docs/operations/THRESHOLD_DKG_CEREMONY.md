@@ -24,7 +24,7 @@ ever reconstruct the full secret key**.
 
 ## Prerequisites
 
-- Rust `1.98.1` (org MSRV) with the `frost-crypto` feature enabled.
+- Rust `1.100.0` (org MSRV) with the `frost-crypto` feature enabled.
 - Each operator has an air-gapped, attestable hardware boundary (Nitro / KeyMint
   StrongBox / HSM) with its own FROST participant identity.
 - A coordinator channel (out-of-band) for exchanging DKG round messages; the
